@@ -4,7 +4,7 @@ lifecycle: executing
 revision: 1
 template_version: 0.1.0
 created_at: 2026-03-17T10:12:01+08:00
-updated_at: 2026-03-18T00:15:27+08:00
+updated_at: 2026-03-18T00:22:45+08:00
 source_type: direct_request
 source_refs: []
 ---
@@ -45,7 +45,7 @@ core workflow.
       the documented contract.
 - [x] `harness status` reports plan state plus step state from
       local artifacts without requiring manual state bookkeeping.
-- [ ] `harness review start`, `harness review submit`, and
+- [x] `harness review start`, `harness review submit`, and
       `harness review aggregate` implement the review-round contract without
       binding to a specific subagent runtime.
 - [ ] `harness archive` and `harness reopen` implement the freeze/reopen
@@ -213,7 +213,7 @@ robustness gaps, which were fixed before closing this step.
 
 ### Step 4: Implement the review-round contract
 
-- Status: pending
+- Status: completed
 
 #### Objective
 
@@ -227,9 +227,12 @@ review dimensions or a path list on the agent's behalf.
 
 #### Expected Files
 
-- `cmd/...`
-- `internal/...`
-- `*_test.go`
+- `internal/cli/app.go`
+- `internal/plan/current.go`
+- `internal/review/service.go`
+- `internal/review/service_test.go`
+- `internal/runstate/state.go`
+- `internal/status/service.go`
 - `docs/specs/cli-contract.md`
 
 #### Validation
@@ -243,11 +246,19 @@ review dimensions or a path list on the agent's behalf.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Implemented a thin CLI-owned review service with deterministic round IDs,
+manifest and ledger persistence, slot-normalized submissions, aggregate
+artifacts, and local-state updates that keep `harness status` in sync without
+owning subagent spawning.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`go test ./...` passes. Real CLI smoke checks now cover `review start --help`,
+`review submit --help`, `review aggregate --help`, and a full dogfood
+`start -> status -> submit -> aggregate -> status` cycle on the current repo's
+active plan. During that smoke run, `harness status` moved to `reviewing`
+after `start` and back to `implementing` after `aggregate`, which matches the
+intended local-state contract.
 
 ### Step 5: Implement archive and reopen
 

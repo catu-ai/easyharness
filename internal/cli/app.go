@@ -12,12 +12,14 @@ import (
 	"time"
 
 	"github.com/yzhang1918/superharness/internal/plan"
+	"github.com/yzhang1918/superharness/internal/review"
 	"github.com/yzhang1918/superharness/internal/status"
 )
 
 type App struct {
 	Stdout io.Writer
 	Stderr io.Writer
+	Stdin  io.Reader
 	Now    func() time.Time
 	Getwd  func() (string, error)
 }
@@ -26,6 +28,7 @@ func New(stdout, stderr io.Writer) *App {
 	return &App{
 		Stdout: stdout,
 		Stderr: stderr,
+		Stdin:  os.Stdin,
 		Now:    time.Now,
 		Getwd:  os.Getwd,
 	}
@@ -40,6 +43,8 @@ func (a *App) Run(args []string) int {
 	switch args[0] {
 	case "plan":
 		return a.runPlan(args[1:])
+	case "review":
+		return a.runReview(args[1:])
 	case "status":
 		return a.runStatus(args[1:])
 	case "-h", "--help", "help":
@@ -48,6 +53,28 @@ func (a *App) Run(args []string) int {
 	default:
 		fmt.Fprintf(a.Stderr, "unknown command %q\n\n", args[0])
 		a.printRootUsage()
+		return 2
+	}
+}
+
+func (a *App) runReview(args []string) int {
+	if len(args) == 0 {
+		a.printReviewUsage()
+		return 2
+	}
+	switch args[0] {
+	case "start":
+		return a.runReviewStart(args[1:])
+	case "submit":
+		return a.runReviewSubmit(args[1:])
+	case "aggregate":
+		return a.runReviewAggregate(args[1:])
+	case "-h", "--help", "help":
+		a.printReviewUsage()
+		return 0
+	default:
+		fmt.Fprintf(a.Stderr, "unknown review subcommand %q\n\n", args[0])
+		a.printReviewUsage()
 		return 2
 	}
 }
@@ -206,6 +233,102 @@ func (a *App) runStatus(args []string) int {
 	return 1
 }
 
+func (a *App) runReviewStart(args []string) int {
+	fs := flag.NewFlagSet("harness review start", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	specPath := fs.String("spec", "", "Read the review spec JSON from this path. Defaults to stdin.")
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness review start [--spec <path>]")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Create a deterministic review round from an agent-supplied spec.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	specBytes, err := a.readInput(*specPath)
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "read review spec: %v\n", err)
+		return 1
+	}
+	result := review.Service{Workdir: workdir, Now: a.Now}.Start(specBytes)
+	return a.writeJSONResult(result)
+}
+
+func (a *App) runReviewSubmit(args []string) int {
+	fs := flag.NewFlagSet("harness review submit", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	roundID := fs.String("round", "", "Review round ID.")
+	slot := fs.String("slot", "", "Reviewer slot name.")
+	inputPath := fs.String("input", "", "Read the reviewer submission JSON from this path. Defaults to stdin.")
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness review submit --round <round-id> --slot <slot> [--input <path>]")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Record one reviewer submission for the selected review round and slot.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 || strings.TrimSpace(*roundID) == "" || strings.TrimSpace(*slot) == "" {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	inputBytes, err := a.readInput(*inputPath)
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "read reviewer submission: %v\n", err)
+		return 1
+	}
+	result := review.Service{Workdir: workdir, Now: a.Now}.Submit(*roundID, *slot, inputBytes)
+	return a.writeJSONResult(result)
+}
+
+func (a *App) runReviewAggregate(args []string) int {
+	fs := flag.NewFlagSet("harness review aggregate", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	roundID := fs.String("round", "", "Review round ID.")
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness review aggregate --round <round-id>")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Aggregate reviewer submissions into a decision surface for the controller agent.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 || strings.TrimSpace(*roundID) == "" {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	result := review.Service{Workdir: workdir, Now: a.Now}.Aggregate(*roundID)
+	return a.writeJSONResult(result)
+}
+
 func (a *App) resolveTimestamp(timestampValue, dateValue string) (time.Time, error) {
 	if strings.TrimSpace(timestampValue) != "" {
 		ts, err := time.Parse(time.RFC3339, timestampValue)
@@ -230,6 +353,9 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "Commands:")
 	fmt.Fprintln(a.Stderr, "  plan template   Render the packaged plan template")
 	fmt.Fprintln(a.Stderr, "  plan lint       Validate a tracked plan")
+	fmt.Fprintln(a.Stderr, "  review start    Create a deterministic review round")
+	fmt.Fprintln(a.Stderr, "  review submit   Record one reviewer submission")
+	fmt.Fprintln(a.Stderr, "  review aggregate Aggregate reviewer submissions")
 	fmt.Fprintln(a.Stderr, "  status          Summarize the current plan and local execution state")
 }
 
@@ -241,6 +367,15 @@ func (a *App) printPlanUsage() {
 	fmt.Fprintln(a.Stderr, "  lint       Validate a tracked plan")
 }
 
+func (a *App) printReviewUsage() {
+	fmt.Fprintln(a.Stderr, "Usage: harness review <subcommand> [flags]")
+	fmt.Fprintln(a.Stderr)
+	fmt.Fprintln(a.Stderr, "Subcommands:")
+	fmt.Fprintln(a.Stderr, "  start      Create a deterministic review round")
+	fmt.Fprintln(a.Stderr, "  submit     Record one reviewer submission")
+	fmt.Fprintln(a.Stderr, "  aggregate  Aggregate reviewer submissions")
+}
+
 type stringListFlag []string
 
 func (f *stringListFlag) String() string {
@@ -250,4 +385,47 @@ func (f *stringListFlag) String() string {
 func (f *stringListFlag) Set(value string) error {
 	*f = append(*f, value)
 	return nil
+}
+
+func (a *App) readInput(path string) ([]byte, error) {
+	if strings.TrimSpace(path) != "" {
+		return os.ReadFile(path)
+	}
+	if a.Stdin == nil {
+		return nil, fmt.Errorf("stdin is unavailable")
+	}
+	return io.ReadAll(a.Stdin)
+}
+
+func (a *App) writeJSONResult(value any) int {
+	encoder := json.NewEncoder(a.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(value); err != nil {
+		fmt.Fprintf(a.Stderr, "encode JSON result: %v\n", err)
+		return 1
+	}
+
+	switch result := value.(type) {
+	case plan.LintResult:
+		if result.OK {
+			return 0
+		}
+	case status.Result:
+		if result.OK {
+			return 0
+		}
+	case review.StartResult:
+		if result.OK {
+			return 0
+		}
+	case review.SubmitResult:
+		if result.OK {
+			return 0
+		}
+	case review.AggregateResult:
+		if result.OK {
+			return 0
+		}
+	}
+	return 1
 }

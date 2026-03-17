@@ -72,3 +72,18 @@ func LoadState(workdir, planStem string) (*State, string, error) {
 	}
 	return &state, path, nil
 }
+
+func SaveState(workdir, planStem string, state *State) (string, error) {
+	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "state.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("marshal state.json: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
+}

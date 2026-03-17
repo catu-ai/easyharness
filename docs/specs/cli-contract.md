@@ -301,6 +301,7 @@ Contract:
 - accept the review spec via a structured input such as `--spec <path>` or
   stdin
 - validate and persist the supplied review spec as the round manifest
+- normalize each review dimension into a deterministic reviewer slot
 - reserve reviewer output paths
 - initialize a dispatch or audit ledger
 - update local `state.json` so `harness status` can surface the active round
@@ -384,6 +385,7 @@ controller agent.
 
 Contract:
 
+- accept the reviewer payload via `--input <path>` or stdin
 - validate that the submission matches an expected slot
 - store the structured reviewer artifact in the round's owned location
 - update the dispatch or audit ledger
@@ -404,9 +406,11 @@ Purpose:
 
 Contract:
 
+- require `--round <round-id>` to select the round
 - collect reviewer artifacts
 - compute blocking and non-blocking findings
 - stop with an error when expected reviewer slots are missing or invalid
+- write an aggregate artifact that captures the review decision surface
 - update local `state.json` with the aggregate result
 - return next actions that depend on the review kind
 

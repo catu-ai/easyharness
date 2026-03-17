@@ -3,7 +3,6 @@ package status
 import (
 	"fmt"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/yzhang1918/superharness/internal/plan"
@@ -50,7 +49,7 @@ type StatusError struct {
 }
 
 func (s Service) Read() Result {
-	planPath, err := s.detectPlanPath()
+	planPath, err := plan.DetectCurrentPath(s.Workdir)
 	if err != nil {
 		return Result{
 			OK:      false,
@@ -121,37 +120,6 @@ func (s Service) Read() Result {
 	result.Summary = buildSummary(doc, result.State.StepState)
 
 	return result
-}
-
-func (s Service) detectPlanPath() (string, error) {
-	if current, err := runstate.LoadCurrentPlan(s.Workdir); err != nil {
-		return "", err
-	} else if current != nil && strings.TrimSpace(current.PlanPath) != "" {
-		return filepath.Join(s.Workdir, current.PlanPath), nil
-	}
-
-	activeMatches, err := filepath.Glob(filepath.Join(s.Workdir, "docs", "plans", "active", "*.md"))
-	if err != nil {
-		return "", err
-	}
-	sort.Strings(activeMatches)
-	if len(activeMatches) == 1 {
-		return activeMatches[0], nil
-	}
-	if len(activeMatches) > 1 {
-		return "", fmt.Errorf("multiple active plans found; add .local/harness/current-plan.json to disambiguate")
-	}
-
-	archivedMatches, err := filepath.Glob(filepath.Join(s.Workdir, "docs", "plans", "archived", "*.md"))
-	if err != nil {
-		return "", err
-	}
-	sort.Strings(archivedMatches)
-	if len(archivedMatches) == 1 {
-		return archivedMatches[0], nil
-	}
-
-	return "", fmt.Errorf("no current plan found")
 }
 
 func inferStepState(doc *plan.Document, state *runstate.State) string {
