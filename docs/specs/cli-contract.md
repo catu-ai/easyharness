@@ -451,10 +451,16 @@ Contract:
 - validate that the plan is active and archive-ready
 - assume the plan's durable summary sections have already been written from the
   current plan plus local artifacts, not reconstructed from agent memory
-- if the plan still contains `## Deferred Work`, require concrete follow-up
+- if the plan still contains `## Deferred Items`, require concrete follow-up
   issue references before allowing archive to succeed
+- require the pre-archive `Archive Summary` to include structured `PR`,
+  `Ready`, and `Merge Handoff` lines
 - move the plan from `docs/plans/active/` to `docs/plans/archived/`
 - update tracked fields such as `status`, `lifecycle`, and `updated_at`
+- stamp mechanical archive metadata such as `Archived At` and `Revision` into
+  the archived `Archive Summary`
+- update `.local/harness/current-plan.json` and any existing plan-local
+  `state.json` pointers to the archived path
 - return next actions that explicitly include committing and pushing the archive
   change
 
@@ -467,7 +473,8 @@ Important note:
   appear, use `harness reopen`
 - merge actor, merge timestamp, and other land-only notes should go to PR
   comments or remote history rather than back into the archived plan
-- if deferred work exists, the controller agent should ensure its corresponding
+- if deferred items exist, the controller agent should ensure their
+  corresponding
   follow-up issues are created and referenced in the archived plan before
   archive completes
 
@@ -493,6 +500,8 @@ Contract:
 - increment `revision`
 - update `updated_at`
 - reset archive-only summary placeholders
+- update `.local/harness/current-plan.json` and any existing plan-local
+  `state.json` pointers back to the active path
 - return next actions that help the next agent resume work
 
 Recommended next action:

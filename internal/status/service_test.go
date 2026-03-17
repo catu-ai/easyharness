@@ -122,6 +122,29 @@ func TestStatusReadyForArchive(t *testing.T) {
 	}
 }
 
+func TestStatusCloseoutBeforeArchive(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		content = replaceOnce(t, content, "lifecycle: awaiting_plan_approval", "lifecycle: executing")
+		content = stringsReplaceAll(content, "- Status: pending", "- Status: completed")
+		content = stringsReplaceAll(content, "- [ ]", "- [x]")
+		content = stringsReplaceAll(content, "PENDING_STEP_EXECUTION", "Done.")
+		content = stringsReplaceAll(content, "PENDING_STEP_REVIEW", "Reviewed.")
+		return content
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.Step != "" {
+		t.Fatalf("expected no current step, got %#v", result.State)
+	}
+	if len(result.NextAction) == 0 || !strings.Contains(result.NextAction[0].Description, "Validation, Review, Archive, and Outcome summaries") {
+		t.Fatalf("unexpected next actions: %#v", result.NextAction)
+	}
+	if !strings.Contains(result.Summary, "archive-ready summaries") {
+		t.Fatalf("unexpected summary: %q", result.Summary)
+	}
+}
+
 func TestStatusArchivedPlan(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {

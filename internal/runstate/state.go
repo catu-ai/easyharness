@@ -57,6 +57,21 @@ func LoadCurrentPlan(workdir string) (*CurrentPlan, error) {
 	return &current, nil
 }
 
+func SaveCurrentPlan(workdir, planPath string) (string, error) {
+	path := filepath.Join(workdir, ".local", "harness", "current-plan.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	data, err := json.MarshalIndent(CurrentPlan{PlanPath: planPath}, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("marshal current-plan.json: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 func LoadState(workdir, planStem string) (*State, string, error) {
 	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "state.json")
 	data, err := os.ReadFile(path)

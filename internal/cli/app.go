@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yzhang1918/superharness/internal/lifecycle"
 	"github.com/yzhang1918/superharness/internal/plan"
 	"github.com/yzhang1918/superharness/internal/review"
 	"github.com/yzhang1918/superharness/internal/status"
@@ -45,6 +46,10 @@ func (a *App) Run(args []string) int {
 		return a.runPlan(args[1:])
 	case "review":
 		return a.runReview(args[1:])
+	case "archive":
+		return a.runArchive(args[1:])
+	case "reopen":
+		return a.runReopen(args[1:])
 	case "status":
 		return a.runStatus(args[1:])
 	case "-h", "--help", "help":
@@ -329,6 +334,60 @@ func (a *App) runReviewAggregate(args []string) int {
 	return a.writeJSONResult(result)
 }
 
+func (a *App) runArchive(args []string) int {
+	fs := flag.NewFlagSet("harness archive", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness archive")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Freeze the current active plan for merge handoff.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	result := lifecycle.Service{Workdir: workdir, Now: a.Now}.Archive()
+	return a.writeJSONResult(result)
+}
+
+func (a *App) runReopen(args []string) int {
+	fs := flag.NewFlagSet("harness reopen", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness reopen")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Restore the current archived plan to active execution.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	result := lifecycle.Service{Workdir: workdir, Now: a.Now}.Reopen()
+	return a.writeJSONResult(result)
+}
+
 func (a *App) resolveTimestamp(timestampValue, dateValue string) (time.Time, error) {
 	if strings.TrimSpace(timestampValue) != "" {
 		ts, err := time.Parse(time.RFC3339, timestampValue)
@@ -356,6 +415,8 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "  review start    Create a deterministic review round")
 	fmt.Fprintln(a.Stderr, "  review submit   Record one reviewer submission")
 	fmt.Fprintln(a.Stderr, "  review aggregate Aggregate reviewer submissions")
+	fmt.Fprintln(a.Stderr, "  archive         Freeze the current active plan")
+	fmt.Fprintln(a.Stderr, "  reopen          Restore the current archived plan")
 	fmt.Fprintln(a.Stderr, "  status          Summarize the current plan and local execution state")
 }
 
@@ -423,6 +484,10 @@ func (a *App) writeJSONResult(value any) int {
 			return 0
 		}
 	case review.AggregateResult:
+		if result.OK {
+			return 0
+		}
+	case lifecycle.Result:
 		if result.OK {
 			return 0
 		}

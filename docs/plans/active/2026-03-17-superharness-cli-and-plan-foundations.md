@@ -4,7 +4,7 @@ lifecycle: executing
 revision: 1
 template_version: 0.1.0
 created_at: 2026-03-17T10:12:01+08:00
-updated_at: 2026-03-18T00:22:45+08:00
+updated_at: 2026-03-18T00:28:44+08:00
 source_type: direct_request
 source_refs: []
 ---
@@ -39,7 +39,7 @@ core workflow.
       template.
 - [x] The repository contains a v0.1 CLI contract spec for agent-facing command
       behavior and output.
-- [ ] Every behavior-changing command in the v0.1 slice is covered by
+- [x] Every behavior-changing command in the v0.1 slice is covered by
       automated tests.
 - [x] `harness plan template` and `harness plan lint` are implemented against
       the documented contract.
@@ -48,7 +48,7 @@ core workflow.
 - [x] `harness review start`, `harness review submit`, and
       `harness review aggregate` implement the review-round contract without
       binding to a specific subagent runtime.
-- [ ] `harness archive` and `harness reopen` implement the freeze/reopen
+- [x] `harness archive` and `harness reopen` implement the freeze/reopen
       lifecycle with agent-friendly `next_actions`.
 
 ## Deferred Items
@@ -262,7 +262,7 @@ intended local-state contract.
 
 ### Step 5: Implement archive and reopen
 
-- Status: pending
+- Status: completed
 
 #### Objective
 
@@ -277,9 +277,13 @@ without forcing the next agent to rediscover context from scratch.
 
 #### Expected Files
 
-- `cmd/...`
-- `internal/...`
-- `*_test.go`
+- `internal/cli/app.go`
+- `internal/lifecycle/service.go`
+- `internal/lifecycle/service_test.go`
+- `internal/plan/document.go`
+- `internal/plan/lint.go`
+- `internal/plan/lint_test.go`
+- `internal/runstate/state.go`
 - `docs/specs/plan-schema.md`
 - `docs/specs/cli-contract.md`
 
@@ -295,11 +299,18 @@ without forcing the next agent to rediscover context from scratch.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Implemented lifecycle commands for `harness archive` and `harness reopen`,
+including mechanical frontmatter updates, tracked-file moves, structured
+archive-summary stamping, summary resets on reopen, and `.local` pointer
+synchronization for both `current-plan.json` and plan-local `state.json`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`go test ./...` passes. Real CLI smoke checks now cover `archive --help`,
+`reopen --help`, and a built-binary roundtrip in a temporary worktree:
+`plan template -> archive -> status -> reopen -> status -> plan lint`. That
+roundtrip confirmed archived status handoff, `revision + 1` on reopen, current
+plan pointer updates, and a clean active-plan lint result after reopen.
 
 ## Validation Strategy
 

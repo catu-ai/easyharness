@@ -545,6 +545,19 @@ func validateArchivedRules(ctx *lintContext) []LintIssue {
 		}
 	}
 
+	archiveSummary := ctx.sections["Archive Summary"]
+	if archiveSummary == nil {
+		issues = append(issues, LintIssue{Path: "section.Archive Summary", Message: "missing Archive Summary section"})
+	} else {
+		requiredLabels := []string{"Archived At", "Revision", "PR", "Ready", "Merge Handoff"}
+		content := strings.Join(archiveSummary.lines, "\n")
+		for _, label := range requiredLabels {
+			if !strings.Contains(content, "- "+label+":") {
+				issues = append(issues, LintIssue{Path: "section.Archive Summary", Message: fmt.Sprintf("archived plans must include - %s:", label)})
+			}
+		}
+	}
+
 	if deferredItemsSection := ctx.sections["Deferred Items"]; deferredItemsSection != nil {
 		if hasRealDeferredItems(strings.Join(deferredItemsSection.lines, "\n")) {
 			outcomeSummary := ctx.sections["Outcome Summary"]

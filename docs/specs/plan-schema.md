@@ -388,13 +388,11 @@ An archived plan must satisfy all of these:
 
 The `## Archive Summary` section must include:
 
-- archived timestamp
-- current revision
-- PR URL, or an explicit `PR: NONE` marker if the branch has not been
-  published yet
-- a concise statement of why the plan is ready to wait for merge approval
-- a concise merge handoff note stating that the archived plan must be committed
-  and pushed before merge approval is final
+- `- Archived At: <RFC3339 timestamp>`
+- `- Revision: <current revision>`
+- `- PR: <URL or NONE>`
+- `- Ready: <why this candidate is ready to wait for merge approval>`
+- `- Merge Handoff: <commit/push reminder before merge approval is final>`
 
 Do not require a tracked `HEAD` SHA in the archived plan. Archive itself
 changes tracked files, so the definitive merge candidate exists only after the
@@ -417,6 +415,8 @@ PR comments after land, not in the archived plan.
 - increment `revision`
 - update `updated_at`
 - reset archive-only summary sections to their active placeholder tokens
+- update `.local/harness/current-plan.json` and any existing plan-local
+  `state.json` pointers back to the active path
 
 After reopen, the agent may edit plan content directly. If reopened work
 materially changes scope or acceptance criteria, the agent should update the

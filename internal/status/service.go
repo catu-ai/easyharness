@@ -174,6 +174,13 @@ func buildNextActions(doc *plan.Document, state *runstate.State, stepState strin
 			NextAction{Command: strPtr("harness reopen"), Description: "Reopen the plan if new feedback or remote changes mean the archived candidate is no longer ready."},
 		)
 	default:
+		if doc.CurrentStep() == nil && doc.AllStepsCompleted() && doc.AllAcceptanceChecked() {
+			next = append(next, NextAction{
+				Command:     nil,
+				Description: "Write the final Validation, Review, Archive, and Outcome summaries, then verify deferred items have follow-up issue references before archive.",
+			})
+			break
+		}
 		switch stepState {
 		case "reviewing":
 			next = append(next, NextAction{Command: strPtr("harness review aggregate --round <round-id>"), Description: "Aggregate the active review round once reviewer submissions are ready."})
@@ -202,6 +209,10 @@ func buildSummary(doc *plan.Document, stepState string) string {
 		return "Plan is currently blocked and needs external input before continuing."
 	case "awaiting_merge_approval":
 		return "Plan is archived and waiting for merge approval."
+	}
+
+	if doc.CurrentStep() == nil && doc.AllStepsCompleted() && doc.AllAcceptanceChecked() {
+		return "Plan has completed all tracked steps and now needs archive-ready summaries before it can be archived."
 	}
 
 	if step := doc.CurrentStep(); step != nil {

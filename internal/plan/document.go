@@ -159,3 +159,11 @@ func (d *Document) CompletedStepsHavePendingPlaceholders() bool {
 	}
 	return false
 }
+
+func (d *Document) SectionText(name string) string {
+	section := d.Sections[name]
+	if section == nil {
+		return ""
+	}
+	return strings.TrimSpace(strings.Join(section.lines, "\n"))
+}

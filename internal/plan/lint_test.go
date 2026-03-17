@@ -76,11 +76,8 @@ func TestLintFileRejectsArchivedDeferredItemsWithoutOutcomeSummaryWithoutPanic(t
 	content = strings.Replace(content, "status: active", "status: archived", 1)
 	content = strings.Replace(content, "lifecycle: awaiting_plan_approval", "lifecycle: awaiting_merge_approval", 1)
 	content = strings.Replace(content, "- None.", "- `harness ui` is intentionally deferred.", 1)
-	content = checkAllBoxes(strings.ReplaceAll(content, "- Status: pending", "- Status: completed"))
-	content = strings.ReplaceAll(content, "PENDING_STEP_EXECUTION", "Finished step execution notes.")
-	content = strings.ReplaceAll(content, "PENDING_STEP_REVIEW", "Finished step review notes.")
-	content = strings.ReplaceAll(content, "PENDING_UNTIL_ARCHIVE", "Archive-ready summary.")
-	content = strings.Replace(content, "## Outcome Summary\n\n### Delivered\n\nArchive-ready summary.\n\n### Not Delivered\n\nArchive-ready summary.\n\n### Follow-Up Issues\n\nNONE\n", "", 1)
+	content = makeArchiveReady(checkAllBoxes(strings.ReplaceAll(content, "- Status: pending", "- Status: completed")))
+	content = strings.Replace(content, "## Outcome Summary\n\n### Delivered\n\nShipped the planned slice.\n\n### Not Delivered\n\nNONE.\n\n### Follow-Up Issues\n\nNONE\n", "", 1)
 	writeFile(t, path, content)
 
 	result := plan.LintFile(path)
@@ -97,10 +94,7 @@ func TestLintFileRejectsArchivedDeferredItemsWithoutFollowUpIssue(t *testing.T) 
 	content = strings.Replace(content, "status: active", "status: archived", 1)
 	content = strings.Replace(content, "lifecycle: awaiting_plan_approval", "lifecycle: awaiting_merge_approval", 1)
 	content = strings.Replace(content, "- None.", "- `harness ui` is intentionally deferred.", 1)
-	content = checkAllBoxes(strings.ReplaceAll(content, "- Status: pending", "- Status: completed"))
-	content = strings.Replace(content, "PENDING_STEP_EXECUTION", "Finished step execution notes.", -1)
-	content = strings.Replace(content, "PENDING_STEP_REVIEW", "Finished step review notes.", -1)
-	content = strings.Replace(content, "PENDING_UNTIL_ARCHIVE", "Archive-ready summary.", -1)
+	content = makeArchiveReady(checkAllBoxes(strings.ReplaceAll(content, "- Status: pending", "- Status: completed")))
 	writeFile(t, path, content)
 
 	result := plan.LintFile(path)
@@ -200,6 +194,17 @@ func writeFile(t *testing.T, path, content string) {
 
 func checkAllBoxes(content string) string {
 	content = strings.ReplaceAll(content, "- [ ]", "- [x]")
+	return content
+}
+
+func makeArchiveReady(content string) string {
+	content = strings.ReplaceAll(content, "PENDING_STEP_EXECUTION", "Finished step execution notes.")
+	content = strings.ReplaceAll(content, "PENDING_STEP_REVIEW", "Finished step review notes.")
+	content = strings.Replace(content, "## Validation Summary\n\nPENDING_UNTIL_ARCHIVE", "## Validation Summary\n\nValidated the planned slice.", 1)
+	content = strings.Replace(content, "## Review Summary\n\nPENDING_UNTIL_ARCHIVE", "## Review Summary\n\nNo unresolved blocking review findings remain.", 1)
+	content = strings.Replace(content, "## Archive Summary\n\nPENDING_UNTIL_ARCHIVE", "## Archive Summary\n\n- Archived At: 2026-03-17T15:00:00+08:00\n- Revision: 1\n- PR: NONE\n- Ready: The candidate satisfies the acceptance criteria and is ready for merge approval.\n- Merge Handoff: Commit and push the archive move before treating this candidate as awaiting merge approval.", 1)
+	content = strings.Replace(content, "### Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Delivered\n\nShipped the planned slice.", 1)
+	content = strings.Replace(content, "### Not Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Not Delivered\n\nNONE.", 1)
 	return content
 }
 
