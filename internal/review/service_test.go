@@ -39,6 +39,9 @@ func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
 	if result.Artifacts == nil || len(result.Artifacts.Slots) != 2 {
 		t.Fatalf("unexpected artifacts: %#v", result.Artifacts)
 	}
+	if result.Artifacts.RoundID != "review-001-delta" {
+		t.Fatalf("expected compact first round id, got %#v", result.Artifacts)
+	}
 	if _, err := os.Stat(result.Artifacts.ManifestPath); err != nil {
 		t.Fatalf("manifest missing: %v", err)
 	}
@@ -48,6 +51,39 @@ func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
 	}
 	if state == nil || state.ActiveReviewRound == nil || state.ActiveReviewRound.Aggregated {
 		t.Fatalf("unexpected state: %#v", state)
+	}
+}
+
+func TestStartUsesNextPlanLocalReviewSequence(t *testing.T) {
+	root := t.TempDir()
+	planStem := "2026-03-18-review-contract"
+	writeExecutingPlan(t, root, "docs/plans/active/"+planStem+".md")
+
+	legacyRoundDir := filepath.Join(root, ".local", "harness", "plans", planStem, "reviews", "review-20260318t010000000000000z-delta")
+	if err := os.MkdirAll(legacyRoundDir, 0o755); err != nil {
+		t.Fatalf("mkdir legacy round dir: %v", err)
+	}
+
+	svc := review.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 18, 1, 30, 0, 0, time.UTC)
+		},
+	}
+
+	result := svc.Start(mustJSON(t, review.Spec{
+		Kind:    "full",
+		Target:  "Full branch candidate before archive",
+		Trigger: "pre_archive",
+		Dimensions: []review.Dimension{
+			{Name: "correctness", Instructions: "Check correctness."},
+		},
+	}))
+	if !result.OK {
+		t.Fatalf("expected start success, got %#v", result)
+	}
+	if result.Artifacts == nil || result.Artifacts.RoundID != "review-002-full" {
+		t.Fatalf("expected second compact round id, got %#v", result.Artifacts)
 	}
 }
 

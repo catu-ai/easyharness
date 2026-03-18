@@ -43,6 +43,7 @@ the agent, owns most step-state and artifact bookkeeping:
   - useful for debugging and UI later, but not required for durable history
 - `reviews/<round-id>/`
   - one review round per directory
+  - use compact plan-local round IDs such as `review-001-delta`
   - recommended contents: `manifest.json`, `submissions/<slot>.json`,
     `aggregate.json`
 - `ci/<snapshot-id>.json`
@@ -57,6 +58,10 @@ Repeated work on the same plan creates more review rounds, CI snapshots, and
 publish attempts under the same plan stem. `state.json` points at the latest
 relevant artifacts so `harness status` does not need to guess by scanning raw
 history.
+
+Round IDs only need to be unique within a plan stem. Keep them short and
+monotonic; precise timestamps belong in the review artifacts rather than the
+directory name.
 
 v0.1 standardizes `reviews/`, `ci/`, `sync/`, and `publish/`. Future harness
 versions may add other command-owned artifact lanes, but these are the core
@@ -415,6 +420,8 @@ PR comments after land, not in the archived plan.
 - increment `revision`
 - update `updated_at`
 - reset archive-only summary sections to their active placeholder tokens
+- clear stale review, CI, and sync state that belonged to the archived
+  candidate
 - update `.local/harness/current-plan.json` and any existing plan-local
   `state.json` pointers back to the active path
 

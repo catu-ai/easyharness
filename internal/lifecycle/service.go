@@ -80,6 +80,9 @@ func (s Service) Archive() Result {
 	if doc.CompletedStepsHavePendingPlaceholders() {
 		return errorResult("archive", "Current plan still contains completed-step placeholders.", []CommandError{{Path: "steps", Message: "replace every PENDING_STEP_EXECUTION and PENDING_STEP_REVIEW token before archive"}})
 	}
+	if issues := archiveStateIssues(state); len(issues) > 0 {
+		return errorResult("archive", "Current plan is not archive-ready.", issues)
+	}
 
 	archiveSummary := doc.SectionText("Archive Summary")
 	missingLabels := missingArchiveSummaryLabels(archiveSummary, []string{"PR", "Ready", "Merge Handoff"})
@@ -258,6 +261,8 @@ func (s Service) Reopen() Result {
 		state.PlanPath = relTargetPath
 		state.PlanStem = planStem
 		state.ActiveReviewRound = nil
+		state.LatestCI = nil
+		state.Sync = nil
 		statePath, err = runstate.SaveState(s.Workdir, planStem, state)
 		if err != nil {
 			return errorResult("reopen", "Unable to update local state after reopen.", []CommandError{{Path: "state", Message: err.Error()}})
@@ -442,4 +447,57 @@ func (s Service) now() time.Time {
 
 func strPtr(value string) *string {
 	return &value
+}
+
+func archiveStateIssues(state *runstate.State) []CommandError {
+	if state == nil {
+		return nil
+	}
+
+	issues := make([]CommandError, 0)
+	if state.ActiveReviewRound != nil && !state.ActiveReviewRound.Aggregated {
+		issues = append(issues, CommandError{
+			Path:    "state.active_review_round",
+			Message: "aggregate or clear the active review round before archive",
+		})
+	}
+	if state.LatestCI != nil && !ciStatusAllowsArchive(state.LatestCI.Status) {
+		issues = append(issues, CommandError{
+			Path:    "state.latest_ci",
+			Message: fmt.Sprintf("latest CI status %q is not archive-ready; wait for green CI or fix failures first", state.LatestCI.Status),
+		})
+	}
+	if state.Sync != nil {
+		if state.Sync.Conflicts {
+			issues = append(issues, CommandError{
+				Path:    "state.sync",
+				Message: "resolve merge conflicts before archive",
+			})
+		}
+		if freshnessBlocksArchive(state.Sync.Freshness) {
+			issues = append(issues, CommandError{
+				Path:    "state.sync",
+				Message: fmt.Sprintf("remote freshness %q is not archive-ready; refresh remote state before archive", state.Sync.Freshness),
+			})
+		}
+	}
+	return issues
+}
+
+func ciStatusAllowsArchive(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "success", "passed", "green", "succeeded":
+		return true
+	default:
+		return false
+	}
+}
+
+func freshnessBlocksArchive(freshness string) bool {
+	switch strings.ToLower(strings.TrimSpace(freshness)) {
+	case "", "fresh":
+		return false
+	default:
+		return true
+	}
 }

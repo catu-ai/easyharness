@@ -193,7 +193,15 @@ func (s Service) Start(specBytes []byte) StartResult {
 		}
 	}
 
-	roundID := formatRoundID(now, spec.Kind)
+	roundID, err := nextRoundID(s.Workdir, planStem, spec.Kind)
+	if err != nil {
+		return StartResult{
+			OK:      false,
+			Command: "review start",
+			Summary: "Unable to determine the next review round identifier.",
+			Errors:  []CommandError{{Path: "round", Message: err.Error()}},
+		}
+	}
 	roundDir := filepath.Join(s.Workdir, ".local", "harness", "plans", planStem, "reviews", roundID)
 	submissionsDir := filepath.Join(roundDir, "submissions")
 	manifestPath := filepath.Join(roundDir, "manifest.json")
@@ -272,7 +280,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 		Kind:       spec.Kind,
 		Aggregated: false,
 	}
-	statePath, err := runstate.SaveState(s.Workdir, planStem, state)
+	statePath, err = runstate.SaveState(s.Workdir, planStem, state)
 	if err != nil {
 		return StartResult{
 			OK:      false,
@@ -658,8 +666,35 @@ func normalizeSlot(name string) string {
 	return slot
 }
 
-func formatRoundID(now time.Time, kind string) string {
-	return fmt.Sprintf("review-%s-%s", now.UTC().Format("20060102t150405000000000z"), kind)
+func nextRoundID(workdir, planStem, kind string) (string, error) {
+	sequence, err := nextRoundSequence(workdir, planStem)
+	if err != nil {
+		return "", err
+	}
+	return formatRoundID(sequence, kind), nil
+}
+
+func nextRoundSequence(workdir, planStem string) (int, error) {
+	reviewsDir := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews")
+	entries, err := os.ReadDir(reviewsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 1, nil
+		}
+		return 0, err
+	}
+
+	count := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			count++
+		}
+	}
+	return count + 1, nil
+}
+
+func formatRoundID(sequence int, kind string) string {
+	return fmt.Sprintf("review-%03d-%s", sequence, kind)
 }
 
 func loadManifest(path string) (*Manifest, error) {

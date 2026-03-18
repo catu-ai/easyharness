@@ -75,6 +75,68 @@ func TestArchiveRejectsMissingArchiveSummaryFields(t *testing.T) {
 	assertErrorPath(t, result.Errors, "section.Archive Summary")
 }
 
+func TestArchiveRejectsUnresolvedLocalState(t *testing.T) {
+	testCases := []struct {
+		name       string
+		state      *runstate.State
+		errorPath  string
+		errorMatch string
+	}{
+		{
+			name: "active review round",
+			state: &runstate.State{
+				ActiveReviewRound: &runstate.ReviewRound{RoundID: "review-001-full", Kind: "full", Aggregated: false},
+			},
+			errorPath:  "state.active_review_round",
+			errorMatch: "aggregate or clear",
+		},
+		{
+			name: "non-green ci",
+			state: &runstate.State{
+				LatestCI: &runstate.CIState{SnapshotID: "ci-1", Status: "pending"},
+			},
+			errorPath:  "state.latest_ci",
+			errorMatch: "not archive-ready",
+		},
+		{
+			name: "stale sync",
+			state: &runstate.State{
+				Sync: &runstate.SyncState{Freshness: "stale"},
+			},
+			errorPath:  "state.sync",
+			errorMatch: "refresh remote state",
+		},
+		{
+			name: "merge conflicts",
+			state: &runstate.State{
+				Sync: &runstate.SyncState{Freshness: "fresh", Conflicts: true},
+			},
+			errorPath:  "state.sync",
+			errorMatch: "resolve merge conflicts",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
+			writeActiveArchiveCandidate(t, root, activeRelPath)
+			tc.state.PlanPath = activeRelPath
+			tc.state.PlanStem = "2026-03-18-archive-smoke"
+			if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", tc.state); err != nil {
+				t.Fatalf("save state: %v", err)
+			}
+
+			result := lifecycle.Service{Workdir: root}.Archive()
+			if result.OK {
+				t.Fatalf("expected archive failure, got %#v", result)
+			}
+			assertErrorPath(t, result.Errors, tc.errorPath)
+			assertErrorContains(t, result.Errors, tc.errorPath, tc.errorMatch)
+		})
+	}
+}
+
 func TestReopenMovesArchivedPlanBackToActiveAndResetsSummaries(t *testing.T) {
 	root := t.TempDir()
 	writeActiveArchiveCandidate(t, root, "docs/plans/active/2026-03-18-archive-smoke.md")
@@ -118,6 +180,60 @@ func TestReopenMovesArchivedPlanBackToActiveAndResetsSummaries(t *testing.T) {
 	}
 	if !strings.Contains(text, "### Follow-Up Issues\n\nNONE") {
 		t.Fatalf("expected follow-up reset, got:\n%s", text)
+	}
+}
+
+func TestReopenClearsStaleCIAndSyncSignals(t *testing.T) {
+	root := t.TempDir()
+	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
+	writeActiveArchiveCandidate(t, root, activeRelPath)
+	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+		PlanPath: activeRelPath,
+		PlanStem: "2026-03-18-archive-smoke",
+		LatestCI: &runstate.CIState{SnapshotID: "ci-1", Status: "success"},
+		Sync:     &runstate.SyncState{Freshness: "fresh", Conflicts: false},
+	}); err != nil {
+		t.Fatalf("save initial state: %v", err)
+	}
+
+	svc := lifecycle.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 18, 2, 0, 0, 0, time.UTC)
+		},
+	}
+	archive := svc.Archive()
+	if !archive.OK {
+		t.Fatalf("archive failed: %#v", archive)
+	}
+
+	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+		PlanPath:          "docs/plans/archived/2026-03-18-archive-smoke.md",
+		PlanStem:          "2026-03-18-archive-smoke",
+		ActiveReviewRound: &runstate.ReviewRound{RoundID: "review-001-full", Kind: "full", Aggregated: true},
+		LatestCI:          &runstate.CIState{SnapshotID: "ci-2", Status: "failed"},
+		Sync:              &runstate.SyncState{Freshness: "stale", Conflicts: true},
+	}); err != nil {
+		t.Fatalf("save archived state: %v", err)
+	}
+
+	svc.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 3, 0, 0, 0, time.UTC)
+	}
+	reopen := svc.Reopen()
+	if !reopen.OK {
+		t.Fatalf("reopen failed: %#v", reopen)
+	}
+
+	state, _, err := runstate.LoadState(root, "2026-03-18-archive-smoke")
+	if err != nil {
+		t.Fatalf("load reopened state: %v", err)
+	}
+	if state == nil {
+		t.Fatalf("expected reopened state")
+	}
+	if state.ActiveReviewRound != nil || state.LatestCI != nil || state.Sync != nil {
+		t.Fatalf("expected reopened state to clear stale review/ci/sync signals, got %#v", state)
 	}
 }
 
@@ -169,4 +285,14 @@ func assertErrorPath(t *testing.T, issues []lifecycle.CommandError, path string)
 		}
 	}
 	t.Fatalf("expected error for %s, got %#v", path, issues)
+}
+
+func assertErrorContains(t *testing.T, issues []lifecycle.CommandError, path, fragment string) {
+	t.Helper()
+	for _, issue := range issues {
+		if issue.Path == path && strings.Contains(issue.Message, fragment) {
+			return
+		}
+	}
+	t.Fatalf("expected error for %s containing %q, got %#v", path, fragment, issues)
 }

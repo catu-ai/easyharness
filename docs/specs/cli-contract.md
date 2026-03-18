@@ -357,6 +357,13 @@ harness review start --spec /tmp/review-spec.json
 The command returns JSON describing the created round, persisted manifest path,
 owned artifact paths, and next actions for the controller agent.
 
+Round identifiers should be short and plan-local:
+
+- use `review-<NNN>-<kind>`
+- examples: `review-001-delta`, `review-002-full`
+- keep precise timestamps in the manifest and aggregate artifacts rather than
+  embedding them in the round ID
+
 `target` should be free-form and human-readable. Examples:
 
 - delta after a step: `Step 3: Implement local state and harness status`
@@ -438,7 +445,9 @@ Archive readiness requires:
 
 - a clean `full` review for the current candidate
 - required CI green for the pushed archived candidate
+- no unresolved active review round
 - no unresolved conflict-repair work
+- fresh remote sync evidence for the candidate
 
 ### `harness archive`
 
@@ -453,6 +462,8 @@ Contract:
   current plan plus local artifacts, not reconstructed from agent memory
 - if the plan still contains `## Deferred Items`, require concrete follow-up
   issue references before allowing archive to succeed
+- reject archive when plan-local state still shows unresolved review, CI, or
+  sync work for the current candidate
 - require the pre-archive `Archive Summary` to include structured `PR`,
   `Ready`, and `Merge Handoff` lines
 - move the plan from `docs/plans/active/` to `docs/plans/archived/`
@@ -500,6 +511,7 @@ Contract:
 - increment `revision`
 - update `updated_at`
 - reset archive-only summary placeholders
+- clear stale review, CI, and sync signals from the prior archived candidate
 - update `.local/harness/current-plan.json` and any existing plan-local
   `state.json` pointers back to the active path
 - return next actions that help the next agent resume work
