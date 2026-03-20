@@ -219,7 +219,7 @@ aggregated to `pass` with no findings.
 
 - Archived At: 2026-03-19T23:51:41+08:00
 - Revision: 1
-- PR: not opened yet (branch `codex/review-round-sequence-max`)
+- PR: https://github.com/yzhang1918/superharness/pull/11
 - Ready: Review round ID allocation now advances from the maximum existing
   compact sequence, ignores legacy timestamp-based review directories, ships
   targeted sparse-history tests, and records the reviewer-subagent default at
