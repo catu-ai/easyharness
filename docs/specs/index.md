@@ -12,3 +12,6 @@
 - [State Model v0.2 Proposal](./proposals/state-model-v0.2.md): proposed
   simplified canonical-node state model that replaces v0.1 layered lifecycle,
   step-state, and handoff-state behavior.
+- [Testing Structure Proposal](./proposals/testing-structure.md): non-normative
+  proposal for how `superharness` should organize smoke, end-to-end, and
+  resilience tests alongside the existing package-level Go test suite.
