@@ -84,6 +84,13 @@ Use `harness status` at routine checkpoints:
 Human confirmation is still required for real blockers, scope changes, and
 merge approval, but not for ordinary review closeout.
 
+If an approved plan is likely to require reviewer subagents later, ask for
+explicit human authorization to spawn them when seeking plan approval instead
+of waiting until review orchestration is already blocked on that permission.
+If execution still reaches a reviewer-subagent boundary without that approval,
+pause only long enough to request it explicitly, then continue once the human
+answers.
+
 ## Start Points
 
 When entering the repo or resuming after compaction:

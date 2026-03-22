@@ -41,6 +41,13 @@ warnings.
   stable even if the warning is first noticed during a later step or finalize
   closeout.
 - Add focused tests for the new status warnings and suppression behavior.
+- After reopen feedback, tighten the reminder logic so it respects the latest
+  step-closeout round for a step title, avoids suggesting a second review while
+  an active review round is already in progress, and keeps plan/execute skills
+  proactive about requesting explicit subagent approval before review
+  orchestration needs it.
+- Remove the ad hoc review-discipline postmortem now that its durable guidance
+  is tracked in specs, skills, tests, and issue history.
 
 ### Out of Scope
 
@@ -71,6 +78,20 @@ warnings.
 - [x] Focused Go tests cover missing earlier-step review warnings, finalize-time
       warning behavior, suppression via `NO_STEP_REVIEW_NEEDED`, and a clean
       reviewed step that does not warn.
+- [x] Historical step-closeout reminder satisfaction is based on the latest
+      round for a step target, so a later non-clean closeout round can make the
+      reminder reappear.
+- [x] `harness status` does not suggest starting a fresh review when the
+      current node already has an in-flight review round that must be
+      aggregated first.
+- [x] `AGENTS.md`, `harness-plan`, and `harness-execute` tell the controller to
+      request explicit subagent authorization during plan approval when review
+      subagents are likely, and to ask immediately as a fallback if execution
+      reaches a point where reviewer subagents are required but authorization is
+      still missing.
+- [x] The temporary postmortem at
+      `docs/postmortems/2026-03-22-review-discipline-postmortem.md` is removed
+      once its durable lessons are preserved elsewhere.
 
 ## Deferred Items
 
@@ -251,6 +272,208 @@ Subsequent full finalize rounds `review-004-full` and `review-005-full`
 surfaced one real gap each; both findings were fixed and `review-006-full`
 passed clean across `correctness`, `tests`, and `docs_consistency`.
 
+### Step 4: Address reopened feedback and proactive subagent approval
+
+- Done: [x]
+
+#### Objective
+
+Fix the unresolved PR feedback on the reminder implementation, then tighten the
+planning/execution guidance so controller agents ask for explicit subagent
+authorization early instead of stalling once reviewer subagents are required.
+
+#### Details
+
+The reopened scope has four concrete outcomes:
+- historical `step_closeout` satisfaction must follow the latest round for a
+  step target, not any older pass
+- warning-driven repair actions must not suggest a new review while another
+  review round is already active
+- plan approval should proactively request explicit subagent authorization when
+  later execution is likely to need reviewer subagents, with an execute-time
+  fallback if that approval is still missing
+- the one-off postmortem file should be deleted now that the durable contract
+  lives in tracked docs, skills, tests, and GitHub issues
+
+#### Expected Files
+
+- `internal/status/service.go`
+- `internal/status/service_test.go`
+- `internal/status/service_internal_test.go`
+- `AGENTS.md`
+- `.agents/skills/harness-plan/SKILL.md`
+- `.agents/skills/harness-execute/SKILL.md`
+- `docs/postmortems/2026-03-22-review-discipline-postmortem.md` (delete)
+
+#### Validation
+
+- `harness plan lint docs/plans/active/2026-03-22-automatic-review-closeout-and-status-reminders.md`
+- `go test ./internal/status -count=1`
+- `go test ./...`
+- PR review threads for the two unresolved `internal/status/service.go`
+  findings are replied to and resolved after the fixes land
+
+#### Execution Notes
+
+Updated `internal/status/service.go` so historical `step_closeout` satisfaction
+follows the latest round for a target instead of any older pass, and warning
+repair guidance no longer suggests starting a second review while a `.../review`
+node already has an in-flight round to aggregate. Added focused regression
+coverage in `internal/status/service_test.go` for latest-round-wins behavior
+and both step-review/finalize-review "do not start another round" cases.
+
+The first reopened step-closeout review surfaced two more correctness edges in
+that same area, and both are now fixed in the same slice: a newer in-flight
+`step_closeout` round now supersedes an older pass instead of leaving stale
+closeout satisfaction behind, and the in-flight repair guidance now tells the
+controller to aggregate the active round first instead of still implying a
+second review should start immediately. Revalidated the tightened logic with
+`go test ./internal/status -count=1`.
+
+The second reopened review pass exposed two narrower fallback cases, which are
+now also covered: duplicate-review suppression now applies whenever any active
+review round is still in flight, even if status had to fall back to an
+`/implement` node, and an unreadable newer `step_closeout` manifest now
+conservatively invalidates older pass evidence instead of leaving it
+authoritative. Revalidated those repairs with `go test ./internal/status -count=1`
+and `go test ./...`.
+
+The third reopened review pass narrowed the unreadable-manifest behavior one
+step further: the reminder scan no longer uses a global unreadable-history
+watermark that can unsatisfy unrelated steps. Instead, unreadable history is
+only allowed to override a target when status can still conservatively bind the
+round back to that same step, and the regression coverage now proves that one
+step's broken review artifact does not resurrect reminders for another step's
+clean closeout.
+
+Extended the controller guidance in `AGENTS.md`, `harness-plan/SKILL.md`, and
+`harness-execute/SKILL.md` so plan approval should proactively request explicit
+reviewer-subagent authorization when later execution is likely to need it, with
+an execute-time fallback if that approval is still missing. Removed
+`docs/postmortems/2026-03-22-review-discipline-postmortem.md` now that the
+durable lessons are captured in tracked docs, tests, and issues. Validated the
+reopened slice with `harness plan lint ...` and `go test ./...`.
+
+The fourth reopened review pass (`review-010-delta`) caught one last
+unreadable-history hole and one remaining documentation gap. The reminder scan
+now treats a newer unreadable historical review round with no mappable target
+as a conservative watermark, so an older clean pass can no longer suppress the
+step-closeout warning after unknown newer evidence appears. Added a regression
+test for that unknown-target case and tightened `harness-execute/SKILL.md` so
+the execute-time fallback at a reviewer-subagent boundary is stated as an
+explicit controller rule, not just implied by earlier docs. Revalidated the
+repair with `go test ./internal/status -count=1` and `go test ./...`.
+
+The next reopened review pass (`review-011-delta`) asked for one more focused
+test around the new unreadable-history rescue path. Added
+`internal/status/service_internal_test.go` as a same-package regression that
+directly exercises `loadSatisfiedStepCloseoutTargets` when the active
+`reviewCtx` must recover an unreadable current round whose aggregate target
+cannot be mapped back to a tracked step. Revalidated the slice with
+`go test ./internal/status -count=1` and `go test ./...`.
+
+#### Review Notes
+
+`review-007-delta` through `review-011-delta` each surfaced a narrower
+reopened defect or coverage gap in the reminder implementation: latest-round
+closeout semantics, in-flight duplicate-review suppression, unreadable-history
+conservatism, explicit execute-time subagent-approval fallback wording, and
+same-package coverage for the active-`reviewCtx` unreadable-history rescue
+path. Each finding was repaired in the same tracked slice, with focused and
+full Go validation rerun after every fix. `review-012-delta` then passed clean
+across correctness, tests, and docs-consistency, so Step 4 now has a clean
+step-closeout review.
+
+### Step 5: Refresh revision 2 archive-facing summaries
+
+- Done: [x]
+
+#### Objective
+
+Update the tracked plan's closeout sections so revision 2 no longer carries
+reopen placeholders or stale revision 1 archive metadata before the next
+finalize review judges archive readiness.
+
+#### Details
+
+This cleanup is limited to the tracked plan:
+- replace every `UPDATE_REQUIRED_AFTER_REOPEN` placeholder in the archive-facing
+  sections with revision 2 content
+- refresh `Validation Summary`, `Review Summary`, `Archive Summary`,
+  `Outcome Summary`, and `Follow-Up Issues` so they describe the current reopen
+  state instead of the pre-reopen archive
+- keep the revision 2 narrative accurate even though the new archive timestamp
+  will only exist after the candidate is re-archived
+
+#### Expected Files
+
+- `docs/plans/active/2026-03-22-automatic-review-closeout-and-status-reminders.md`
+
+#### Validation
+
+- `harness plan lint docs/plans/active/2026-03-22-automatic-review-closeout-and-status-reminders.md`
+
+#### Execution Notes
+
+Refreshed the plan's archive-facing sections so revision 2 no longer carries
+`UPDATE_REQUIRED_AFTER_REOPEN` placeholders or stale revision 1 archive
+metadata into finalize review. The refreshed summaries now describe the current
+reopened candidate: revision 1 was archived earlier on the same branch, but the
+active revision 2 candidate supersedes that archive state until the branch is
+re-archived after a clean finalize review. Revalidated the tracked plan with
+`harness plan lint ...` and refreshed the reopen-era validation baseline with
+`go test ./internal/status -count=1`, `go test ./internal/cli -count=1`, and
+`go test ./...`.
+
+#### Review Notes
+
+`review-014-delta` ran a docs-consistency closeout focused on the refreshed
+archive-facing sections and passed clean with no findings, confirming that the
+revision 2 summaries no longer carry stale placeholders or obsolete revision 1
+metadata as current state.
+
+### Step 6: Synchronize reopened acceptance criteria
+
+- Done: [x]
+
+#### Objective
+
+Bring the top-level acceptance criteria back into sync with the completed
+reopened work so finalize review no longer sees the tracked plan claiming the
+revision 2 scope is still pending.
+
+#### Details
+
+This final reopen cleanup should:
+- mark the four reopen-era acceptance criteria complete now that the Step 4 and
+  Step 5 work is done and their review rounds passed
+- keep the acceptance criteria aligned with the refreshed archive-facing
+  summaries and the actual durable changes landed in code, specs, skills, and
+  docs
+- avoid changing substantive scope; this is a synchronization update only
+
+#### Expected Files
+
+- `docs/plans/active/2026-03-22-automatic-review-closeout-and-status-reminders.md`
+
+#### Validation
+
+- `harness plan lint docs/plans/active/2026-03-22-automatic-review-closeout-and-status-reminders.md`
+
+#### Execution Notes
+
+Marked the four reopen-era acceptance criteria complete so the top-level plan
+contract now matches the landed revision 2 work, the refreshed archive-facing
+summaries, and the clean step-closeout reviews for Steps 4 and 5. Revalidated
+the tracked plan with `harness plan lint ...`.
+
+#### Review Notes
+
+`review-016-delta` ran a docs-consistency closeout on the reopened acceptance
+criteria sync and passed clean with no findings, confirming that the top-level
+checkboxes now match the completed revision 2 work and refreshed plan
+summaries.
+
 ## Validation Strategy
 
 - Run `harness plan lint` before execution starts and after any material scope
@@ -274,12 +497,15 @@ passed clean across `correctness`, `tests`, and `docs_consistency`.
 
 ## Validation Summary
 
+- `harness plan lint docs/plans/active/2026-03-22-automatic-review-closeout-and-status-reminders.md`
 - `go test ./internal/status -count=1`
 - `go test ./internal/cli -count=1`
 - `go test ./...`
-- Re-ran the focused and full suites after each finalize-review finding was
-  fixed so the repaired candidate reached `review-006-full` with a green test
-  baseline.
+- Revision 2 kept a green focused and full Go baseline after each reopened
+  review finding was fixed, including the final helper-level regression added
+  after `review-011-delta`.
+- `review-017-full` passed clean after the archive-facing summaries and reopen
+  acceptance criteria were synchronized with the landed revision 2 work.
 
 ## Review Summary
 
@@ -295,19 +521,40 @@ passed clean across `correctness`, `tests`, and `docs_consistency`.
 - Both finalize findings were fixed, validated, and cleared by
   `review-006-full`, which passed clean with `correctness`, `tests`, and
   `docs_consistency`.
+- Reopened revision 2 then ran `review-007-delta` through `review-012-delta`
+  to repair the PR-feedback slice: latest-round closeout semantics, in-flight
+  duplicate-review suppression, unreadable-history conservatism, proactive
+  reviewer-subagent approval guidance, the execute-time fallback wording, and
+  helper-level regression coverage for unreadable active-round rescue.
+- `review-012-delta` passed clean across correctness, tests, and
+  docs-consistency, closing Step 4.
+- `review-013-full` then found one remaining finalize-closeout issue: the
+  tracked plan's archive-facing summaries still reflected pre-reopen metadata.
+  Step 5 refreshed those sections, and `review-014-delta` passed clean for that
+  docs-only closeout slice.
+- `review-015-full` then found one last tracked-plan mismatch: the reopened
+  acceptance criteria still read as pending after the revision 2 work had
+  landed.
+- Step 6 synchronized those acceptance criteria, `review-016-delta` passed
+  clean for that docs-only slice, and `review-017-full` then passed clean
+  across correctness, tests, and docs-consistency for the full archived
+  candidate.
 
 ## Archive Summary
 
-- Archived At: 2026-03-22T18:07:04+08:00
-- Revision: 1
-- PR: not created yet; publish evidence will record the PR URL after archive.
-- Ready: controller docs/skills, the normative specs, and `harness status`
-  now agree on automatic routine review progression, review-complete step
-  closeout, and reminder-only handling for missed earlier reviews across later,
-  finalize, publish, and await-merge states.
-- Merge Handoff: run `harness archive`, commit and push the archive move plus
-  tracked code/doc changes, open or update the PR, then record publish/CI/sync
-  evidence before asking for merge approval.
+- Archived At: 2026-03-22T21:07:39+08:00
+- Revision: 2
+- PR: [#25](https://github.com/yzhang1918/superharness/pull/25) on
+  `codex/automatic-review-closeout-status-reminders`.
+- Ready: the archived revision 2 candidate now includes the PR-review fixes,
+  proactive reviewer-subagent approval guidance, execute-time fallback
+  behavior, unreadable-history reminder repairs, refreshed archive-facing
+  summaries, synchronized acceptance criteria, and a clean finalize review
+  (`review-017-full`).
+- Merge Handoff: commit and push the archived plan move plus the tracked
+  code/doc changes, reply to and resolve the open PR review threads, refresh
+  publish/CI/sync evidence on the existing PR branch, and then return to
+  await-merge for human approval.
 
 ## Outcome Summary
 
@@ -327,10 +574,18 @@ passed clean across `correctness`, `tests`, and `docs_consistency`.
 - Extended those reminders through the full finalize workflow, including
   `execution/finalize/publish` and `execution/finalize/await_merge`, so review
   debt does not disappear right before merge readiness.
+- Reopened revision 2 fixed the follow-up PR comments by basing historical
+  closeout satisfaction on the latest round, suppressing second-review prompts
+  whenever any review round is already in flight, and making unreadable-history
+  handling conservative both for step-bound and unknown-target cases.
+- Added proactive plan-approval and execute-time fallback guidance for explicit
+  reviewer-subagent authorization, and deleted the temporary postmortem now
+  that the durable rules live in tracked docs, skills, tests, and GitHub
+  issues.
 - Added and repaired focused Go coverage for later-step warnings, finalize
   warnings, archived publish/await-merge reminders, clean historical full
-  reviews, and `NO_STEP_REVIEW_NEEDED` suppression, then kept the broader Go
-  suite green.
+  reviews, `NO_STEP_REVIEW_NEEDED` suppression, and the active-`reviewCtx`
+  unreadable-history rescue path, while keeping the broader Go suite green.
 
 ### Not Delivered
 

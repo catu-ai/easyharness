@@ -36,6 +36,9 @@ Use this skill to create or update the tracked plan that will drive execution.
    still depends on hidden context.
 8. Run `harness plan lint <plan-path>`.
 9. Present the plan for approval before execution starts.
+   If the approved execution loop is likely to require reviewer subagents,
+   ask for explicit subagent authorization in the same approval exchange so
+   execution does not stall later at review time.
 
 ## Commands
 
@@ -50,6 +53,8 @@ The plan is ready when:
 - the resulting tracked plan would resolve to `plan` until
   `harness execute start` is recorded
 - the human can approve or challenge it without hidden context
+- when reviewer subagents are likely later, the approval handoff makes that
+  expected authorization explicit instead of deferring it implicitly
 - a future agent could continue the work from the plan alone
 
 ## Do Not

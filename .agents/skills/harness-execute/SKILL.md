@@ -34,6 +34,14 @@ Routine review progression is controller-owned. Once the approved plan reaches
 an ordinary step-closeout or finalize-review boundary, the controller should
 start that review flow without asking the human to micromanage it.
 
+If the approved plan is likely to require reviewer subagents and explicit
+authorization has not been obtained yet, ask for that authorization as soon as
+the need becomes foreseeable. Do not wait until reviewer spawning is the only
+remaining next action before surfacing the request.
+If execution still reaches a reviewer-subagent boundary without that explicit
+approval, pause only long enough to request it, then continue the review flow
+once the human answers.
+
 Keep exactly one active review round at a time. The detailed review rules live
 in [review-orchestration.md](references/review-orchestration.md).
 
@@ -110,6 +118,10 @@ Execute is done when:
 - Do not ask the human whether routine step-closeout or finalize review should
   start once `harness status` and the tracked plan make the next review action
   clear.
+- Do not silently stall at review orchestration because reviewer subagent
+  authorization is missing; request it explicitly as soon as you know it will
+  be required, and if you still reach the reviewer boundary without approval,
+  pause only long enough to ask and then resume once the answer arrives.
 - Do not bypass node or review gates just because the next action feels obvious.
 - Do not skip TDD for behavior changes without documenting why the usual
   Red/Green/Refactor loop was not practical.

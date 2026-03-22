@@ -222,6 +222,219 @@ func TestStatusWarnsWhenEarlierCompletedStepLacksReviewCompleteCloseout(t *testi
 	}
 }
 
+func TestStatusWarnsWhenLatestHistoricalStepCloseoutRoundIsNotClean(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeFirstStep(content)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "pass",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"decision": "changes_requested",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-2/implement" {
+		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
+	}
+	if len(result.Warnings) == 0 || !strings.Contains(result.Warnings[0], stepOneTitle) {
+		t.Fatalf("expected latest non-clean historical closeout to restore the warning, got %#v", result.Warnings)
+	}
+}
+
+func TestStatusDoesNotWarnWhenLatestHistoricalStepCloseoutRepairsEarlierFailure(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeFirstStep(content)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "changes_requested",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"decision": "pass",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-2/implement" {
+		t.Fatalf("expected clean latest historical closeout to allow step 2, got %#v", result.State)
+	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("expected latest clean historical closeout to suppress warnings, got %#v", result.Warnings)
+	}
+}
+
+func TestStatusWarnsWhenLatestHistoricalStepCloseoutRoundIsStillInFlight(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeFirstStep(content)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "pass",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-2/implement" {
+		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
+	}
+	if len(result.Warnings) == 0 || !strings.Contains(result.Warnings[0], stepOneTitle) {
+		t.Fatalf("expected in-flight latest historical closeout to restore the warning, got %#v", result.Warnings)
+	}
+}
+
+func TestStatusWarnsWhenLatestHistoricalStepCloseoutManifestIsUnreadable(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeFirstStep(content)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "pass",
+	})
+
+	dir := filepath.Join(root, ".local", "harness", "plans", "2026-03-18-status-plan", "reviews", "review-002-delta")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir unreadable manifest dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("write unreadable manifest: %v", err)
+	}
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":   stepOneTitle,
+		"decision": "changes_requested",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-2/implement" {
+		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
+	}
+	if len(result.Warnings) < 2 || !strings.Contains(result.Warnings[0], "Unable to read historical review manifest") || !strings.Contains(result.Warnings[1], stepOneTitle) {
+		t.Fatalf("expected unreadable latest manifest to preserve a warning, got %#v", result.Warnings)
+	}
+}
+
+func TestStatusWarnsWhenLatestUnreadableHistoricalCloseoutCannotBeMapped(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeFirstStep(content)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "pass",
+	})
+
+	dir := filepath.Join(root, ".local", "harness", "plans", "2026-03-18-status-plan", "reviews", "review-002-delta")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir unreadable manifest dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("write unreadable manifest: %v", err)
+	}
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":   "mystery historical target",
+		"decision": "changes_requested",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-2/implement" {
+		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
+	}
+	if len(result.Warnings) < 2 || !strings.Contains(result.Warnings[0], "Unable to read historical review manifest") || !strings.Contains(result.Warnings[1], stepOneTitle) {
+		t.Fatalf("expected unknown unreadable latest manifest to keep the step warning, got %#v", result.Warnings)
+	}
+}
+
+func TestStatusDoesNotLetUnreadableHistoryForOneStepUnsatisfyAnother(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllStepsWithoutCloseout(content, false)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "pass",
+	})
+
+	dir := filepath.Join(root, ".local", "harness", "plans", "2026-03-18-status-plan", "reviews", "review-002-delta")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir unreadable manifest dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("write unreadable manifest: %v", err)
+	}
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":   stepTwoTitle,
+		"decision": "changes_requested",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/finalize/review" {
+		t.Fatalf("expected finalize node to stay stable, got %#v", result.State)
+	}
+	foundStepTwo := false
+	for _, warning := range result.Warnings {
+		if strings.Contains(warning, stepTwoTitle) {
+			foundStepTwo = true
+		}
+		if strings.Contains(warning, stepOneTitle) {
+			t.Fatalf("did not expect unreadable Step 2 history to unsatisfy Step 1, got %#v", result.Warnings)
+		}
+	}
+	if !foundStepTwo {
+		t.Fatalf("expected Step 2 closeout debt to remain, got %#v", result.Warnings)
+	}
+}
+
 func TestStatusWarnsInFinalizeWhenCompletedStepStillLacksCloseout(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
@@ -253,6 +466,135 @@ func TestStatusWarnsInFinalizeWhenCompletedStepStillLacksCloseout(t *testing.T) 
 	}
 	if len(result.NextAction) < 2 || result.NextAction[0].Command != nil || !strings.Contains(result.NextAction[0].Description, stepOneTitle) {
 		t.Fatalf("expected finalize warning guidance to come first, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusDoesNotSuggestSecondReviewWhileStepReviewIsInFlight(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeFirstStep(content)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+		"active_review_round": map[string]any{
+			"round_id":   "review-002-delta",
+			"kind":       "delta",
+			"trigger":    "step_closeout",
+			"aggregated": false,
+		},
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":  stepTwoTitle,
+		"trigger": "step_closeout",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-2/review" {
+		t.Fatalf("expected in-flight step review node, got %#v", result.State)
+	}
+	if len(result.NextAction) < 2 {
+		t.Fatalf("expected repair guidance plus aggregate action, got %#v", result.NextAction)
+	}
+	if result.NextAction[0].Command != nil || !strings.Contains(result.NextAction[0].Description, stepOneTitle) {
+		t.Fatalf("expected earlier-step repair guidance first, got %#v", result.NextAction)
+	}
+	if !strings.Contains(result.NextAction[0].Description, "aggregate the active review round first") {
+		t.Fatalf("expected in-flight repair guidance to mention aggregating first, got %#v", result.NextAction)
+	}
+	for _, action := range result.NextAction {
+		if action.Command != nil && *action.Command == "harness review start --spec <path>" {
+			t.Fatalf("did not expect a second review-start action while step review is active, got %#v", result.NextAction)
+		}
+	}
+	if result.NextAction[1].Command == nil || !strings.Contains(*result.NextAction[1].Command, "harness review aggregate --round review-002-delta") {
+		t.Fatalf("expected aggregate action to remain available, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusDoesNotSuggestSecondReviewWhileFallbackImplementNodeHasInFlightRound(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeFirstStep(content)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+		"current_node":         "execution/step-2/implement",
+		"active_review_round": map[string]any{
+			"round_id":   "review-002-delta",
+			"kind":       "delta",
+			"aggregated": false,
+		},
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target": stepTwoTitle,
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-2/implement" {
+		t.Fatalf("expected conservative fallback to stay on implement, got %#v", result.State)
+	}
+	if len(result.NextAction) < 2 {
+		t.Fatalf("expected repair guidance plus aggregate action, got %#v", result.NextAction)
+	}
+	if !strings.Contains(result.NextAction[0].Description, "aggregate the active review round first") {
+		t.Fatalf("expected fallback implement repair guidance to mention aggregating first, got %#v", result.NextAction)
+	}
+	for _, action := range result.NextAction {
+		if action.Command != nil && *action.Command == "harness review start --spec <path>" {
+			t.Fatalf("did not expect a second review-start action while a fallback in-flight round exists, got %#v", result.NextAction)
+		}
+	}
+	if result.NextAction[1].Command == nil || !strings.Contains(*result.NextAction[1].Command, "harness review aggregate --round review-002-delta") {
+		t.Fatalf("expected aggregate action to remain available, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusDoesNotSuggestSecondReviewWhileFinalizeReviewIsInFlight(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllStepsWithoutCloseout(content, false)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+		"active_review_round": map[string]any{
+			"round_id":   "review-003-full",
+			"kind":       "full",
+			"trigger":    "pre_archive",
+			"aggregated": false,
+		},
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":  stepTwoTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"decision": "pass",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-003-full", map[string]any{
+		"target":  "Full branch candidate before archive",
+		"trigger": "pre_archive",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/finalize/review" {
+		t.Fatalf("expected in-flight finalize review node, got %#v", result.State)
+	}
+	if len(result.NextAction) < 2 {
+		t.Fatalf("expected repair guidance plus aggregate action, got %#v", result.NextAction)
+	}
+	if result.NextAction[0].Command != nil || !strings.Contains(result.NextAction[0].Description, stepOneTitle) {
+		t.Fatalf("expected earlier-step repair guidance first, got %#v", result.NextAction)
+	}
+	if !strings.Contains(result.NextAction[0].Description, "aggregate the active review round first") {
+		t.Fatalf("expected finalize in-flight repair guidance to mention aggregating first, got %#v", result.NextAction)
+	}
+	for _, action := range result.NextAction {
+		if action.Command != nil && *action.Command == "harness review start --spec <path>" {
+			t.Fatalf("did not expect a second review-start action while finalize review is active, got %#v", result.NextAction)
+		}
+	}
+	if result.NextAction[1].Command == nil || !strings.Contains(*result.NextAction[1].Command, "harness review aggregate --round review-003-full") {
+		t.Fatalf("expected aggregate action to remain available, got %#v", result.NextAction)
 	}
 }
 

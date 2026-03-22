@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -103,7 +104,19 @@ type historicalReviewManifest struct {
 }
 
 type historicalReviewAggregate struct {
+	Target   string `json:"target"`
 	Decision string `json:"decision"`
+}
+
+type latestStepCloseoutRound struct {
+	RoundID  string
+	Sequence int
+	Decision string
+}
+
+type latestUnknownHistoricalReviewRound struct {
+	RoundID  string
+	Sequence int
 }
 
 func (s Service) Read() Result {
@@ -256,13 +269,13 @@ func (s Service) Read() Result {
 	if strings.HasPrefix(result.State.CurrentNode, "execution/finalize/") && reviewCtx != nil && reviewCtx.Trigger == "step_closeout" {
 		clearStepCloseoutReviewMetadata(facts, result.Artifacts)
 	}
-	missingStepReminder, reminderWarnings := loadMissingStepCloseoutReminder(s.Workdir, planStem, doc, result.State.CurrentNode)
+	missingStepReminder, reminderWarnings := loadMissingStepCloseoutReminder(s.Workdir, planStem, doc, reviewCtx, result.State.CurrentNode)
 	result.Warnings = append(result.Warnings, reminderWarnings...)
 	result.Summary = buildSummary(result.State.CurrentNode, facts, reviewCtx, blockers, currentPlan)
 	result.NextAction = buildNextActions(result.State.CurrentNode, facts, reviewCtx, blockers)
 	if missingStepReminder != nil {
 		result.Warnings = append(result.Warnings, buildMissingStepCloseoutWarnings(result.State.CurrentNode, missingStepReminder)...)
-		result.NextAction = prependMissingStepCloseoutActions(result.State.CurrentNode, result.NextAction, missingStepReminder)
+		result.NextAction = prependMissingStepCloseoutActions(result.State.CurrentNode, result.NextAction, reviewCtx, missingStepReminder)
 	}
 	if facts.empty() {
 		result.Facts = nil
@@ -460,13 +473,13 @@ func loadEvidenceContext(workdir string, state *runstate.State) (*evidenceContex
 	return ctx, warnings
 }
 
-func loadMissingStepCloseoutReminder(workdir, planStem string, doc *plan.Document, currentNode string) (*missingStepCloseoutReminder, []string) {
+func loadMissingStepCloseoutReminder(workdir, planStem string, doc *plan.Document, reviewCtx *reviewContext, currentNode string) (*missingStepCloseoutReminder, []string) {
 	candidateIndexes := completedStepIndexesBeforeCurrentPosition(doc, currentNode)
 	if len(candidateIndexes) == 0 {
 		return nil, nil
 	}
 
-	satisfiedTargets, warnings := loadSatisfiedStepCloseoutTargets(workdir, planStem)
+	satisfiedTargets, warnings := loadSatisfiedStepCloseoutTargets(workdir, planStem, doc, reviewCtx)
 	missingTitles := make([]string, 0)
 	for _, index := range candidateIndexes {
 		step := doc.Steps[index]
@@ -514,50 +527,127 @@ func completedStepIndexesBeforeCurrentPosition(doc *plan.Document, currentNode s
 	}
 }
 
-func loadSatisfiedStepCloseoutTargets(workdir, planStem string) (map[string]bool, []string) {
-	satisfied := map[string]bool{}
+func loadSatisfiedStepCloseoutTargets(workdir, planStem string, doc *plan.Document, reviewCtx *reviewContext) (map[string]bool, []string) {
 	reviewsDir := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews")
 	entries, err := os.ReadDir(reviewsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return satisfied, nil
+			return map[string]bool{}, nil
 		}
-		return satisfied, []string{fmt.Sprintf("Unable to inspect historical step-closeout reviews: %v", err)}
+		return map[string]bool{}, []string{fmt.Sprintf("Unable to inspect historical step-closeout reviews: %v", err)}
 	}
 
+	latestByTarget := map[string]latestStepCloseoutRound{}
+	var latestUnknownRound latestUnknownHistoricalReviewRound
+	hasUnknownRound := false
 	warnings := make([]string, 0)
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 		roundID := entry.Name()
+		sequence := historicalReviewRoundSequence(roundID)
 		manifestPath := filepath.Join(reviewsDir, roundID, "manifest.json")
 		aggregatePath := filepath.Join(reviewsDir, roundID, "aggregate.json")
 
 		var manifest historicalReviewManifest
-		if err := readJSONFile(manifestPath, &manifest); err != nil {
-			warnings = append(warnings, fmt.Sprintf("Unable to read historical review manifest for %s; status may miss older step-closeout evidence.", roundID))
-			continue
+		manifestErr := readJSONFile(manifestPath, &manifest)
+		record := latestStepCloseoutRound{
+			RoundID:  roundID,
+			Sequence: sequence,
+			Decision: "",
 		}
-		if manifest.Trigger != "step_closeout" {
-			continue
+		var aggregate historicalReviewAggregate
+		aggregateOK := readJSONFile(aggregatePath, &aggregate) == nil
+		if aggregateOK {
+			record.Decision = strings.TrimSpace(aggregate.Decision)
 		}
 
-		var aggregate historicalReviewAggregate
-		if err := readJSONFile(aggregatePath, &aggregate); err != nil {
+		trigger := strings.TrimSpace(manifest.Trigger)
+		targetText := strings.TrimSpace(manifest.Target)
+		if manifestErr != nil {
+			warnings = append(warnings, fmt.Sprintf("Unable to read historical review manifest for %s; status may miss older step-closeout evidence.", roundID))
+			trigger = ""
+			targetText = ""
+			if reviewCtx != nil && reviewCtx.RoundID == roundID && reviewCtx.TargetStepIndex >= 0 && reviewCtx.TargetStepIndex < len(doc.Steps) {
+				trigger = reviewCtx.Trigger
+				targetText = doc.Steps[reviewCtx.TargetStepIndex].Title
+			} else if aggregateOK {
+				if index, matched := resolveReviewTargetStep(doc, aggregate.Target); matched {
+					trigger = "step_closeout"
+					targetText = doc.Steps[index].Title
+				}
+			}
+		}
+		if trigger != "step_closeout" {
+			if manifestErr != nil {
+				unknownRound := latestUnknownHistoricalReviewRound{
+					RoundID:  roundID,
+					Sequence: sequence,
+				}
+				if !hasUnknownRound || isLaterUnknownHistoricalReviewRound(unknownRound, latestUnknownRound) {
+					latestUnknownRound = unknownRound
+					hasUnknownRound = true
+				}
+			}
 			continue
 		}
-		if strings.TrimSpace(aggregate.Decision) != "pass" {
-			continue
-		}
-		target := normalizeReviewTarget(manifest.Target)
+		target := normalizeReviewTarget(targetText)
 		if target == "" {
 			continue
 		}
-		satisfied[target] = true
+
+		existing, ok := latestByTarget[target]
+		if ok && !isLaterHistoricalStepCloseoutRound(record, existing) {
+			continue
+		}
+		latestByTarget[target] = record
+	}
+
+	satisfied := map[string]bool{}
+	for target, record := range latestByTarget {
+		if hasUnknownRound && isUnknownHistoricalReviewRoundLaterThanStepCloseout(latestUnknownRound, record) {
+			continue
+		}
+		if record.Decision == "pass" {
+			satisfied[target] = true
+		}
 	}
 
 	return satisfied, warnings
+}
+
+func historicalReviewRoundSequence(roundID string) int {
+	parts := strings.Split(strings.TrimSpace(roundID), "-")
+	if len(parts) < 3 || parts[0] != "review" {
+		return 0
+	}
+	sequence, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0
+	}
+	return sequence
+}
+
+func isLaterHistoricalStepCloseoutRound(candidate, existing latestStepCloseoutRound) bool {
+	if candidate.Sequence != existing.Sequence {
+		return candidate.Sequence > existing.Sequence
+	}
+	return candidate.RoundID > existing.RoundID
+}
+
+func isLaterUnknownHistoricalReviewRound(candidate, existing latestUnknownHistoricalReviewRound) bool {
+	if candidate.Sequence != existing.Sequence {
+		return candidate.Sequence > existing.Sequence
+	}
+	return candidate.RoundID > existing.RoundID
+}
+
+func isUnknownHistoricalReviewRoundLaterThanStepCloseout(unknown latestUnknownHistoricalReviewRound, known latestStepCloseoutRound) bool {
+	if unknown.Sequence != known.Sequence {
+		return unknown.Sequence > known.Sequence
+	}
+	return unknown.RoundID > known.RoundID
 }
 
 func hasNoStepReviewNeededMarker(reviewNotes string) bool {
@@ -751,6 +841,11 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 		}
 	}
 	if strings.HasSuffix(node, "/implement") {
+		if reviewCtx != nil && reviewCtx.InFlight {
+			return []NextAction{
+				{Command: aggregateCommand(reviewCtx.RoundID), Description: "Aggregate the active review round once the expected reviewer submissions are ready."},
+			}
+		}
 		if facts != nil && facts.ReviewStatus == "unknown" {
 			description := "Recover the latest aggregated review result or rerun review conservatively before advancing this step."
 			if reviewCtx != nil && strings.TrimSpace(reviewCtx.RoundID) != "" {
@@ -808,22 +903,36 @@ func buildMissingStepCloseoutWarnings(node string, reminder *missingStepCloseout
 	return warnings
 }
 
-func prependMissingStepCloseoutActions(node string, actions []NextAction, reminder *missingStepCloseoutReminder) []NextAction {
+func prependMissingStepCloseoutActions(node string, actions []NextAction, reviewCtx *reviewContext, reminder *missingStepCloseoutReminder) []NextAction {
 	if reminder == nil || len(reminder.MissingTitles) == 0 {
 		return actions
 	}
 
 	earliestTitle := reminder.MissingTitles[0]
+	inFlight := reviewRoundAlreadyInFlight(node, reviewCtx)
 	description := fmt.Sprintf("%s is already marked done but still needs review-complete closeout; resolve it first by starting step-closeout review or recording NO_STEP_REVIEW_NEEDED: <reason> in Review Notes.", earliestTitle)
+	if inFlight {
+		description = fmt.Sprintf("%s is already marked done but still needs review-complete closeout; aggregate the active review round first, then resolve the closeout gap by recording NO_STEP_REVIEW_NEEDED: <reason> in Review Notes or starting step-closeout review once no other review round is active.", earliestTitle)
+	}
 	if strings.HasPrefix(node, "execution/finalize/") {
 		description = fmt.Sprintf("Earlier completed steps still need review-complete closeout before relying on finalize progression; resolve %s first by starting step-closeout review or recording NO_STEP_REVIEW_NEEDED: <reason> in Review Notes.", earliestTitle)
+		if inFlight {
+			description = fmt.Sprintf("Earlier completed steps still need review-complete closeout before relying on finalize progression; aggregate the active review round first, then resolve %s by recording NO_STEP_REVIEW_NEEDED: <reason> in Review Notes or starting step-closeout review once no other review round is active.", earliestTitle)
+		}
 	}
 
-	prefixed := []NextAction{
-		{Command: nil, Description: description},
-		{Command: strPtr("harness review start --spec <path>"), Description: fmt.Sprintf("Start a fresh step-closeout review for %s once the closeout slice is ready.", earliestTitle)},
+	prefixed := []NextAction{{Command: nil, Description: description}}
+	if !inFlight {
+		prefixed = append(prefixed, NextAction{
+			Command:     strPtr("harness review start --spec <path>"),
+			Description: fmt.Sprintf("Start a fresh step-closeout review for %s once the closeout slice is ready.", earliestTitle),
+		})
 	}
 	return append(prefixed, actions...)
+}
+
+func reviewRoundAlreadyInFlight(node string, reviewCtx *reviewContext) bool {
+	return reviewCtx != nil && reviewCtx.InFlight
 }
 
 func buildPublishNextActions(facts *Facts) []NextAction {
