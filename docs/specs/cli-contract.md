@@ -278,6 +278,10 @@ Contract:
 - if an already completed earlier step is missing review-complete closeout,
   keep the current node stable, surface a warning, and put the earliest repair
   guidance first in `next_actions`
+- if unreadable historical review metadata cannot be mapped back to a tracked
+  step, keep the current node stable, preserve a conservative warning, and
+  steer the controller toward repairing artifacts or rerunning the relevant
+  step-closeout review instead of silently trusting older clean passes
 
 Recommended next action examples:
 

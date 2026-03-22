@@ -95,7 +95,8 @@ type evidenceContext struct {
 }
 
 type missingStepCloseoutReminder struct {
-	MissingTitles []string
+	MissingTitles   []string
+	UnscopedRoundID string
 }
 
 type historicalReviewManifest struct {
@@ -117,6 +118,12 @@ type latestStepCloseoutRound struct {
 type latestUnknownHistoricalReviewRound struct {
 	RoundID  string
 	Sequence int
+}
+
+type latestStepCloseoutScan struct {
+	LatestByTarget      map[string]latestStepCloseoutRound
+	Warnings            []string
+	LatestUnscopedRound *latestUnknownHistoricalReviewRound
 }
 
 func (s Service) Read() Result {
@@ -492,25 +499,42 @@ func loadMissingStepCloseoutReminder(workdir, planStem string, doc *plan.Documen
 		return nil, nil
 	}
 
-	satisfiedTargets, warnings := loadSatisfiedStepCloseoutTargets(workdir, planStem, doc, reviewCtx)
+	scan := loadLatestStepCloseoutScan(workdir, planStem, doc, reviewCtx)
+	latestTargets := scan.LatestByTarget
+	warnings := scan.Warnings
 	missingTitles := make([]string, 0)
+	unscopedRoundID := ""
 	for _, index := range candidateIndexes {
 		step := doc.Steps[index]
 		if !step.Done {
 			continue
 		}
-		if hasNoStepReviewNeededMarker(step.Sections["Review Notes"]) {
+		target := normalizeReviewTarget(step.Title)
+		if latest, ok := latestTargets[target]; ok {
+			if latest.Decision == "pass" {
+				if scan.LatestUnscopedRound != nil && isUnknownHistoricalReviewRoundLaterThanStepCloseout(*scan.LatestUnscopedRound, latest) {
+					unscopedRoundID = scan.LatestUnscopedRound.RoundID
+				}
+				continue
+			}
+			missingTitles = append(missingTitles, step.Title)
 			continue
 		}
-		if satisfiedTargets[normalizeReviewTarget(step.Title)] {
+		if hasNoStepReviewNeededMarker(step.Sections["Review Notes"]) {
+			if scan.LatestUnscopedRound != nil {
+				unscopedRoundID = scan.LatestUnscopedRound.RoundID
+			}
 			continue
 		}
 		missingTitles = append(missingTitles, step.Title)
 	}
-	if len(missingTitles) == 0 {
+	if len(missingTitles) == 0 && unscopedRoundID == "" {
 		return nil, warnings
 	}
-	return &missingStepCloseoutReminder{MissingTitles: missingTitles}, warnings
+	return &missingStepCloseoutReminder{
+		MissingTitles:   missingTitles,
+		UnscopedRoundID: unscopedRoundID,
+	}, warnings
 }
 
 func completedStepIndexesBeforeCurrentPosition(doc *plan.Document, currentNode string) []int {
@@ -541,19 +565,38 @@ func completedStepIndexesBeforeCurrentPosition(doc *plan.Document, currentNode s
 }
 
 func loadSatisfiedStepCloseoutTargets(workdir, planStem string, doc *plan.Document, reviewCtx *reviewContext) (map[string]bool, []string) {
+	latestByTarget, warnings := loadLatestStepCloseoutTargets(workdir, planStem, doc, reviewCtx)
+	satisfied := map[string]bool{}
+	for target, record := range latestByTarget {
+		if record.Decision == "pass" {
+			satisfied[target] = true
+		}
+	}
+
+	return satisfied, warnings
+}
+
+func loadLatestStepCloseoutTargets(workdir, planStem string, doc *plan.Document, reviewCtx *reviewContext) (map[string]latestStepCloseoutRound, []string) {
+	scan := loadLatestStepCloseoutScan(workdir, planStem, doc, reviewCtx)
+	return scan.LatestByTarget, scan.Warnings
+}
+
+func loadLatestStepCloseoutScan(workdir, planStem string, doc *plan.Document, reviewCtx *reviewContext) latestStepCloseoutScan {
 	reviewsDir := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews")
 	entries, err := os.ReadDir(reviewsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return map[string]bool{}, nil
+			return latestStepCloseoutScan{LatestByTarget: map[string]latestStepCloseoutRound{}}
 		}
-		return map[string]bool{}, []string{fmt.Sprintf("Unable to inspect historical step-closeout reviews: %v", err)}
+		return latestStepCloseoutScan{
+			LatestByTarget: map[string]latestStepCloseoutRound{},
+			Warnings:       []string{fmt.Sprintf("Unable to inspect historical step-closeout reviews: %v", err)},
+		}
 	}
 
 	latestByTarget := map[string]latestStepCloseoutRound{}
-	var latestUnknownRound latestUnknownHistoricalReviewRound
-	hasUnknownRound := false
 	warnings := make([]string, 0)
+	var latestUnscopedRound *latestUnknownHistoricalReviewRound
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -582,27 +625,28 @@ func loadSatisfiedStepCloseoutTargets(workdir, planStem string, doc *plan.Docume
 			warnings = append(warnings, fmt.Sprintf("Unable to read historical review manifest for %s; status may miss older step-closeout evidence.", roundID))
 			trigger = ""
 			targetText = ""
-			if reviewCtx != nil && reviewCtx.RoundID == roundID && reviewCtx.TargetStepIndex >= 0 && reviewCtx.TargetStepIndex < len(doc.Steps) {
+			if reviewCtx != nil && reviewCtx.RoundID == roundID {
 				trigger = reviewCtx.Trigger
-				targetText = doc.Steps[reviewCtx.TargetStepIndex].Title
+				if reviewCtx.TargetStepIndex >= 0 && reviewCtx.TargetStepIndex < len(doc.Steps) {
+					targetText = doc.Steps[reviewCtx.TargetStepIndex].Title
+				}
 			} else if aggregateOK {
 				if index, matched := resolveReviewTargetStep(doc, aggregate.Target); matched {
 					trigger = "step_closeout"
 					targetText = doc.Steps[index].Title
 				}
 			}
-		}
-		if trigger != "step_closeout" {
-			if manifestErr != nil {
-				unknownRound := latestUnknownHistoricalReviewRound{
+			if trigger == "" || (trigger == "step_closeout" && strings.TrimSpace(targetText) == "") {
+				candidate := latestUnknownHistoricalReviewRound{
 					RoundID:  roundID,
 					Sequence: sequence,
 				}
-				if !hasUnknownRound || isLaterUnknownHistoricalReviewRound(unknownRound, latestUnknownRound) {
-					latestUnknownRound = unknownRound
-					hasUnknownRound = true
+				if latestUnscopedRound == nil || isLaterUnknownHistoricalReviewRound(candidate, *latestUnscopedRound) {
+					latestUnscopedRound = &candidate
 				}
 			}
+		}
+		if trigger != "step_closeout" {
 			continue
 		}
 		target := normalizeReviewTarget(targetText)
@@ -617,17 +661,11 @@ func loadSatisfiedStepCloseoutTargets(workdir, planStem string, doc *plan.Docume
 		latestByTarget[target] = record
 	}
 
-	satisfied := map[string]bool{}
-	for target, record := range latestByTarget {
-		if hasUnknownRound && isUnknownHistoricalReviewRoundLaterThanStepCloseout(latestUnknownRound, record) {
-			continue
-		}
-		if record.Decision == "pass" {
-			satisfied[target] = true
-		}
+	return latestStepCloseoutScan{
+		LatestByTarget:      latestByTarget,
+		Warnings:            warnings,
+		LatestUnscopedRound: latestUnscopedRound,
 	}
-
-	return satisfied, warnings
 }
 
 func historicalReviewRoundSequence(roundID string) int {
@@ -718,7 +756,7 @@ func archivedCandidateReadyForMerge(evidenceCtx *evidenceContext) bool {
 }
 
 func buildSummary(node string, facts *Facts, reviewCtx *reviewContext, blockers []StatusError, reminder *missingStepCloseoutReminder, currentPlan *runstate.CurrentPlan) string {
-	if strings.HasPrefix(node, "execution/finalize/") && reminder != nil && len(reminder.MissingTitles) > 0 && !pendingReopenedNewStep(node, facts) {
+	if strings.HasPrefix(node, "execution/finalize/") && reminder != nil && reminder.hasDebt() && !pendingReopenedNewStep(node, facts) {
 		return buildMissingStepCloseoutSummary(node, reviewCtx, reminder)
 	}
 
@@ -788,7 +826,32 @@ func pendingReopenedNewStep(node string, facts *Facts) bool {
 		strings.TrimSpace(facts.CurrentStep) == ""
 }
 
+func (r *missingStepCloseoutReminder) hasDebt() bool {
+	return r != nil && (len(r.MissingTitles) > 0 || strings.TrimSpace(r.UnscopedRoundID) != "")
+}
+
 func buildMissingStepCloseoutSummary(node string, reviewCtx *reviewContext, reminder *missingStepCloseoutReminder) string {
+	if len(reminder.MissingTitles) == 0 {
+		roundID := strings.TrimSpace(reminder.UnscopedRoundID)
+		switch node {
+		case "execution/finalize/review":
+			if reviewCtx != nil && reviewCtx.InFlight {
+				return fmt.Sprintf("Finalize review is in flight, but unreadable historical review metadata (%s) could still hide earlier step-closeout debt; inspect or rerun the relevant closeout before treating the candidate as finalize-ready.", roundID)
+			}
+			return fmt.Sprintf("Unreadable historical review metadata (%s) could still hide earlier step-closeout debt; inspect or rerun the relevant closeout before relying on finalize progression.", roundID)
+		case "execution/finalize/fix":
+			return fmt.Sprintf("Unreadable historical review metadata (%s) could still hide earlier step-closeout debt; inspect or rerun the relevant closeout before treating finalize repair as complete.", roundID)
+		case "execution/finalize/archive":
+			return fmt.Sprintf("Plan has a clean finalize review, but unreadable historical review metadata (%s) could still hide earlier step-closeout debt; inspect or rerun the relevant closeout before archive.", roundID)
+		case "execution/finalize/publish":
+			return fmt.Sprintf("Plan is archived, but unreadable historical review metadata (%s) could still hide earlier step-closeout debt; reopen the candidate and resolve the relevant closeout before merge-ready handoff.", roundID)
+		case "execution/finalize/await_merge":
+			return fmt.Sprintf("Plan is archived, but unreadable historical review metadata (%s) could still hide earlier step-closeout debt; reopen the candidate and resolve the relevant closeout before treating it as merge-ready.", roundID)
+		default:
+			return ""
+		}
+	}
+
 	earliestTitle := reminder.MissingTitles[0]
 
 	switch node {
@@ -926,16 +989,33 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 }
 
 func buildMissingStepCloseoutWarnings(node string, reminder *missingStepCloseoutReminder) []string {
-	if reminder == nil || len(reminder.MissingTitles) == 0 {
+	if reminder == nil || !reminder.hasDebt() {
 		return nil
+	}
+
+	unscopedWarning := ""
+	if strings.TrimSpace(reminder.UnscopedRoundID) != "" {
+		unscopedWarning = fmt.Sprintf("Historical review round %s could not be mapped back to a tracked step; earlier clean step-closeout evidence may be stale, so inspect or rerun the relevant closeout conservatively before relying on progression.", reminder.UnscopedRoundID)
+	}
+
+	if len(reminder.MissingTitles) == 0 {
+		return []string{unscopedWarning}
 	}
 
 	if len(reminder.MissingTitles) == 1 {
 		title := reminder.MissingTitles[0]
 		if strings.HasPrefix(node, "execution/finalize/") {
-			return []string{fmt.Sprintf("Finalize progression is continuing while %s is marked done but still lacks review-complete closeout.", title)}
+			warnings := []string{fmt.Sprintf("Finalize progression is continuing while %s is marked done but still lacks review-complete closeout.", title)}
+			if unscopedWarning != "" {
+				warnings = append(warnings, unscopedWarning)
+			}
+			return warnings
 		}
-		return []string{fmt.Sprintf("%s is marked done, but no clean step-closeout review was found and Review Notes do not record NO_STEP_REVIEW_NEEDED.", title)}
+		warnings := []string{fmt.Sprintf("%s is marked done, but no clean step-closeout review was found and Review Notes do not record NO_STEP_REVIEW_NEEDED.", title)}
+		if unscopedWarning != "" {
+			warnings = append(warnings, unscopedWarning)
+		}
+		return warnings
 	}
 
 	context := "Later-step progression is continuing"
@@ -946,19 +1026,43 @@ func buildMissingStepCloseoutWarnings(node string, reminder *missingStepCloseout
 	for _, title := range reminder.MissingTitles {
 		warnings = append(warnings, fmt.Sprintf("%s is marked done, but no clean step-closeout review was found and Review Notes do not record NO_STEP_REVIEW_NEEDED.", title))
 	}
+	if unscopedWarning != "" {
+		warnings = append(warnings, unscopedWarning)
+	}
 	return warnings
 }
 
 func prependMissingStepCloseoutActions(node string, actions []NextAction, facts *Facts, reviewCtx *reviewContext, reminder *missingStepCloseoutReminder) []NextAction {
-	if reminder == nil || len(reminder.MissingTitles) == 0 {
+	if reminder == nil || !reminder.hasDebt() {
 		return actions
 	}
 	if pendingReopenedNewStep(node, facts) {
 		return actions
 	}
 
-	earliestTitle := reminder.MissingTitles[0]
+	earliestTitle := ""
+	if len(reminder.MissingTitles) > 0 {
+		earliestTitle = reminder.MissingTitles[0]
+	}
 	inFlight := reviewRoundAlreadyInFlight(node, reviewCtx)
+	if earliestTitle == "" {
+		description := fmt.Sprintf("Historical review round %s could not be mapped back to a tracked step; inspect or repair the local review artifacts, then rerun the relevant step-closeout review conservatively before relying on further progression.", reminder.UnscopedRoundID)
+		if inFlight {
+			description = fmt.Sprintf("Historical review round %s could not be mapped back to a tracked step; aggregate the active review round first, then inspect or repair the local review artifacts and rerun the relevant step-closeout review conservatively before relying on further progression.", reminder.UnscopedRoundID)
+		}
+		prefixed := []NextAction{{Command: nil, Description: description}}
+		if node == "execution/finalize/publish" || node == "execution/finalize/await_merge" {
+			prefixed = append(prefixed, NextAction{
+				Command:     strPtr("harness reopen --mode finalize-fix"),
+				Description: fmt.Sprintf("Reopen the archived candidate before repairing the ambiguous historical closeout evidence from %s.", reminder.UnscopedRoundID),
+			})
+			return append(prefixed, actions...)
+		}
+		if node == "execution/finalize/archive" && containsNextActionCommand(actions, "harness archive") {
+			return prefixed
+		}
+		return append(prefixed, actions...)
+	}
 	if node == "execution/finalize/publish" || node == "execution/finalize/await_merge" {
 		prefixed := []NextAction{
 			{

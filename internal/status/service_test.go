@@ -384,8 +384,84 @@ func TestStatusWarnsWhenLatestUnreadableHistoricalCloseoutCannotBeMapped(t *test
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
 	}
-	if len(result.Warnings) < 2 || !strings.Contains(result.Warnings[0], "Unable to read historical review manifest") || !strings.Contains(result.Warnings[1], stepOneTitle) {
-		t.Fatalf("expected unknown unreadable latest manifest to keep the step warning, got %#v", result.Warnings)
+	if len(result.Warnings) == 0 || !strings.Contains(result.Warnings[0], "Unable to read historical review manifest") {
+		t.Fatalf("expected unreadable-history warning to remain visible, got %#v", result.Warnings)
+	}
+	foundUnscopedWarning := false
+	for _, warning := range result.Warnings {
+		if strings.Contains(warning, stepOneTitle) {
+			t.Fatalf("did not expect an unmappable unreadable round to unsatisfy Step 1, got %#v", result.Warnings)
+		}
+		if strings.Contains(warning, "could not be mapped back to a tracked step") && strings.Contains(warning, "review-002-delta") {
+			foundUnscopedWarning = true
+		}
+	}
+	if !foundUnscopedWarning {
+		t.Fatalf("expected a conservative unmapped-round warning, got %#v", result.Warnings)
+	}
+	if len(result.NextAction) == 0 || result.NextAction[0].Command != nil || !strings.Contains(result.NextAction[0].Description, "review-002-delta") {
+		t.Fatalf("expected a conservative next action for the unmapped round, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusFinalizeArchiveSuppressesArchiveActionForUnscopedUnreadableHistory(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+		"active_review_round": map[string]any{
+			"round_id":   "review-005-full",
+			"kind":       "full",
+			"trigger":    "pre_archive",
+			"aggregated": true,
+			"decision":   "pass",
+		},
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "pass",
+	})
+
+	dir := filepath.Join(root, ".local", "harness", "plans", "2026-03-18-status-plan", "reviews", "review-002-delta")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir unreadable manifest dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("write unreadable manifest: %v", err)
+	}
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":   "mystery historical target",
+		"decision": "changes_requested",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/finalize/archive" {
+		t.Fatalf("expected archive node to stay stable, got %#v", result.State)
+	}
+	if !strings.Contains(result.Summary, "review-002-delta") || !strings.Contains(result.Summary, "before archive") {
+		t.Fatalf("expected archive summary to stay conservative for unmapped history, got %q", result.Summary)
+	}
+	foundUnscopedWarning := false
+	for _, warning := range result.Warnings {
+		if strings.Contains(warning, "could not be mapped back to a tracked step") && strings.Contains(warning, "review-002-delta") {
+			foundUnscopedWarning = true
+		}
+	}
+	if !foundUnscopedWarning {
+		t.Fatalf("expected conservative unmapped-round warning, got %#v", result.Warnings)
+	}
+	if len(result.NextAction) == 0 || result.NextAction[0].Command != nil || !strings.Contains(result.NextAction[0].Description, "review-002-delta") {
+		t.Fatalf("expected conservative archive repair guidance first, got %#v", result.NextAction)
+	}
+	for _, action := range result.NextAction {
+		if action.Command != nil && *action.Command == "harness archive" {
+			t.Fatalf("did not expect archive action while unmapped unreadable history remains, got %#v", result.NextAction)
+		}
 	}
 }
 
@@ -719,6 +795,296 @@ func TestStatusSuppressesMissingReviewWarningWithNoReviewNeededMarker(t *testing
 	}
 	if len(result.Warnings) != 0 {
 		t.Fatalf("expected NO_STEP_REVIEW_NEEDED to suppress reminder warnings, got %#v", result.Warnings)
+	}
+}
+
+func TestStatusNoReviewNeededMarkerDoesNotHideLaterFailedCloseout(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		content = completeFirstStep(content)
+		return replaceOnce(content, "Reviewed.", "NO_STEP_REVIEW_NEEDED: Doc-only wording cleanup with no contract or behavior change.")
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "changes_requested",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-2/implement" {
+		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
+	}
+	if len(result.Warnings) == 0 || !strings.Contains(result.Warnings[0], stepOneTitle) {
+		t.Fatalf("expected a later failed closeout to restore the reminder even with NO_STEP_REVIEW_NEEDED, got %#v", result.Warnings)
+	}
+}
+
+func TestStatusNoReviewNeededMarkerDoesNotHideLaterInFlightCloseout(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		content = completeFirstStep(content)
+		return replaceOnce(content, "Reviewed.", "NO_STEP_REVIEW_NEEDED: Doc-only wording cleanup with no contract or behavior change.")
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-2/implement" {
+		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
+	}
+	if len(result.Warnings) == 0 || !strings.Contains(result.Warnings[0], stepOneTitle) {
+		t.Fatalf("expected an in-flight later closeout to restore the reminder even with NO_STEP_REVIEW_NEEDED, got %#v", result.Warnings)
+	}
+}
+
+func TestStatusNoReviewNeededMarkerAllowsLaterCleanCloseoutToStaySatisfied(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		content = completeFirstStep(content)
+		return replaceOnce(content, "Reviewed.", "NO_STEP_REVIEW_NEEDED: Doc-only wording cleanup with no contract or behavior change.")
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "pass",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-2/implement" {
+		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
+	}
+	for _, warning := range result.Warnings {
+		if strings.Contains(warning, stepOneTitle) {
+			t.Fatalf("did not expect a later clean closeout to restore reminder debt, got %#v", result.Warnings)
+		}
+	}
+}
+
+func TestStatusUnreadableFinalizeManifestDoesNotMasqueradeAsStepDebt(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+		"active_review_round": map[string]any{
+			"round_id":   "review-003-full",
+			"kind":       "full",
+			"trigger":    "pre_archive",
+			"aggregated": false,
+		},
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "pass",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":  stepTwoTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"decision": "pass",
+	})
+
+	dir := filepath.Join(root, ".local", "harness", "plans", "2026-03-18-status-plan", "reviews", "review-003-full")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir unreadable finalize manifest dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("write unreadable finalize manifest: %v", err)
+	}
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/finalize/review" {
+		t.Fatalf("expected finalize review node to stay stable, got %#v", result.State)
+	}
+	if !strings.Contains(result.Summary, "waiting for the active review round to be aggregated") {
+		t.Fatalf("expected ordinary finalize-review summary, got %q", result.Summary)
+	}
+	if len(result.NextAction) != 1 || result.NextAction[0].Command == nil || !strings.Contains(*result.NextAction[0].Command, "harness review aggregate --round review-003-full") {
+		t.Fatalf("expected only aggregate guidance for unreadable finalize manifest, got %#v", result.NextAction)
+	}
+	for _, warning := range result.Warnings {
+		if strings.Contains(warning, "could not be mapped back to a tracked step") {
+			t.Fatalf("did not expect unreadable finalize manifest to create unscoped step debt, got %#v", result.Warnings)
+		}
+	}
+}
+
+func TestStatusFinalizeReviewUsesAggregateFirstGuidanceForUnscopedUnreadableHistory(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+		"active_review_round": map[string]any{
+			"round_id":   "review-003-full",
+			"kind":       "full",
+			"trigger":    "pre_archive",
+			"aggregated": false,
+		},
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "pass",
+	})
+
+	dir := filepath.Join(root, ".local", "harness", "plans", "2026-03-18-status-plan", "reviews", "review-002-delta")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir unreadable manifest dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("write unreadable manifest: %v", err)
+	}
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":   "mystery historical target",
+		"decision": "changes_requested",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-003-full", map[string]any{
+		"target":  "Full branch candidate before archive",
+		"trigger": "pre_archive",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/finalize/review" {
+		t.Fatalf("expected finalize review node to stay stable, got %#v", result.State)
+	}
+	if !strings.Contains(result.Summary, "Finalize review is in flight") || !strings.Contains(result.Summary, "review-002-delta") {
+		t.Fatalf("expected finalize review summary to mention the unreadable historical round, got %q", result.Summary)
+	}
+	if len(result.NextAction) < 2 || result.NextAction[0].Command != nil || !strings.Contains(result.NextAction[0].Description, "aggregate the active review round first") || !strings.Contains(result.NextAction[0].Description, "review-002-delta") {
+		t.Fatalf("expected aggregate-first repair guidance for unscoped unreadable history, got %#v", result.NextAction)
+	}
+	if result.NextAction[1].Command == nil || !strings.Contains(*result.NextAction[1].Command, "harness review aggregate --round review-003-full") {
+		t.Fatalf("expected aggregate action to remain available, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusFinalizeReviewSummaryForUnscopedUnreadableHistoryWithoutActiveRound(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "pass",
+	})
+
+	dir := filepath.Join(root, ".local", "harness", "plans", "2026-03-18-status-plan", "reviews", "review-002-delta")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir unreadable manifest dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("write unreadable manifest: %v", err)
+	}
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":   "mystery historical target",
+		"decision": "changes_requested",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/finalize/review" {
+		t.Fatalf("expected finalize review node to stay stable, got %#v", result.State)
+	}
+	if !strings.Contains(result.Summary, "before relying on finalize progression") || !strings.Contains(result.Summary, "review-002-delta") {
+		t.Fatalf("expected finalize-review summary to mention the unreadable historical round, got %q", result.Summary)
+	}
+	if len(result.NextAction) < 2 || result.NextAction[0].Command != nil || !strings.Contains(result.NextAction[0].Description, "review-002-delta") {
+		t.Fatalf("expected non-in-flight finalize review guidance to mention the unreadable historical round, got %#v", result.NextAction)
+	}
+	if !strings.Contains(result.NextAction[0].Description, "inspect or repair the local review artifacts") {
+		t.Fatalf("expected non-in-flight finalize review guidance to use repair wording, got %#v", result.NextAction)
+	}
+	if strings.Contains(result.NextAction[0].Description, "aggregate the active review round first") {
+		t.Fatalf("did not expect aggregate-first wording without an active review round, got %#v", result.NextAction)
+	}
+	if result.NextAction[1].Command == nil || *result.NextAction[1].Command != "harness review start --spec <path>" {
+		t.Fatalf("expected finalize review start guidance to remain available, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusFinalizeFixSummaryForUnscopedUnreadableHistory(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+		"active_review_round": map[string]any{
+			"round_id":   "review-004-full",
+			"kind":       "full",
+			"trigger":    "pre_archive",
+			"aggregated": true,
+			"decision":   "changes_requested",
+		},
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"target":  stepOneTitle,
+		"trigger": "step_closeout",
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "pass",
+	})
+
+	dir := filepath.Join(root, ".local", "harness", "plans", "2026-03-18-status-plan", "reviews", "review-002-delta")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir unreadable manifest dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("write unreadable manifest: %v", err)
+	}
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+		"target":   "mystery historical target",
+		"decision": "changes_requested",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/finalize/fix" {
+		t.Fatalf("expected finalize fix node to stay stable, got %#v", result.State)
+	}
+	if !strings.Contains(result.Summary, "before treating finalize repair as complete") || !strings.Contains(result.Summary, "review-002-delta") {
+		t.Fatalf("expected finalize-fix summary to mention the unreadable historical round, got %q", result.Summary)
+	}
+	if len(result.NextAction) < 3 || result.NextAction[0].Command != nil || !strings.Contains(result.NextAction[0].Description, "review-002-delta") {
+		t.Fatalf("expected finalize-fix repair guidance to mention the unreadable historical round, got %#v", result.NextAction)
+	}
+	foundFinalizeRestart := false
+	for _, action := range result.NextAction[1:] {
+		if action.Command != nil && *action.Command == "harness review start --spec <path>" {
+			foundFinalizeRestart = true
+			break
+		}
+	}
+	if !foundFinalizeRestart {
+		t.Fatalf("expected finalize review restart guidance to remain available, got %#v", result.NextAction)
 	}
 }
 
@@ -1124,6 +1490,104 @@ func TestStatusWarnsInArchivedPublishWhenCompletedStepStillLacksCloseout(t *test
 	}
 	if !foundPublishGuidance {
 		t.Fatalf("expected ordinary publish follow-up to remain after the reopen guidance, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusArchivedNodesRequireReopenForUnscopedUnreadableHistory(t *testing.T) {
+	cases := []struct {
+		name                string
+		withMergeEvidence   bool
+		expectedNode        string
+		expectedOrdinaryCue string
+	}{
+		{
+			name:                "publish",
+			withMergeEvidence:   false,
+			expectedNode:        "execution/finalize/publish",
+			expectedOrdinaryCue: "Open or update the PR for the archived candidate",
+		},
+		{
+			name:                "await-merge",
+			withMergeEvidence:   true,
+			expectedNode:        "execution/finalize/await_merge",
+			expectedOrdinaryCue: "Wait for explicit human approval before merging the PR.",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+				return completeAllSteps(content, true)
+			})
+			writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+			dir := filepath.Join(root, ".local", "harness", "plans", "2026-03-18-status-plan", "reviews", "review-002-delta")
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatalf("mkdir unreadable manifest dir: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte("{not-json"), 0o644); err != nil {
+				t.Fatalf("write unreadable manifest: %v", err)
+			}
+			writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
+				"target":   "mystery historical target",
+				"decision": "changes_requested",
+			})
+
+			if tc.withMergeEvidence {
+				svc := evidence.Service{
+					Workdir: root,
+					Now: func() time.Time {
+						return time.Date(2026, 3, 18, 11, 0, 0, 0, time.UTC)
+					},
+				}
+				if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/yzhang1918/superharness/pull/13"}`)); !result.OK {
+					t.Fatalf("publish evidence: %#v", result)
+				}
+				if result := svc.Submit("ci", []byte(`{"status":"not_applied","reason":"repository has no hosted CI in this test"}`)); !result.OK {
+					t.Fatalf("ci evidence: %#v", result)
+				}
+				if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+					t.Fatalf("sync evidence: %#v", result)
+				}
+			}
+
+			result := status.Service{Workdir: root}.Read()
+			if result.State.CurrentNode != tc.expectedNode {
+				t.Fatalf("expected archived node %q, got %#v", tc.expectedNode, result.State)
+			}
+			if !strings.Contains(result.Summary, "review-002-delta") || !strings.Contains(result.Summary, "reopen the candidate") {
+				t.Fatalf("expected archived summary to require reopen for unmapped history, got %q", result.Summary)
+			}
+			foundUnscopedWarning := false
+			for _, warning := range result.Warnings {
+				if strings.Contains(warning, stepOneTitle) || strings.Contains(warning, stepTwoTitle) {
+					t.Fatalf("did not expect unmapped unreadable history to invent step-specific debt, got %#v", result.Warnings)
+				}
+				if strings.Contains(warning, "could not be mapped back to a tracked step") && strings.Contains(warning, "review-002-delta") {
+					foundUnscopedWarning = true
+				}
+			}
+			if !foundUnscopedWarning {
+				t.Fatalf("expected conservative unmapped-round warning, got %#v", result.Warnings)
+			}
+			if len(result.NextAction) < 2 || result.NextAction[0].Command != nil || !strings.Contains(result.NextAction[0].Description, "review-002-delta") {
+				t.Fatalf("expected archived repair guidance first, got %#v", result.NextAction)
+			}
+			if result.NextAction[1].Command == nil || *result.NextAction[1].Command != "harness reopen --mode finalize-fix" {
+				t.Fatalf("expected archived unscoped history to require reopen before repair, got %#v", result.NextAction)
+			}
+			foundOrdinaryGuidance := false
+			for _, action := range result.NextAction[2:] {
+				if strings.Contains(action.Description, tc.expectedOrdinaryCue) {
+					foundOrdinaryGuidance = true
+					break
+				}
+			}
+			if !foundOrdinaryGuidance {
+				t.Fatalf("expected ordinary archived follow-up to remain after reopen guidance, got %#v", result.NextAction)
+			}
+		})
 	}
 }
 

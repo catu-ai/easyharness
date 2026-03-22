@@ -73,9 +73,10 @@ warnings.
       the workflow calls for it, and only pause for blockers, scope changes, or
       explicit merge approval.
 - [x] The specs clearly define that a completed step is review-complete when it
-      has either a clean `step_closeout` review (`delta` by default, `full`
-      allowed when the slice needs a broader pass) or a
-      `NO_STEP_REVIEW_NEEDED: <reason>` marker in `Review Notes`.
+      has either a clean latest-known `step_closeout` review (`delta` by
+      default, `full` allowed when the slice needs a broader pass) or a
+      `NO_STEP_REVIEW_NEEDED: <reason>` marker in `Review Notes` that has not
+      been superseded by a later in-flight or non-clean `step_closeout` round.
 - [x] `harness status` keeps ordinary review prompts in `next_actions`, but
       emits `warnings` once an already completed earlier step is missing
       qualifying step-closeout review evidence; the warning remains informative
@@ -597,9 +598,7 @@ manifest rescue path, and the step-local notes match the follow-up repair.
 
 - `harness plan lint docs/plans/active/2026-03-22-automatic-review-closeout-and-status-reminders.md`
 - `go test ./internal/status -count=1`
-- `go test ./internal/lifecycle -run 'TestReopenNewStepRecordsModeAndStatusCue|TestArchiveMovesPlanAndUpdatesPointers|TestReopenMarkersMustBeClearedBeforeRearchive' -count=1`
 - `go test ./...`
-- `scripts/install-dev-harness --force`
 - `harness status`
 - Revision 3 kept the focused status package, targeted lifecycle coverage, and
   the full Go suite green while fixing the archived reopen guidance, consumed
@@ -612,6 +611,31 @@ manifest rescue path, and the step-local notes match the follow-up repair.
   hiding the ordinary publish, CI, sync, or merge-follow-up actions.
 - `review-023-full` passed clean after the final reminder-overlay follow-up,
   with the focused status suite and the full Go test suite both still green.
+- Revision 4 now keeps `NO_STEP_REVIEW_NEEDED` from hiding any later in-flight
+  or non-clean
+  `step_closeout` round, adds the positive regression where a later clean
+  `step_closeout` pass still keeps the reminder suppressed, and preserves a
+  conservative warning/repair path when unreadable later historical review
+  metadata cannot be mapped back to a tracked step.
+- The same revision 4 validation loop now also proves that unmapped unreadable
+  historical review metadata suppresses `harness archive` in finalize archive,
+  keeps archived `publish` / `await_merge` reopen-first guidance explicit, and
+  stays aligned with the updated state-model wording for
+  `NO_STEP_REVIEW_NEEDED`.
+- Revision 4 now also proves the same conservative unscoped unreadable-history
+  path still fires when a completed step was satisfied only by
+  `NO_STEP_REVIEW_NEEDED`, and the active tracked plan wording now matches the
+  updated latest-round semantics.
+- The same revision 4 validation loop now also proves unreadable active
+  `pre_archive` manifests stay on ordinary finalize-review guidance instead of
+  masquerading as step-closeout debt.
+- The same revision 4 validation loop now also proves the generic unscoped
+  unreadable-history reminder keeps its intended summary and next-action
+  wording on `execution/finalize/review` and `execution/finalize/fix`.
+- `review-031-full` passed clean across correctness, tests, and
+  docs-consistency after the final finalize-review wording regression was
+  tightened, with the focused status suite and full Go test suite both still
+  green.
 
 ## Review Summary
 
@@ -667,23 +691,96 @@ manifest rescue path, and the step-local notes match the follow-up repair.
   fresh full review.
 - `review-023-full` then passed clean across correctness, tests, and
   docs-consistency for the full revision 3 finalize candidate.
+- Revision 4 reopens the candidate for the two remaining PR comments:
+  `NO_STEP_REVIEW_NEEDED` should not hide a later failed or in-flight
+  `step_closeout`, and unreadable-history fallback should stay scoped to the
+  affected step instead of globally unsatisfying unrelated clean closeout.
+- `review-024-full` then found two real follow-up gaps in that reopen slice:
+  the positive marker-plus-later-clean-pass case was still untested, and an
+  unreadable later historical round that could not be bound to any tracked
+  step was now being ignored entirely instead of surfacing conservative repair
+  guidance.
+- Revision 4 now covers both gaps: the new status tests lock down the later
+  clean-pass path, and the status reminder layer keeps a generic conservative
+  warning/next-action path when unreadable later review metadata cannot be
+  scoped to a specific step. Focused and full Go validation are green again,
+  and the candidate is ready for a fresh finalize review.
+- `review-025-full` then found three final cleanup gaps in that same reopen
+  slice: the unscoped unreadable-history path still left `harness archive`
+  available in finalize archive, the new finalize/archive/archived guidance
+  was not fully pinned down by tests, and `state-model.md` still described
+  `NO_STEP_REVIEW_NEEDED` as unconditional.
+- Revision 4 now suppresses `harness archive` for the unscoped unreadable
+  closeout path, adds finalize archive plus archived publish/await-merge
+  regression coverage for that guidance, and updates `state-model.md` so the
+  latest real `step_closeout` round remains authoritative over the marker.
+  Focused and full Go validation are green again, and the candidate is ready
+  for another fresh finalize review.
+- `review-026-full` then found one last correctness gap, one matching tests
+  gap, and one tracked-plan wording gap: marker-backed closeout did not yet
+  trigger the same conservative unscoped unreadable-history reminder path, the
+  suite did not combine those two behaviors in one regression, and the active
+  plan still described `NO_STEP_REVIEW_NEEDED` as unconditional in its
+  current-candidate summaries.
+- Revision 4 now treats marker-backed closeout the same as clean-pass-backed
+  closeout for the unscoped unreadable-history fallback, pins that interaction
+  down through the archived-node regression, and updates the tracked plan's
+  acceptance/output wording to match the latest-round rule. Focused and full Go
+  validation are green again, and the candidate is ready for another fresh
+  finalize review.
+- `review-027-full` then found one last correctness edge in the same status
+  scan: unreadable active `pre_archive` manifests could still be mistaken for
+  unscoped step-closeout debt because the scan did not trust `reviewCtx.Trigger`
+  early enough.
+- Revision 4 now preserves ordinary finalize-review summary and aggregate
+  guidance when that unreadable manifest belongs to the active finalize round,
+  and the new focused regression proves the unreadable `pre_archive` path no
+  longer hijacks missing-closeout reminders. Focused and full Go validation are
+  green again, and the candidate is ready for another fresh finalize review.
+- `review-028-full` then found one last tests-only gap: the unscoped unreadable
+  reminder path was still not pinned down on `execution/finalize/review` and
+  `execution/finalize/fix`, even though revision 4 now relies on those branch
+  summaries and aggregate-first repair cues.
+- Revision 4 now adds focused coverage for both finalize branches so the
+  generic unscoped unreadable-history summary and repair guidance cannot
+  silently regress there. Focused and full Go validation are green again, and
+  the candidate is ready for another fresh finalize review.
+- `review-029-full` then found two tiny closeout gaps: the non-in-flight
+  `execution/finalize/review` branch still lacked its own regression, and the
+  active plan summaries still described `NO_STEP_REVIEW_NEEDED` as overridden
+  only by later non-clean closeout instead of later in-flight or non-clean
+  closeout.
+- Revision 4 now adds the missing non-in-flight finalize-review regression and
+  syncs the remaining active-plan wording to the later in-flight-or-non-clean
+  rule. Focused and full Go validation are green again, and the candidate is
+  ready for another fresh finalize review.
+- `review-030-full` then found one last tests-only assertion gap: the new
+  non-in-flight finalize-review regression still needed to reject the
+  in-flight-only aggregate-first wording explicitly.
+- That final assertion is now in place, and `review-031-full` then passed
+  clean across correctness, tests, and docs-consistency for the full revision 4
+  finalize candidate.
 
 ## Archive Summary
 
-- Archived At: 2026-03-22T22:28:13+08:00
-- Revision: 3
+- Archived At: 2026-03-22T23:35:45+08:00
+- Revision: 4
 - PR: [#25](https://github.com/yzhang1918/superharness/pull/25) on
   `codex/automatic-review-closeout-status-reminders`.
-- Ready: the revision 3 candidate now includes the PR-review fixes for
-  archived reminder guidance, summary rebuilding after missing-closeout debt,
-  consumed `reopen --mode new-step` semantics after the first reopened step,
-  explicit active in-flight unreadable-manifest recovery coverage, and the
-  archive-closeout reminder assertions needed to keep the new repair guidance
-  visible, with a clean finalize review in `review-023-full`.
+- Ready: the revision 4 candidate narrows the last two status-history edge
+  cases from PR review by making later real `step_closeout` state outrank
+  `NO_STEP_REVIEW_NEEDED`, by preserving the positive later-clean-pass path,
+  and by keeping unreadable later review metadata conservative even when it
+  cannot be tied back to a specific tracked step. It now also suppresses
+  archive-ready actions for that unscoped path and aligns the normative state
+  model with the shipped reminder behavior, including marker-backed closeout
+  and unreadable active finalize-review manifests. The finalize
+  `review`/`fix` reminder branches are now regression-tested too, and
+  `review-031-full` passed clean. The candidate is ready to archive.
 - Merge Handoff: commit and push the archived plan move plus the tracked
-  code/doc changes, reply to and resolve the open PR review threads, refresh
-  publish/CI/sync evidence on the existing PR branch, and then return to
-  await-merge for human approval.
+  code/doc changes, rerun finalize review, reply to and resolve the remaining
+  open PR review threads, refresh publish/CI/sync evidence on the existing PR
+  branch, and then return to await-merge for human approval.
 
 ## Outcome Summary
 
@@ -694,9 +791,10 @@ manifest rescue path, and the step-local notes match the follow-up repair.
   and does not pause to ask the human before ordinary step-closeout or finalize
   review.
 - Updated `state-model.md`, `cli-contract.md`, and `plan-schema.md` so
-  review-complete step closeout is explicit: a clean `step_closeout` review
-  (`delta` by default, `full` allowed when needed) or
-  `NO_STEP_REVIEW_NEEDED: <reason>` in `Review Notes`.
+  review-complete step closeout is explicit: the latest known clean
+  `step_closeout` review (`delta` by default, `full` allowed when needed) or
+  `NO_STEP_REVIEW_NEEDED: <reason>` in `Review Notes` when no later in-flight
+  or non-clean `step_closeout` round has superseded that marker.
 - Implemented reminder-only `harness status` warnings for earlier completed
   steps missing review-complete closeout, while keeping ordinary review prompts
   in `next_actions` and keeping the resolved node stable.
@@ -720,6 +818,18 @@ manifest rescue path, and the step-local notes match the follow-up repair.
   closeout debt is still present, and consumes `reopen --mode new-step` once
   the first reopened step lands so later finalize-time findings can repair in
   place instead of proliferating extra steps.
+- Revision 4 now ensures `NO_STEP_REVIEW_NEEDED` only suppresses reminders when
+  no later in-flight or non-clean `step_closeout` round exists for that step,
+  adds explicit positive coverage for the later-clean-pass case, and replaces
+  the old global unreadable-history watermark with step-scoped fallback plus
+  conservative warning/repair guidance when a later unreadable round cannot be
+  mapped to any tracked step. The same reopen follow-up now also suppresses
+  archive-ready actions for that unscoped path, pins down the
+  finalize/review/archive/archived guidance with focused tests, extends that
+  conservative path to marker-backed closeout, keeps unreadable active finalize
+  manifests on ordinary finalize-review guidance, and syncs both
+  `state-model.md` and the active tracked plan wording to the latest-round
+  reminder behavior.
 
 ### Not Delivered
 
