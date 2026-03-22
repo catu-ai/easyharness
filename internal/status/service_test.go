@@ -401,6 +401,38 @@ func TestStatusFinalizeReviewNode(t *testing.T) {
 	}
 }
 
+func TestStatusFinalizeReviewClearsPriorStepReviewFacts(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, false)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+		"active_review_round": map[string]any{
+			"round_id":   "review-003-delta",
+			"kind":       "delta",
+			"trigger":    "step_closeout",
+			"aggregated": true,
+			"decision":   "pass",
+		},
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-003-delta", map[string]any{
+		"target":  stepTwoTitle,
+		"trigger": "step_closeout",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/finalize/review" {
+		t.Fatalf("unexpected node: %#v", result.State)
+	}
+	if result.Facts != nil && (result.Facts.ReviewStatus != "" || result.Facts.ReviewTarget != "" || result.Facts.ReviewTrigger != "" || result.Facts.ReviewKind != "") {
+		t.Fatalf("expected prior step-review facts to be cleared at finalize review, got %#v", result.Facts)
+	}
+	if result.Artifacts != nil && result.Artifacts.ReviewRoundID != "" {
+		t.Fatalf("expected prior step-review artifact pointer to be cleared at finalize review, got %#v", result.Artifacts)
+	}
+}
+
 func TestStatusFinalizeReviewInFlightIncludesReviewFacts(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {

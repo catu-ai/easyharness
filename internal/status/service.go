@@ -238,6 +238,9 @@ func (s Service) Read() Result {
 	}
 
 	result.Blockers = blockers
+	if strings.HasPrefix(result.State.CurrentNode, "execution/finalize/") && reviewCtx != nil && reviewCtx.Trigger == "step_closeout" {
+		clearStepCloseoutReviewMetadata(facts, result.Artifacts)
+	}
 	result.Summary = buildSummary(result.State.CurrentNode, facts, reviewCtx, blockers, currentPlan)
 	result.NextAction = buildNextActions(result.State.CurrentNode, facts, reviewCtx, blockers)
 	if facts.empty() {
@@ -263,6 +266,18 @@ func (s Service) Read() Result {
 	}
 
 	return result
+}
+
+func clearStepCloseoutReviewMetadata(facts *Facts, artifacts *Artifacts) {
+	if facts != nil {
+		facts.ReviewKind = ""
+		facts.ReviewTrigger = ""
+		facts.ReviewTarget = ""
+		facts.ReviewStatus = ""
+	}
+	if artifacts != nil {
+		artifacts.ReviewRoundID = ""
+	}
 }
 
 func resolveStepNode(doc *plan.Document, reviewCtx *reviewContext) (int, string) {
