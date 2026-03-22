@@ -9,13 +9,30 @@ that the current round should be abandoned.
 The controller agent stays in `harness-execute` during review orchestration.
 Only the spawned reviewer subagents should switch to `harness-reviewer`.
 
+Starting routine review is controller-owned. Once `harness status`, the tracked
+plan, and the current step state make ordinary step-closeout or finalize review
+the next action, start that review without asking the human for permission.
+
 ## When to Use Delta vs Full
 
 - use `delta` after a completed step or a narrow follow-up change
+- use `full` for step closeout when a narrower pass would be misleading or the
+  slice needs a broader risk scan
 - use `full` when the branch looks like an archive candidate
 - after reopen:
   - narrow follow-up work may use `delta`
   - broad follow-up work should rerun `full`
+
+## Routine Start Rules
+
+- After a completed step becomes reviewable, start `step_closeout` review
+  before treating the step as durably done, unless the step will instead record
+  `NO_STEP_REVIEW_NEEDED: <reason>` in `Review Notes`.
+- Once all tracked steps are complete and no warning-driven repair remains,
+  start `pre_archive` review for the full candidate before archive closeout.
+- If `harness status` surfaces an earlier completed step that still lacks
+  review closeout, resolve that warning before trusting later-step or finalize
+  progression.
 
 ## Review Spec
 

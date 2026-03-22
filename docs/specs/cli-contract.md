@@ -121,6 +121,15 @@ artifact paths or IDs worth returning.
 `next_actions` should be short, concrete, non-empty, and ordered from the most
 likely next step to less common alternatives.
 
+For `harness status` specifically:
+
+- use `next_actions` for ordinary workflow guidance such as continuing the
+  current step, starting routine review, or aggregating the active round
+- use `warnings` for recoverable ambiguity or workflow-discipline reminders
+  that should not by themselves change `state.current_node`
+- avoid heuristic warnings for "the current slice may now be reviewable"; keep
+  that kind of prompt in ordinary `next_actions`
+
 ## Status State Contract
 
 The v0.2 CLI uses one canonical runtime state field:
@@ -266,11 +275,19 @@ Contract:
   `artifacts`
 - return recommended next actions for both "continue work" and "wait/observe"
   situations
+- if an already completed earlier step is missing review-complete closeout,
+  keep the current node stable, surface a warning, and put the earliest repair
+  guidance first in `next_actions`
+- if unreadable historical review metadata cannot be mapped back to a tracked
+  step, keep the current node stable, preserve a conservative warning, and
+  steer the controller toward repairing artifacts or rerunning the relevant
+  step-closeout review instead of silently trusting older clean passes
 
 Recommended next action examples:
 
 - continue the current step
-- update step-local `Execution Notes` or `Review Notes` after a delta review or
+- start step-closeout review before marking a completed step done
+- update step-local `Execution Notes` or `Review Notes` after a review or
   step closeout
 - update the plan if scope changed
 - run review aggregation
@@ -352,6 +369,16 @@ harness review start --spec /tmp/review-spec.json
 The command returns JSON describing the created round, persisted manifest path,
 owned artifact paths, and next actions for the controller agent.
 
+For review-spec semantics:
+
+- `trigger: step_closeout`
+  - the review is closing out one tracked step
+  - `target` should use the tracked step title so status can match the review to
+    the intended step deterministically
+- `trigger: pre_archive`
+  - the review is a branch-level finalize review
+  - `target` should describe the full candidate rather than a single step
+
 Round identifiers should be short and plan-local:
 
 - use `review-<NNN>-<kind>`
@@ -432,6 +459,8 @@ Recommended next action:
 The CLI contract should assume this review cadence:
 
 - use `delta` review after a completed plan step or after a narrow follow-up fix
+- allow a `full` review to satisfy `step_closeout` when a narrower review would
+  be misleading for that completed step
 - use `full` review once all planned work appears complete and the branch looks
   like an archive candidate
 - if CI failure or conflict resolution creates a narrow, well-bounded change,

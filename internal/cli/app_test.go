@@ -655,7 +655,7 @@ func writeArchivedPlanForCLI(t *testing.T, root, relPath string) string {
 	content = replaceCLIAll(content, "- Status: pending", "- Status: completed")
 	content = replaceCLIAll(content, "- [ ]", "- [x]")
 	content = replaceCLIAll(content, "PENDING_STEP_EXECUTION", "Done.")
-	content = replaceCLIAll(content, "PENDING_STEP_REVIEW", "Reviewed.")
+	content = replaceCLIAll(content, "PENDING_STEP_REVIEW", "NO_STEP_REVIEW_NEEDED: Archived CLI fixture uses explicit review-complete closeout.")
 	content = replaceCLI(content, "## Validation Summary\n\nPENDING_UNTIL_ARCHIVE", "## Validation Summary\n\nValidated the slice.")
 	content = replaceCLI(content, "## Review Summary\n\nPENDING_UNTIL_ARCHIVE", "## Review Summary\n\nFull review passed.")
 	content = replaceCLI(content, "## Archive Summary\n\nPENDING_UNTIL_ARCHIVE", "## Archive Summary\n\n- Archived At: 2026-03-18T02:00:00Z\n- Revision: 1\n- PR: NONE\n- Ready: Ready for merge approval.\n- Merge Handoff: Commit and push before merge approval.")

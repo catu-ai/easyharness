@@ -209,6 +209,13 @@ Merge is confirmed and post-merge cleanup is in progress. Cleanup remains in
 - A step should not be marked done until its implementation, execution notes,
   review notes, and relevant review loop are complete, or the step records why
   no review was needed.
+- A completed step is review-complete when either:
+  - the latest known `step_closeout` review for that step is clean
+  - or `Review Notes` records `NO_STEP_REVIEW_NEEDED: <reason>` and no later
+    in-flight or non-clean `step_closeout` review exists for that step
+- Step-closeout review should default to `delta`, but a `full` review may
+  satisfy step closeout when a narrower pass would be misleading or the slice
+  needs a broader risk scan.
 - Review nodes require real review artifacts created by `harness review`.
 - `execution/step-<n>/review` means review is still in progress.
 - Once a step review aggregate exists, the state returns to
@@ -221,6 +228,10 @@ Merge is confirmed and post-merge cleanup is in progress. Cleanup remains in
   it durably complete.
 - Status facts and next actions must make unresolved failed step reviews
   explicit when `execution/step-<n>/implement` is being used for repair work.
+- If `harness status` later discovers that an already completed earlier step is
+  still missing review-complete closeout, it should keep the current step or
+  finalize node stable, add warning-driven repair guidance, and avoid pretending
+  that the earlier closeout is complete.
 - Finalize review remains a distinct whole-branch gate even if an earlier step
   review used a full-review recipe.
 - After `execution/finalize/fix`, the candidate must pass a later finalize
@@ -263,7 +274,11 @@ Reopen must preserve audit history:
 - keep it obvious that the plan was once archived and is no longer current
 
 When reopen mode is `new-step`, the controller should add the new step after
-reopen and continue execution at that new step's `implement` node.
+reopen and continue execution at that new step's `implement` node. Once that
+first reopened step has been added, the `new-step` requirement is considered
+consumed: later finalize-time findings should repair the latest reopened work
+or resume finalize-scope repair instead of forcing another new unfinished step
+by default.
 
 ## Commits and Nodes
 
