@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/build-release --version <version> [--output-dir <path>] [--platform <goos/goarch>]
+
+Build versioned release archives and SHA256 checksums for superharness.
+
+Options:
+  --version <version>     Required release identifier (for example v0.1.0-alpha.1).
+  --output-dir <path>     Output directory. Defaults to dist/release.
+  --platform <goos/goarch>
+                          Build only the given target. Repeat to add more targets.
+                          Defaults to: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64.
+  -h, --help              Show this help text.
+EOF
+}
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+version_package="github.com/yzhang1918/superharness/internal/version"
+output_dir="${repo_root}/dist/release"
+version=""
+platforms=()
+
+while (($#)); do
+  case "$1" in
+    --version)
+      shift
+      if (($# == 0)); then
+        echo "--version requires a value" >&2
+        exit 2
+      fi
+      version="$1"
+      ;;
+    --output-dir)
+      shift
+      if (($# == 0)); then
+        echo "--output-dir requires a value" >&2
+        exit 2
+      fi
+      output_dir="$1"
+      ;;
+    --platform)
+      shift
+      if (($# == 0)); then
+        echo "--platform requires a value" >&2
+        exit 2
+      fi
+      platforms+=("$1")
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+if [[ -z "${version}" ]]; then
+  echo "--version is required" >&2
+  usage >&2
+  exit 2
+fi
+
+case "/${output_dir}/" in
+  */../*)
+    echo "output directory must not contain parent-directory segments: ${output_dir}" >&2
+    exit 2
+    ;;
+esac
+
+case "${output_dir}" in
+  /*)
+    ;;
+  *)
+    output_dir="${repo_root}/${output_dir}"
+    ;;
+esac
+
+while [[ "${output_dir}" == */ ]]; do
+  output_dir="${output_dir%/}"
+done
+while [[ "${output_dir}" == */. ]]; do
+  output_dir="${output_dir%/.}"
+done
+
+case "${output_dir}" in
+  ""|"/"|".")
+    echo "refusing to use unsafe output directory ${output_dir}" >&2
+    exit 2
+    ;;
+  "${repo_root}")
+    echo "refusing to use repository root as the release output directory" >&2
+    exit 2
+    ;;
+esac
+
+case "${output_dir}" in
+  "${repo_root}"/*)
+    ;;
+  *)
+    echo "output directory must stay within the repository, got ${output_dir}" >&2
+    exit 2
+    ;;
+esac
+
+if [[ ${#platforms[@]} -eq 0 ]]; then
+  platforms=(
+    "darwin/amd64"
+    "darwin/arm64"
+    "linux/amd64"
+    "linux/arm64"
+  )
+fi
+
+if ! command -v zip >/dev/null 2>&1; then
+  echo "zip is required to build release archives" >&2
+  exit 1
+fi
+
+sha256_cmd=()
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256_cmd=(sha256sum)
+elif command -v shasum >/dev/null 2>&1; then
+  sha256_cmd=(shasum -a 256)
+else
+  echo "sha256sum or shasum is required to build release checksums" >&2
+  exit 1
+fi
+
+build_commit=""
+if command -v git >/dev/null 2>&1; then
+  build_commit="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null || true)"
+fi
+if [[ -z "${build_commit}" ]]; then
+  echo "Unable to resolve build commit from git." >&2
+  exit 1
+fi
+
+rm -rf "${output_dir}"
+mkdir -p "${output_dir}"
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/superharness-release.XXXXXX")"
+trap 'rm -rf "${tmp_dir}"' EXIT
+
+fixed_touch_timestamp="200001010000"
+archives=()
+
+trim_archive() {
+  local archive_path="$1"
+  local package_name="$2"
+  shift 2
+  (
+    cd "${tmp_dir}/staging"
+    COPYFILE_DISABLE=1 zip -X -q "${archive_path}" "$@"
+  )
+}
+
+for platform in "${platforms[@]}"; do
+  if [[ "${platform}" != */* ]]; then
+    echo "invalid platform ${platform}; expected goos/goarch" >&2
+    exit 2
+  fi
+
+  goos="${platform%%/*}"
+  goarch="${platform##*/}"
+  package_name="superharness_${version}_${goos}_${goarch}"
+  build_dir="${tmp_dir}/build/${goos}-${goarch}"
+  stage_root="${tmp_dir}/staging/${package_name}"
+  binary_path="${build_dir}/harness"
+  archive_path="${output_dir}/${package_name}.zip"
+
+  rm -rf "${build_dir}" "${stage_root}"
+  mkdir -p "${build_dir}" "${stage_root}"
+
+  ldflags=(
+    "-X" "${version_package}.BuildMode=release"
+    "-X" "${version_package}.BuildCommit=${build_commit}"
+    "-X" "${version_package}.BuildVersion=${version}"
+  )
+
+  (
+    cd "${repo_root}"
+    CGO_ENABLED=0 GOOS="${goos}" GOARCH="${goarch}" \
+      go build -trimpath -ldflags "${ldflags[*]}" -o "${binary_path}" ./cmd/harness
+  )
+
+  install -m 755 "${binary_path}" "${stage_root}/harness"
+  install -m 644 "${repo_root}/README.md" "${stage_root}/README.md"
+  if [[ -f "${repo_root}/LICENSE" ]]; then
+    install -m 644 "${repo_root}/LICENSE" "${stage_root}/LICENSE"
+  fi
+
+  while IFS= read -r staged; do
+    touch -t "${fixed_touch_timestamp}" "${staged}"
+  done < <(find "${stage_root}" -mindepth 1 -print | sort)
+  touch -t "${fixed_touch_timestamp}" "${stage_root}"
+
+  zip_entries=("${package_name}/" "${package_name}/harness" "${package_name}/README.md")
+  if [[ -f "${stage_root}/LICENSE" ]]; then
+    zip_entries+=("${package_name}/LICENSE")
+  fi
+  rm -f "${archive_path}"
+  trim_archive "${archive_path}" "${package_name}" "${zip_entries[@]}"
+  archives+=("${archive_path}")
+done
+
+checksum_path="${output_dir}/SHA256SUMS"
+: > "${checksum_path}"
+for archive_path in $(printf '%s\n' "${archives[@]}" | sort); do
+  checksum="$("${sha256_cmd[@]}" "${archive_path}" | awk '{print $1}')"
+  printf '%s  %s\n' "${checksum}" "$(basename "${archive_path}")" >> "${checksum_path}"
+done
+
+echo "Built release artifacts in ${output_dir}"
+for archive_path in $(printf '%s\n' "${archives[@]}" | sort); do
+  echo "  $(basename "${archive_path}")"
+done
+echo "  $(basename "${checksum_path}")"
