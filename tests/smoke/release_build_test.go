@@ -131,6 +131,11 @@ func TestBuildReleaseRejectsUnsafeOutputDirectory(t *testing.T) {
 			outputDir: "../release-out",
 			wantText:  "output directory must not contain parent-directory segments",
 		},
+		{
+			name:      "tracked repo directory",
+			outputDir: "docs/release-out",
+			wantText:  "output directory must stay within repo-owned dist/ or .local/ subdirectories",
+		},
 	}
 
 	for _, tc := range cases {
@@ -150,6 +155,29 @@ func TestBuildReleaseRejectsUnsafeOutputDirectory(t *testing.T) {
 				t.Fatalf("expected output for %q to contain %q, got:\n%s", tc.outputDir, tc.wantText, result)
 			}
 		})
+	}
+}
+
+func TestBuildReleaseSupportsOutputDirectoryWithSpaces(t *testing.T) {
+	outputDir := newReleaseOutputDir(t, "space output")
+
+	hostPlatform := runtime.GOOS + "/" + runtime.GOARCH
+	if !isSupportedAlphaPlatform(hostPlatform) {
+		t.Skipf("host platform %s is outside the supported alpha target set", hostPlatform)
+	}
+
+	version := "v0.1.0-alpha.1"
+	runReleaseBuildForPlatforms(t, version, outputDir, hostPlatform)
+
+	goos, goarch := splitPlatform(t, hostPlatform)
+	archiveName := "superharness_" + version + "_" + goos + "_" + goarch + ".zip"
+	checksums := parseChecksums(t, readFile(t, filepath.Join(outputDir, "SHA256SUMS")))
+	archivePath := filepath.Join(outputDir, archiveName)
+	if _, err := os.Stat(archivePath); err != nil {
+		t.Fatalf("expected archive in spaced output dir %s: %v", archivePath, err)
+	}
+	if got := checksums[archiveName]; got != checksumFile(t, archivePath) {
+		t.Fatalf("expected checksum for %s to match file contents, got %q", archiveName, got)
 	}
 }
 

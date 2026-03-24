@@ -9,7 +9,8 @@ Build versioned release archives and SHA256 checksums for superharness.
 
 Options:
   --version <version>     Required release identifier (for example v0.1.0-alpha.1).
-  --output-dir <path>     Output directory. Defaults to dist/release.
+  --output-dir <path>     Output directory under repo-owned dist/ or .local/
+                          subdirectories. Defaults to dist/release.
   --platform <goos/goarch>
                           Build only the given target. Repeat to add more targets.
                           Defaults to: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64.
@@ -22,6 +23,8 @@ version_package="github.com/yzhang1918/superharness/internal/version"
 output_dir="${repo_root}/dist/release"
 version=""
 platforms=()
+dist_root="${repo_root}/dist"
+local_root="${repo_root}/.local"
 
 while (($#)); do
   case "$1" in
@@ -102,10 +105,10 @@ case "${output_dir}" in
 esac
 
 case "${output_dir}" in
-  "${repo_root}"/*)
+  "${dist_root}"/*|"${local_root}"/*)
     ;;
   *)
-    echo "output directory must stay within the repository, got ${output_dir}" >&2
+    echo "output directory must stay within repo-owned dist/ or .local/ subdirectories, got ${output_dir}" >&2
     exit 2
     ;;
 esac
@@ -212,13 +215,17 @@ done
 
 checksum_path="${output_dir}/SHA256SUMS"
 : > "${checksum_path}"
-for archive_path in $(printf '%s\n' "${archives[@]}" | sort); do
+sorted_archives=()
+while IFS= read -r archive_path; do
+  sorted_archives+=("${archive_path}")
+done < <(printf '%s\n' "${archives[@]}" | LC_ALL=C sort)
+for archive_path in "${sorted_archives[@]}"; do
   checksum="$("${sha256_cmd[@]}" "${archive_path}" | awk '{print $1}')"
   printf '%s  %s\n' "${checksum}" "$(basename "${archive_path}")" >> "${checksum_path}"
 done
 
 echo "Built release artifacts in ${output_dir}"
-for archive_path in $(printf '%s\n' "${archives[@]}" | sort); do
+for archive_path in "${sorted_archives[@]}"; do
   echo "  $(basename "${archive_path}")"
 done
 echo "  $(basename "${checksum_path}")"

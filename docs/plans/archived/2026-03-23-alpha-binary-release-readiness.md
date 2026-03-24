@@ -278,6 +278,10 @@ and license additions against the tracked binary-first alpha contract.
   `go test ./tests/smoke -run 'TestBuildRelease' -count=5`, parallel
   release-smoke invocations in the shared worktree, and `go test ./... -count=1`
   all passed after the final reviewer-driven fixes.
+- Revision-2 PR comment follow-up also passed `go test ./tests/smoke -run 'TestBuildRelease' -count=3`
+  and `go test ./... -count=1` after tightening output-directory guardrails,
+  adding spaced-output checksum coverage, and re-tracking the reopened active
+  plan.
 
 ## Review Summary
 
@@ -295,21 +299,27 @@ and license additions against the tracked binary-first alpha contract.
   output-directory safety.
 - `review-012-full` passed with zero blocking or non-blocking findings after
   the final repo-scoped output-directory guard and unique smoke-output fixes.
+- After PR review feedback reopened the archived candidate in revision 2,
+  `review-013-full` flagged that the active plan move had not yet been
+  re-tracked in git, and `review-014-full` passed cleanly after restoring the
+  tracked active-plan move and landing the `scripts/build-release` safety and
+  spaced-path checksum fixes.
 
 ## Archive Summary
 
-- Archived At: 2026-03-24T01:09:16+08:00
-- Revision: 1
-- PR: NONE
+- Archived At: 2026-03-24T08:38:25+08:00
+- Revision: 2
+- PR: https://github.com/yzhang1918/superharness/pull/43
 - Ready: The candidate now has clean step-closeout and finalize review,
   deterministic release packaging, prerelease-aware GitHub Release
   publication, existing-tag validation for manual dispatch, repo-scoped
-  output-directory safety, and stable release smoke coverage even when
-  reviewer subagents run checks in parallel.
+  output-directory safety, destructive-directory rejection for repo-owned
+  non-artifact paths, space-safe checksum generation, and stable release smoke
+  coverage even when reviewer subagents run checks in parallel.
 - Merge Handoff: Run `harness archive`, commit the archive move with the
-  release-readiness changes, push `codex/alpha-binary-release-readiness`,
-  open or update the PR, and then record publish, CI, and sync evidence
-  through `harness evidence submit` until status reaches
+  release-readiness changes, push the updated `codex/alpha-binary-release-readiness`
+  branch to refresh PR #43, and then record publish, CI, and sync evidence
+  for revision 2 through `harness evidence submit` until status reaches
   `execution/finalize/await_merge`.
 
 ## Outcome Summary
@@ -321,6 +331,10 @@ and license additions against the tracked binary-first alpha contract.
 - Added a repo-owned `scripts/build-release` path plus smoke coverage for
   deterministic packaging, checksum emission, archive inspection, reused
   output-directory cleanup, and unsafe output-directory rejection.
+- Tightened the release build path so output directories must stay under
+  repo-owned `dist/` or `.local/` subtrees, reject parent-directory escapes or
+  destructive repo paths, and generate `SHA256SUMS` without breaking when the
+  repo or output path contains spaces.
 - Added CI and release GitHub Actions workflows that reuse the repo-owned
   packaging path, validate release tags, and publish prerelease-tagged alpha
   releases correctly.
