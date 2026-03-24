@@ -184,7 +184,7 @@ cleanly with no remaining findings.
 
 ### Step 3: Publish and verify the replacement alpha release
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -215,11 +215,22 @@ misleading fixed year-2000 timestamp behavior that prompted this slice.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Ran `go test ./... -count=1`, committed the latest tracked plan closeout notes,
+and published `v0.1.0-alpha.2` from commit `aec8d255afb9090ab45e347bc12d3144ff9dd137`.
+The Release workflow succeeded at run `23500329107`, producing a prerelease at
+`https://github.com/yzhang1918/superharness/releases/tag/v0.1.0-alpha.2` with
+the expected four platform archives plus `SHA256SUMS`. Downloaded the published
+`darwin/arm64` archive, verified its `zipinfo -l` timestamps now show
+`26-Mar-24 16:23` instead of the old year-2000 placeholder, and ran the
+packaged binary's `--version` successfully:
+`version: v0.1.0-alpha.2`, `mode: release`,
+`commit: aec8d255afb9090ab45e347bc12d3144ff9dd137`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: this step exercised the already-reviewed release path,
+verified the externally published assets directly, and the branch will still
+receive a full pre-archive review before archive.
 
 ## Validation Strategy
 
