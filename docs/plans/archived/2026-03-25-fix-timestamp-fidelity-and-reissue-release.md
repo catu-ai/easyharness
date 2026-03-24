@@ -1,6 +1,6 @@
 ---
 template_version: 0.2.0
-created_at: 2026-03-25T00:05:25+08:00
+created_at: "2026-03-25T00:05:25+08:00"
 source_type: direct_request
 source_refs: []
 ---
@@ -47,14 +47,14 @@ packaging metadata.
 
 ## Acceptance Criteria
 
-- [ ] The repository has an explicit forward-looking timestamp policy for both
+- [x] The repository has an explicit forward-looking timestamp policy for both
       tracked-plan creation and release artifacts, including why historical
       plans are left unchanged.
-- [ ] Building release archives no longer makes unpacked files appear as `Jan 1
+- [x] Building release archives no longer makes unpacked files appear as `Jan 1
       2000 00:00`, and tests cover the intended replacement behavior.
-- [ ] `harness plan template` and the documented planning workflow no longer
+- [x] `harness plan template` and the documented planning workflow no longer
       produce misleading midnight `created_at` values for ordinary new plans.
-- [ ] A new alpha release is published from the fixed codepath and verified as
+- [x] A new alpha release is published from the fixed codepath and verified as
       the recommended build for external testing.
 
 ## Deferred Items
@@ -264,26 +264,105 @@ receive a full pre-archive review before archive.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `harness plan lint docs/plans/active/2026-03-25-fix-timestamp-fidelity-and-reissue-release.md`
+  passed when the plan was created and again during archive closeout after the
+  durable summaries were refreshed.
+- Focused regression coverage passed with
+  `go test ./internal/cli -run 'TestPlanTemplateDateSeedsCurrentLocalTimeOfDay' -count=1`
+  and
+  `go test ./tests/smoke -run 'TestBuildReleaseProducesSupportedAlphaArchivesAndVersionedBinary' -count=1`,
+  proving the new date-seeded plan timestamps and commit-derived ZIP mtimes.
+- Combined targeted validation also passed with
+  `go test ./internal/cli ./internal/plan ./tests/smoke -count=1` and
+  `scripts/build-release --version v0.1.0-alpha.2 --output-dir .local/release-timestamp-check --platform $(go env GOOS)/$(go env GOARCH)`,
+  where the generated host archive showed `26-Mar-24 03:21` rather than the
+  old year-2000 placeholder.
+- Full regression coverage passed with `go test ./... -count=1` before the
+  replacement prerelease was cut.
+- External release verification passed for GitHub Actions run `23500329107`
+  after publishing `v0.1.0-alpha.2`: the downloaded `darwin/arm64` archive in
+  `.local/harness/plans/2026-03-25-fix-timestamp-fidelity-and-reissue-release/release-verification/v0.1.0-alpha.2-aec8d25/`
+  matches `SHA256SUMS`, `zipinfo -l` shows `26-Mar-24 16:23`, and the packaged
+  binary reports `version: v0.1.0-alpha.2`, `mode: release`, and
+  `commit: aec8d255afb9090ab45e347bc12d3144ff9dd137`.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-delta` requested changes after both reviewer slots caught that
+  Info-ZIP stores mtimes with 2-second precision, so the first exact-second
+  release-timestamp contract was too strict for odd-second commits.
+- Follow-up commit `8405f2c` narrowed the ZIP timestamp contract to
+  commit-derived UTC mtimes within ZIP precision, and `review-002-delta`
+  passed cleanly with no remaining findings.
+- `review-003-delta` then passed as the fresh `step_closeout` rerun for Step 2,
+  confirming the timestamp semantics, docs, and focused coverage were strong
+  enough to continue into release publication.
+- `review-004-full` requested one finalize repair after the tests and
+  docs-consistency slots showed that the active plan still pointed at older
+  scratch `.local` alpha.2 checks instead of the actually published
+  `aec8d255afb9090ab45e347bc12d3144ff9dd137` release artifacts.
+- Commit `0f1b73a` refreshed Step 3 closeout around the authoritative downloaded
+  alpha.2 proof directory, and `review-005-full` passed cleanly as the
+  `review_fix` rerun.
+- `review-006-full` then passed with zero blocking or non-blocking findings as
+  the fresh `pre_archive` gate, leaving this revision in archive closeout with
+  a clean finalize review.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-03-25T00:37:37+08:00
+- Revision: 1
+- PR: Pending archive commit push for `codex/timestamp-fidelity-followup`.
+- Ready: Revision 1 documents the forward timestamp contract, updates
+  `harness plan template --date` to keep the current local time-of-day on the
+  requested date, switches release packaging from the fake year-2000 mtime to
+  commit-derived UTC timestamps within ZIP precision, and carries focused plus
+  full regression coverage for both paths. The replacement prerelease
+  `v0.1.0-alpha.2` is already published from commit
+  `aec8d255afb9090ab45e347bc12d3144ff9dd137`, the downloaded release proof is
+  stored under the plan-local `release-verification/` directory, and
+  `review-006-full` has already passed as the fresh full `pre_archive` review.
+- Merge Handoff: Run `harness archive`, commit the archive move and refreshed
+  closeout summaries, push `codex/timestamp-fidelity-followup`, open or update
+  the PR, then record publish, CI, and sync evidence for this revision until
+  `harness status` returns `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Defined and documented a forward-looking timestamp policy that keeps future
+  release artifacts and future tracked-plan `created_at` values believable
+  while intentionally leaving historical archived plans untouched.
+- Updated `harness plan template --date` so ordinary date-seeded plans preserve
+  the current local time-of-day instead of snapping to local midnight, and
+  added focused CLI regression coverage for that behavior.
+- Updated `scripts/build-release` so staged files and ZIP entry mtimes derive
+  from the source commit timestamp in UTC rather than the old
+  `2000-01-01 00:00` placeholder, with smoke coverage that allows for ZIP's
+  2-second timestamp precision.
+- Published and externally verified `v0.1.0-alpha.2` as the replacement alpha
+  release, including downloaded-asset checksum, archive timestamp, and packaged
+  binary version checks stored under the plan-local release-verification proof
+  directory.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Historical archived plans were not bulk-edited or rewritten in this slice.
+- `v0.1.0-alpha.1` was not modified or deleted; the fix-forward path is to use
+  `v0.1.0-alpha.2` for external testing.
+- Homebrew distribution, macOS notarization, repository rename, and org
+  migration remain outside this timestamp-fidelity slice.
+- Broader provenance enhancements beyond the current release tag, checksum, and
+  build metadata proofs remain deferred.
 
 ### Follow-Up Issues
 
-NONE
+- `#46` tracks the deferred decision on whether historical tracked plan
+  `created_at` timestamps should ever be backfilled or annotated.
+- `#45` tracks the pending project and repository rename from `superharness`
+  to `microharness`.
+- `#44` tracks the evaluation of moving the project into a dedicated GitHub
+  organization.
+- `#32` tracks richer optional version/build metadata and related provenance
+  improvements beyond the timestamp semantics delivered here.
