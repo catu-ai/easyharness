@@ -91,3 +91,12 @@ jobs:
           else
             gh release create "${version}" dist/release/* --title "${version}" --generate-notes "${prerelease_flags[@]}"
           fi
+
+      - name: Verify published release namespace
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MICROHARNESS_RUN_LIVE_GH_SMOKE: "1"
+          MICROHARNESS_LIVE_GH_REPO: ${{ github.repository }}
+          MICROHARNESS_LIVE_GH_TAG: ${{ steps.release-version.outputs.version }}
+          MICROHARNESS_LIVE_GH_ASSET: microharness_${{ steps.release-version.outputs.version }}_linux_amd64.zip
+        run: go test ./tests/smoke -run TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled -count=1
