@@ -696,6 +696,17 @@ func verifyArchiveContents(t *testing.T, workspace *support.Workspace, archivePa
 		if strings.Contains(output, "path: ") {
 			t.Fatalf("expected packaged release output to omit path, got %q", output)
 		}
+
+		statusCmd := exec.Command(binaryPath, "status")
+		statusCmd.Dir = workspace.Root
+		statusOutput, err := statusCmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("run packaged binary status: %v\n%s", err, statusOutput)
+		}
+
+		if !strings.Contains(string(statusOutput), `"current_node": "idle"`) {
+			t.Fatalf("expected packaged binary status output to report idle workspace, got:\n%s", statusOutput)
+		}
 	}
 }
 
@@ -727,6 +738,12 @@ func verifyBinaryMetadata(t *testing.T, binaryPath, version, goos, goarch, expec
 	}
 	if info.GoVersion == "" {
 		t.Fatalf("expected Go build info in %s", binaryPath)
+	}
+	if info.Main.Path != "github.com/yzhang1918/microharness" {
+		t.Fatalf("expected binary %s to record module path %q, got %q", binaryPath, "github.com/yzhang1918/microharness", info.Main.Path)
+	}
+	if info.Path != "github.com/yzhang1918/microharness/cmd/harness" {
+		t.Fatalf("expected binary %s to record main package path %q, got %q", binaryPath, "github.com/yzhang1918/microharness/cmd/harness", info.Path)
 	}
 
 	binaryData := readFileBytes(t, binaryPath)

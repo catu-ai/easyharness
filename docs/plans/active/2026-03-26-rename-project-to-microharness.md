@@ -178,11 +178,23 @@ binary name as `harness`. Focused validation passed with `go test
 `scripts/build-release --version v0.1.0-alpha.3 --output-dir
 .local/release-rename-check --platform $(go env GOOS)/$(go env GOARCH)`,
 `unzip -l` on the generated host archive showing a `microharness_*` package
-root with `harness` inside, and `go test ./... -count=1`.
+root with `harness` inside, and `go test ./... -count=1`. After
+`review-001-delta` requested follow-up, the installer regained takeover support
+for legacy symlink installs that still point at an old `superharness` checkout,
+release smoke now runs `status` from the unpacked host archive instead of only
+`--version`, and binary metadata assertions now check the renamed module and
+main-package paths directly. The review-fix validation passed with `go test
+./tests/smoke -run 'TestInstallDevHarness(ReplacesLegacySymlinkedBinaryWithoutForce|ReplacesLegacyManagedWrapperWithoutForce)|TestBuildReleaseProducesSupportedAlphaArchivesAndVersionedBinary' -count=1`
+and a fresh `go test ./... -count=1`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` requested changes on three points: the installer stopped
+treating old symlink-based `superharness` installs as managed during upgrade,
+release smoke only exercised `--version` from the unpacked archive, and the
+validation layer did not assert the renamed module path directly. Those issues
+are now fixed and need one fresh delta `review_fix` rerun before Step 2 can be
+marked done.
 
 ### Step 3: Rename the GitHub repository and publish the renamed prerelease
 

@@ -48,6 +48,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 binary_dir="${repo_root}/.local/bin"
 binary_path="${binary_dir}/harness"
 repo_module_line="module github.com/yzhang1918/microharness"
+legacy_repo_module_line="module github.com/yzhang1918/superharness"
 version_package="github.com/yzhang1918/microharness/internal/version"
 
 is_microharness_root() {
@@ -56,7 +57,8 @@ is_microharness_root() {
   [[ -f "${dir}/scripts/install-dev-harness" ]] || return 1
   [[ -f "${dir}/cmd/harness/main.go" ]] || return 1
   [[ -f "${dir}/go.mod" ]] || return 1
-  grep -Fqx "${repo_module_line}" "${dir}/go.mod"
+  grep -Fqx "${repo_module_line}" "${dir}/go.mod" ||
+    grep -Fqx "${legacy_repo_module_line}" "${dir}/go.mod"
 }
 
 path_has_entry() {
@@ -128,6 +130,7 @@ set -euo pipefail
 # microharness-install-dev-wrapper
 fallback_binary_path=__FALLBACK_BINARY_PATH__
 repo_module_line='module github.com/yzhang1918/microharness'
+legacy_repo_module_line='module github.com/yzhang1918/superharness'
 
 is_microharness_root() {
   local dir="$1"
@@ -135,7 +138,8 @@ is_microharness_root() {
   [[ -f "${dir}/scripts/install-dev-harness" ]] || return 1
   [[ -f "${dir}/cmd/harness/main.go" ]] || return 1
   [[ -f "${dir}/go.mod" ]] || return 1
-  grep -Fqx "${repo_module_line}" "${dir}/go.mod"
+  grep -Fqx "${repo_module_line}" "${dir}/go.mod" ||
+    grep -Fqx "${legacy_repo_module_line}" "${dir}/go.mod"
 }
 
 find_repo_root() {
