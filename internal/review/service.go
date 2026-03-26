@@ -26,10 +26,10 @@ type Service struct {
 }
 
 type Spec struct {
-	Step       *int        `json:"step,omitempty"`
-	Kind       string      `json:"kind"`
-	Summary    string      `json:"summary,omitempty"`
-	Dimensions []Dimension `json:"dimensions"`
+	Step        *int        `json:"step,omitempty"`
+	Kind        string      `json:"kind"`
+	ReviewTitle string      `json:"review_title,omitempty"`
+	Dimensions  []Dimension `json:"dimensions"`
 }
 
 type Dimension struct {
@@ -42,7 +42,7 @@ type Manifest struct {
 	Kind        string         `json:"kind"`
 	Step        *int           `json:"step,omitempty"`
 	Revision    int            `json:"revision"`
-	Summary     string         `json:"summary,omitempty"`
+	ReviewTitle string         `json:"review_title,omitempty"`
 	PlanPath    string         `json:"plan_path"`
 	PlanStem    string         `json:"plan_stem"`
 	CreatedAt   string         `json:"created_at"`
@@ -99,7 +99,7 @@ type Aggregate struct {
 	Kind                string             `json:"kind"`
 	Step                *int               `json:"step,omitempty"`
 	Revision            int                `json:"revision"`
-	Summary             string             `json:"summary,omitempty"`
+	ReviewTitle         string             `json:"review_title,omitempty"`
 	Decision            string             `json:"decision"`
 	BlockingFindings    []AggregateFinding `json:"blocking_findings"`
 	NonBlockingFindings []AggregateFinding `json:"non_blocking_findings"`
@@ -211,7 +211,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 			Errors:  issues,
 		}
 	}
-	inferredStep, revision, summary, err := inferReviewBinding(doc, state, spec)
+	inferredStep, revision, reviewTitle, err := inferReviewBinding(doc, state, spec)
 	if err != nil {
 		return StartResult{
 			OK:      false,
@@ -273,7 +273,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 		Kind:        spec.Kind,
 		Step:        inferredStep,
 		Revision:    revision,
-		Summary:     summary,
+		ReviewTitle: reviewTitle,
 		PlanPath:    relPlanPath,
 		PlanStem:    planStem,
 		CreatedAt:   now.Format(time.RFC3339),
@@ -455,7 +455,7 @@ func (s Service) Submit(roundID, slot string, inputBytes []byte) SubmitResult {
 		NextAction: []NextAction{
 			{
 				Command:     nil,
-				Description: "Report the submission receipt to the controller agent and end the reviewer thread. If the same slot later needs a narrow follow-up for the same tracked step or the same finalize review target in the same revision, the controller may reopen this reviewer through the runtime's native resume mechanism only after this submission is verified and only while the slot instructions still materially match.",
+				Description: "Report the submission receipt to the controller agent and end the reviewer thread. If the same slot later needs a narrow follow-up for the same tracked step or the same finalize review title in the same revision, the controller may reopen this reviewer through the runtime's native resume mechanism only after this submission is verified and only while the slot instructions still materially match.",
 			},
 		},
 	}
@@ -549,7 +549,7 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		Kind:                manifest.Kind,
 		Step:                manifest.Step,
 		Revision:            manifest.Revision,
-		Summary:             manifest.Summary,
+		ReviewTitle:         manifest.ReviewTitle,
 		Decision:            decision,
 		BlockingFindings:    blocking,
 		NonBlockingFindings: nonBlocking,
@@ -828,12 +828,12 @@ func inferReviewBinding(doc *plan.Document, state *runstate.State, spec Spec) (*
 	if stepIndex, ok, err := inferReviewStepIndex(doc, state, spec); err != nil {
 		return nil, 0, "", err
 	} else if ok {
-		summary := strings.TrimSpace(spec.Summary)
-		if summary == "" {
-			summary = doc.Steps[stepIndex].Title
+		reviewTitle := strings.TrimSpace(spec.ReviewTitle)
+		if reviewTitle == "" {
+			reviewTitle = doc.Steps[stepIndex].Title
 		}
 		stepNumber := stepIndex + 1
-		return &stepNumber, revision, summary, nil
+		return &stepNumber, revision, reviewTitle, nil
 	}
 
 	if pendingNewStepReopen(doc, state) {
@@ -843,15 +843,15 @@ func inferReviewBinding(doc *plan.Document, state *runstate.State, spec Spec) (*
 		return nil, 0, "", fmt.Errorf("no reviewable tracked step could be inferred; set spec.step to select a tracked step explicitly")
 	}
 
-	summary := strings.TrimSpace(spec.Summary)
-	if summary == "" {
+	reviewTitle := strings.TrimSpace(spec.ReviewTitle)
+	if reviewTitle == "" {
 		if spec.Kind == "full" {
-			summary = "Full branch candidate before archive"
+			reviewTitle = "Full branch candidate before archive"
 		} else {
-			summary = "Branch candidate before archive"
+			reviewTitle = "Branch candidate before archive"
 		}
 	}
-	return nil, revision, summary, nil
+	return nil, revision, reviewTitle, nil
 }
 
 func inferReviewStepIndex(doc *plan.Document, state *runstate.State, spec Spec) (int, bool, error) {

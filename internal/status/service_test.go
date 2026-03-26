@@ -120,16 +120,16 @@ func TestStatusExecutionStepReviewNode(t *testing.T) {
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 
 	result := status.Service{Workdir: root}.Read()
 	if result.State.CurrentNode != "execution/step-1/review" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.ReviewStatus != "in_progress" || result.Facts.CurrentStep != stepOneTitle || result.Facts.ReviewTarget != stepOneTitle || result.Facts.ReviewTrigger != "step_closeout" {
+	if result.Facts == nil || result.Facts.ReviewStatus != "in_progress" || result.Facts.CurrentStep != stepOneTitle || result.Facts.ReviewTitle != stepOneTitle || result.Facts.ReviewTrigger != "step_closeout" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
 	if result.Artifacts == nil || result.Artifacts.ReviewRoundID != "review-001-delta" {
@@ -151,9 +151,9 @@ func TestStatusStepReviewMatchesTargetWithoutMarkdownPunctuation(t *testing.T) {
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  "Step 1: Resolve current_node",
-		"step":     1,
-		"revision": 1,
+		"review_title": "Step 1: Resolve current_node",
+		"step":         1,
+		"revision":     1,
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -181,9 +181,9 @@ func TestStatusDoesNotWarnForEarlierCompletedStepWithCleanFullReview(t *testing.
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-full", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-full", map[string]any{
 		"decision": "pass",
@@ -231,17 +231,17 @@ func TestStatusWarnsWhenLatestHistoricalStepCloseoutRoundIsNotClean(t *testing.T
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "pass",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
 		"decision": "changes_requested",
@@ -265,17 +265,17 @@ func TestStatusDoesNotWarnWhenLatestHistoricalStepCloseoutRepairsEarlierFailure(
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "changes_requested",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
 		"decision": "pass",
@@ -299,17 +299,17 @@ func TestStatusWarnsWhenLatestHistoricalStepCloseoutRoundIsStillInFlight(t *test
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "pass",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -330,9 +330,9 @@ func TestStatusWarnsWhenLatestHistoricalStepCloseoutManifestIsUnreadable(t *test
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "pass",
@@ -346,8 +346,8 @@ func TestStatusWarnsWhenLatestHistoricalStepCloseoutManifestIsUnreadable(t *test
 		t.Fatalf("write unreadable manifest: %v", err)
 	}
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"decision": "changes_requested",
+		"review_title": stepOneTitle,
+		"decision":     "changes_requested",
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -368,9 +368,9 @@ func TestStatusWarnsWhenLatestUnreadableHistoricalCloseoutCannotBeMapped(t *test
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "pass",
@@ -384,9 +384,9 @@ func TestStatusWarnsWhenLatestUnreadableHistoricalCloseoutCannotBeMapped(t *test
 		t.Fatalf("write unreadable manifest: %v", err)
 	}
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  "mystery historical target",
-		"revision": 1,
-		"decision": "changes_requested",
+		"review_title": "mystery historical target",
+		"revision":     1,
+		"decision":     "changes_requested",
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -429,9 +429,9 @@ func TestStatusFinalizeArchiveSuppressesArchiveActionForUnscopedUnreadableHistor
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "pass",
@@ -445,9 +445,9 @@ func TestStatusFinalizeArchiveSuppressesArchiveActionForUnscopedUnreadableHistor
 		t.Fatalf("write unreadable manifest: %v", err)
 	}
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  "mystery historical target",
-		"revision": 1,
-		"decision": "changes_requested",
+		"review_title": "mystery historical target",
+		"revision":     1,
+		"decision":     "changes_requested",
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -485,9 +485,9 @@ func TestStatusDoesNotLetUnreadableHistoryForOneStepUnsatisfyAnother(t *testing.
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "pass",
@@ -501,8 +501,8 @@ func TestStatusDoesNotLetUnreadableHistoryForOneStepUnsatisfyAnother(t *testing.
 		t.Fatalf("write unreadable manifest: %v", err)
 	}
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepTwoTitle,
-		"decision": "changes_requested",
+		"review_title": stepTwoTitle,
+		"decision":     "changes_requested",
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -532,9 +532,9 @@ func TestStatusWarnsInFinalizeWhenCompletedStepStillLacksCloseout(t *testing.T) 
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepTwoTitle,
-		"step":     2,
-		"revision": 1,
+		"review_title": stepTwoTitle,
+		"step":         2,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
 		"decision": "pass",
@@ -580,9 +580,9 @@ func TestStatusFinalizeArchiveSummaryAndActionsDoNotPretendReadyWhenCloseoutDebt
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepTwoTitle,
-		"step":     2,
-		"revision": 1,
+		"review_title": stepTwoTitle,
+		"step":         2,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
 		"decision": "pass",
@@ -627,9 +627,9 @@ func TestStatusFinalizeArchiveKeepsBlockerGuidanceWhenCloseoutDebtAndArchiveBloc
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepTwoTitle,
-		"step":     2,
-		"revision": 1,
+		"review_title": stepTwoTitle,
+		"step":         2,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
 		"decision": "pass",
@@ -679,9 +679,9 @@ func TestStatusDoesNotSuggestSecondReviewWhileStepReviewIsInFlight(t *testing.T)
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepTwoTitle,
-		"step":     2,
-		"revision": 1,
+		"review_title": stepTwoTitle,
+		"step":         2,
+		"revision":     1,
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -722,16 +722,16 @@ func TestStatusDoesNotSuggestSecondReviewWhileFinalizeReviewIsInFlight(t *testin
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepTwoTitle,
-		"step":     2,
-		"revision": 1,
+		"review_title": stepTwoTitle,
+		"step":         2,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
 		"decision": "pass",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-003-full", map[string]any{
-		"summary":  "Full branch candidate before archive",
-		"revision": 1,
+		"review_title": "Full branch candidate before archive",
+		"revision":     1,
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -786,9 +786,9 @@ func TestStatusNoReviewNeededMarkerDoesNotHideLaterFailedCloseout(t *testing.T) 
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "changes_requested",
@@ -813,9 +813,9 @@ func TestStatusNoReviewNeededMarkerDoesNotHideLaterInFlightCloseout(t *testing.T
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -837,9 +837,9 @@ func TestStatusNoReviewNeededMarkerAllowsLaterCleanCloseoutToStaySatisfied(t *te
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "pass",
@@ -871,17 +871,17 @@ func TestStatusUnreadableFinalizeManifestDoesNotMasqueradeAsStepDebt(t *testing.
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "pass",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepTwoTitle,
-		"step":     2,
-		"revision": 1,
+		"review_title": stepTwoTitle,
+		"step":         2,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
 		"decision": "pass",
@@ -927,9 +927,9 @@ func TestStatusFinalizeReviewUsesAggregateFirstGuidanceForUnscopedUnreadableHist
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "pass",
@@ -943,13 +943,13 @@ func TestStatusFinalizeReviewUsesAggregateFirstGuidanceForUnscopedUnreadableHist
 		t.Fatalf("write unreadable manifest: %v", err)
 	}
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  "mystery historical target",
-		"revision": 1,
-		"decision": "changes_requested",
+		"review_title": "mystery historical target",
+		"revision":     1,
+		"decision":     "changes_requested",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-003-full", map[string]any{
-		"summary":  "Full branch candidate before archive",
-		"revision": 1,
+		"review_title": "Full branch candidate before archive",
+		"revision":     1,
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -976,9 +976,9 @@ func TestStatusFinalizeReviewSummaryForUnscopedUnreadableHistoryWithoutActiveRou
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "pass",
@@ -992,9 +992,9 @@ func TestStatusFinalizeReviewSummaryForUnscopedUnreadableHistoryWithoutActiveRou
 		t.Fatalf("write unreadable manifest: %v", err)
 	}
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  "mystery historical target",
-		"revision": 1,
-		"decision": "changes_requested",
+		"review_title": "mystery historical target",
+		"revision":     1,
+		"decision":     "changes_requested",
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -1034,9 +1034,9 @@ func TestStatusFinalizeFixSummaryForUnscopedUnreadableHistory(t *testing.T) {
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
 		"decision": "pass",
@@ -1050,9 +1050,9 @@ func TestStatusFinalizeFixSummaryForUnscopedUnreadableHistory(t *testing.T) {
 		t.Fatalf("write unreadable manifest: %v", err)
 	}
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  "mystery historical target",
-		"revision": 1,
-		"decision": "changes_requested",
+		"review_title": "mystery historical target",
+		"revision":     1,
+		"decision":     "changes_requested",
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -1122,9 +1122,9 @@ func TestStatusUnknownAggregatedReviewDecisionStaysConservative(t *testing.T) {
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -1154,9 +1154,9 @@ func TestStatusFailedStepReviewPinsReviewedStep(t *testing.T) {
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -1186,9 +1186,9 @@ func TestStatusAdvancesToNextStepAfterCleanStepReview(t *testing.T) {
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-003-delta", map[string]any{
-		"summary":  stepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -1233,16 +1233,16 @@ func TestStatusFinalizeReviewClearsPriorStepReviewFacts(t *testing.T) {
 		},
 	})
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-003-delta", map[string]any{
-		"summary":  stepTwoTitle,
-		"step":     2,
-		"revision": 1,
+		"review_title": stepTwoTitle,
+		"step":         2,
+		"revision":     1,
 	})
 
 	result := status.Service{Workdir: root}.Read()
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
-	if result.Facts != nil && (result.Facts.ReviewStatus != "" || result.Facts.ReviewTarget != "" || result.Facts.ReviewTrigger != "" || result.Facts.ReviewKind != "") {
+	if result.Facts != nil && (result.Facts.ReviewStatus != "" || result.Facts.ReviewTitle != "" || result.Facts.ReviewTrigger != "" || result.Facts.ReviewKind != "") {
 		t.Fatalf("expected prior step-review facts to be cleared at finalize review, got %#v", result.Facts)
 	}
 	if result.Artifacts != nil && result.Artifacts.ReviewRoundID != "" {
@@ -1350,9 +1350,9 @@ func TestStatusWarnsInArchivedPublishWhenCompletedStepStillLacksCloseout(t *test
 	})
 	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepTwoTitle,
-		"step":     2,
-		"revision": 1,
+		"review_title": stepTwoTitle,
+		"step":         2,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
 		"decision": "pass",
@@ -1426,9 +1426,9 @@ func TestStatusArchivedNodesRequireReopenForUnscopedUnreadableHistory(t *testing
 				t.Fatalf("write unreadable manifest: %v", err)
 			}
 			writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-				"summary":  "mystery historical target",
-				"revision": 1,
-				"decision": "changes_requested",
+				"review_title": "mystery historical target",
+				"revision":     1,
+				"decision":     "changes_requested",
 			})
 
 			if tc.withMergeEvidence {
@@ -1530,9 +1530,9 @@ func TestStatusWarnsInAwaitMergeWhenCompletedStepStillLacksCloseout(t *testing.T
 	})
 	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
 	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"summary":  stepTwoTitle,
-		"step":     2,
-		"revision": 1,
+		"review_title": stepTwoTitle,
+		"step":         2,
+		"revision":     1,
 	})
 	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
 		"decision": "pass",

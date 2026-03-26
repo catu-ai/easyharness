@@ -43,7 +43,7 @@ type Facts struct {
 	ReopenMode          string `json:"reopen_mode,omitempty"`
 	ReviewKind          string `json:"review_kind,omitempty"`
 	ReviewTrigger       string `json:"review_trigger,omitempty"`
-	ReviewTarget        string `json:"review_target,omitempty"`
+	ReviewTitle         string `json:"review_title,omitempty"`
 	ReviewStatus        string `json:"review_status,omitempty"`
 	ArchiveBlockerCount int    `json:"archive_blocker_count,omitempty"`
 	PublishStatus       string `json:"publish_status,omitempty"`
@@ -80,7 +80,7 @@ type reviewContext struct {
 	Kind            string
 	Revision        int
 	Trigger         string
-	Summary         string
+	ReviewTitle     string
 	Aggregated      bool
 	InFlight        bool
 	Decision        string
@@ -101,9 +101,9 @@ type missingStepCloseoutReminder struct {
 }
 
 type historicalReviewManifest struct {
-	Summary  string `json:"summary,omitempty"`
-	Step     *int   `json:"step,omitempty"`
-	Revision int    `json:"revision,omitempty"`
+	ReviewTitle string `json:"review_title,omitempty"`
+	Step        *int   `json:"step,omitempty"`
+	Revision    int    `json:"revision,omitempty"`
 }
 
 type latestStepCloseoutRound struct {
@@ -215,7 +215,7 @@ func (s Service) Read() Result {
 	if reviewCtx != nil && isStructuralReviewTrigger(reviewCtx.Trigger) && !reviewCtx.UnsafeFallback {
 		facts.ReviewKind = reviewCtx.Kind
 		facts.ReviewTrigger = reviewCtx.Trigger
-		facts.ReviewTarget = reviewCtx.Summary
+		facts.ReviewTitle = reviewCtx.ReviewTitle
 		switch {
 		case reviewCtx.InFlight:
 			facts.ReviewStatus = "in_progress"
@@ -310,7 +310,7 @@ func clearStepCloseoutReviewMetadata(facts *Facts, artifacts *Artifacts) {
 	if facts != nil {
 		facts.ReviewKind = ""
 		facts.ReviewTrigger = ""
-		facts.ReviewTarget = ""
+		facts.ReviewTitle = ""
 		facts.ReviewStatus = ""
 	}
 	if artifacts != nil {
@@ -424,10 +424,10 @@ func loadReviewContext(workdir, planStem string, doc *plan.Document, state *runs
 		warnings = append(warnings, fmt.Sprintf("Unable to read the review step binding for %s; status may be conservative.", round.RoundID))
 	}
 
-	if summary, known, err := runstate.EffectiveReviewSummary(workdir, planStem, round); err != nil {
-		warnings = append(warnings, fmt.Sprintf("Unable to read the review summary for %s; status may be conservative.", round.RoundID))
+	if reviewTitle, known, err := runstate.EffectiveReviewTitle(workdir, planStem, round); err != nil {
+		warnings = append(warnings, fmt.Sprintf("Unable to read the review title for %s; status may be conservative.", round.RoundID))
 	} else if known {
-		ctx.Summary = summary
+		ctx.ReviewTitle = reviewTitle
 	}
 
 	if round.Aggregated {
@@ -447,13 +447,13 @@ func loadReviewContext(workdir, planStem string, doc *plan.Document, state *runs
 		if stepKnown {
 			ctx.Trigger = "step_closeout"
 			ctx.TargetStepIndex = stepIndex - 1
-			if ctx.TargetStepIndex >= 0 && ctx.TargetStepIndex < len(doc.Steps) && strings.TrimSpace(ctx.Summary) == "" {
-				ctx.Summary = doc.Steps[ctx.TargetStepIndex].Title
+			if ctx.TargetStepIndex >= 0 && ctx.TargetStepIndex < len(doc.Steps) && strings.TrimSpace(ctx.ReviewTitle) == "" {
+				ctx.ReviewTitle = doc.Steps[ctx.TargetStepIndex].Title
 			}
 		} else {
 			ctx.Trigger = "pre_archive"
-			if strings.TrimSpace(ctx.Summary) == "" {
-				ctx.Summary = defaultFinalizeReviewSummary(ctx.Kind)
+			if strings.TrimSpace(ctx.ReviewTitle) == "" {
+				ctx.ReviewTitle = defaultFinalizeReviewTitle(ctx.Kind)
 			}
 		}
 	}
@@ -571,7 +571,7 @@ func loadLatestStepCloseoutTargets(workdir, planStem string, doc *plan.Document,
 	latestByTarget := map[string]latestStepCloseoutRound{}
 	for index, record := range scan.LatestByStepIndex {
 		if index >= 0 && index < len(doc.Steps) {
-			latestByTarget[normalizeReviewTarget(doc.Steps[index].Title)] = record
+			latestByTarget[normalizeReviewTitle(doc.Steps[index].Title)] = record
 		}
 	}
 	return latestByTarget, scan.Warnings
@@ -1240,20 +1240,20 @@ func currentStepIndex(doc *plan.Document) int {
 	return -1
 }
 
-func resolveReviewTargetStep(doc *plan.Document, target string) (int, bool) {
-	target = normalizeReviewTarget(target)
-	if target == "" {
+func resolveReviewTitleStep(doc *plan.Document, reviewTitle string) (int, bool) {
+	reviewTitle = normalizeReviewTitle(reviewTitle)
+	if reviewTitle == "" {
 		return -1, false
 	}
 	for index, step := range doc.Steps {
-		if normalizeReviewTarget(step.Title) == target {
+		if normalizeReviewTitle(step.Title) == reviewTitle {
 			return index, true
 		}
 	}
 	return -1, false
 }
 
-func normalizeReviewTarget(value string) string {
+func normalizeReviewTitle(value string) string {
 	value = strings.TrimSpace(strings.ToLower(value))
 	value = strings.Map(func(r rune) rune {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsSpace(r) {
@@ -1264,7 +1264,7 @@ func normalizeReviewTarget(value string) string {
 	return strings.Join(strings.Fields(value), " ")
 }
 
-func defaultFinalizeReviewSummary(kind string) string {
+func defaultFinalizeReviewTitle(kind string) string {
 	if kind == "full" {
 		return "Full branch candidate before archive"
 	}
@@ -1282,7 +1282,7 @@ func readJSONFile(path string, target any) error {
 	return nil
 }
 
-func fallbackReviewTargetStep(doc *plan.Document, state *runstate.State) (int, bool) {
+func fallbackReviewTitleStep(doc *plan.Document, state *runstate.State) (int, bool) {
 	if state != nil {
 		if index, ok := stepIndexFromNode(state.CurrentNode); ok {
 			return index, false
@@ -1363,7 +1363,7 @@ func (f *Facts) empty() bool {
 		strings.TrimSpace(f.ReopenMode) == "" &&
 		strings.TrimSpace(f.ReviewKind) == "" &&
 		strings.TrimSpace(f.ReviewTrigger) == "" &&
-		strings.TrimSpace(f.ReviewTarget) == "" &&
+		strings.TrimSpace(f.ReviewTitle) == "" &&
 		strings.TrimSpace(f.ReviewStatus) == "" &&
 		f.ArchiveBlockerCount == 0 &&
 		strings.TrimSpace(f.PublishStatus) == "" &&

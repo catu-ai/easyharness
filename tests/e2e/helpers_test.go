@@ -118,7 +118,7 @@ type aggregateArtifact struct {
 	Kind                string `json:"kind"`
 	Step                *int   `json:"step,omitempty"`
 	Revision            int    `json:"revision"`
-	Summary             string `json:"summary"`
+	ReviewTitle         string `json:"review_title"`
 	Decision            string `json:"decision"`
 	AggregatedAt        string `json:"aggregated_at"`
 	NonBlockingFindings []struct {
@@ -129,12 +129,12 @@ type aggregateArtifact struct {
 }
 
 type reviewManifest struct {
-	RoundID    string            `json:"round_id"`
-	Step       *int              `json:"step,omitempty"`
-	Revision   int               `json:"revision"`
-	Summary    string            `json:"summary"`
-	PlanPath   string            `json:"plan_path"`
-	Dimensions []reviewDimension `json:"dimensions"`
+	RoundID     string            `json:"round_id"`
+	Step        *int              `json:"step,omitempty"`
+	Revision    int               `json:"revision"`
+	ReviewTitle string            `json:"review_title"`
+	PlanPath    string            `json:"plan_path"`
+	Dimensions  []reviewDimension `json:"dimensions"`
 }
 
 type reviewLedger struct {
@@ -172,7 +172,7 @@ type statusResult struct {
 	Facts struct {
 		CurrentStep   string `json:"current_step"`
 		ReviewStatus  string `json:"review_status"`
-		ReviewTarget  string `json:"review_target"`
+		ReviewTitle   string `json:"review_title"`
 		ReopenMode    string `json:"reopen_mode"`
 		Revision      int    `json:"revision"`
 		PublishStatus string `json:"publish_status"`
@@ -332,7 +332,7 @@ func runPassingDeltaReview(t *testing.T, workspace *support.Workspace, stepTitle
 
 	reviewStatus := runStatus(t, workspace.Root)
 	assertNode(t, reviewStatus, fmt.Sprintf("execution/step-%d/review", stepNumber))
-	if reviewStatus.Facts.CurrentStep != target || reviewStatus.Facts.ReviewStatus != "in_progress" || reviewStatus.Facts.ReviewTarget != target {
+	if reviewStatus.Facts.CurrentStep != target || reviewStatus.Facts.ReviewStatus != "in_progress" || reviewStatus.Facts.ReviewTitle != target {
 		t.Fatalf("expected active step-review facts for %q, got %#v", target, reviewStatus)
 	}
 
@@ -341,7 +341,7 @@ func runPassingDeltaReview(t *testing.T, workspace *support.Workspace, stepTitle
 
 	stillInReviewStatus := runStatus(t, workspace.Root)
 	assertNode(t, stillInReviewStatus, fmt.Sprintf("execution/step-%d/review", stepNumber))
-	if stillInReviewStatus.Facts.CurrentStep != target || stillInReviewStatus.Facts.ReviewStatus != "in_progress" || stillInReviewStatus.Facts.ReviewTarget != target {
+	if stillInReviewStatus.Facts.CurrentStep != target || stillInReviewStatus.Facts.ReviewStatus != "in_progress" || stillInReviewStatus.Facts.ReviewTitle != target {
 		t.Fatalf("expected submission-only update to preserve active step-review facts for %q, got %#v", target, stillInReviewStatus)
 	}
 
@@ -371,7 +371,7 @@ func runPassingFinalizeReview(t *testing.T, workspace *support.Workspace) string
 
 	inReviewStatus := runStatus(t, workspace.Root)
 	assertNode(t, inReviewStatus, "execution/finalize/review")
-	if inReviewStatus.Facts.ReviewStatus != "in_progress" || inReviewStatus.Facts.ReviewTarget != "Full branch candidate before archive" {
+	if inReviewStatus.Facts.ReviewStatus != "in_progress" || inReviewStatus.Facts.ReviewTitle != "Full branch candidate before archive" {
 		t.Fatalf("expected active finalize-review facts, got %#v", inReviewStatus)
 	}
 
@@ -379,7 +379,7 @@ func runPassingFinalizeReview(t *testing.T, workspace *support.Workspace) string
 
 	stillInReviewStatus := runStatus(t, workspace.Root)
 	assertNode(t, stillInReviewStatus, "execution/finalize/review")
-	if stillInReviewStatus.Facts.ReviewStatus != "in_progress" || stillInReviewStatus.Facts.ReviewTarget != "Full branch candidate before archive" {
+	if stillInReviewStatus.Facts.ReviewStatus != "in_progress" || stillInReviewStatus.Facts.ReviewTitle != "Full branch candidate before archive" {
 		t.Fatalf("expected submission-only update to preserve active finalize-review facts, got %#v", stillInReviewStatus)
 	}
 

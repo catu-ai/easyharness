@@ -47,7 +47,7 @@ func TestReviewRepairLoopsWithBuiltBinary(t *testing.T) {
 	blockingStepRound := runBlockingStepReview(t, workspace, reviewRepairStepOne, 1)
 	postStepFailure := runStatus(t, workspace.Root)
 	assertNode(t, postStepFailure, "execution/step-1/implement")
-	if postStepFailure.Facts.ReviewStatus != "changes_requested" || postStepFailure.Facts.ReviewTarget != trackedStepTitle(1, reviewRepairStepOne) {
+	if postStepFailure.Facts.ReviewStatus != "changes_requested" || postStepFailure.Facts.ReviewTitle != trackedStepTitle(1, reviewRepairStepOne) {
 		t.Fatalf("expected step-review failure facts after %s, got %#v", blockingStepRound, postStepFailure)
 	}
 	if !strings.Contains(postStepFailure.Summary, "requested changes") {

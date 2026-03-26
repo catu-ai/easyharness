@@ -87,9 +87,9 @@ type reviewAggregate struct {
 }
 
 type reviewManifest struct {
-	Summary  string `json:"summary,omitempty"`
-	Step     *int   `json:"step,omitempty"`
-	Revision int    `json:"revision,omitempty"`
+	ReviewTitle string `json:"review_title,omitempty"`
+	Step        *int   `json:"step,omitempty"`
+	Revision    int    `json:"revision,omitempty"`
 }
 
 func LoadCurrentPlan(workdir string) (*CurrentPlan, error) {
@@ -202,7 +202,7 @@ func EffectiveReviewDecision(workdir, planStem string, round *ReviewRound) (stri
 	return "", false, nil
 }
 
-func EffectiveReviewSummary(workdir, planStem string, round *ReviewRound) (string, bool, error) {
+func EffectiveReviewTitle(workdir, planStem string, round *ReviewRound) (string, bool, error) {
 	if round == nil || strings.TrimSpace(round.RoundID) == "" {
 		return "", false, nil
 	}
@@ -220,8 +220,8 @@ func EffectiveReviewSummary(workdir, planStem string, round *ReviewRound) (strin
 	if err := json.Unmarshal(data, &manifest); err != nil {
 		return "", false, fmt.Errorf("parse manifest.json for %s: %w", round.RoundID, err)
 	}
-	if summary := strings.TrimSpace(manifest.Summary); summary != "" {
-		return summary, true, nil
+	if reviewTitle := strings.TrimSpace(manifest.ReviewTitle); reviewTitle != "" {
+		return reviewTitle, true, nil
 	}
 	return "", false, nil
 }

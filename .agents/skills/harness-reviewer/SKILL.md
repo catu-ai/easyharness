@@ -9,7 +9,7 @@ description: Use when acting as a dedicated reviewer subagent for one assigned h
 
 Use this skill only in reviewer subagents, including a reviewer subagent that
 the controller later resumes for the same slot within the same tracked step
-review boundary or for the same finalize review target in the same revision.
+review boundary or for the same finalize review title in the same revision.
 
 The reviewer agent owns exactly one review slot in an existing review round. It
 does not start rounds, aggregate rounds, orchestrate other reviewers, or infer
@@ -66,7 +66,7 @@ deferral stale.
 
 ## Workflow
 
-1. Read the controller's round ID, target, revision context when present, slot,
+1. Read the controller's round ID, review title, revision context when present, slot,
    and assigned instructions.
 2. If the controller did not give enough information to submit cleanly, report
    the missing input back to the controller instead of improvising.
@@ -78,8 +78,8 @@ deferral stale.
 7. Stop once the receipt is reported. The controller agent is responsible for
    closing reviewer subagents after verifying the successful submission.
 8. If the controller later resumes you for the same slot within the same
-   tracked step review boundary or for the same finalize review target in the
-   same revision, treat the newest round ID, target, revision context, slot,
+   tracked step review boundary or for the same finalize review title in the
+   same revision, treat the newest round ID, review title, revision context, slot,
    and instructions as authoritative for that new assignment. Reuse your prior
    context only to understand the bounded follow-up the controller asked you to
    verify.

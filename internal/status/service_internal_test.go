@@ -25,9 +25,9 @@ func TestLoadSatisfiedStepCloseoutTargetsUsesActiveReviewContextForUnreadableCur
 	}
 
 	writeHistoricalReviewJSON(t, root, planStem, "review-001-delta", "manifest.json", map[string]any{
-		"summary":  internalStepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": internalStepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeHistoricalReviewJSON(t, root, planStem, "review-001-delta", "aggregate.json", map[string]any{
 		"decision": "pass",
@@ -41,9 +41,9 @@ func TestLoadSatisfiedStepCloseoutTargetsUsesActiveReviewContextForUnreadableCur
 		t.Fatalf("write unreadable manifest: %v", err)
 	}
 	writeHistoricalReviewJSON(t, root, planStem, "review-002-delta", "aggregate.json", map[string]any{
-		"summary":  "mystery historical target",
-		"revision": 1,
-		"decision": "changes_requested",
+		"review_title": "mystery historical target",
+		"revision":     1,
+		"decision":     "changes_requested",
 	})
 
 	reviewCtx := &reviewContext{
@@ -52,7 +52,7 @@ func TestLoadSatisfiedStepCloseoutTargetsUsesActiveReviewContextForUnreadableCur
 		TargetStepIndex: 0,
 	}
 	satisfied, warnings := loadSatisfiedStepCloseoutTargets(root, planStem, doc, reviewCtx)
-	if satisfied[normalizeReviewTarget(internalStepOneTitle)] {
+	if satisfied[normalizeReviewTitle(internalStepOneTitle)] {
 		t.Fatalf("expected active reviewCtx fallback to keep step 1 unsatisfied, got %#v", satisfied)
 	}
 	if len(warnings) == 0 {
@@ -71,9 +71,9 @@ func TestLoadSatisfiedStepCloseoutTargetsUsesActiveInFlightReviewContextForUnrea
 	}
 
 	writeHistoricalReviewJSON(t, root, planStem, "review-001-delta", "manifest.json", map[string]any{
-		"summary":  internalStepOneTitle,
-		"step":     1,
-		"revision": 1,
+		"review_title": internalStepOneTitle,
+		"step":         1,
+		"revision":     1,
 	})
 	writeHistoricalReviewJSON(t, root, planStem, "review-001-delta", "aggregate.json", map[string]any{
 		"decision": "pass",
@@ -94,7 +94,7 @@ func TestLoadSatisfiedStepCloseoutTargetsUsesActiveInFlightReviewContextForUnrea
 		InFlight:        true,
 	}
 	satisfied, warnings := loadSatisfiedStepCloseoutTargets(root, planStem, doc, reviewCtx)
-	if satisfied[normalizeReviewTarget(internalStepOneTitle)] {
+	if satisfied[normalizeReviewTitle(internalStepOneTitle)] {
 		t.Fatalf("expected active in-flight reviewCtx fallback to keep step 1 unsatisfied, got %#v", satisfied)
 	}
 	if len(warnings) == 0 {

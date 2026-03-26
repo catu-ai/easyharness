@@ -47,7 +47,7 @@ Use a compact JSON shape like:
 ```json
 {
   "kind": "delta",
-  "summary": "Check the completed step for contract mistakes and handoff clarity.",
+  "review_title": "Step 2: Refactor review metadata",
   "dimensions": [
     {
       "name": "correctness",
@@ -67,8 +67,8 @@ Field rules:
   - enum: `delta` or `full`
   - `delta` is for a completed step or narrow follow-up change
   - `full` is for an archive candidate or another broad branch-level pass
-- `summary`
-  - optional human-readable note for the controller and reviewers
+- `review_title`
+  - optional human-readable review title for the controller and reviewers
 - `step`
   - optional 1-based tracked step number
   - usually omit it and let `harness` bind the round automatically
@@ -146,7 +146,7 @@ You are the reviewer for one harness review slot.
 Use the harness-reviewer skill and follow it exactly.
 
 Round ID: <round-id>
-Target: <review-target>
+Review title: <review-title>
 Revision: <candidate-revision-or-none>
 Slot: <slot>
 Assigned dimension: <dimension-name>
@@ -162,7 +162,7 @@ review. Those boundaries always start with fresh reviewers.
 Resume is only valid while the review scope itself is still the same:
 
 - for step review, the same tracked step title
-- for finalize review, the same candidate summary for the same revision
+- for finalize review, the same candidate review title for the same revision
 
 If reopen, a new tracked step, a new revision, or a new finalize candidate
 changes that scope, start with fresh reviewers.
@@ -175,7 +175,7 @@ You are resuming the same harness review slot you handled earlier.
 Use the harness-reviewer skill and follow it exactly.
 
 New round ID: <new-round-id>
-Target: <review-target>
+Review title: <review-title>
 Revision: <candidate-revision-or-none>
 Slot: <slot>
 Assigned dimension: <dimension-name>

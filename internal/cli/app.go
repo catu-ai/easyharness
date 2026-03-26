@@ -412,7 +412,7 @@ func (a *App) runReviewStart(args []string) int {
 		fmt.Fprintln(a.Stderr, "Usage: harness review start [--spec <path>]")
 		fmt.Fprintln(a.Stderr)
 		fmt.Fprintln(a.Stderr, "Create a deterministic review round from a minimal review spec.")
-		fmt.Fprintln(a.Stderr, "The spec must include `kind` and `dimensions`, and may include optional `summary` or `step`.")
+		fmt.Fprintln(a.Stderr, "The spec must include `kind` and `dimensions`, and may include optional `review_title` or `step`.")
 		fmt.Fprintln(a.Stderr, "Harness infers whether the round is step-bound or finalize-bound from the current workflow state.")
 	}
 	if err := fs.Parse(args); err != nil {

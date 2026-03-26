@@ -71,7 +71,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	stepOneRound := runPassingDeltaReview(t, workspace, stepOneTitle, 1)
 	postStepOneReview := runStatus(t, workspace.Root)
 	assertNode(t, postStepOneReview, "execution/step-1/implement")
-	if postStepOneReview.Facts.ReviewStatus != "pass" || postStepOneReview.Facts.ReviewTarget != trackedStepTitle(1, stepOneTitle) {
+	if postStepOneReview.Facts.ReviewStatus != "pass" || postStepOneReview.Facts.ReviewTitle != trackedStepTitle(1, stepOneTitle) {
 		t.Fatalf("expected clean step-one review facts after aggregate, got %#v", postStepOneReview)
 	}
 	support.CompleteStep(
@@ -91,7 +91,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	stepTwoRound := runPassingDeltaReview(t, workspace, stepTwoTitle, 2)
 	postStepTwoReview := runStatus(t, workspace.Root)
 	assertNode(t, postStepTwoReview, "execution/step-2/implement")
-	if postStepTwoReview.Facts.ReviewStatus != "pass" || postStepTwoReview.Facts.ReviewTarget != trackedStepTitle(2, stepTwoTitle) {
+	if postStepTwoReview.Facts.ReviewStatus != "pass" || postStepTwoReview.Facts.ReviewTitle != trackedStepTitle(2, stepTwoTitle) {
 		t.Fatalf("expected clean step-two review facts after aggregate, got %#v", postStepTwoReview)
 	}
 
@@ -109,7 +109,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	if preReviewStatus.Summary != "Plan has finished its tracked steps and needs finalize review before archive." {
 		t.Fatalf("expected finalize-review preflight summary, got %#v", preReviewStatus)
 	}
-	if preReviewStatus.Facts.ReviewStatus != "" || preReviewStatus.Facts.ReviewTarget != "" {
+	if preReviewStatus.Facts.ReviewStatus != "" || preReviewStatus.Facts.ReviewTitle != "" {
 		t.Fatalf("expected finalize preflight to clear prior step-review facts, got %#v", preReviewStatus)
 	}
 	if preReviewStatus.Artifacts.ReviewRoundID != "" {
@@ -301,7 +301,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	if aggregateArtifact.RoundID != startPayload.Artifacts.RoundID || aggregateArtifact.Kind != "full" {
 		t.Fatalf("unexpected aggregate artifact: %#v", aggregateArtifact)
 	}
-	if aggregateArtifact.Summary != "Full branch candidate before archive" || aggregateArtifact.Decision != "pass" || aggregateArtifact.AggregatedAt == "" {
+	if aggregateArtifact.ReviewTitle != "Full branch candidate before archive" || aggregateArtifact.Decision != "pass" || aggregateArtifact.AggregatedAt == "" {
 		t.Fatalf("unexpected aggregate artifact contents: %#v", aggregateArtifact)
 	}
 	if len(aggregateArtifact.NonBlockingFindings) != 1 || aggregateArtifact.NonBlockingFindings[0].Title != "Review path exercised across multiple slots" {

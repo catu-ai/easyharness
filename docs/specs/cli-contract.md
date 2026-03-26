@@ -156,8 +156,8 @@ help explain the node:
 - `review_kind`
 - `review_trigger`
   - optional derived label such as `step_closeout` or `pre_archive`
-- `review_target`
-  - optional derived human-readable review summary
+- `review_title`
+  - optional derived human-readable review title
 - `review_status`
 - `archive_blocker_count`
 - `publish_status`
@@ -353,7 +353,7 @@ Canonical input shape:
 ```json
 {
   "kind": "delta",
-  "summary": "Check the completed step for state-machine mistakes and handoff clarity.",
+  "review_title": "Check the completed step for state-machine mistakes and handoff clarity.",
   "dimensions": [
     {
       "name": "correctness",
@@ -388,9 +388,9 @@ Review-spec semantics:
 - `dimensions`
   - required
   - one reviewer slot per normalized dimension
-- `summary`
+- `review_title`
   - optional
-  - human-readable note shown back to the controller and reviewers
+  - human-readable review title shown back to the controller and reviewers
 - `step`
   - optional 1-based tracked step number
   - usually omitted
@@ -409,7 +409,7 @@ Round identifiers should be short and plan-local:
 - keep precise timestamps in the manifest and aggregate artifacts rather than
   embedding them in the round ID
 
-If `summary` is omitted, the CLI fills one in:
+If `review_title` is omitted, the CLI fills one in:
 
 - step-bound review defaults to the tracked step title
 - finalize `full` review defaults to `Full branch candidate before archive`
