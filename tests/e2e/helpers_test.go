@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yzhang1918/superharness/tests/support"
+	"github.com/yzhang1918/microharness/tests/support"
 )
 
 type commandError struct {
@@ -445,7 +445,7 @@ func drivePlanToAwaitMergeNode(t *testing.T, workspace *support.Workspace, planP
 
 	submitEvidence(t, workspace, "publish", "tmp/publish.json", map[string]any{
 		"status": "recorded",
-		"pr_url": "https://github.com/yzhang1918/superharness/pull/99",
+		"pr_url": "https://github.com/yzhang1918/microharness/pull/99",
 		"branch": "codex/e2e-lifecycle-handoff-coverage",
 		"base":   "main",
 	})

@@ -1,6 +1,6 @@
-# superharness
+# microharness
 
-`superharness` is a thin, agent-first harness CLI plus repository contract for
+`microharness` is a thin, agent-first harness CLI plus repository contract for
 human-steered, agent-executed work.
 
 The goal is to keep the harness legible and maintainable:
@@ -31,7 +31,7 @@ By default the installer:
 - uses `~/.local/bin` by default, or `~/bin` when that is already on `PATH`
 - keeps parallel worktrees isolated by dispatching to the current worktree's
   `.local/bin/harness`
-- falls back outside `superharness` worktrees to the binary from the worktree
+- falls back outside `microharness` worktrees to the binary from the worktree
   that last installed the wrapper
 
 Useful options:
@@ -81,8 +81,8 @@ Typical verification flow:
 Then unpack and inspect the release binary:
 
 ```bash
-unzip superharness_<version>_<goos>_<goarch>.zip
-cd superharness_<version>_<goos>_<goarch>
+unzip microharness_<version>_<goos>_<goarch>.zip
+cd microharness_<version>_<goos>_<goarch>
 ./harness --version
 ./harness --help
 ```
@@ -93,7 +93,7 @@ checkout.
 
 ## Current Command Surface
 
-`superharness` currently ships these commands:
+`microharness` currently ships these commands:
 
 - `harness plan template`
 - `harness plan lint`

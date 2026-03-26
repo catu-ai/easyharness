@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/yzhang1918/superharness/internal/runstate"
+	"github.com/yzhang1918/microharness/internal/runstate"
 )
 
 var ErrNoCurrentPlan = errors.New("no current plan found")

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yzhang1918/superharness/internal/plan"
+	"github.com/yzhang1918/microharness/internal/plan"
 )
 
 func TestRenderTemplateSeedsFields(t *testing.T) {

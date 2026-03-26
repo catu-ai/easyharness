@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/yzhang1918/superharness/internal/plan"
+	"github.com/yzhang1918/microharness/internal/plan"
 )
 
 const (

@@ -3,7 +3,7 @@ package plan
 import (
 	"strings"
 
-	"github.com/yzhang1918/superharness/internal/runstate"
+	"github.com/yzhang1918/microharness/internal/runstate"
 )
 
 func (d *Document) DerivedPlanStatus() string {

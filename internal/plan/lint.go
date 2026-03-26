@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	templateassets "github.com/yzhang1918/superharness/assets/templates"
+	templateassets "github.com/yzhang1918/microharness/assets/templates"
 	"gopkg.in/yaml.v3"
 )
 

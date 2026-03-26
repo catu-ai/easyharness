@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yzhang1918/superharness/internal/plan"
-	"github.com/yzhang1918/superharness/internal/runstate"
+	"github.com/yzhang1918/microharness/internal/plan"
+	"github.com/yzhang1918/microharness/internal/runstate"
 )
 
 var recordIDPattern = regexp.MustCompile(`^(ci|publish|sync)-([0-9]+)\.json$`)

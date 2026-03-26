@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/yzhang1918/superharness/internal/runstate"
+	"github.com/yzhang1918/microharness/internal/runstate"
 )
 
 func TestDetectCurrentPathPrefersSingleActivePlanOverArchivedPointer(t *testing.T) {

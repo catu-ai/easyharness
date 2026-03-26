@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/yzhang1918/superharness/internal/plan"
-	"github.com/yzhang1918/superharness/internal/runstate"
+	"github.com/yzhang1918/microharness/internal/plan"
+	"github.com/yzhang1918/microharness/internal/runstate"
 )
 
 var slotNamePattern = regexp.MustCompile(`[^a-z0-9]+`)

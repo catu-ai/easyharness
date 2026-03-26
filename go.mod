@@ -1,4 +1,4 @@
-module github.com/yzhang1918/superharness
+module github.com/yzhang1918/microharness
 
 go 1.26.0
 

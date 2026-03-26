@@ -10,10 +10,10 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/yzhang1918/superharness/internal/evidence"
-	"github.com/yzhang1918/superharness/internal/lifecycle"
-	"github.com/yzhang1918/superharness/internal/plan"
-	"github.com/yzhang1918/superharness/internal/runstate"
+	"github.com/yzhang1918/microharness/internal/evidence"
+	"github.com/yzhang1918/microharness/internal/lifecycle"
+	"github.com/yzhang1918/microharness/internal/plan"
+	"github.com/yzhang1918/microharness/internal/runstate"
 )
 
 type Service struct {

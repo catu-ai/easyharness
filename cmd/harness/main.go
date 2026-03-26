@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/yzhang1918/superharness/internal/cli"
+	"github.com/yzhang1918/microharness/internal/cli"
 )
 
 func main() {

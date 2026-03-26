@@ -1,6 +1,6 @@
 # Releasing
 
-`superharness` ships its first public alpha as GitHub Release archives built
+`microharness` ships its first public alpha as GitHub Release archives built
 from the tracked release workflow.
 
 ## Release Checklist

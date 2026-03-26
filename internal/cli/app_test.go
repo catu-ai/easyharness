@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yzhang1918/superharness/internal/cli"
-	"github.com/yzhang1918/superharness/internal/evidence"
-	"github.com/yzhang1918/superharness/internal/plan"
-	"github.com/yzhang1918/superharness/internal/runstate"
-	"github.com/yzhang1918/superharness/internal/status"
-	version "github.com/yzhang1918/superharness/internal/version"
+	"github.com/yzhang1918/microharness/internal/cli"
+	"github.com/yzhang1918/microharness/internal/evidence"
+	"github.com/yzhang1918/microharness/internal/plan"
+	"github.com/yzhang1918/microharness/internal/runstate"
+	"github.com/yzhang1918/microharness/internal/status"
+	version "github.com/yzhang1918/microharness/internal/version"
 )
 
 func TestPlanTemplateWritesOutputFile(t *testing.T) {
@@ -345,7 +345,7 @@ func TestLandCommandReturnsJSON(t *testing.T) {
 	stdout.Reset()
 	stderr.Reset()
 
-	exitCode := app.Run([]string{"land", "--pr", "https://github.com/yzhang1918/superharness/pull/99"})
+	exitCode := app.Run([]string{"land", "--pr", "https://github.com/yzhang1918/microharness/pull/99"})
 	if exitCode != 0 {
 		t.Fatalf("land command failed with %d: %s", exitCode, stderr.String())
 	}
@@ -603,7 +603,7 @@ func TestReopenCommandRejectsLandCleanupInProgress(t *testing.T) {
 		t.Fatalf("save current plan: %v", err)
 	}
 	seedMergeReadyEvidenceForCLI(t, root)
-	if exitCode := app.Run([]string{"land", "--pr", "https://github.com/yzhang1918/superharness/pull/99"}); exitCode != 0 {
+	if exitCode := app.Run([]string{"land", "--pr", "https://github.com/yzhang1918/microharness/pull/99"}); exitCode != 0 {
 		t.Fatalf("land command failed with %d: %s", exitCode, stderr.String())
 	}
 
@@ -647,7 +647,7 @@ func TestLandCompleteCommandReturnsJSON(t *testing.T) {
 		t.Fatalf("save current plan: %v", err)
 	}
 	seedMergeReadyEvidenceForCLI(t, root)
-	if exitCode := app.Run([]string{"land", "--pr", "https://github.com/yzhang1918/superharness/pull/99"}); exitCode != 0 {
+	if exitCode := app.Run([]string{"land", "--pr", "https://github.com/yzhang1918/microharness/pull/99"}); exitCode != 0 {
 		t.Fatalf("land command failed with %d: %s", exitCode, stderr.String())
 	}
 
@@ -698,7 +698,7 @@ func TestLandCommandRejectsActivePlanWithoutWritingLandedMarker(t *testing.T) {
 	stdout.Reset()
 	stderr.Reset()
 
-	exitCode := app.Run([]string{"land", "--pr", "https://github.com/yzhang1918/superharness/pull/99"})
+	exitCode := app.Run([]string{"land", "--pr", "https://github.com/yzhang1918/microharness/pull/99"})
 	if exitCode != 1 {
 		t.Fatalf("expected land failure exit code, got %d", exitCode)
 	}
@@ -742,7 +742,7 @@ func seedMergeReadyEvidenceForCLI(t *testing.T, root string) {
 			return time.Date(2026, 3, 18, 5, 55, 0, 0, time.UTC)
 		},
 	}
-	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/yzhang1918/superharness/pull/99"}`)); !result.OK {
+	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/yzhang1918/microharness/pull/99"}`)); !result.OK {
 		t.Fatalf("seed publish evidence: %#v", result)
 	}
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {

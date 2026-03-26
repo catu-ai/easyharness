@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yzhang1918/superharness/tests/support"
+	"github.com/yzhang1918/microharness/tests/support"
 )
 
 type statusResult struct {

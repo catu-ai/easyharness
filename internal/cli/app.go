@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yzhang1918/superharness/internal/evidence"
-	"github.com/yzhang1918/superharness/internal/lifecycle"
-	"github.com/yzhang1918/superharness/internal/plan"
-	"github.com/yzhang1918/superharness/internal/review"
-	"github.com/yzhang1918/superharness/internal/status"
-	versioninfo "github.com/yzhang1918/superharness/internal/version"
+	"github.com/yzhang1918/microharness/internal/evidence"
+	"github.com/yzhang1918/microharness/internal/lifecycle"
+	"github.com/yzhang1918/microharness/internal/plan"
+	"github.com/yzhang1918/microharness/internal/review"
+	"github.com/yzhang1918/microharness/internal/status"
+	versioninfo "github.com/yzhang1918/microharness/internal/version"
 )
 
 type App struct {

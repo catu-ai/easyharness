@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yzhang1918/superharness/tests/support"
+	"github.com/yzhang1918/microharness/tests/support"
 )
 
 type commandResult struct {
@@ -338,8 +338,8 @@ find_repo_root() {
 }
 
 if ! repo_root="$(find_repo_root)"; then
-  echo "Could not find a superharness worktree from ${PWD}." >&2
-  echo "Run harness from inside a superharness checkout, or call a repo-local binary directly." >&2
+  echo "Could not find a microharness worktree from ${PWD}." >&2
+  echo "Run harness from inside a microharness checkout, or call a repo-local binary directly." >&2
   exit 1
 fi
 
@@ -373,7 +373,68 @@ exec "${binary_path}" "$@"
 	if err != nil {
 		t.Fatalf("read refreshed wrapper: %v", err)
 	}
-	support.RequireContains(t, string(refreshed), "# superharness-install-dev-wrapper")
+	support.RequireContains(t, string(refreshed), "# microharness-install-dev-wrapper")
+}
+
+func TestInstallDevHarnessReplacesLegacySymlinkedBinaryWithoutForce(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("installer smoke tests require a POSIX shell")
+	}
+
+	repoRoot := copyInstallerFixture(t)
+	installDir := filepath.Join(t.TempDir(), "global-bin")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("mkdir install dir: %v", err)
+	}
+
+	legacyRoot := t.TempDir()
+	for _, dir := range []string{
+		filepath.Join(legacyRoot, "scripts"),
+		filepath.Join(legacyRoot, "cmd", "harness"),
+		filepath.Join(legacyRoot, ".local", "bin"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir legacy dir %s: %v", dir, err)
+		}
+	}
+	writeFixtureFile(t, filepath.Join(legacyRoot, "scripts", "install-dev-harness"), "#!/usr/bin/env bash\n", 0o755)
+	writeFixtureFile(t, filepath.Join(legacyRoot, "cmd", "harness", "main.go"), "package main\n", 0o644)
+	writeFixtureFile(t, filepath.Join(legacyRoot, "go.mod"), "module github.com/yzhang1918/superharness\n", 0o644)
+	writeFixtureFile(t, filepath.Join(legacyRoot, ".local", "bin", "harness"), "#!/bin/sh\nexit 0\n", 0o755)
+
+	wrapperPath := filepath.Join(installDir, "harness")
+	if err := os.Symlink(filepath.Join(legacyRoot, ".local", "bin", "harness"), wrapperPath); err != nil {
+		t.Fatalf("create legacy symlink: %v", err)
+	}
+
+	result := runCommand(
+		t,
+		repoRoot,
+		installerEnv(t, map[string]string{
+			"HOME": t.TempDir(),
+			"PATH": installerPath(t),
+		}),
+		"/bin/bash",
+		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
+		"--install-dir", installDir,
+	)
+	if result.ExitCode != 0 {
+		t.Fatalf("install-dev-harness failed with exit %d\nstdout:\n%s\nstderr:\n%s", result.ExitCode, result.Stdout, result.Stderr)
+	}
+
+	info, err := os.Lstat(wrapperPath)
+	if err != nil {
+		t.Fatalf("lstat refreshed wrapper: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("expected refreshed wrapper to replace the legacy symlink")
+	}
+	refreshed, err := os.ReadFile(wrapperPath)
+	if err != nil {
+		t.Fatalf("read refreshed wrapper: %v", err)
+	}
+	support.RequireContains(t, string(refreshed), "# microharness-install-dev-wrapper")
+	support.RequireContains(t, string(refreshed), filepath.Join(repoRoot, ".local", "bin", "harness"))
 }
 
 func copyInstallerFixture(t *testing.T) string {
@@ -454,7 +515,7 @@ func newFakeWorktree(t *testing.T) (string, string) {
 
 	writeFixtureFile(t, filepath.Join(root, "scripts", "install-dev-harness"), "#!/usr/bin/env bash\n", 0o755)
 	writeFixtureFile(t, filepath.Join(root, "cmd", "harness", "main.go"), "package main\n", 0o644)
-	writeFixtureFile(t, filepath.Join(root, "go.mod"), "module github.com/yzhang1918/superharness\n", 0o644)
+	writeFixtureFile(t, filepath.Join(root, "go.mod"), "module github.com/yzhang1918/microharness\n", 0o644)
 	writeFixtureFile(
 		t,
 		filepath.Join(root, ".local", "bin", "harness"),

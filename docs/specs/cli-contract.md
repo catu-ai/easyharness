@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`superharness` is a CLI for agents first. The command surface should help an
+`microharness` is a CLI for agents first. The command surface should help an
 agent decide what to do next, not dump long raw logs and force the model to
 reconstruct workflow state from scratch.
 
@@ -89,7 +89,7 @@ Stateful commands should return an envelope shaped like:
     "current_step": "Step 3: Implement local state and harness status"
   },
   "artifacts": {
-    "plan_path": "docs/plans/active/2026-03-17-superharness-cli-and-plan-foundations.md"
+    "plan_path": "docs/plans/active/2026-03-17-microharness-cli-and-plan-foundations.md"
   },
   "next_actions": [
     {

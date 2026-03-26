@@ -1,10 +1,10 @@
 # AGENTS.md
 
-This document defines how humans and Codex collaborate in `superharness`.
+This document defines how humans and Codex collaborate in `microharness`.
 
 ## Mission
 
-Build `superharness` as a thin, agent-first harness system that is easier to
+Build `microharness` as a thin, agent-first harness system that is easier to
 understand and maintain than a scripts-heavy workflow.
 
 ## Working Agreement

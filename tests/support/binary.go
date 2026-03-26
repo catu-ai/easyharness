@@ -17,7 +17,7 @@ var (
 	buildErr  error
 )
 
-const versionPackage = "github.com/yzhang1918/superharness/internal/version"
+const versionPackage = "github.com/yzhang1918/microharness/internal/version"
 
 func RepoRoot(t *testing.T) string {
 	t.Helper()
@@ -28,7 +28,7 @@ func BuildBinary(t *testing.T) string {
 	t.Helper()
 
 	buildOnce.Do(func() {
-		dir, err := os.MkdirTemp("", "superharness-harness-*")
+		dir, err := os.MkdirTemp("", "microharness-harness-*")
 		if err != nil {
 			buildErr = fmt.Errorf("create temporary binary directory: %w", err)
 			return

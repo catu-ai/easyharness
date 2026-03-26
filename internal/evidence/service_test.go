@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yzhang1918/superharness/internal/evidence"
-	"github.com/yzhang1918/superharness/internal/plan"
-	"github.com/yzhang1918/superharness/internal/runstate"
+	"github.com/yzhang1918/microharness/internal/evidence"
+	"github.com/yzhang1918/microharness/internal/plan"
+	"github.com/yzhang1918/microharness/internal/runstate"
 )
 
 func TestSubmitCIEvidenceWritesArtifactAndUpdatesStatePointer(t *testing.T) {
@@ -76,7 +76,7 @@ func TestSubmitPublishWritesArtifactAndUpdatesStatePointer(t *testing.T) {
 		Now: func() time.Time {
 			return time.Date(2026, 3, 21, 10, 2, 0, 0, time.UTC)
 		},
-	}.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/yzhang1918/superharness/pull/99","branch":"codex/test","base":"main"}`))
+	}.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/yzhang1918/microharness/pull/99","branch":"codex/test","base":"main"}`))
 	if !result.OK {
 		t.Fatalf("expected success, got %#v", result)
 	}
@@ -96,7 +96,7 @@ func TestSubmitPublishWritesArtifactAndUpdatesStatePointer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load latest publish record: %v", err)
 	}
-	if record == nil || record.Status != "recorded" || record.PRURL != "https://github.com/yzhang1918/superharness/pull/99" {
+	if record == nil || record.Status != "recorded" || record.PRURL != "https://github.com/yzhang1918/microharness/pull/99" {
 		t.Fatalf("unexpected publish record: %#v", record)
 	}
 }
@@ -195,7 +195,7 @@ func TestSubmitEvidenceRejectsLandInProgress(t *testing.T) {
 		PlanStem:    "2026-03-21-evidence-plan",
 		CurrentNode: "land",
 		Land: &runstate.LandState{
-			PRURL:    "https://github.com/yzhang1918/superharness/pull/99",
+			PRURL:    "https://github.com/yzhang1918/microharness/pull/99",
 			LandedAt: "2026-03-21T11:00:00Z",
 		},
 	}); err != nil {

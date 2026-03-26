@@ -14,5 +14,5 @@
 ## Proposals
 
 - [Testing Structure Proposal](./proposals/testing-structure.md): non-normative
-  proposal for how `superharness` should organize smoke, end-to-end, and
+  proposal for how `microharness` should organize smoke, end-to-end, and
   resilience tests alongside the existing package-level Go test suite.

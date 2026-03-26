@@ -4,12 +4,12 @@
 
 This document is a non-normative proposal.
 
-It describes a recommended testing structure for `superharness`. It does not
+It describes a recommended testing structure for `microharness`. It does not
 change the current normative CLI or plan contracts by itself.
 
 ## Purpose
 
-`superharness` already has a strong package-level Go test suite for plan,
+`microharness` already has a strong package-level Go test suite for plan,
 status, review, lifecycle, and CLI behavior. The repository does not yet have
 a durable structure for top-level smoke, end-to-end, or resilience testing.
 
@@ -138,7 +138,7 @@ Characteristics:
 - real binary execution
 - shallow assertions compared with end-to-end tests
 
-Typical smoke coverage for `superharness` should include:
+Typical smoke coverage for `microharness` should include:
 
 - `harness --help`
 - `harness status`
@@ -162,7 +162,7 @@ Characteristics:
 - multiple commands per scenario
 - assertions on command outputs, tracked files, and local artifacts
 
-Typical `superharness` E2E scenarios should include:
+Typical `microharness` E2E scenarios should include:
 
 - happy-path plan creation and lint
 - review-round start, submit, and aggregate flow
@@ -186,7 +186,7 @@ Why `resilience` instead of `chaos`:
   deterministic failure-injection scenarios rather than distributed-system
   chaos experiments
 
-Typical `superharness` resilience coverage should include:
+Typical `microharness` resilience coverage should include:
 
 - corrupted `.local/harness/current-plan.json`
 - missing or unreadable review aggregate artifacts
