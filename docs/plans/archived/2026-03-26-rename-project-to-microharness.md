@@ -1,8 +1,9 @@
 ---
 template_version: 0.2.0
-created_at: 2026-03-26T09:53:35+08:00
+created_at: "2026-03-26T09:53:35+08:00"
 source_type: direct_request
-source_refs: ["issue #45"]
+source_refs:
+    - 'issue #45'
 ---
 
 # Rename the project and repository to microharness
@@ -49,17 +50,17 @@ for `microharness`, and the docs clearly explain that users still run the
 
 ## Acceptance Criteria
 
-- [ ] The GitHub repository, live tracked docs, and module path all align on
+- [x] The GitHub repository, live tracked docs, and module path all align on
       `microharness`, with no stale `superharness` references left in current
       codepaths or live operator docs except where historical context is
       intentionally preserved.
-- [ ] `go.mod` and all in-repo imports use
+- [x] `go.mod` and all in-repo imports use
       `github.com/yzhang1918/microharness`, and the repository still builds and
       tests successfully.
-- [ ] Release packaging, workflow docs, and smoke coverage publish
+- [x] Release packaging, workflow docs, and smoke coverage publish
       `microharness_*` archives while preserving `harness` as the packaged CLI
       executable and documenting that distinction clearly.
-- [ ] A new prerelease from the renamed repository is published and verified as
+- [x] A new prerelease from the renamed repository is published and verified as
       the recommended artifact for external testing after the rename.
 
 ## Deferred Items
@@ -290,26 +291,93 @@ release archives.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `harness plan lint docs/plans/active/2026-03-26-rename-project-to-microharness.md`
+  passed when the plan was created, and the tracked plan remained lint-valid as
+  step closeout notes were updated through finalize.
+- The rename implementation passed focused validation with `go test
+  ./tests/smoke -run 'TestBuildReleaseProducesSupportedAlphaArchivesAndVersionedBinary|TestInstallDevHarness' -count=1`,
+  a host-platform `scripts/build-release --version v0.1.0-alpha.3 --output-dir
+  .local/release-rename-check --platform $(go env GOOS)/$(go env GOARCH)`, and
+  `unzip -l` confirming `microharness_*` archive naming with `harness` inside.
+- After `review-001-delta` requested follow-up, the repair batch passed `go
+  test ./tests/smoke -run 'TestInstallDevHarness(ReplacesLegacySymlinkedBinaryWithoutForce|ReplacesLegacyManagedWrapperWithoutForce)|TestBuildReleaseProducesSupportedAlphaArchivesAndVersionedBinary' -count=1`
+  and `go test ./... -count=1`.
+- The renamed prerelease shipped successfully via Release workflow run
+  `23574207229`, and PR #48 checks show passing `Build and Publish Release
+  Assets` plus both `Go Test` runs.
+- External release proof for `v0.1.0-alpha.3` is stored under
+  `.local/harness/plans/2026-03-26-rename-project-to-microharness/release-verification/v0.1.0-alpha.3-cd6a8ef/`,
+  including `release-view.json`, `SHA256SUMS`, the downloaded
+  `microharness_v0.1.0-alpha.3_darwin_arm64.zip`, local checksum verification,
+  `zipinfo.txt`, and `version.txt` showing `version: v0.1.0-alpha.3`,
+  `mode: release`, and `commit: cd6a8efdacc7feeb5c9f94ad4c32735145946454`.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-delta` requested changes on three points in Step 2: legacy
+  symlink installs from old `superharness` checkouts were no longer treated as
+  managed, release smoke only exercised `--version` from unpacked archives, and
+  the validation layer did not assert the renamed module path directly.
+- Commit `9a31320` fixed those gaps, `review-002-delta` passed cleanly as the
+  review-fix rerun, and `review-003-delta` then passed as the fresh
+  `step_closeout` review for Step 2.
+- `review-004-delta` passed cleanly for Step 3 after checking the renamed
+  GitHub repository identity, PR/release URLs, downloaded `alpha.3` proof
+  artifacts, and the preserved `harness` executable name inside the
+  `microharness_*` archives.
+- Finalize review `review-005-full` then passed with zero blocking or
+  non-blocking findings across the `correctness`, `tests`, `docs_consistency`,
+  and `risk_scan` slots, clearing the full branch candidate for archive.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-03-26T10:29:07+08:00
+- Revision: 1
+- PR: https://github.com/yzhang1918/microharness/pull/48
+- Ready: The branch candidate now aligns the project, repository, module path,
+  docs, installer, and release packaging on `microharness` while preserving
+  `harness` as the executable, publishes and externally verifies
+  `v0.1.0-alpha.3`, and carries clean Step 2/Step 3 delta review plus a clean
+  `review-005-full` finalize pass.
+- Merge Handoff: Archive the plan, commit the archive move and closeout
+  summaries, push the latest branch tip to refresh PR #48, then record publish,
+  CI, and sync evidence for the archived candidate until `harness status`
+  returns `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Renamed the public project and repository identity from `superharness` to
+  `microharness` across the live README, AGENTS contract, release guide, and
+  live specs.
+- Moved the Go module path and in-repo imports to
+  `github.com/yzhang1918/microharness`.
+- Updated release packaging, installer logic, and regression coverage so public
+  archives are named `microharness_*`, the packaged executable stays `harness`,
+  and legacy installer takeover still works for managed installs created before
+  the rename.
+- Renamed the GitHub repository to `yzhang1918/microharness`, opened PR #48 in
+  the renamed repo, published `v0.1.0-alpha.3`, and recorded durable external
+  proof for the renamed prerelease assets and binary identity.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Homebrew distribution remains deferred to `#42`.
+- Moving the project into a dedicated GitHub organization remains deferred to
+  `#44`.
+- The CLI command name remains `harness`; this slice intentionally did not
+  rename it to `microharness`.
+- Historical archived plans, old releases, and other legacy context still
+  mentioning `superharness` were intentionally not rewritten.
 
 ### Follow-Up Issues
 
-NONE
+- `#42` tracks Homebrew distribution and tap naming/install work after the
+  rename lands.
+- `#44` tracks whether the renamed project should later move into a dedicated
+  GitHub organization.
+- CLI command renaming remains intentionally deferred with no active follow-up
+  issue because the accepted direction for this slice is to keep `harness`.
+- Historical old-name references remain intentionally preserved in archived
+  plans and prior releases; no cleanup slice is planned right now.
