@@ -155,7 +155,9 @@ help explain the node:
 - `reopen_mode`
 - `review_kind`
 - `review_trigger`
+  - optional derived label such as `step_closeout` or `pre_archive`
 - `review_target`
+  - optional derived human-readable review summary
 - `review_status`
 - `archive_blocker_count`
 - `publish_status`
@@ -351,8 +353,7 @@ Canonical input shape:
 ```json
 {
   "kind": "delta",
-  "target": "Step 3: Implement local state and harness status",
-  "trigger": "step_closeout",
+  "summary": "Check the completed step for state-machine mistakes and handoff clarity.",
   "dimensions": [
     {
       "name": "correctness",
@@ -379,15 +380,27 @@ harness review start --spec /tmp/review-spec.json
 The command returns JSON describing the created round, persisted manifest path,
 owned artifact paths, and next actions for the controller agent.
 
-For review-spec semantics:
+Review-spec semantics:
 
-- `trigger: step_closeout`
-  - the review is closing out one tracked step
-  - `target` should use the tracked step title so status can match the review to
-    the intended step deterministically
-- `trigger: pre_archive`
-  - the review is a branch-level finalize review
-  - `target` should describe the full candidate rather than a single step
+- `kind`
+  - required
+  - enum: `delta` or `full`
+- `dimensions`
+  - required
+  - one reviewer slot per normalized dimension
+- `summary`
+  - optional
+  - human-readable note shown back to the controller and reviewers
+- `step`
+  - optional 1-based tracked step number
+  - usually omitted
+  - when omitted, `harness review start` infers the binding from workflow state:
+    - during `execution/step-<n>/implement`, the round binds to the current step
+    - during `execution/finalize/review` or `execution/finalize/fix`, the round binds to finalize review
+
+Agents should not supply structural workflow tags such as `step_closeout` or
+`pre_archive`. The CLI owns that inference and persists the bound step or
+finalize scope in the round manifest and local state.
 
 Round identifiers should be short and plan-local:
 
@@ -396,11 +409,11 @@ Round identifiers should be short and plan-local:
 - keep precise timestamps in the manifest and aggregate artifacts rather than
   embedding them in the round ID
 
-`target` should be free-form and human-readable. Examples:
+If `summary` is omitted, the CLI fills one in:
 
-- delta after a step: `Step 3: Implement local state and harness status`
-- full pre-archive review: `Full branch candidate before archive`
-- follow-up after human feedback: `Changes addressing human comments on archive summary`
+- step-bound review defaults to the tracked step title
+- finalize `full` review defaults to `Full branch candidate before archive`
+- finalize `delta` review defaults to `Branch candidate before archive`
 
 Dimension-specific reviewer instructions belong in the input review spec.
 Generic reviewer behavior, such as "inspect the current diff and submit results
@@ -434,7 +447,7 @@ Recommended next action:
 
 - on success, report the receipt to the controller agent and end the reviewer
   thread; a runtime may later reopen the same reviewer for a narrow same-slot
-  follow-up for the same tracked step or the same finalize review target in
+  follow-up for the same tracked step or the same finalize review scope in
   the same revision, but only after the earlier submission was verified and
   only when the slot instructions still materially match; immediate closeout
   is the safe default
@@ -476,7 +489,7 @@ Recommended next action:
 The CLI contract should assume this review cadence:
 
 - use `delta` review after a completed plan step or after a narrow follow-up fix
-- allow a `full` review to satisfy `step_closeout` when a narrower review would
+- allow a `full` review to satisfy step closeout when a narrower review would
   be misleading for that completed step
 - use `full` review once all planned work appears complete and the branch looks
   like an archive candidate
@@ -658,10 +671,10 @@ calling `harness review submit`.
 Codex should still default to closing reviewer agents after each verified
 submission. If a later narrow follow-up round keeps the same slot and
 materially the same instructions for the same tracked step or the same
-finalize review target in the same revision, the controller may reopen that
+finalize review scope in the same revision, the controller may reopen that
 previously closed reviewer with `resume_agent` instead of spawning fresh.
 Moving to a different tracked step, moving from step review to finalize
-review, changing the review target because of reopen or a new revision, broad
+review, changing the review scope because of reopen or a new revision, broad
 follow-up, changed slot ownership, invalid earlier submissions, or any
 situation where a clean reread is safer should stay on fresh `spawn_agent`
 reviewer threads.

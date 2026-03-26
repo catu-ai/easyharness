@@ -27,7 +27,7 @@ the normative transition matrix.
 
 | From | To | Driver | Required inputs | Notes |
 | --- | --- | --- | --- | --- |
-| `execution/step-<n>/implement` | `execution/step-<n>/review` | `harness review start` | Review round targets the current step | Review nodes require real review artifacts. |
+| `execution/step-<n>/implement` | `execution/step-<n>/review` | `harness review start` | The command binds the new round to the current step | Review nodes require real review artifacts. |
 | `execution/step-<n>/implement` | `execution/step-<m>/implement` | Derived from tracked plan edits | Step `<n>` becomes durably complete, any required step review is clean, and another unfinished step exists | A failed step review must be repaired and rerun before this transition is allowed. |
 | `execution/step-<n>/implement` | `execution/finalize/review` | Derived from tracked plan edits | Step `<n>` becomes durably complete, any required step review is clean, and no unfinished steps remain | Finalize review stays distinct from step review. |
 | `execution/step-<n>/review` | `execution/step-<n>/implement` | `harness review aggregate` | Latest aggregate is clean | Review is no longer in flight; the controller may continue implementation or mark the step done. |

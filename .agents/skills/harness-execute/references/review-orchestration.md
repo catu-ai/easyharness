@@ -25,11 +25,11 @@ the next action, start that review without asking the human for permission.
 
 ## Routine Start Rules
 
-- After a completed step becomes reviewable, start `step_closeout` review
-  before treating the step as durably done, unless the step will instead record
+- After a completed step becomes reviewable, start a step-bound review before
+  treating the step as durably done, unless the step will instead record
   `NO_STEP_REVIEW_NEEDED: <reason>` in `Review Notes`.
 - Once all tracked steps are complete and no warning-driven repair remains,
-  start `pre_archive` review for the full candidate before archive closeout.
+  start finalize review for the full candidate before archive closeout.
 - If `harness status` surfaces an earlier completed step that still lacks
   review closeout, resolve that warning before trusting later-step or finalize
   progression.
@@ -47,8 +47,7 @@ Use a compact JSON shape like:
 ```json
 {
   "kind": "delta",
-  "target": "Step 3: Make skill contracts more distributable",
-  "trigger": "step_closeout",
+  "summary": "Check the completed step for contract mistakes and handoff clarity.",
   "dimensions": [
     {
       "name": "correctness",
@@ -68,22 +67,19 @@ Field rules:
   - enum: `delta` or `full`
   - `delta` is for a completed step or narrow follow-up change
   - `full` is for an archive candidate or another broad branch-level pass
-- `target`
-  - free-form description of what this round is reviewing
-- `trigger`
-  - free-form tag describing why the round exists
-  - it is not a CLI enum today
-  - useful common values include:
-    - `step_closeout`
-    - `review_feedback`
-    - `review_fix`
-    - `pre_archive`
-    - `human_feedback`
-    - `ci_repair`
-    - `conflict_repair`
+- `summary`
+  - optional human-readable note for the controller and reviewers
+- `step`
+  - optional 1-based tracked step number
+  - usually omit it and let `harness` bind the round automatically
+  - only include it when you need to point review at a specific tracked step explicitly
 - `dimensions`
   - one reviewer slot per dimension after normalization
   - each dimension should have a short name and a concrete instruction
+
+The controller agent should not invent workflow metadata like `trigger` or
+`target`. `harness review start` infers whether the round is step-bound or
+finalize-bound from the current node and persists that structure itself.
 
 Suggested dimensions:
 
@@ -111,7 +107,7 @@ round to use the same set.
 
 2. Spawn multiple reviewer subagents in parallel: one reviewer per returned
    slot or review dimension.
-   For a slot's first pass in a tracked step or for one finalize review target
+   For a slot's first pass in a tracked step or for one finalize review scope
    in one revision, or whenever reuse is not clearly safe, use clean reviewer
    subagents. Moving to a different tracked step, moving from step review into
    finalize review, or moving to a different revision always starts with fresh
@@ -163,13 +159,13 @@ Use resume only for a narrow same-slot follow-up after the controller has
 already verified and closed that reviewer's earlier successful submission.
 Do not resume across tracked steps, or from a step review into finalize
 review. Those boundaries always start with fresh reviewers.
-Resume is only valid while the review target itself is still the same:
+Resume is only valid while the review scope itself is still the same:
 
 - for step review, the same tracked step title
-- for finalize review, the same finalize candidate target for the same revision
+- for finalize review, the same candidate summary for the same revision
 
-If reopen, a new tracked step, a new revision, or a new finalize target
-changes that target, start with fresh reviewers.
+If reopen, a new tracked step, a new revision, or a new finalize candidate
+changes that scope, start with fresh reviewers.
 
 Use this controller prompt shape when resuming a previously closed reviewer:
 
@@ -212,8 +208,8 @@ Prefer `resume_agent` only when all of these are true:
   by the controller
 - the new round is still narrow enough for `delta` review
 - the new round stays within the same tracked step review boundary, or within
-  the same finalize review target for the same revision
-- the new round keeps the same review target as the earlier submission
+  the same finalize review scope for the same revision
+- the new round keeps the same review scope as the earlier submission
 - the reviewer keeps the same slot and materially the same dimension
   instructions
 - the controller can give a bounded change summary that is directly tied to the
@@ -225,9 +221,9 @@ reviewer instead when any of these are true:
 - the earlier submission was missing, invalid, or never verified
 - the controller is moving to a different tracked step, or from a step review
   into finalize review
-- the review target changed because of reopen, a new tracked step, a new
+- the review scope changed because of reopen, a new tracked step, a new
   revision, or a later finalize pass against a different candidate
-- the follow-up broadened into `full` review or otherwise changed target
+- the follow-up broadened into `full` review or otherwise changed scope
   materially
 - the slot or instructions changed enough that the old reviewer context would
   mislead more than help
@@ -249,7 +245,7 @@ Use this pattern:
 
 After a later repair round starts, you may either spawn fresh reviewers again
 or reopen an eligible closed reviewer with `resume_agent` only for the same
-tracked step, or for the same finalize review target in the same revision,
+tracked step, or for the same finalize review scope in the same revision,
 then deliver only the fixed resume prompt for the new round. Even when you
 reuse a reviewer this way, close it again immediately after the new submission
 is verified.

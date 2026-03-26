@@ -900,7 +900,7 @@ func archiveStateIssues(workdir, planStem string, revision int, state *runstate.
 			Message: "latest review decision is unknown; rerun or re-aggregate the latest review before archive",
 		})
 	}
-	trigger, triggerKnown, err := runstate.EffectiveReviewTrigger(workdir, planStem, state.ActiveReviewRound)
+	reviewRevision, reviewRevisionKnown, err := runstate.EffectiveReviewRevision(workdir, planStem, state.ActiveReviewRound)
 	if err != nil {
 		issues = append(issues, CommandError{
 			Path:    "state.active_review_round",
@@ -908,10 +908,24 @@ func archiveStateIssues(workdir, planStem string, revision int, state *runstate.
 		})
 		return issues
 	}
-	if !triggerKnown || trigger != "pre_archive" {
+	if !reviewRevisionKnown || reviewRevision != revision {
 		issues = append(issues, CommandError{
 			Path:    "state.active_review_round",
 			Message: requiredReviewMessage(revision),
+		})
+	}
+	stepNumber, stepKnown, err := runstate.EffectiveReviewStep(workdir, planStem, state.ActiveReviewRound)
+	if err != nil {
+		issues = append(issues, CommandError{
+			Path:    "state.active_review_round",
+			Message: fmt.Sprintf("unable to read the latest manifest artifact for %s: %v", state.ActiveReviewRound.RoundID, err),
+		})
+		return issues
+	}
+	if stepKnown {
+		issues = append(issues, CommandError{
+			Path:    "state.active_review_round",
+			Message: fmt.Sprintf("latest review is still bound to step %d; archive requires a finalize review for revision %d", stepNumber, revision),
 		})
 	}
 	if known && decision != "pass" {

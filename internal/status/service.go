@@ -78,8 +78,9 @@ type StatusError struct {
 type reviewContext struct {
 	RoundID         string
 	Kind            string
+	Revision        int
 	Trigger         string
-	Target          string
+	Summary         string
 	Aggregated      bool
 	InFlight        bool
 	Decision        string
@@ -100,13 +101,9 @@ type missingStepCloseoutReminder struct {
 }
 
 type historicalReviewManifest struct {
-	Trigger string `json:"trigger"`
-	Target  string `json:"target"`
-}
-
-type historicalReviewAggregate struct {
-	Target   string `json:"target"`
-	Decision string `json:"decision"`
+	Summary  string `json:"summary,omitempty"`
+	Step     *int   `json:"step,omitempty"`
+	Revision int    `json:"revision,omitempty"`
 }
 
 type latestStepCloseoutRound struct {
@@ -121,7 +118,7 @@ type latestUnknownHistoricalReviewRound struct {
 }
 
 type latestStepCloseoutScan struct {
-	LatestByTarget      map[string]latestStepCloseoutRound
+	LatestByStepIndex   map[int]latestStepCloseoutRound
 	Warnings            []string
 	LatestUnscopedRound *latestUnknownHistoricalReviewRound
 }
@@ -218,7 +215,7 @@ func (s Service) Read() Result {
 	if reviewCtx != nil && isStructuralReviewTrigger(reviewCtx.Trigger) && !reviewCtx.UnsafeFallback {
 		facts.ReviewKind = reviewCtx.Kind
 		facts.ReviewTrigger = reviewCtx.Trigger
-		facts.ReviewTarget = reviewCtx.Target
+		facts.ReviewTarget = reviewCtx.Summary
 		switch {
 		case reviewCtx.InFlight:
 			facts.ReviewStatus = "in_progress"
@@ -415,16 +412,22 @@ func loadReviewContext(workdir, planStem string, doc *plan.Document, state *runs
 	}
 	warnings := make([]string, 0)
 
-	if trigger, known, err := runstate.EffectiveReviewTrigger(workdir, planStem, round); err != nil {
-		warnings = append(warnings, fmt.Sprintf("Unable to read the review trigger for %s; status may be conservative.", round.RoundID))
-	} else if known {
-		ctx.Trigger = trigger
+	revision, revisionKnown, err := runstate.EffectiveReviewRevision(workdir, planStem, round)
+	if err != nil {
+		warnings = append(warnings, fmt.Sprintf("Unable to read the review revision for %s; status may be conservative.", round.RoundID))
+	} else if revisionKnown {
+		ctx.Revision = revision
 	}
 
-	if target, known, err := runstate.EffectiveReviewTarget(workdir, planStem, round); err != nil {
-		warnings = append(warnings, fmt.Sprintf("Unable to read the review target for %s; status may fall back to a conservative step match.", round.RoundID))
+	stepIndex, stepKnown, err := runstate.EffectiveReviewStep(workdir, planStem, round)
+	if err != nil {
+		warnings = append(warnings, fmt.Sprintf("Unable to read the review step binding for %s; status may be conservative.", round.RoundID))
+	}
+
+	if summary, known, err := runstate.EffectiveReviewSummary(workdir, planStem, round); err != nil {
+		warnings = append(warnings, fmt.Sprintf("Unable to read the review summary for %s; status may be conservative.", round.RoundID))
 	} else if known {
-		ctx.Target = target
+		ctx.Summary = summary
 	}
 
 	if round.Aggregated {
@@ -440,30 +443,18 @@ func loadReviewContext(workdir, planStem string, doc *plan.Document, state *runs
 		}
 	}
 
-	if ctx.Trigger == "step_closeout" {
-		if index, matched := resolveReviewTargetStep(doc, ctx.Target); matched {
-			ctx.TargetStepIndex = index
+	if revisionKnown {
+		if stepKnown {
+			ctx.Trigger = "step_closeout"
+			ctx.TargetStepIndex = stepIndex - 1
+			if ctx.TargetStepIndex >= 0 && ctx.TargetStepIndex < len(doc.Steps) && strings.TrimSpace(ctx.Summary) == "" {
+				ctx.Summary = doc.Steps[ctx.TargetStepIndex].Title
+			}
 		} else {
-			ctx.TargetStepIndex, ctx.UnsafeFallback = fallbackReviewTargetStep(doc, state)
-			if strings.TrimSpace(ctx.Target) != "" {
-				warnings = append(warnings, fmt.Sprintf("Review target %q did not match a tracked step title; status fell back to the most likely step.", ctx.Target))
+			ctx.Trigger = "pre_archive"
+			if strings.TrimSpace(ctx.Summary) == "" {
+				ctx.Summary = defaultFinalizeReviewSummary(ctx.Kind)
 			}
-		}
-	} else if ctx.Trigger == "" {
-		if state != nil {
-			if index, ok := stepIndexFromNode(state.CurrentNode); ok {
-				ctx.TargetStepIndex = index
-				ctx.UnsafeFallback = true
-				warnings = append(warnings, "Review trigger metadata was missing; status is conservatively pinning the active round to the cached step node without treating it as structural review state.")
-			} else if index, _ := fallbackReviewTargetStep(doc, state); index >= 0 {
-				ctx.TargetStepIndex = index
-				ctx.UnsafeFallback = true
-				warnings = append(warnings, "Review trigger metadata was missing; status is conservatively pinning the active round to the most likely reviewed step without treating it as structural review state.")
-			}
-		} else if index, _ := fallbackReviewTargetStep(doc, state); index >= 0 {
-			ctx.TargetStepIndex = index
-			ctx.UnsafeFallback = true
-			warnings = append(warnings, "Review trigger metadata was missing; status is conservatively pinning the active round to the most likely reviewed step without treating it as structural review state.")
 		}
 	}
 
@@ -500,7 +491,7 @@ func loadMissingStepCloseoutReminder(workdir, planStem string, doc *plan.Documen
 	}
 
 	scan := loadLatestStepCloseoutScan(workdir, planStem, doc, reviewCtx)
-	latestTargets := scan.LatestByTarget
+	latestSteps := scan.LatestByStepIndex
 	warnings := scan.Warnings
 	missingTitles := make([]string, 0)
 	unscopedRoundID := ""
@@ -509,8 +500,7 @@ func loadMissingStepCloseoutReminder(workdir, planStem string, doc *plan.Documen
 		if !step.Done {
 			continue
 		}
-		target := normalizeReviewTarget(step.Title)
-		if latest, ok := latestTargets[target]; ok {
+		if latest, ok := latestSteps[index]; ok {
 			if latest.Decision == "pass" {
 				if scan.LatestUnscopedRound != nil && isUnknownHistoricalReviewRoundLaterThanStepCloseout(*scan.LatestUnscopedRound, latest) {
 					unscopedRoundID = scan.LatestUnscopedRound.RoundID
@@ -578,7 +568,13 @@ func loadSatisfiedStepCloseoutTargets(workdir, planStem string, doc *plan.Docume
 
 func loadLatestStepCloseoutTargets(workdir, planStem string, doc *plan.Document, reviewCtx *reviewContext) (map[string]latestStepCloseoutRound, []string) {
 	scan := loadLatestStepCloseoutScan(workdir, planStem, doc, reviewCtx)
-	return scan.LatestByTarget, scan.Warnings
+	latestByTarget := map[string]latestStepCloseoutRound{}
+	for index, record := range scan.LatestByStepIndex {
+		if index >= 0 && index < len(doc.Steps) {
+			latestByTarget[normalizeReviewTarget(doc.Steps[index].Title)] = record
+		}
+	}
+	return latestByTarget, scan.Warnings
 }
 
 func loadLatestStepCloseoutScan(workdir, planStem string, doc *plan.Document, reviewCtx *reviewContext) latestStepCloseoutScan {
@@ -586,15 +582,15 @@ func loadLatestStepCloseoutScan(workdir, planStem string, doc *plan.Document, re
 	entries, err := os.ReadDir(reviewsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return latestStepCloseoutScan{LatestByTarget: map[string]latestStepCloseoutRound{}}
+			return latestStepCloseoutScan{LatestByStepIndex: map[int]latestStepCloseoutRound{}}
 		}
 		return latestStepCloseoutScan{
-			LatestByTarget: map[string]latestStepCloseoutRound{},
-			Warnings:       []string{fmt.Sprintf("Unable to inspect historical step-closeout reviews: %v", err)},
+			LatestByStepIndex: map[int]latestStepCloseoutRound{},
+			Warnings:          []string{fmt.Sprintf("Unable to inspect historical step-closeout reviews: %v", err)},
 		}
 	}
 
-	latestByTarget := map[string]latestStepCloseoutRound{}
+	latestByStepIndex := map[int]latestStepCloseoutRound{}
 	warnings := make([]string, 0)
 	var latestUnscopedRound *latestUnknownHistoricalReviewRound
 	for _, entry := range entries {
@@ -613,56 +609,74 @@ func loadLatestStepCloseoutScan(workdir, planStem string, doc *plan.Document, re
 			Sequence: sequence,
 			Decision: "",
 		}
-		var aggregate historicalReviewAggregate
-		aggregateOK := readJSONFile(aggregatePath, &aggregate) == nil
-		if aggregateOK {
+		var aggregate struct {
+			Decision string `json:"decision"`
+		}
+		if readJSONFile(aggregatePath, &aggregate) == nil {
 			record.Decision = strings.TrimSpace(aggregate.Decision)
 		}
 
-		trigger := strings.TrimSpace(manifest.Trigger)
-		targetText := strings.TrimSpace(manifest.Target)
 		if manifestErr != nil {
 			warnings = append(warnings, fmt.Sprintf("Unable to read historical review manifest for %s; status may miss older step-closeout evidence.", roundID))
-			trigger = ""
-			targetText = ""
 			if reviewCtx != nil && reviewCtx.RoundID == roundID {
-				trigger = reviewCtx.Trigger
-				if reviewCtx.TargetStepIndex >= 0 && reviewCtx.TargetStepIndex < len(doc.Steps) {
-					targetText = doc.Steps[reviewCtx.TargetStepIndex].Title
+				if reviewCtx.Trigger == "step_closeout" && reviewCtx.TargetStepIndex >= 0 {
+					existing, ok := latestByStepIndex[reviewCtx.TargetStepIndex]
+					if ok && !isLaterHistoricalStepCloseoutRound(record, existing) {
+						continue
+					}
+					latestByStepIndex[reviewCtx.TargetStepIndex] = record
+					continue
 				}
-			} else if aggregateOK {
-				if index, matched := resolveReviewTargetStep(doc, aggregate.Target); matched {
-					trigger = "step_closeout"
-					targetText = doc.Steps[index].Title
-				}
-			}
-			if trigger == "" || (trigger == "step_closeout" && strings.TrimSpace(targetText) == "") {
-				candidate := latestUnknownHistoricalReviewRound{
-					RoundID:  roundID,
-					Sequence: sequence,
-				}
-				if latestUnscopedRound == nil || isLaterUnknownHistoricalReviewRound(candidate, *latestUnscopedRound) {
-					latestUnscopedRound = &candidate
+				if reviewCtx.Trigger == "pre_archive" {
+					continue
 				}
 			}
-		}
-		if trigger != "step_closeout" {
-			continue
-		}
-		target := normalizeReviewTarget(targetText)
-		if target == "" {
+			candidate := latestUnknownHistoricalReviewRound{
+				RoundID:  roundID,
+				Sequence: sequence,
+			}
+			if latestUnscopedRound == nil || isLaterUnknownHistoricalReviewRound(candidate, *latestUnscopedRound) {
+				latestUnscopedRound = &candidate
+			}
 			continue
 		}
 
-		existing, ok := latestByTarget[target]
+		if manifest.Revision <= 0 {
+			warnings = append(warnings, fmt.Sprintf("Historical review round %s is missing inferred review structure; inspect or rerun the closeout conservatively.", roundID))
+			candidate := latestUnknownHistoricalReviewRound{
+				RoundID:  roundID,
+				Sequence: sequence,
+			}
+			if latestUnscopedRound == nil || isLaterUnknownHistoricalReviewRound(candidate, *latestUnscopedRound) {
+				latestUnscopedRound = &candidate
+			}
+			continue
+		}
+		if manifest.Step == nil {
+			continue
+		}
+		if *manifest.Step <= 0 || *manifest.Step > len(doc.Steps) {
+			warnings = append(warnings, fmt.Sprintf("Historical review round %s points at invalid step %d; inspect or rerun the closeout conservatively.", roundID, *manifest.Step))
+			candidate := latestUnknownHistoricalReviewRound{
+				RoundID:  roundID,
+				Sequence: sequence,
+			}
+			if latestUnscopedRound == nil || isLaterUnknownHistoricalReviewRound(candidate, *latestUnscopedRound) {
+				latestUnscopedRound = &candidate
+			}
+			continue
+		}
+		stepIndex := *manifest.Step - 1
+
+		existing, ok := latestByStepIndex[stepIndex]
 		if ok && !isLaterHistoricalStepCloseoutRound(record, existing) {
 			continue
 		}
-		latestByTarget[target] = record
+		latestByStepIndex[stepIndex] = record
 	}
 
 	return latestStepCloseoutScan{
-		LatestByTarget:      latestByTarget,
+		LatestByStepIndex:   latestByStepIndex,
 		Warnings:            warnings,
 		LatestUnscopedRound: latestUnscopedRound,
 	}
@@ -1248,6 +1262,13 @@ func normalizeReviewTarget(value string) string {
 		return ' '
 	}, value)
 	return strings.Join(strings.Fields(value), " ")
+}
+
+func defaultFinalizeReviewSummary(kind string) string {
+	if kind == "full" {
+		return "Full branch candidate before archive"
+	}
+	return "Branch candidate before archive"
 }
 
 func readJSONFile(path string, target any) error {

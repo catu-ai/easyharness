@@ -27,7 +27,7 @@ var canonicalTransitionFamilies = []transitionFamily{
 	{ID: "plan_self", From: "plan", To: "plan", Driver: "state-preserving", RequiredInputs: "state-preserving update"},
 	{ID: "plan_to_step_implement", From: "plan", To: "execution/step-<n>/implement", Driver: "harness execute start", RequiredInputs: "Current plan is approved for execution and has at least one unfinished step"},
 	{ID: "step_implement_self", From: "execution/step-<n>/implement", To: "execution/step-<n>/implement", Driver: "state-preserving", RequiredInputs: "state-preserving update"},
-	{ID: "step_implement_to_review", From: "execution/step-<n>/implement", To: "execution/step-<n>/review", Driver: "harness review start", RequiredInputs: "Review round targets the current step"},
+	{ID: "step_implement_to_review", From: "execution/step-<n>/implement", To: "execution/step-<n>/review", Driver: "harness review start", RequiredInputs: "The command binds the new round to the current step"},
 	{ID: "step_implement_to_next_step_implement", From: "execution/step-<n>/implement", To: "execution/step-<m>/implement", Driver: "Derived from tracked plan edits", RequiredInputs: "Step `<n>` becomes durably complete, any required step review is clean, and another unfinished step exists"},
 	{ID: "step_implement_to_finalize_review", From: "execution/step-<n>/implement", To: "execution/finalize/review", Driver: "Derived from tracked plan edits", RequiredInputs: "Step `<n>` becomes durably complete, any required step review is clean, and no unfinished steps remain"},
 	{ID: "step_review_self", From: "execution/step-<n>/review", To: "execution/step-<n>/review", Driver: "state-preserving", RequiredInputs: "state-preserving update"},

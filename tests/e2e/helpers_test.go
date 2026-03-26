@@ -116,7 +116,9 @@ type aggregateResult struct {
 type aggregateArtifact struct {
 	RoundID             string `json:"round_id"`
 	Kind                string `json:"kind"`
-	Target              string `json:"target"`
+	Step                *int   `json:"step,omitempty"`
+	Revision            int    `json:"revision"`
+	Summary             string `json:"summary"`
 	Decision            string `json:"decision"`
 	AggregatedAt        string `json:"aggregated_at"`
 	NonBlockingFindings []struct {
@@ -128,6 +130,9 @@ type aggregateArtifact struct {
 
 type reviewManifest struct {
 	RoundID    string            `json:"round_id"`
+	Step       *int              `json:"step,omitempty"`
+	Revision   int               `json:"revision"`
+	Summary    string            `json:"summary"`
 	PlanPath   string            `json:"plan_path"`
 	Dimensions []reviewDimension `json:"dimensions"`
 }
@@ -198,7 +203,8 @@ type runState struct {
 		RoundID    string `json:"round_id"`
 		Aggregated bool   `json:"aggregated"`
 		Decision   string `json:"decision"`
-		Trigger    string `json:"trigger"`
+		Step       *int   `json:"step,omitempty"`
+		Revision   int    `json:"revision"`
 		Kind       string `json:"kind"`
 	} `json:"active_review_round"`
 }
@@ -309,9 +315,7 @@ func runPassingDeltaReview(t *testing.T, workspace *support.Workspace, stepTitle
 
 	target := trackedStepTitle(stepNumber, stepTitle)
 	startPayload := startReviewRound(t, workspace, fmt.Sprintf("tmp/step-%d-review-spec.json", stepNumber), map[string]any{
-		"kind":    "delta",
-		"target":  target,
-		"trigger": "step_closeout",
+		"kind": "delta",
 		"dimensions": []map[string]any{
 			{
 				"name":         "correctness",
@@ -353,9 +357,7 @@ func runPassingFinalizeReview(t *testing.T, workspace *support.Workspace) string
 	t.Helper()
 
 	startPayload := startReviewRound(t, workspace, "tmp/finalize-passing-review-spec.json", map[string]any{
-		"kind":    "full",
-		"target":  "Full branch candidate before archive",
-		"trigger": "pre_archive",
+		"kind": "full",
 		"dimensions": []map[string]any{
 			{
 				"name":         "correctness",

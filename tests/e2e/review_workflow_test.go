@@ -120,9 +120,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	}
 
 	specPath := workspace.WriteJSON(t, "tmp/review-spec.json", map[string]any{
-		"kind":    "full",
-		"target":  "Full branch candidate before archive",
-		"trigger": "pre_archive",
+		"kind": "full",
 		"dimensions": []map[string]any{
 			{
 				"name":         "correctness",
@@ -303,7 +301,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	if aggregateArtifact.RoundID != startPayload.Artifacts.RoundID || aggregateArtifact.Kind != "full" {
 		t.Fatalf("unexpected aggregate artifact: %#v", aggregateArtifact)
 	}
-	if aggregateArtifact.Target != "Full branch candidate before archive" || aggregateArtifact.Decision != "pass" || aggregateArtifact.AggregatedAt == "" {
+	if aggregateArtifact.Summary != "Full branch candidate before archive" || aggregateArtifact.Decision != "pass" || aggregateArtifact.AggregatedAt == "" {
 		t.Fatalf("unexpected aggregate artifact contents: %#v", aggregateArtifact)
 	}
 	if len(aggregateArtifact.NonBlockingFindings) != 1 || aggregateArtifact.NonBlockingFindings[0].Title != "Review path exercised across multiple slots" {

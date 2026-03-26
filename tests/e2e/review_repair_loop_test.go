@@ -229,15 +229,12 @@ NONE
 func runBlockingStepReview(t *testing.T, workspace *support.Workspace, stepTitle string, stepNumber int) string {
 	t.Helper()
 
-	target := trackedStepTitle(stepNumber, stepTitle)
 	aggregatePayload := runSingleSlotReviewWithFindings(
 		t,
 		workspace,
 		fmt.Sprintf("tmp/step-%d-blocking-review-spec.json", stepNumber),
 		map[string]any{
-			"kind":    "delta",
-			"target":  target,
-			"trigger": "step_closeout",
+			"kind": "delta",
 			"dimensions": []map[string]any{
 				{
 					"name":         "correctness",
@@ -268,9 +265,7 @@ func runBlockingFinalizeReview(t *testing.T, workspace *support.Workspace) strin
 		workspace,
 		"tmp/finalize-blocking-review-spec.json",
 		map[string]any{
-			"kind":    "full",
-			"target":  "Full branch candidate before archive",
-			"trigger": "pre_archive",
+			"kind": "full",
 			"dimensions": []map[string]any{
 				{
 					"name":         "correctness",

@@ -211,9 +211,9 @@ Merge is confirmed and post-merge cleanup is in progress. Cleanup remains in
   review notes, and relevant review loop are complete, or the step records why
   no review was needed.
 - A completed step is review-complete when either:
-  - the latest known `step_closeout` review for that step is clean
+  - the latest known step-bound review for that step is clean
   - or `Review Notes` records `NO_STEP_REVIEW_NEEDED: <reason>` and no later
-    in-flight or non-clean `step_closeout` review exists for that step
+    in-flight or non-clean step-bound review exists for that step
 - Step-closeout review should default to `delta`, but a `full` review may
   satisfy step closeout when a narrower pass would be misleading or the slice
   needs a broader risk scan.

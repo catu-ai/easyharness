@@ -26,9 +26,7 @@ func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
 	}
 
 	result := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "delta",
-		Target:  "Step 4: Implement the review-round contract",
-		Trigger: "step_closeout",
+		Kind: "delta",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check the state and artifact contract."},
 			{Name: "agent_ux", Instructions: "Check that outputs are agent-friendly."},
@@ -56,6 +54,9 @@ func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
 	if state.ActiveReviewRound.Decision != "" {
 		t.Fatalf("expected empty decision before aggregate, got %#v", state.ActiveReviewRound)
 	}
+	if state.ActiveReviewRound.Step == nil || *state.ActiveReviewRound.Step != 1 || state.ActiveReviewRound.Revision != 1 {
+		t.Fatalf("expected inferred step 1 on revision 1, got %#v", state.ActiveReviewRound)
+	}
 }
 
 func TestStartAcceptsExecutionStartMilestoneWithoutLegacyExecutingLifecycle(t *testing.T) {
@@ -78,9 +79,7 @@ func TestStartAcceptsExecutionStartMilestoneWithoutLegacyExecutingLifecycle(t *t
 	}
 
 	result := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "delta",
-		Target:  "Step 1",
-		Trigger: "step_closeout",
+		Kind: "delta",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -93,7 +92,7 @@ func TestStartAcceptsExecutionStartMilestoneWithoutLegacyExecutingLifecycle(t *t
 func TestStartIgnoresLegacyTimestampReviewDirectoriesForCompactSequence(t *testing.T) {
 	root := t.TempDir()
 	planStem := "2026-03-18-review-contract"
-	writeExecutingPlan(t, root, "docs/plans/active/"+planStem+".md")
+	writeExecutingFinalizePlan(t, root, "docs/plans/active/"+planStem+".md")
 
 	legacyRoundDir := filepath.Join(root, ".local", "harness", "plans", planStem, "reviews", "review-20260318t010000000000000z-delta")
 	if err := os.MkdirAll(legacyRoundDir, 0o755); err != nil {
@@ -108,9 +107,7 @@ func TestStartIgnoresLegacyTimestampReviewDirectoriesForCompactSequence(t *testi
 	}
 
 	result := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "full",
-		Target:  "Full branch candidate before archive",
-		Trigger: "pre_archive",
+		Kind: "full",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -147,9 +144,7 @@ func TestStartUsesMaxExistingCompactReviewSequence(t *testing.T) {
 	}
 
 	result := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "delta",
-		Target:  "Follow-up delta review after sparse history",
-		Trigger: "step_closeout",
+		Kind: "delta",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -169,15 +164,11 @@ func TestStartRejectsInvalidSpec(t *testing.T) {
 	svc := review.Service{Workdir: root}
 	result := svc.Start(mustJSON(t, map[string]any{
 		"kind":       "delta",
-		"target":     "",
-		"trigger":    "",
 		"dimensions": []any{},
 	}))
 	if result.OK {
 		t.Fatalf("expected failure, got %#v", result)
 	}
-	assertStartError(t, result, "spec.target")
-	assertStartError(t, result, "spec.trigger")
 	assertStartError(t, result, "spec.dimensions")
 }
 
@@ -192,9 +183,7 @@ func TestSubmitStoresSubmissionAndUpdatesLedger(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "delta",
-		Target:  "Step 4",
-		Trigger: "step_closeout",
+		Kind: "delta",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -231,9 +220,7 @@ func TestSubmitRejectsUnknownSlot(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "delta",
-		Target:  "Step 4",
-		Trigger: "step_closeout",
+		Kind: "delta",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -262,9 +249,7 @@ func TestAggregateRejectsMissingSubmission(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "delta",
-		Target:  "Step 4",
-		Trigger: "step_closeout",
+		Kind: "delta",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -291,9 +276,7 @@ func TestAggregateDeltaPassUpdatesState(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "delta",
-		Target:  "Step 4",
-		Trigger: "step_closeout",
+		Kind: "delta",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -338,9 +321,7 @@ func TestAggregateRejectsNonActiveRound(t *testing.T) {
 		},
 	}
 	stale := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "delta",
-		Target:  "Step 4",
-		Trigger: "step_closeout",
+		Kind: "delta",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -358,10 +339,9 @@ func TestAggregateRejectsNonActiveRound(t *testing.T) {
 	svc.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 1, 5, 0, 0, time.UTC)
 	}
+	writeExecutingFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 	active := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "full",
-		Target:  "Full branch candidate before archive",
-		Trigger: "pre_archive",
+		Kind: "full",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -408,9 +388,7 @@ func TestStartRejectsWhenReviewMutationLockIsHeld(t *testing.T) {
 		},
 	}
 	result := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "delta",
-		Target:  "Step 4",
-		Trigger: "step_closeout",
+		Kind: "delta",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -433,9 +411,7 @@ func TestAggregateRejectsWhenReviewMutationLockIsHeld(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "delta",
-		Target:  "Step 4",
-		Trigger: "step_closeout",
+		Kind: "delta",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -464,7 +440,7 @@ func TestAggregateRejectsWhenReviewMutationLockIsHeld(t *testing.T) {
 
 func TestAggregateFullWithBlockingFindings(t *testing.T) {
 	root := t.TempDir()
-	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	writeExecutingFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 
 	svc := review.Service{
 		Workdir: root,
@@ -473,9 +449,7 @@ func TestAggregateFullWithBlockingFindings(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind:    "full",
-		Target:  "Full branch candidate before archive",
-		Trigger: "pre_archive",
+		Kind: "full",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -522,6 +496,28 @@ func TestAggregateFullWithBlockingFindings(t *testing.T) {
 func writeExecutingPlan(t *testing.T, root, relPath string) string {
 	t.Helper()
 	path := writePlainReviewPlan(t, root, relPath)
+	if _, err := runstate.SaveState(root, strings.TrimSuffix(filepath.Base(relPath), filepath.Ext(relPath)), &runstate.State{
+		ExecutionStartedAt: "2026-03-18T01:00:00Z",
+		PlanPath:           relPath,
+		PlanStem:           strings.TrimSuffix(filepath.Base(relPath), filepath.Ext(relPath)),
+		Revision:           1,
+	}); err != nil {
+		t.Fatalf("save execute-start state: %v", err)
+	}
+	return path
+}
+
+func writeExecutingFinalizePlan(t *testing.T, root, relPath string) string {
+	t.Helper()
+	path := writePlainReviewPlan(t, root, relPath)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read plan: %v", err)
+	}
+	content := strings.ReplaceAll(string(data), "- Done: [ ]", "- Done: [x]")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write finalized plan: %v", err)
+	}
 	if _, err := runstate.SaveState(root, strings.TrimSuffix(filepath.Base(relPath), filepath.Ext(relPath)), &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:00:00Z",
 		PlanPath:           relPath,

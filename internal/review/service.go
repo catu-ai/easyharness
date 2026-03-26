@@ -26,9 +26,9 @@ type Service struct {
 }
 
 type Spec struct {
+	Step       *int        `json:"step,omitempty"`
 	Kind       string      `json:"kind"`
-	Target     string      `json:"target"`
-	Trigger    string      `json:"trigger"`
+	Summary    string      `json:"summary,omitempty"`
 	Dimensions []Dimension `json:"dimensions"`
 }
 
@@ -40,8 +40,9 @@ type Dimension struct {
 type Manifest struct {
 	RoundID     string         `json:"round_id"`
 	Kind        string         `json:"kind"`
-	Target      string         `json:"target"`
-	Trigger     string         `json:"trigger"`
+	Step        *int           `json:"step,omitempty"`
+	Revision    int            `json:"revision"`
+	Summary     string         `json:"summary,omitempty"`
 	PlanPath    string         `json:"plan_path"`
 	PlanStem    string         `json:"plan_stem"`
 	CreatedAt   string         `json:"created_at"`
@@ -96,7 +97,9 @@ type Finding struct {
 type Aggregate struct {
 	RoundID             string             `json:"round_id"`
 	Kind                string             `json:"kind"`
-	Target              string             `json:"target"`
+	Step                *int               `json:"step,omitempty"`
+	Revision            int                `json:"revision"`
+	Summary             string             `json:"summary,omitempty"`
 	Decision            string             `json:"decision"`
 	BlockingFindings    []AggregateFinding `json:"blocking_findings"`
 	NonBlockingFindings []AggregateFinding `json:"non_blocking_findings"`
@@ -208,6 +211,15 @@ func (s Service) Start(specBytes []byte) StartResult {
 			Errors:  issues,
 		}
 	}
+	inferredStep, revision, summary, err := inferReviewBinding(doc, state, spec)
+	if err != nil {
+		return StartResult{
+			OK:      false,
+			Command: "review start",
+			Summary: "Review spec does not match the current workflow state.",
+			Errors:  []CommandError{{Path: "spec", Message: err.Error()}},
+		}
+	}
 
 	roundID, err := nextRoundID(s.Workdir, planStem, spec.Kind)
 	if err != nil {
@@ -259,8 +271,9 @@ func (s Service) Start(specBytes []byte) StartResult {
 	manifest := Manifest{
 		RoundID:     roundID,
 		Kind:        spec.Kind,
-		Target:      spec.Target,
-		Trigger:     spec.Trigger,
+		Step:        inferredStep,
+		Revision:    revision,
+		Summary:     summary,
 		PlanPath:    relPlanPath,
 		PlanStem:    planStem,
 		CreatedAt:   now.Format(time.RFC3339),
@@ -294,7 +307,8 @@ func (s Service) Start(specBytes []byte) StartResult {
 	state.ActiveReviewRound = &runstate.ReviewRound{
 		RoundID:    roundID,
 		Kind:       spec.Kind,
-		Trigger:    spec.Trigger,
+		Step:       inferredStep,
+		Revision:   revision,
 		Aggregated: false,
 		Decision:   "",
 	}
@@ -533,7 +547,9 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 	aggregate := Aggregate{
 		RoundID:             roundID,
 		Kind:                manifest.Kind,
-		Target:              manifest.Target,
+		Step:                manifest.Step,
+		Revision:            manifest.Revision,
+		Summary:             manifest.Summary,
 		Decision:            decision,
 		BlockingFindings:    blocking,
 		NonBlockingFindings: nonBlocking,
@@ -568,7 +584,8 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 	state.ActiveReviewRound = &runstate.ReviewRound{
 		RoundID:    manifest.RoundID,
 		Kind:       manifest.Kind,
-		Trigger:    manifest.Trigger,
+		Step:       manifest.Step,
+		Revision:   manifest.Revision,
 		Aggregated: true,
 		Decision:   decision,
 	}
@@ -709,11 +726,8 @@ func validateSpec(spec Spec) []CommandError {
 	if !slices.Contains([]string{"delta", "full"}, spec.Kind) {
 		issues = append(issues, CommandError{Path: "spec.kind", Message: "must be delta or full"})
 	}
-	if strings.TrimSpace(spec.Target) == "" {
-		issues = append(issues, CommandError{Path: "spec.target", Message: "must not be empty"})
-	}
-	if strings.TrimSpace(spec.Trigger) == "" {
-		issues = append(issues, CommandError{Path: "spec.trigger", Message: "must not be empty"})
+	if spec.Step != nil && *spec.Step <= 0 {
+		issues = append(issues, CommandError{Path: "spec.step", Message: "must be a positive 1-based step number"})
 	}
 	if len(spec.Dimensions) == 0 {
 		issues = append(issues, CommandError{Path: "spec.dimensions", Message: "must contain at least one dimension"})
@@ -807,6 +821,77 @@ func nextRoundSequence(workdir, planStem string) (int, error) {
 
 func formatRoundID(sequence int, kind string) string {
 	return fmt.Sprintf("review-%03d-%s", sequence, kind)
+}
+
+func inferReviewBinding(doc *plan.Document, state *runstate.State, spec Spec) (*int, int, string, error) {
+	revision := runstate.CurrentRevision(state)
+	if stepIndex, ok, err := inferReviewStepIndex(doc, state, spec); err != nil {
+		return nil, 0, "", err
+	} else if ok {
+		summary := strings.TrimSpace(spec.Summary)
+		if summary == "" {
+			summary = doc.Steps[stepIndex].Title
+		}
+		stepNumber := stepIndex + 1
+		return &stepNumber, revision, summary, nil
+	}
+
+	if pendingNewStepReopen(doc, state) {
+		return nil, 0, "", fmt.Errorf("reopen mode new-step still requires a new unfinished step before review can start")
+	}
+	if !doc.AllStepsCompleted() {
+		return nil, 0, "", fmt.Errorf("no reviewable tracked step could be inferred; set spec.step to select a tracked step explicitly")
+	}
+
+	summary := strings.TrimSpace(spec.Summary)
+	if summary == "" {
+		if spec.Kind == "full" {
+			summary = "Full branch candidate before archive"
+		} else {
+			summary = "Branch candidate before archive"
+		}
+	}
+	return nil, revision, summary, nil
+}
+
+func inferReviewStepIndex(doc *plan.Document, state *runstate.State, spec Spec) (int, bool, error) {
+	if doc == nil {
+		return 0, false, fmt.Errorf("current plan is unavailable")
+	}
+	if spec.Step != nil {
+		index := *spec.Step - 1
+		if index < 0 || index >= len(doc.Steps) {
+			return 0, false, fmt.Errorf("spec.step=%d does not match a tracked step", *spec.Step)
+		}
+		return index, true, nil
+	}
+	if current := currentStepIndex(doc); current >= 0 {
+		return current, true, nil
+	}
+	return 0, false, nil
+}
+
+func currentStepIndex(doc *plan.Document) int {
+	if doc == nil {
+		return -1
+	}
+	for index, step := range doc.Steps {
+		if !step.Done {
+			return index
+		}
+	}
+	return -1
+}
+
+func pendingNewStepReopen(doc *plan.Document, state *runstate.State) bool {
+	return state != nil &&
+		state.Reopen != nil &&
+		state.Reopen.Mode == "new-step" &&
+		state.Reopen.BaseStepCount > 0 &&
+		doc != nil &&
+		len(doc.Steps) <= state.Reopen.BaseStepCount &&
+		doc.CurrentStep() == nil &&
+		doc.AllStepsCompleted()
 }
 
 func loadManifest(path string) (*Manifest, error) {

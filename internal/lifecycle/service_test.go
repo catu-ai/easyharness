@@ -26,7 +26,7 @@ func TestArchiveMovesPlanAndUpdatesPointers(t *testing.T) {
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
 			Kind:       "full",
-			Trigger:    "pre_archive",
+			Revision:   1,
 			Aggregated: true,
 			Decision:   "pass",
 		},
@@ -228,7 +228,7 @@ func TestArchiveRejectsMissingArchiveSummaryFields(t *testing.T) {
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
 			Kind:       "full",
-			Trigger:    "pre_archive",
+			Revision:   1,
 			Aggregated: true,
 			Decision:   "pass",
 		},
@@ -262,7 +262,7 @@ func TestArchivePreflightFailureLeavesPlanAndPointersUntouched(t *testing.T) {
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
 			Kind:       "full",
-			Trigger:    "pre_archive",
+			Revision:   1,
 			Aggregated: true,
 			Decision:   "pass",
 		},
@@ -310,7 +310,7 @@ func TestArchiveRollsBackWhenCurrentPlanWriteFails(t *testing.T) {
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
 			Kind:       "full",
-			Trigger:    "pre_archive",
+			Revision:   1,
 			Aggregated: true,
 			Decision:   "pass",
 		},
@@ -370,7 +370,7 @@ func TestArchiveRejectsUnresolvedLocalState(t *testing.T) {
 				tc.state.ActiveReviewRound = &runstate.ReviewRound{
 					RoundID:    "review-001-full",
 					Kind:       "full",
-					Trigger:    "pre_archive",
+					Revision:   1,
 					Aggregated: true,
 					Decision:   "pass",
 				}
@@ -406,7 +406,7 @@ func TestArchiveRequiresPassingReviewForRevisionOne(t *testing.T) {
 				ActiveReviewRound: &runstate.ReviewRound{
 					RoundID:    "review-001-delta",
 					Kind:       "delta",
-					Trigger:    "pre_archive",
+					Revision:   1,
 					Aggregated: true,
 					Decision:   "pass",
 				},
@@ -419,7 +419,7 @@ func TestArchiveRequiresPassingReviewForRevisionOne(t *testing.T) {
 				ActiveReviewRound: &runstate.ReviewRound{
 					RoundID:    "review-001-full",
 					Kind:       "full",
-					Trigger:    "pre_archive",
+					Revision:   1,
 					Aggregated: true,
 					Decision:   "changes_requested",
 				},
@@ -463,7 +463,7 @@ func TestArchiveAllowsPassingDeltaReviewForReopenedRevision(t *testing.T) {
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-002-delta",
 			Kind:       "delta",
-			Trigger:    "pre_archive",
+			Revision:   2,
 			Aggregated: true,
 			Decision:   "pass",
 		},
@@ -494,7 +494,7 @@ func TestArchiveIgnoresCIPublishSyncSignalsOnceFinalizeReviewPasses(t *testing.T
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
 			Kind:       "full",
-			Trigger:    "pre_archive",
+			Revision:   1,
 			Aggregated: true,
 			Decision:   "pass",
 		},
@@ -526,7 +526,7 @@ func TestArchiveUsesAggregateArtifactForLegacyReviewDecision(t *testing.T) {
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
 			Kind:       "full",
-			Trigger:    "pre_archive",
+			Revision:   1,
 			Aggregated: true,
 		},
 	}); err != nil {
@@ -557,7 +557,7 @@ func TestReopenMovesArchivedPlanBackToActiveAndResetsSummaries(t *testing.T) {
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
 			Kind:       "full",
-			Trigger:    "pre_archive",
+			Revision:   1,
 			Aggregated: true,
 			Decision:   "pass",
 		},
@@ -628,7 +628,7 @@ func TestReopenNewStepRecordsModeAndStatusCue(t *testing.T) {
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
 			Kind:       "full",
-			Trigger:    "pre_archive",
+			Revision:   1,
 			Aggregated: true,
 			Decision:   "pass",
 		},
@@ -692,7 +692,7 @@ func TestReopenMarkersMustBeClearedBeforeRearchive(t *testing.T) {
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
 			Kind:       "full",
-			Trigger:    "pre_archive",
+			Revision:   1,
 			Aggregated: true,
 			Decision:   "pass",
 		},
@@ -728,7 +728,7 @@ func TestReopenMarkersMustBeClearedBeforeRearchive(t *testing.T) {
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-002-delta",
 			Kind:       "delta",
-			Trigger:    "pre_archive",
+			Revision:   2,
 			Aggregated: true,
 			Decision:   "pass",
 		},
@@ -773,7 +773,7 @@ func TestReopenClearsStaleCIAndSyncSignals(t *testing.T) {
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
 			Kind:       "full",
-			Trigger:    "pre_archive",
+			Revision:   1,
 			Aggregated: true,
 			Decision:   "pass",
 		},
@@ -800,7 +800,7 @@ func TestReopenClearsStaleCIAndSyncSignals(t *testing.T) {
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
 			Kind:       "full",
-			Trigger:    "pre_archive",
+			Revision:   1,
 			Aggregated: true,
 			Decision:   "pass",
 		},

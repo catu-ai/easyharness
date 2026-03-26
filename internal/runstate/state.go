@@ -41,7 +41,8 @@ type ReopenState struct {
 type ReviewRound struct {
 	RoundID    string `json:"round_id"`
 	Kind       string `json:"kind"`
-	Trigger    string `json:"trigger,omitempty"`
+	Step       *int   `json:"step,omitempty"`
+	Revision   int    `json:"revision,omitempty"`
 	Aggregated bool   `json:"aggregated"`
 	Decision   string `json:"decision,omitempty"`
 }
@@ -86,8 +87,9 @@ type reviewAggregate struct {
 }
 
 type reviewManifest struct {
-	Trigger string `json:"trigger"`
-	Target  string `json:"target"`
+	Summary  string `json:"summary,omitempty"`
+	Step     *int   `json:"step,omitempty"`
+	Revision int    `json:"revision,omitempty"`
 }
 
 func LoadCurrentPlan(workdir string) (*CurrentPlan, error) {
@@ -200,37 +202,7 @@ func EffectiveReviewDecision(workdir, planStem string, round *ReviewRound) (stri
 	return "", false, nil
 }
 
-func EffectiveReviewTrigger(workdir, planStem string, round *ReviewRound) (string, bool, error) {
-	if round == nil {
-		return "", false, nil
-	}
-	if trigger := strings.TrimSpace(round.Trigger); trigger != "" {
-		return trigger, true, nil
-	}
-	if strings.TrimSpace(round.RoundID) == "" {
-		return "", false, nil
-	}
-
-	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", round.RoundID, "manifest.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", false, nil
-		}
-		return "", false, fmt.Errorf("read manifest.json for %s: %w", round.RoundID, err)
-	}
-
-	var manifest reviewManifest
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		return "", false, fmt.Errorf("parse manifest.json for %s: %w", round.RoundID, err)
-	}
-	if trigger := strings.TrimSpace(manifest.Trigger); trigger != "" {
-		return trigger, true, nil
-	}
-	return "", false, nil
-}
-
-func EffectiveReviewTarget(workdir, planStem string, round *ReviewRound) (string, bool, error) {
+func EffectiveReviewSummary(workdir, planStem string, round *ReviewRound) (string, bool, error) {
 	if round == nil || strings.TrimSpace(round.RoundID) == "" {
 		return "", false, nil
 	}
@@ -248,8 +220,68 @@ func EffectiveReviewTarget(workdir, planStem string, round *ReviewRound) (string
 	if err := json.Unmarshal(data, &manifest); err != nil {
 		return "", false, fmt.Errorf("parse manifest.json for %s: %w", round.RoundID, err)
 	}
-	if target := strings.TrimSpace(manifest.Target); target != "" {
-		return target, true, nil
+	if summary := strings.TrimSpace(manifest.Summary); summary != "" {
+		return summary, true, nil
 	}
 	return "", false, nil
+}
+
+func EffectiveReviewStep(workdir, planStem string, round *ReviewRound) (int, bool, error) {
+	if round == nil {
+		return 0, false, nil
+	}
+	if round.Step != nil {
+		return *round.Step, true, nil
+	}
+	if strings.TrimSpace(round.RoundID) == "" {
+		return 0, false, nil
+	}
+
+	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", round.RoundID, "manifest.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, false, nil
+		}
+		return 0, false, fmt.Errorf("read manifest.json for %s: %w", round.RoundID, err)
+	}
+
+	var manifest reviewManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return 0, false, fmt.Errorf("parse manifest.json for %s: %w", round.RoundID, err)
+	}
+	if manifest.Step != nil {
+		return *manifest.Step, true, nil
+	}
+	return 0, false, nil
+}
+
+func EffectiveReviewRevision(workdir, planStem string, round *ReviewRound) (int, bool, error) {
+	if round == nil {
+		return 0, false, nil
+	}
+	if round.Revision > 0 {
+		return round.Revision, true, nil
+	}
+	if strings.TrimSpace(round.RoundID) == "" {
+		return 0, false, nil
+	}
+
+	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", round.RoundID, "manifest.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, false, nil
+		}
+		return 0, false, fmt.Errorf("read manifest.json for %s: %w", round.RoundID, err)
+	}
+
+	var manifest reviewManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return 0, false, fmt.Errorf("parse manifest.json for %s: %w", round.RoundID, err)
+	}
+	if manifest.Revision > 0 {
+		return manifest.Revision, true, nil
+	}
+	return 0, false, nil
 }

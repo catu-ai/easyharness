@@ -25,8 +25,9 @@ func TestLoadSatisfiedStepCloseoutTargetsUsesActiveReviewContextForUnreadableCur
 	}
 
 	writeHistoricalReviewJSON(t, root, planStem, "review-001-delta", "manifest.json", map[string]any{
-		"target":  internalStepOneTitle,
-		"trigger": "step_closeout",
+		"summary":  internalStepOneTitle,
+		"step":     1,
+		"revision": 1,
 	})
 	writeHistoricalReviewJSON(t, root, planStem, "review-001-delta", "aggregate.json", map[string]any{
 		"decision": "pass",
@@ -40,7 +41,8 @@ func TestLoadSatisfiedStepCloseoutTargetsUsesActiveReviewContextForUnreadableCur
 		t.Fatalf("write unreadable manifest: %v", err)
 	}
 	writeHistoricalReviewJSON(t, root, planStem, "review-002-delta", "aggregate.json", map[string]any{
-		"target":   "mystery historical target",
+		"summary":  "mystery historical target",
+		"revision": 1,
 		"decision": "changes_requested",
 	})
 
@@ -69,8 +71,9 @@ func TestLoadSatisfiedStepCloseoutTargetsUsesActiveInFlightReviewContextForUnrea
 	}
 
 	writeHistoricalReviewJSON(t, root, planStem, "review-001-delta", "manifest.json", map[string]any{
-		"target":  internalStepOneTitle,
-		"trigger": "step_closeout",
+		"summary":  internalStepOneTitle,
+		"step":     1,
+		"revision": 1,
 	})
 	writeHistoricalReviewJSON(t, root, planStem, "review-001-delta", "aggregate.json", map[string]any{
 		"decision": "pass",
