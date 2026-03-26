@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -99,6 +100,49 @@ func TestVerifyReleaseNamespaceFailsWhenAssetIsMissing(t *testing.T) {
 	support.RequireContains(t, result.Stderr, "is missing required asset microharness_v0.1.0-alpha.4_darwin_arm64.zip")
 }
 
+func TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("verify-release-namespace smoke test requires a POSIX shell")
+	}
+	if os.Getenv("MICROHARNESS_RUN_LIVE_GH_SMOKE") != "1" {
+		t.Skip("set MICROHARNESS_RUN_LIVE_GH_SMOKE=1 to enable live GitHub verification")
+	}
+
+	repo := requiredEnv(t, "MICROHARNESS_LIVE_GH_REPO")
+	tag := requiredEnv(t, "MICROHARNESS_LIVE_GH_TAG")
+	asset := requiredEnv(t, "MICROHARNESS_LIVE_GH_ASSET")
+
+	ghPath, err := exec.LookPath("gh")
+	if err != nil {
+		t.Fatalf("find gh on PATH: %v", err)
+	}
+
+	downloadDir := filepath.Join(t.TempDir(), "downloads")
+	result := runCommand(
+		t,
+		support.RepoRoot(t),
+		envWithOverrides(t, map[string]string{
+			"PATH": strings.Join([]string{filepath.Dir(ghPath), installerPath(t)}, string(os.PathListSeparator)),
+		}),
+		"/bin/bash",
+		filepath.Join(support.RepoRoot(t), "scripts", "verify-release-namespace"),
+		"--repo", repo,
+		"--tag", tag,
+		"--asset", "SHA256SUMS",
+		"--asset", asset,
+		"--download-dir", downloadDir,
+	)
+	if result.ExitCode != 0 {
+		t.Fatalf("live verify-release-namespace failed with exit %d\nstdout:\n%s\nstderr:\n%s", result.ExitCode, result.Stdout, result.Stderr)
+	}
+
+	support.RequireContains(t, result.Stdout, "Verified repo: "+repo)
+	support.RequireContains(t, result.Stdout, "Verified release: "+tag)
+	support.RequireContains(t, result.Stdout, "Verified downloaded assets in "+downloadDir)
+	support.RequireFileExists(t, filepath.Join(downloadDir, "SHA256SUMS"))
+	support.RequireFileExists(t, filepath.Join(downloadDir, asset))
+}
+
 func fakeGHReleaseDir(t *testing.T, repo, tag string, assets map[string][]byte) string {
 	t.Helper()
 
@@ -180,4 +224,14 @@ exit 1
 	}
 
 	return dir
+}
+
+func requiredEnv(t *testing.T, key string) string {
+	t.Helper()
+
+	value := os.Getenv(key)
+	if value == "" {
+		t.Fatalf("expected %s to be set when live GitHub verification is enabled", key)
+	}
+	return value
 }

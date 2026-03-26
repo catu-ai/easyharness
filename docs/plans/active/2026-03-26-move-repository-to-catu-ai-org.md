@@ -240,7 +240,13 @@ contained the expected `microharness_v0.1.0-alpha.4_darwin_arm64/` root with
 also ran live against `catu-ai/microharness@v0.1.0-alpha.4`, downloading
 `SHA256SUMS` and the `darwin_arm64` archive into the release-verification
 artifact directory and proving the org-owned release path through a durable
-checked-in command rather than ad hoc shell snippets alone.
+checked-in command rather than ad hoc shell snippets alone. After
+`review-005-full` asked for durable live coverage beyond the fake-`gh` smoke,
+the branch added an opt-in live GitHub smoke test plus a `Release` workflow
+step that enables it automatically after publishing assets. Local default
+`go test ./...` remains offline because the live path only runs when
+`MICROHARNESS_RUN_LIVE_GH_SMOKE=1`, while this execution also proved the live
+test manually against `catu-ai/microharness@v0.1.0-alpha.4`.
 
 #### Review Notes
 
@@ -249,7 +255,11 @@ only existed in `.local` execution artifacts, not in a repo-owned verification
 path. The follow-up added `scripts/verify-release-namespace`, fake-`gh` smoke
 coverage in `tests/smoke/verify_release_namespace_test.go`, and a live rerun
 against `catu-ai/microharness@v0.1.0-alpha.4`. `review-002-delta` then passed
-cleanly with no findings, closing the repair loop for Step 3.
+cleanly with no findings, closing the first repair loop for Step 3.
+`review-005-full` later requested one more fix because the live GitHub release
+path still lacked durable automated coverage. The follow-up added an opt-in
+live smoke test and wired it into `.github/workflows/release.yml`; a fresh full
+review is still required after that branch-level repair.
 
 ## Validation Strategy
 
