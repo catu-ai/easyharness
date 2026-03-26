@@ -199,7 +199,7 @@ with no remaining findings, closing Step 2.
 
 ### Step 3: Rename the GitHub repository and publish the renamed prerelease
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -253,7 +253,10 @@ package root with `harness` inside, and the unpacked binary reports
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-004-delta` passed cleanly with no findings after verifying the renamed
+GitHub repo identity, PR/release URLs, downloaded `alpha.3` proof artifacts,
+and the preserved `harness` executable name inside the `microharness_*`
+release archives.
 
 ## Validation Strategy
 
