@@ -49,19 +49,19 @@ line. Nightly or separate prerelease channels are explicitly deferred.
 
 ## Acceptance Criteria
 
-- [ ] The tracked docs define one default Homebrew install path through a
+- [x] The tracked docs define one default Homebrew install path through a
       dedicated `catu-ai/homebrew-tap` tap, and they state that the formula is
       named `easyharness` while the installed executable remains `harness`.
-- [ ] Tagged releases in `catu-ai/easyharness` can update the tap formula
+- [x] Tagged releases in `catu-ai/easyharness` can update the tap formula
       automatically on GitHub alone, using an explicit cross-repo credential
       rather than hidden local steps.
-- [ ] The generated formula points at the published release asset and checksum
+- [x] The generated formula points at the published release asset and checksum
       contract for the supported Homebrew target archive and remains consistent
       with the release asset naming scheme.
-- [ ] The release and maintainer docs explain the prerequisites for tap
+- [x] The release and maintainer docs explain the prerequisites for tap
       publishing, including the required secret or app token and the expected
       repair path if a tap update fails.
-- [ ] The implementation includes deterministic validation for the formula
+- [x] The implementation includes deterministic validation for the formula
       rendering or update path and does not regress the current release
       workflow for non-Homebrew users.
 
@@ -280,26 +280,89 @@ release-workflow behavior changed together in one bounded slice.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- Added deterministic smoke coverage in
+  `tests/smoke/homebrew_formula_test.go` for formula rendering, missing
+  checksum failure, token-gated tap updates, detached-checkout push behavior,
+  release-workflow wiring, and live staged-tap Homebrew verification.
+- `go test ./tests/smoke -run 'TestReleaseWorkflowWiresHomebrewTapPublishing|TestVerifyHomebrewTapInstallAgainstGitHubWhenEnabled' -count=1`
+  passed after the finalize repair that removed the dead verify-job tap
+  checkout and extended live Homebrew coverage to exercise install plus
+  upgrade when a compatible earlier release exists.
+- `EASYHARNESS_RUN_LIVE_BREW_SMOKE=1 EASYHARNESS_LIVE_GH_REPO=catu-ai/easyharness EASYHARNESS_LIVE_GH_TAG=v0.1.0-alpha.5 go test ./tests/smoke -run TestVerifyHomebrewTapInstallAgainstGitHubWhenEnabled -count=1`
+  passed against the current public release after the smoke test began
+  resolving only earlier releases that match the four-archive Homebrew
+  contract.
+- `go test ./... -count=1` passed after the final workflow, docs, and smoke
+  repairs.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-delta` and `review-002-delta` requested changes in Step 2 for
+  detached-checkout tap pushes, incomplete archive-matrix assertions, missing
+  token-path coverage, and lost skip-warning visibility; those were fixed
+  before `review-003-delta` passed clean.
+- Finalize reviews `review-004-full` through `review-010-full` progressively
+  tightened the GitHub Actions contract around secret gating, explicit tap
+  branch handling, checkout-step coverage, published asset-matrix validation,
+  and real staged-tap `brew install` execution.
+- `review-011-full` requested changes because the macOS verify job still
+  carried a dead tap-checkout step and the live Homebrew smoke did not cover
+  the documented upgrade flow. The repair removed the dead workflow step and
+  extended the live smoke to install an earlier compatible release before
+  upgrading to the current tagged formula when possible.
+- `review-012-full` requested one last closeout fix because the tracked plan
+  still ended with archive placeholders. This revision writes the durable
+  validation, review, archive, and outcome summaries plus the deferred issue
+  handoff before rerunning finalize review.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: not archived yet; `harness archive` is pending the next clean
+  finalize review.
+- Revision: 1
+- PR: not created yet; post-archive publish evidence should record the PR URL.
+- Ready: acceptance criteria are satisfied, the release workflow now owns the
+  Homebrew tap update path on GitHub alone, and the latest validation evidence
+  covers formula render, tap update, live staged-tap install, and upgrade/test
+  behavior against the current public release.
+- Merge Handoff: once the next finalize review passes, run
+  `harness plan lint`, archive the plan, commit the tracked move plus summary
+  updates, push the branch, open or update the PR, and record publish/CI/sync
+  evidence before treating the candidate as merge-ready.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added repo-owned Homebrew formula rendering via
+  `scripts/homebrewformula/main.go` and `scripts/render-homebrew-formula`,
+  with `Formula/easyharness.rb` generated directly from tagged release
+  metadata plus `SHA256SUMS`.
+- Added `scripts/update-homebrew-tap` and release-workflow wiring so tagged
+  releases can publish `Formula/easyharness.rb` into
+  `catu-ai/homebrew-tap` on branch `main` using the explicit
+  `EASYHARNESS_HOMEBREW_TAP_TOKEN` credential.
+- Added deterministic and live validation for the Homebrew path, including
+  release-workflow wiring checks, release-namespace asset verification,
+  detached-checkout push coverage, and staged-tap `brew install` plus
+  `brew upgrade` plus `brew test` smoke coverage when a compatible prior
+  release exists.
+- Updated `README.md` and `docs/releasing.md` so the public contract now
+  documents `brew install catu-ai/tap/easyharness`, the `harness` executable
+  name, maintainer prerequisites for tap publishing, and the repair path when
+  the tap update secret or repo state is wrong.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Separate stable-versus-prerelease Homebrew channels.
+- Nightly Homebrew distribution, including `--HEAD` guidance or a dedicated
+  nightly formula.
+- Submission to `homebrew/core`.
+- Package-manager distribution beyond Homebrew.
 
 ### Follow-Up Issues
 
-NONE
+- `#61` Decide whether Homebrew should split stable and prerelease channels.
+- `#62` Evaluate nightly Homebrew distribution options.
+- `#64` Assess readiness for eventual Homebrew/core submission.
+- `#63` Evaluate package-manager distribution beyond Homebrew.
