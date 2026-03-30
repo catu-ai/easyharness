@@ -109,12 +109,6 @@ jobs:
             --checksums dist/release/SHA256SUMS \
             --output dist/homebrew/easyharness.rb
 
-      - name: Warn when Homebrew tap token is missing
-        if: ${{ secrets.EASYHARNESS_HOMEBREW_TAP_TOKEN == '' }}
-        shell: bash
-        run: |
-          echo "::warning title=Homebrew tap update skipped::Configure EASYHARNESS_HOMEBREW_TAP_TOKEN to publish Formula/easyharness.rb into catu-ai/homebrew-tap."
-
       - name: Check out Homebrew tap
         if: ${{ secrets.EASYHARNESS_HOMEBREW_TAP_TOKEN != '' }}
         uses: actions/checkout@v4
@@ -125,21 +119,10 @@ jobs:
           fetch-depth: 0
 
       - name: Update Homebrew tap formula
-        if: ${{ secrets.EASYHARNESS_HOMEBREW_TAP_TOKEN != '' }}
-        shell: bash
+        env:
+          EASYHARNESS_HOMEBREW_TAP_TOKEN: ${{ secrets.EASYHARNESS_HOMEBREW_TAP_TOKEN }}
         run: |
-          tap_dir="dist/homebrew-tap"
-          mkdir -p "${tap_dir}/Formula"
-          cp dist/homebrew/easyharness.rb "${tap_dir}/Formula/easyharness.rb"
-
-          cd "${tap_dir}"
-          if [[ -z "$(git status --short -- Formula/easyharness.rb)" ]]; then
-            echo "Homebrew formula already up to date."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/easyharness.rb
-          git commit -m "Update easyharness formula for ${{ steps.release-version.outputs.version }}"
-          git push origin HEAD
+          scripts/update-homebrew-tap \
+            --formula dist/homebrew/easyharness.rb \
+            --tap-dir dist/homebrew-tap \
+            --version "${{ steps.release-version.outputs.version }}"

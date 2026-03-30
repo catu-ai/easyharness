@@ -175,7 +175,23 @@ and checksums.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` requested changes in the `correctness` and `tests` slots.
+The blocking bug was the tap push path in `.github/workflows/release.yml`,
+which used `git push origin HEAD` from a detached `actions/checkout` worktree.
+The review also identified two real coverage gaps: the renderer smoke only
+asserted two of the four platform asset branches, and the token-gated tap
+update flow was not exercised deterministically.
+
+The repair batch introduced `scripts/update-homebrew-tap`, which skips cleanly
+when `EASYHARNESS_HOMEBREW_TAP_TOKEN` is absent, resolves the tap repo default
+branch from `origin/HEAD`, and pushes with an explicit
+`HEAD:refs/heads/<branch>` refspec so detached checkouts work. The release
+workflow now delegates the tap update to that script. The smoke suite now
+asserts all four rendered asset URL/checksum pairs and covers both the
+missing-token skip path and the detached-checkout commit/push path with local
+git remotes. Follow-up validation passed with
+`go test ./tests/smoke -run 'TestRenderHomebrewFormula|TestUpdateHomebrewTap|TestVerifyReleaseNamespace' -count=1`
+before the full-suite rerun and fresh delta review.
 
 ### Step 3: Publish the tap contract and user-facing docs
 
