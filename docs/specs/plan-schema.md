@@ -2,19 +2,25 @@
 
 ## Purpose
 
-This document defines the normative v0.2 tracked-plan contract for
-`easyharness`.
+This document defines the normative v0.2 plan contract for `easyharness`.
 
-In v0.2, tracked plans keep durable scope, step closeout, and archive-time
-summaries. Runtime lifecycle, milestone timestamps, review rounds, evidence
-history, and resolved node state live in `.local/harness/`.
+In v0.2, standard plans keep durable scope, step closeout, and archive-time
+summaries in tracked markdown. Lightweight plans use the same schema but live
+under command-owned local paths. Runtime lifecycle, milestone timestamps,
+review rounds, evidence history, and resolved node state live in
+`.local/harness/`.
 
 ## Directory Layout
 
-Tracked plans live in:
+Standard tracked plans live in:
 
 - `docs/plans/active/`
 - `docs/plans/archived/`
+
+Lightweight local plans live in:
+
+- `.local/harness/plans/<plan-stem>/active/<plan-stem>.md`
+- `.local/harness/plans/<plan-stem>/archived/<plan-stem>.md`
 
 Command-owned local artifacts live under:
 
@@ -23,14 +29,18 @@ Command-owned local artifacts live under:
 - `.local/harness/plans/<plan-stem>/reviews/`
 - `.local/harness/plans/<plan-stem>/evidence/`
 
-The tracked plan is the durable contract. `.local` is disposable execution
-support and trajectory.
+Tracked standard plans remain durable repository history. Lightweight plans and
+their archived snapshots are command-owned local execution artifacts. `.local`
+is still disposable execution support and trajectory; lightweight workflow use
+must therefore leave a small repo-visible breadcrumb outside the local plan
+path, as defined by the CLI and agent guidance contracts.
 
 ## Source of Truth
 
 The source-of-truth split is:
 
-- this schema document defines the tracked-plan contract
+- this schema document defines the shared plan contract for standard and
+  lightweight profiles
 - [the packaged plan template asset](../../assets/templates/plan-template.md)
   is the canonical authoring example shipped by harness
 - `harness plan template` is a convenience wrapper around the packaged asset
@@ -57,8 +67,7 @@ The file stem is the durable identifier used by command-owned local state:
 
 ## Frontmatter
 
-Every plan must start with YAML frontmatter containing exactly these durable
-fields:
+Every plan must start with YAML frontmatter containing these durable fields:
 
 ```yaml
 ---
@@ -91,17 +100,29 @@ source_refs: []
   - array of external references such as issue IDs or URLs
   - use `[]` when there are none
 
+### Optional Fields
+
+- `workflow_profile`
+  - optional explicit workflow selector
+  - supported values are `standard` and `lightweight`
+  - omitted means `standard`
+  - tracked plans under `docs/plans/active/` or `docs/plans/archived/` must
+    either omit this field or set it to `standard`
+  - local plans under `.local/harness/plans/<plan-stem>/active/` or
+    `.local/harness/plans/<plan-stem>/archived/` must set it to `lightweight`
+
 ### Removed v0.1 Runtime Fields
 
-v0.2 tracked plans must not carry these top-level runtime fields:
+v0.2 plans must not carry these top-level runtime fields:
 
 - `status`
 - `lifecycle`
 - `revision`
 - `updated_at`
 
-Path placement already answers active vs archived. Runtime milestones and
-revision history belong in command-owned artifacts, not tracked frontmatter.
+Path placement plus `workflow_profile` answer whether a plan is standard or
+lightweight and whether it is active or archived. Runtime milestones and
+revision history belong in command-owned artifacts, not plan frontmatter.
 
 ## Required Sections
 
@@ -188,7 +209,8 @@ Rules:
 
 ## Placeholder Policy
 
-These exact active-plan placeholders are allowed:
+These exact active-plan placeholders are allowed in both standard tracked plans
+and lightweight local plans:
 
 - `Execution Notes`: `PENDING_STEP_EXECUTION`
 - `Review Notes`: `PENDING_STEP_REVIEW`
@@ -248,8 +270,13 @@ Archive readiness rules:
 
 An active plan must satisfy all of these:
 
-- the file lives under `docs/plans/active/`
+- the file lives under either:
+  - `docs/plans/active/`
+  - `.local/harness/plans/<plan-stem>/active/`
 - the required frontmatter fields are present
+- any optional `workflow_profile` field is compatible with the path:
+  - tracked active plans default to `standard`
+  - local active plans require `lightweight`
 - every step uses a `Done` marker
 - archive-only summary sections may still contain the documented active-plan
   placeholders
@@ -260,7 +287,12 @@ An active plan must satisfy all of these:
 
 An archived plan must satisfy all of these:
 
-- the file lives under `docs/plans/archived/`
+- the file lives under either:
+  - `docs/plans/archived/`
+  - `.local/harness/plans/<plan-stem>/archived/`
+- any optional `workflow_profile` field is compatible with the path:
+  - tracked archived plans default to `standard`
+  - local archived plans require `lightweight`
 - every acceptance criterion is checked
 - every step is `Done: [x]`
 - every step-local acceptance checkbox is checked when present
@@ -291,7 +323,10 @@ tracked archive summary. It is no longer tracked as frontmatter.
 `harness reopen --mode <...>` is a mechanical transition from archived back to
 active:
 
-- move the file from `docs/plans/archived/` to `docs/plans/active/`
+- move the file from the archived path back to the corresponding active path:
+  - `docs/plans/archived/` -> `docs/plans/active/` for `standard`
+  - `.local/harness/plans/<plan-stem>/archived/` ->
+    `.local/harness/plans/<plan-stem>/active/` for `lightweight`
 - preserve prior archive-time wording
 - prepend `UPDATE_REQUIRED_AFTER_REOPEN` markers to reopen-sensitive summaries
 - clear stale review and evidence facts that belonged to the invalidated
@@ -324,7 +359,13 @@ Mode-specific rules:
 - acceptance criteria or step-local acceptance criteria that are not checkboxes
 - missing step `Done` markers or legacy `Status:` lines
 - missing required step subsections
-- plans stored outside `docs/plans/active/` or `docs/plans/archived/`
+- unsupported `workflow_profile` values
+- plans stored outside:
+  - `docs/plans/active/`
+  - `docs/plans/archived/`
+  - `.local/harness/plans/<plan-stem>/active/`
+  - `.local/harness/plans/<plan-stem>/archived/`
+- plans whose path and `workflow_profile` disagree
 - archived plans with unchecked acceptance criteria, incomplete steps, or
   unchecked step-local acceptance criteria
 - archived plans that still contain active-plan or reopen update placeholders

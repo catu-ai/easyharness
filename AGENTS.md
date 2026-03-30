@@ -11,11 +11,13 @@ name is `easyharness`; the CLI executable remains `harness`.
 ## Working Agreement
 
 1. Humans steer. Agents execute.
-2. Approved scope lives in a git-tracked plan.
+2. Approved scope lives in a plan artifact:
+   - tracked under `docs/plans/` for `standard`
+   - command-owned under `.local/harness/` for approved `lightweight` work
 3. Raw execution trajectory lives in `.local/` and is disposable.
 4. Durable summaries, contracts, and behavior changes must be written back to
    tracked docs or code before archive.
-5. Evidence beats memory. Use `harness status`, tracked plans, and owned local
+5. Evidence beats memory. Use `harness status`, plans, and owned local
    artifacts instead of relying on long-session recall.
 6. Keep tracked docs and code in English.
 
@@ -41,7 +43,10 @@ If you change Go CLI code, rerun the installer before relying on the direct
 
 The source-of-truth split in this repository is:
 
-- tracked plan in `docs/plans/`: scope, durable step closeout, archive-ready summaries
+- tracked standard plans in `docs/plans/`: scope, durable step closeout,
+  archive-ready summaries for normal work
+- lightweight local plans in `.local/harness/plans/`: steerable plan artifacts
+  for approved low-risk work
 - specs in `docs/specs/`: normative harness contracts
 - `.local/harness/`: disposable runtime state, review artifacts, evidence
   artifacts, and trajectory
@@ -60,6 +65,12 @@ For medium or large work:
 4. Archive / publish / await merge approval
 5. Land
 
+For approved low-risk work that explicitly uses `workflow_profile:
+lightweight`, keep the same workflow shape but store the plan and archived
+snapshot under `.local/harness/plans/<plan-stem>/...` instead of `docs/plans/`.
+That shortcut does not remove human steering, low-risk eligibility checks, or
+the requirement to leave a repo-visible breadcrumb such as a PR body note.
+
 Use `harness reopen --mode finalize-fix|new-step` when an archived candidate
 is no longer merge-ready because of new feedback, remote changes, or other
 invalidation.
@@ -71,8 +82,8 @@ default and required path. The controller agent stays in `harness-execute`,
 reviewer work belongs to spawned `harness-reviewer` subagents, and the
 repo-local review skills must be followed strictly.
 
-Routine review progression is controller-owned once a tracked plan is approved.
-The controller must not stop to ask the human whether ordinary step-closeout or
+Routine review progression is controller-owned once a plan is approved. The
+controller must not stop to ask the human whether ordinary step-closeout or
 finalize review should begin.
 
 Use `harness status` at routine checkpoints:
@@ -99,8 +110,9 @@ When entering the repo or resuming after compaction:
 1. Read [README.md](./README.md) if you need repository purpose or setup
    context.
 2. Run `harness status`.
-3. If `harness status` reports a current plan artifact, open that tracked
-   plan. If status reports `idle`, there is no current plan to resume yet.
+3. If `harness status` reports a current plan artifact, open that plan whether
+   it is tracked or lightweight-local. If status reports `idle`, there is no
+   current plan to resume yet.
 4. Most resumed work should continue in `harness-execute`.
 5. Switch only when `harness status` and the workflow boundary clearly call
    for a different skill:
@@ -120,6 +132,9 @@ When entering the repo or resuming after compaction:
   otherwise
 - when writing multi-line git or gh bodies, prefer heredocs so shell quoting
   does not eat backticks or other structured text
+- when using the lightweight workflow, leave the agreed repo-visible breadcrumb
+  in the PR body or other approved review surface before treating the candidate
+  as ready to wait for merge approval
 - default merge strategy: `Merge commit`
 - do not rewrite shared history without explicit approval
 

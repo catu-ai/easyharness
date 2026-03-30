@@ -139,6 +139,9 @@ state for read-only stateful commands.
 `artifacts` is optional and command-specific. Omit it when there are no stable
 artifact paths or IDs worth returning.
 
+`plan_path` may point to either a tracked standard plan under `docs/plans/` or
+a local lightweight plan under `.local/harness/plans/<plan-stem>/...`.
+
 `next_actions` should be short, concrete, non-empty, and ordered from the most
 likely next step to less common alternatives.
 
@@ -198,7 +201,10 @@ Legacy v0.1 fields are not part of the contract and must not be emitted:
 - `worktree_state`
 
 When a current step exists, `harness status` should infer it from the first
-unfinished tracked step and return it as `facts.current_step`.
+unfinished plan step and return it as `facts.current_step`.
+When the current plan is `lightweight`, status should also surface the
+repo-visible breadcrumb requirement through the summary or `next_actions`
+before the candidate is treated as ready to wait for merge approval.
 
 ## Command Contracts
 
@@ -206,7 +212,7 @@ unfinished tracked step and return it as `facts.current_step`.
 
 Purpose:
 
-- render the canonical tracked plan template with seeded metadata
+- render the canonical plan template with seeded metadata
 
 Contract:
 
@@ -214,12 +220,18 @@ Contract:
   the canonical template source
 - print the rendered template to stdout by default
 - optionally support writing directly to a target path
+- support a lightweight authoring mode such as `--lightweight`
 - support enough parameters to seed title, date, and source metadata
 - when only a date is provided, preserve the current local time-of-day on that
   date instead of silently forcing `created_at` to local midnight
 - seed `template_version` from the packaged asset so generated plans record the
   schema/template version they started from
 - avoid introducing a second handwritten template source of truth inside code
+- in lightweight mode, seed `workflow_profile: lightweight`, a shorter
+  single-step low-risk authoring shape, and local-path guidance consistent with
+  the plan schema
+- in standard mode, preserve current behavior when `workflow_profile` is
+  omitted or explicitly `standard`
 
 The template asset belongs to the harness version, not to the user's tracked
 plan history. Upgrading the harness may upgrade the generated template for new
@@ -249,7 +261,7 @@ Recommended next action:
 
 Purpose:
 
-- validate a plan against the tracked-plan schema
+- validate a plan against the plan schema
 
 Contract:
 
@@ -257,6 +269,8 @@ Contract:
   invalid plan data
 - report issues in a compact machine-readable form
 - distinguish active-plan errors from archived-plan errors
+- validate path/profile compatibility for standard tracked plans versus
+  lightweight local plans
 - validate supported `template_version` values without invalidating older
   historical plans created by earlier harness versions
 - reject malformed plan filenames and malformed `### Step N: ...` headings
@@ -278,8 +292,8 @@ understand what is happening now and what to do next.
 
 Contract:
 
-- detect the current tracked plan
-- resolve the canonical `state.current_node` from the tracked plan,
+- detect the current plan artifact, whether tracked or lightweight-local
+- resolve the canonical `state.current_node` from the current plan,
   execute-start milestones, review artifacts, append-only evidence, reopen
   milestones, archive state, and land milestones
 - return pure v0.2 JSON centered on `state.current_node`, selected `facts`,
@@ -298,6 +312,9 @@ Contract:
 - if no current plan is active but `.local/harness/current-plan.json` records a
   landed candidate, return `state.current_node: idle` with landed context in
   `artifacts`
+- when the current plan uses the lightweight profile, remind the controller to
+  leave the agreed repo-visible breadcrumb, such as a PR body note explaining
+  why the lightweight path was used
 - return recommended next actions for both "continue work" and "wait/observe"
   situations
 - if an already completed earlier step is missing review-complete closeout,
@@ -533,7 +550,7 @@ Post-archive merge readiness additionally requires:
 
 Purpose:
 
-- freeze the tracked plan locally for merge handoff
+- freeze the current plan locally for merge handoff
 
 Contract:
 
@@ -555,19 +572,26 @@ Contract:
   one
 - require the pre-archive `Archive Summary` to include structured `PR`,
   `Ready`, and `Merge Handoff` lines
-- move the plan from `docs/plans/active/` to `docs/plans/archived/`
+- move the plan from its active path to its archived path:
+  - `docs/plans/active/` -> `docs/plans/archived/` for `standard`
+  - `.local/harness/plans/<plan-stem>/active/` ->
+    `.local/harness/plans/<plan-stem>/archived/` for `lightweight`
 - update `.local/harness/current-plan.json` and any existing plan-local
   `state.json` pointers to the archived path
 - keep publish, CI, and sync follow-up out of the archive gate; those belong to
   `execution/finalize/publish`
-- return next actions that explicitly include committing and pushing the archive
-  change
+- return next actions that explicitly include the profile-appropriate handoff:
+  commit and push the archive move for `standard`, or update the repo-visible
+  breadcrumb for `lightweight`
 
 Important note:
 
-- `harness archive` changes tracked files locally
-- the controller agent should commit and push the archive move before treating
-  the plan as truly waiting for merge approval
+- `harness archive` changes tracked files locally only for `standard`
+- the controller agent should commit and push the archive move for `standard`
+  before treating the candidate as truly waiting for merge approval
+- the controller agent should update the agreed repo-visible breadcrumb for
+  `lightweight` before treating the candidate as truly waiting for merge
+  approval
 - after archive, record publish, CI, and sync observations through
   `harness evidence submit` instead of treating missing evidence as success
 - PR checks may rerun on that archive commit; if new feedback or check failures
@@ -580,8 +604,8 @@ Important note:
 Recommended next action:
 
 - create or verify durable follow-up notes for deferred work
-- commit and push the archived plan
-- update the PR if needed
+- commit and push the archived plan for `standard`, or update the repo-visible
+  breadcrumb for `lightweight`
 - wait for post-archive CI or human merge approval once publish, CI, and sync
   evidence move the candidate into `execution/finalize/await_merge`
 - reopen with `harness reopen --mode finalize-fix` for narrow repair or
@@ -595,7 +619,7 @@ Purpose:
 
 Contract:
 
-- move the plan from `docs/plans/archived/` back to `docs/plans/active/`
+- move the plan from its archived path back to the matching active path
 - increment command-owned revision state
 - require an explicit mode such as `finalize-fix` or `new-step`
 - preserve archive audit history via explicit update-required placeholders
@@ -621,7 +645,7 @@ Purpose:
 
 Contract:
 
-- require the current tracked plan to be archived before accepting evidence
+- require the current plan to already be archived before accepting evidence
 - support `--kind <ci|publish|sync>` with JSON payloads documented in
   `--help`
 - write a timestamped evidence artifact under
@@ -639,11 +663,11 @@ Purpose:
 
 Contract:
 
-- require the current tracked plan to still be the archived candidate
+- require the current plan artifact to still be the archived candidate
 - require `--pr <url>` and optionally accept `--commit <sha>`
 - validate that publish, CI, and sync evidence make the candidate merge-ready
 - record merge confirmation in plan-local runtime state
-- leave tracked plans untouched; this is a local-state milestone only
+- leave archived plan content untouched; this is a local-state milestone only
 - return next actions that guide post-merge cleanup
 
 ### `harness land complete`
@@ -658,7 +682,7 @@ Contract:
 - persist local completion metadata in plan-local runtime state
 - rewrite `.local/harness/current-plan.json` so `plan_path` is cleared
 - record `last_landed_plan_path` and `last_landed_at` for worktree handoff
-- leave tracked plans untouched; this is local-state cleanup only
+- leave archived plan content untouched; this is local-state cleanup only
 - return next actions that guide the worktree back to idle or on to the next
   slice
 

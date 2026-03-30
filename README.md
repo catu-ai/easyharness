@@ -9,7 +9,8 @@ The project is named `easyharness`. The CLI executable remains `harness`.
 
 The goal is to keep the harness legible and maintainable:
 
-- tracked plans live in git
+- standard plans live in git
+- lightweight low-risk plans live in `.local/harness/`
 - runtime trajectory lives in `.local/`
 - the CLI helps agents understand state and next actions
 - skills teach agents how to run the workflow without a pile of fragile shell
@@ -158,15 +159,27 @@ reporting layered lifecycle or step-state fields. Common nodes include
 `execution/finalize/publish`, `execution/finalize/await_merge`, `land`, and
 `idle`.
 
-For medium or large work, create or update a tracked plan under
+For medium or large work, or any change that is not explicitly eligible for
+the lightweight path, create or update a tracked standard plan under
 `docs/plans/active/`, execute against that plan, archive it under
 `docs/plans/archived/` once the candidate is ready for local freeze, then
 record publish, CI, and sync facts for the archived candidate through
 `harness evidence submit` until status reaches
 `execution/finalize/await_merge`. After merge, enter `land` with
 `harness land --pr <url> [--commit <sha>]`, finish post-merge cleanup, then
-run `harness land complete` so status returns to `idle`. If an archived
-candidate becomes invalid before merge, reopen it with
+run `harness land complete` so status returns to `idle`.
+
+For narrow low-risk work, `harness` may instead use a lightweight local plan
+under `.local/harness/plans/<plan-stem>/...` with the same schema plus
+`workflow_profile: lightweight`. The lightweight path reuses the same
+canonical nodes, but its plan and archived snapshot stay local instead of
+moving through `docs/plans/`. Lightweight work still requires human steering,
+must stay explicitly in-bounds, and must leave a small repo-visible breadcrumb
+such as a PR body note explaining why the lightweight path was used. If any
+lightweight candidate stops looking low-risk, it should escalate back to the
+standard tracked-plan path.
+
+If an archived candidate becomes invalid before merge, reopen it with
 `harness reopen --mode finalize-fix` for narrow repair or
 `harness reopen --mode new-step` when the change deserves a new unfinished
 step.
@@ -179,11 +192,12 @@ Execution detail for agents lives in `.agents/skills/`.
 
 - `cmd/harness/`: CLI entrypoint
 - `internal/`: CLI implementation
-- `docs/plans/`: tracked plans
+- `docs/plans/`: tracked standard plans
 - `docs/specs/`: durable repo contracts
 - `.agents/skills/`: repo-local workflow skills
-- `.local/harness/`: disposable runtime state, current-plan/last-landed
-  markers, review artifacts, evidence artifacts, and trajectory
+- `.local/harness/`: disposable runtime state, lightweight plans, current-plan
+  and last-landed markers, review artifacts, evidence artifacts, and
+  trajectory
 
 ## Current Constraints
 
