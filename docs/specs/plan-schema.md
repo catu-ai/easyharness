@@ -111,6 +111,35 @@ source_refs: []
   - local plans under `.local/harness/plans/<plan-stem>/active/` or
     `.local/harness/plans/<plan-stem>/archived/` must set it to `lightweight`
 
+## Lightweight Eligibility
+
+`workflow_profile: lightweight` is allowed only when every rule below is true:
+
+- the whole slice is one intentionally narrow low-risk change that can be
+  planned, implemented, and validated as a single bounded step
+- the expected edits are limited to non-behavioral repository maintenance such
+  as README wording, documentation copy, comments, or similarly narrow
+  explanatory cleanup
+- no `harness` CLI behavior, state resolution rule, review/archive contract,
+  persistence behavior, release or CI automation, security-sensitive logic, or
+  other user-visible product behavior changes
+- if the boundary is unclear, the risk is disputed, or the slice stops looking
+  obviously lightweight, it must use `standard`
+
+Examples that may use `lightweight`:
+
+- fixing a broken README link
+- correcting narrow documentation wording
+- cleaning up comments without changing behavior
+
+Examples that must stay `standard`:
+
+- any change under `docs/specs/` that changes the product contract
+- any change to Go code, tests that prove new behavior, or release/CI workflow
+  logic
+- any change that needs more than one meaningful implementation step or a
+  broader review posture than bounded low-risk maintenance
+
 ### Removed v0.1 Runtime Fields
 
 v0.2 plans must not carry these top-level runtime fields:
@@ -265,6 +294,35 @@ Archive readiness rules:
   Issues` must not remain `NONE`
 - if there are no deferred items and no follow-up, `Follow-Up Issues` may stay
   `NONE`
+
+## Lightweight Eligibility
+
+`workflow_profile: lightweight` is only for narrow low-risk work that keeps
+human steering but does not justify the full tracked-plan ceremony.
+
+The lightweight profile is eligible only when all of these are true:
+
+- the human explicitly approves using the lightweight profile
+- the plan still describes a small bounded slice that one short plan can steer
+- the expected change is limited to low-risk repository surfaces such as:
+  - README or docs wording
+  - comments or other non-behavioral text cleanup
+  - similarly narrow metadata or wording fixes that do not change product
+    behavior, state transitions, or command semantics
+- the controller can explain the lightweight choice in one small repo-visible
+  breadcrumb such as a PR body note
+
+The lightweight profile is not eligible when any of these are true:
+
+- the change affects CLI, runtime, release, review, archive, evidence, or
+  state-machine behavior
+- the change modifies normative product contracts, schema meaning, or command
+  semantics
+- the change spans multiple risk areas or would make a reviewer reasonably ask
+  for a tracked archive record
+- the controller is unsure whether the slice is truly low-risk
+
+When there is any doubt, escalate to the standard tracked-plan workflow.
 
 ## Active Plan Rules
 

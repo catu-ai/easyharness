@@ -136,15 +136,19 @@ v0.2 assumes one active plan artifact per repository.
 
 Resolution rules:
 
-- if `.local/harness/current-plan.json` points to a lightweight plan path that
-  still exists, that plan is current
+- if `.local/harness/current-plan.json` points to an active lightweight plan
+  path under `.local/harness/plans/<plan-stem>/active/` that still exists,
+  that plan is current
 - otherwise, if exactly one active tracked plan exists under
   `docs/plans/active/`, that plan is current for `plan` and `execution/...`
   nodes
+- otherwise, if exactly one active lightweight local plan exists under
+  `.local/harness/plans/*/active/*.md`, that plan is current for `plan` and
+  `execution/...` nodes
 - if no active plan exists, CLI-owned archived or landed context may still
   identify the current archived candidate or the most recent landed candidate
-- if multiple active plans exist, state resolution is invalid and should fail
-  rather than guess
+- if multiple active plans exist across tracked and lightweight-local paths,
+  state resolution is invalid and should fail rather than guess
 
 ## Runtime Inputs
 

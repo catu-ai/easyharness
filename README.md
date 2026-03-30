@@ -179,6 +179,12 @@ such as a PR body note explaining why the lightweight path was used. If any
 lightweight candidate stops looking low-risk, it should escalate back to the
 standard tracked-plan path.
 
+In practice, lightweight is for tiny bounded low-risk changes such as README
+wording, doc clarification, comment cleanup, or similarly narrow non-behavioral
+metadata fixes. If the change touches CLI behavior, runtime state, review or
+archive semantics, release flow, or any normative contract meaning, use the
+standard tracked-plan path instead.
+
 If an archived candidate becomes invalid before merge, reopen it with
 `harness reopen --mode finalize-fix` for narrow repair or
 `harness reopen --mode new-step` when the change deserves a new unfinished

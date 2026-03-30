@@ -70,6 +70,10 @@ lightweight`, keep the same workflow shape but store the plan and archived
 snapshot under `.local/harness/plans/<plan-stem>/...` instead of `docs/plans/`.
 That shortcut does not remove human steering, low-risk eligibility checks, or
 the requirement to leave a repo-visible breadcrumb such as a PR body note.
+Use it only for tiny bounded low-risk changes such as README wording, doc
+clarification, comment cleanup, or similarly narrow non-behavioral fixes. If a
+slice changes CLI/runtime behavior, review or archive semantics, release flow,
+or normative contract meaning, it must stay on the standard tracked-plan path.
 
 Use `harness reopen --mode finalize-fix|new-step` when an archived candidate
 is no longer merge-ready because of new feedback, remote changes, or other

@@ -185,18 +185,7 @@ unchanged unless they explicitly opt into the new profile field, and omitted
 
 #### Execution Notes
 
-Updated the durable contract in `docs/specs/plan-schema.md`,
-`docs/specs/state-model.md`, `docs/specs/cli-contract.md`,
-`docs/specs/index.md`, `README.md`, and `AGENTS.md` so the repository now
-describes `workflow_profile` as an optional field that defaults to
-`standard`, defines the lightweight local plan/archive paths under
-`.local/harness/plans/<plan-stem>/...`, and requires a repo-visible
-breadcrumb such as a PR body note before a lightweight candidate should be
-treated as waiting for merge approval. The docs now also state that
-lightweight reuses the existing node model and command surface rather than
-introducing a second lifecycle tree. Validated the contract update with
-`go test ./internal/plan ./internal/status ./internal/lifecycle -count=1`
-and `harness plan lint docs/plans/active/2026-03-30-lightweight-workflow-for-low-risk-changes.md`.
+PENDING_STEP_EXECUTION
 
 #### Review Notes
 
