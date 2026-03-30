@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "properties": {
+    "record_id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "plan_path": {
+      "type": "string"
+    },
+    "plan_stem": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "integer"
+    },
+    "recorded_at": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "record_id",
+    "kind",
+    "plan_path",
+    "plan_stem",
+    "revision",
+    "recorded_at",
+    "status"
+  ],
+  "additionalProperties": false
+}

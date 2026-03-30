@@ -1,0 +1,95 @@
+{
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "command": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "artifacts": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "round_id": {
+          "type": "string"
+        },
+        "slot": {
+          "type": "string"
+        },
+        "submission_path": {
+          "type": "string"
+        },
+        "ledger_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "round_id",
+        "slot",
+        "submission_path",
+        "ledger_path"
+      ],
+      "additionalProperties": false
+    },
+    "next_actions": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "errors": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "ok",
+    "command",
+    "summary",
+    "next_actions"
+  ],
+  "additionalProperties": false
+}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	templateassets "github.com/catu-ai/easyharness/assets/templates"
+	"github.com/catu-ai/easyharness/internal/contracts"
 	"gopkg.in/yaml.v3"
 )
 
@@ -65,23 +66,9 @@ type Frontmatter struct {
 	SourceRefs      []string `yaml:"source_refs"`
 }
 
-type LintIssue struct {
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
-
-type LintResult struct {
-	OK                       bool          `json:"ok"`
-	Command                  string        `json:"command"`
-	Summary                  string        `json:"summary"`
-	Artifacts                lintArtifacts `json:"artifacts,omitempty"`
-	SupportedTemplateVersion string        `json:"supported_template_version,omitempty"`
-	Errors                   []LintIssue   `json:"errors,omitempty"`
-}
-
-type lintArtifacts struct {
-	PlanPath string `json:"plan_path"`
-}
+type LintIssue = contracts.JSONError
+type LintResult = contracts.PlanLintResult
+type lintArtifacts = contracts.PlanLintArtifacts
 
 type lintContext struct {
 	path           string

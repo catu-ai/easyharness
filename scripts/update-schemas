@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${repo_root}"
+
+check_mode=0
+if [[ "${1-}" == "--check" ]]; then
+  check_mode=1
+  shift
+fi
+
+if [[ $# -ne 0 ]]; then
+  echo "Usage: scripts/update-schemas [--check]" >&2
+  exit 2
+fi
+
+if [[ ${check_mode} -eq 0 ]]; then
+  go run ./cmd/schemagen --output-dir docs/schemas
+  exit 0
+fi
+
+temp_dir="$(mktemp -d)"
+trap 'rm -rf "${temp_dir}"' EXIT
+
+go run ./cmd/schemagen --output-dir "${temp_dir}"
+
+schema_diff="$(
+  diff -ruN \
+    "${temp_dir}" \
+    "${repo_root}/docs/schemas" || true
+)"
+
+if [[ -n "${schema_diff}" ]]; then
+  echo "Generated schemas are out of date. Run scripts/update-schemas." >&2
+  printf '%s\n' "${schema_diff}" >&2
+  exit 1
+fi

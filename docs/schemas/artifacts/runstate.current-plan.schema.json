@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "properties": {
+    "plan_path": {
+      "type": "string"
+    },
+    "last_landed_plan_path": {
+      "type": "string"
+    },
+    "last_landed_at": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

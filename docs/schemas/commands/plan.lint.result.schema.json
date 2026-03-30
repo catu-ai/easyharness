@@ -1,0 +1,57 @@
+{
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "command": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "artifacts": {
+      "type": "object",
+      "properties": {
+        "plan_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_path"
+      ],
+      "additionalProperties": false
+    },
+    "supported_template_version": {
+      "type": "string"
+    },
+    "errors": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "ok",
+    "command",
+    "summary"
+  ],
+  "additionalProperties": false
+}

@@ -21,5 +21,8 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Check generated schemas
+        run: scripts/update-schemas --check
+
       - name: Run tests
         run: go test ./...

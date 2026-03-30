@@ -1,0 +1,98 @@
+{
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "command": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "artifacts": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "plan_path": {
+          "type": "string"
+        },
+        "local_state_path": {
+          "type": "string"
+        },
+        "record_id": {
+          "type": "string"
+        },
+        "record_path": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_path",
+        "record_id",
+        "record_path",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "next_actions": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "errors": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "ok",
+    "command",
+    "summary",
+    "next_actions"
+  ],
+  "additionalProperties": false
+}

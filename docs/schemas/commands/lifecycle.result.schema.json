@@ -1,0 +1,114 @@
+{
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "command": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "state": {
+      "type": "object",
+      "properties": {
+        "plan_status": {
+          "type": "string"
+        },
+        "lifecycle": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "plan_status",
+        "lifecycle",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "from_plan_path": {
+          "type": "string"
+        },
+        "to_plan_path": {
+          "type": "string"
+        },
+        "local_state_path": {
+          "type": "string"
+        },
+        "current_plan_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from_plan_path",
+        "to_plan_path"
+      ],
+      "additionalProperties": false
+    },
+    "next_actions": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "errors": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "ok",
+    "command",
+    "summary",
+    "state",
+    "next_actions"
+  ],
+  "additionalProperties": false
+}

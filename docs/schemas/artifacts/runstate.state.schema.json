@@ -1,0 +1,242 @@
+{
+  "type": "object",
+  "properties": {
+    "execution_started_at": {
+      "type": "string"
+    },
+    "current_node": {
+      "type": "string"
+    },
+    "plan_path": {
+      "type": "string"
+    },
+    "plan_stem": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "integer"
+    },
+    "reopen": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string"
+        },
+        "reopened_at": {
+          "type": "string"
+        },
+        "base_step_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "additionalProperties": false
+    },
+    "active_review_round": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "round_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "step": {
+          "type": [
+            "null",
+            "integer"
+          ]
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "aggregated": {
+          "type": "boolean"
+        },
+        "decision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "round_id",
+        "kind",
+        "aggregated"
+      ],
+      "additionalProperties": false
+    },
+    "latest_evidence": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "ci": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "record_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "recorded_at": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "record_id",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "publish": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "record_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "recorded_at": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "record_id",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "sync": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "record_id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "recorded_at": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "record_id",
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "land": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "pr_url": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "landed_at": {
+          "type": "string"
+        },
+        "completed_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "latest_ci": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "snapshot_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "sync": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "freshness": {
+          "type": "string"
+        },
+        "conflicts": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "freshness",
+        "conflicts"
+      ],
+      "additionalProperties": false
+    },
+    "latest_publish": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "attempt_id": {
+          "type": "string"
+        },
+        "pr_url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "attempt_id",
+        "pr_url"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

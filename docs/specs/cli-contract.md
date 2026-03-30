@@ -12,6 +12,11 @@ JSON envelopes described here assume the canonical-node runtime model from
 [State Model](./state-model.md) and the exact transition matrix from
 [State Transitions](./state-transitions.md).
 
+Generated JSON Schema references for the current command and local-artifact
+surfaces live under [docs/schemas/](../schemas/index.md). This spec focuses on
+workflow semantics, ownership, and command behavior; the schema files are the
+field-level reference for the exported JSON shapes.
+
 ## Command Surface
 
 The current command surface is:
@@ -251,6 +256,10 @@ Purpose:
 
 - validate a plan against the tracked-plan schema
 
+Schema reference:
+
+- [Plan lint result](../schemas/commands/plan.lint.result.schema.json)
+
 Contract:
 
 - stop with targeted structural errors instead of guessing or silently fixing
@@ -312,6 +321,12 @@ Contract:
   mutating local state, return a clear contention error instead of risking a
   stale cache overwrite
 
+Schema reference:
+
+- [Status result](../schemas/commands/status.result.schema.json)
+- [Runstate state artifact](../schemas/artifacts/runstate.state.schema.json)
+- [Runstate current-plan artifact](../schemas/artifacts/runstate.current-plan.schema.json)
+
 Recommended next action examples:
 
 - continue the current step
@@ -332,6 +347,13 @@ Purpose:
 
 - begin a deterministic review round without embedding runtime-specific agent
   spawning in the CLI
+
+Schema reference:
+
+- [Review spec input](../schemas/inputs/review.spec.schema.json)
+- [Review start result](../schemas/commands/review.start.result.schema.json)
+- [Review manifest artifact](../schemas/artifacts/review.manifest.schema.json)
+- [Review ledger artifact](../schemas/artifacts/review.ledger.schema.json)
 
 Contract:
 
@@ -449,6 +471,12 @@ Purpose:
 
 - record one reviewer result for a specific review round and reviewer slot
 
+Schema reference:
+
+- [Review submission input](../schemas/inputs/review.submission.schema.json)
+- [Review submit result](../schemas/commands/review.submit.result.schema.json)
+- [Review submission artifact](../schemas/artifacts/review.submission.schema.json)
+
 This command is primarily for reviewer subagents rather than the main
 controller agent.
 
@@ -476,6 +504,11 @@ Purpose:
 
 - aggregate a review round into a concise decision surface for the controller
   agent
+
+Schema reference:
+
+- [Review aggregate result](../schemas/commands/review.aggregate.result.schema.json)
+- [Review aggregate artifact](../schemas/artifacts/review.aggregate.schema.json)
 
 Contract:
 
@@ -535,6 +568,10 @@ Purpose:
 
 - freeze the tracked plan locally for merge handoff
 
+Schema reference:
+
+- [Lifecycle result](../schemas/commands/lifecycle.result.schema.json)
+
 Contract:
 
 - validate that the plan is active and archive-ready
@@ -593,6 +630,10 @@ Purpose:
 
 - restore an archived plan to active execution
 
+Schema reference:
+
+- [Lifecycle result](../schemas/commands/lifecycle.result.schema.json)
+
 Contract:
 
 - move the plan from `docs/plans/archived/` back to `docs/plans/active/`
@@ -619,6 +660,16 @@ Purpose:
 - record append-only publish, CI, or sync evidence for the current archived
   candidate
 
+Schema reference:
+
+- [Evidence submit result](../schemas/commands/evidence.submit.result.schema.json)
+- [CI evidence input](../schemas/inputs/evidence.ci.schema.json)
+- [Publish evidence input](../schemas/inputs/evidence.publish.schema.json)
+- [Sync evidence input](../schemas/inputs/evidence.sync.schema.json)
+- [CI evidence artifact](../schemas/artifacts/evidence.ci.record.schema.json)
+- [Publish evidence artifact](../schemas/artifacts/evidence.publish.record.schema.json)
+- [Sync evidence artifact](../schemas/artifacts/evidence.sync.record.schema.json)
+
 Contract:
 
 - require the current tracked plan to be archived before accepting evidence
@@ -637,6 +688,10 @@ Purpose:
 - record merge confirmation for the current archived candidate and enter land
   cleanup
 
+Schema reference:
+
+- [Lifecycle result](../schemas/commands/lifecycle.result.schema.json)
+
 Contract:
 
 - require the current tracked plan to still be the archived candidate
@@ -651,6 +706,10 @@ Contract:
 Purpose:
 
 - record post-merge cleanup completion and restore idle worktree state
+
+Schema reference:
+
+- [Lifecycle result](../schemas/commands/lifecycle.result.schema.json)
 
 Contract:
 

@@ -1,0 +1,54 @@
+{
+  "type": "object",
+  "properties": {
+    "round_id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "slots": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "slot": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "submission_path": {
+            "type": "string"
+          },
+          "submitted_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "slot",
+          "status",
+          "submission_path"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "round_id",
+    "kind",
+    "updated_at",
+    "slots"
+  ],
+  "additionalProperties": false
+}

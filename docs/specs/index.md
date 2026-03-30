@@ -10,6 +10,8 @@
   state expectations.
 - [CLI Contract](./cli-contract.md): agent-facing command surface and JSON
   contract.
+- [Generated Schemas](../schemas/index.md): checked-in JSON Schema references
+  for user-facing command payloads and command-owned local JSON artifacts.
 
 ## Proposals
 

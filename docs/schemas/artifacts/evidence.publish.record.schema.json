@@ -1,0 +1,51 @@
+{
+  "type": "object",
+  "properties": {
+    "record_id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "plan_path": {
+      "type": "string"
+    },
+    "plan_stem": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "integer"
+    },
+    "recorded_at": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "pr_url": {
+      "type": "string"
+    },
+    "branch": {
+      "type": "string"
+    },
+    "base": {
+      "type": "string"
+    },
+    "commit": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "record_id",
+    "kind",
+    "plan_path",
+    "plan_stem",
+    "revision",
+    "recorded_at",
+    "status"
+  ],
+  "additionalProperties": false
+}

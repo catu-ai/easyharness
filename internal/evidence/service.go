@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
 )
@@ -21,96 +22,16 @@ type Service struct {
 	Now     func() time.Time
 }
 
-type Result struct {
-	OK         bool           `json:"ok"`
-	Command    string         `json:"command"`
-	Summary    string         `json:"summary"`
-	Artifacts  *Artifacts     `json:"artifacts,omitempty"`
-	NextAction []NextAction   `json:"next_actions"`
-	Errors     []CommandError `json:"errors,omitempty"`
-}
-
-type Artifacts struct {
-	PlanPath       string `json:"plan_path"`
-	LocalStatePath string `json:"local_state_path,omitempty"`
-	RecordID       string `json:"record_id"`
-	RecordPath     string `json:"record_path"`
-	Kind           string `json:"kind"`
-}
-
-type NextAction struct {
-	Command     *string `json:"command"`
-	Description string  `json:"description"`
-}
-
-type CommandError struct {
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
-
-type CIInput struct {
-	Status   string `json:"status"`
-	Provider string `json:"provider,omitempty"`
-	URL      string `json:"url,omitempty"`
-	Reason   string `json:"reason,omitempty"`
-}
-
-type PublishInput struct {
-	Status string `json:"status"`
-	PRURL  string `json:"pr_url,omitempty"`
-	Branch string `json:"branch,omitempty"`
-	Base   string `json:"base,omitempty"`
-	Commit string `json:"commit,omitempty"`
-	Reason string `json:"reason,omitempty"`
-}
-
-type SyncInput struct {
-	Status  string `json:"status"`
-	BaseRef string `json:"base_ref,omitempty"`
-	HeadRef string `json:"head_ref,omitempty"`
-	Reason  string `json:"reason,omitempty"`
-}
-
-type CIRecord struct {
-	RecordID   string `json:"record_id"`
-	Kind       string `json:"kind"`
-	PlanPath   string `json:"plan_path"`
-	PlanStem   string `json:"plan_stem"`
-	Revision   int    `json:"revision"`
-	RecordedAt string `json:"recorded_at"`
-	Status     string `json:"status"`
-	Provider   string `json:"provider,omitempty"`
-	URL        string `json:"url,omitempty"`
-	Reason     string `json:"reason,omitempty"`
-}
-
-type PublishRecord struct {
-	RecordID   string `json:"record_id"`
-	Kind       string `json:"kind"`
-	PlanPath   string `json:"plan_path"`
-	PlanStem   string `json:"plan_stem"`
-	Revision   int    `json:"revision"`
-	RecordedAt string `json:"recorded_at"`
-	Status     string `json:"status"`
-	PRURL      string `json:"pr_url,omitempty"`
-	Branch     string `json:"branch,omitempty"`
-	Base       string `json:"base,omitempty"`
-	Commit     string `json:"commit,omitempty"`
-	Reason     string `json:"reason,omitempty"`
-}
-
-type SyncRecord struct {
-	RecordID   string `json:"record_id"`
-	Kind       string `json:"kind"`
-	PlanPath   string `json:"plan_path"`
-	PlanStem   string `json:"plan_stem"`
-	Revision   int    `json:"revision"`
-	RecordedAt string `json:"recorded_at"`
-	Status     string `json:"status"`
-	BaseRef    string `json:"base_ref,omitempty"`
-	HeadRef    string `json:"head_ref,omitempty"`
-	Reason     string `json:"reason,omitempty"`
-}
+type Result = contracts.EvidenceResult
+type Artifacts = contracts.EvidenceArtifacts
+type NextAction = contracts.NextAction
+type CommandError = contracts.JSONError
+type CIInput = contracts.EvidenceCIInput
+type PublishInput = contracts.EvidencePublishInput
+type SyncInput = contracts.EvidenceSyncInput
+type CIRecord = contracts.EvidenceCIRecord
+type PublishRecord = contracts.EvidencePublishRecord
+type SyncRecord = contracts.EvidenceSyncRecord
 
 func (s Service) Submit(kind string, inputBytes []byte) Result {
 	now := s.now().Format(time.RFC3339)

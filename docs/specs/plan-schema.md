@@ -23,6 +23,9 @@ Command-owned local artifacts live under:
 - `.local/harness/plans/<plan-stem>/reviews/`
 - `.local/harness/plans/<plan-stem>/evidence/`
 
+Generated JSON Schema references for the command-owned local JSON artifacts live
+under [docs/schemas/artifacts/](../schemas/index.md).
+
 The tracked plan is the durable contract. `.local` is disposable execution
 support and trajectory.
 

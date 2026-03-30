@@ -1,0 +1,196 @@
+{
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "command": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "state": {
+      "type": "object",
+      "properties": {
+        "current_node": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "current_node"
+      ],
+      "additionalProperties": false
+    },
+    "facts": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "current_step": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "reopen_mode": {
+          "type": "string"
+        },
+        "review_kind": {
+          "type": "string"
+        },
+        "review_trigger": {
+          "type": "string"
+        },
+        "review_title": {
+          "type": "string"
+        },
+        "review_status": {
+          "type": "string"
+        },
+        "archive_blocker_count": {
+          "type": "integer"
+        },
+        "publish_status": {
+          "type": "string"
+        },
+        "pr_url": {
+          "type": "string"
+        },
+        "ci_status": {
+          "type": "string"
+        },
+        "sync_status": {
+          "type": "string"
+        },
+        "land_pr_url": {
+          "type": "string"
+        },
+        "land_commit": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "plan_path": {
+          "type": "string"
+        },
+        "local_state_path": {
+          "type": "string"
+        },
+        "review_round_id": {
+          "type": "string"
+        },
+        "ci_record_id": {
+          "type": "string"
+        },
+        "publish_record_id": {
+          "type": "string"
+        },
+        "sync_record_id": {
+          "type": "string"
+        },
+        "last_landed_plan_path": {
+          "type": "string"
+        },
+        "last_landed_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "next_actions": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "blockers": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "errors": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "ok",
+    "command",
+    "summary",
+    "state",
+    "next_actions"
+  ],
+  "additionalProperties": false
+}

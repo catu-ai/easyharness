@@ -1,0 +1,134 @@
+{
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "command": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "artifacts": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "plan_path": {
+          "type": "string"
+        },
+        "local_state_path": {
+          "type": "string"
+        },
+        "round_id": {
+          "type": "string"
+        },
+        "manifest_path": {
+          "type": "string"
+        },
+        "ledger_path": {
+          "type": "string"
+        },
+        "aggregate_path": {
+          "type": "string"
+        },
+        "slots": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "slot": {
+                "type": "string"
+              },
+              "instructions": {
+                "type": "string"
+              },
+              "submission_path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "slot",
+              "instructions",
+              "submission_path"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "plan_path",
+        "local_state_path",
+        "round_id",
+        "manifest_path",
+        "ledger_path",
+        "aggregate_path",
+        "slots"
+      ],
+      "additionalProperties": false
+    },
+    "next_actions": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "errors": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "ok",
+    "command",
+    "summary",
+    "next_actions"
+  ],
+  "additionalProperties": false
+}

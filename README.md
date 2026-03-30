@@ -173,6 +173,8 @@ step.
 
 High-level guidance lives in [AGENTS.md](./AGENTS.md). The durable contracts
 for plans and CLI behavior live in [docs/specs/index.md](./docs/specs/index.md).
+Generated JSON Schema references for command and local JSON surfaces live in
+[docs/schemas/](./docs/schemas/).
 Execution detail for agents lives in `.agents/skills/`.
 
 ## Repository Layout
@@ -181,6 +183,7 @@ Execution detail for agents lives in `.agents/skills/`.
 - `internal/`: CLI implementation
 - `docs/plans/`: tracked plans
 - `docs/specs/`: durable repo contracts
+- `docs/schemas/`: generated JSON Schema references for command and local JSON surfaces
 - `.agents/skills/`: repo-local workflow skills
 - `.local/harness/`: disposable runtime state, current-plan/last-landed
   markers, review artifacts, evidence artifacts, and trajectory

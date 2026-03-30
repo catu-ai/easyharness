@@ -1,0 +1,84 @@
+{
+  "type": "object",
+  "properties": {
+    "round_id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "step": {
+      "type": [
+        "null",
+        "integer"
+      ]
+    },
+    "revision": {
+      "type": "integer"
+    },
+    "review_title": {
+      "type": "string"
+    },
+    "plan_path": {
+      "type": "string"
+    },
+    "plan_stem": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "dimensions": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "slot": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "submission_path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "slot",
+          "instructions",
+          "submission_path"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "ledger_path": {
+      "type": "string"
+    },
+    "aggregate_path": {
+      "type": "string"
+    },
+    "submissions_dir": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "round_id",
+    "kind",
+    "revision",
+    "plan_path",
+    "plan_stem",
+    "created_at",
+    "dimensions",
+    "ledger_path",
+    "aggregate_path",
+    "submissions_dir"
+  ],
+  "additionalProperties": false
+}

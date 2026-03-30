@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "properties": {
+    "round_id": {
+      "type": "string"
+    },
+    "slot": {
+      "type": "string"
+    },
+    "dimension": {
+      "type": "string"
+    },
+    "submitted_at": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "findings": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "details": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "severity",
+          "title",
+          "details"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "round_id",
+    "slot",
+    "dimension",
+    "submitted_at",
+    "summary",
+    "findings"
+  ],
+  "additionalProperties": false
+}

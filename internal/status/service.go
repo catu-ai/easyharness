@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/lifecycle"
 	"github.com/catu-ai/easyharness/internal/plan"
@@ -20,60 +21,12 @@ type Service struct {
 	Workdir string
 }
 
-type Result struct {
-	OK         bool          `json:"ok"`
-	Command    string        `json:"command"`
-	Summary    string        `json:"summary"`
-	State      State         `json:"state"`
-	Facts      *Facts        `json:"facts,omitempty"`
-	Artifacts  *Artifacts    `json:"artifacts,omitempty"`
-	NextAction []NextAction  `json:"next_actions"`
-	Blockers   []StatusError `json:"blockers,omitempty"`
-	Warnings   []string      `json:"warnings,omitempty"`
-	Errors     []StatusError `json:"errors,omitempty"`
-}
-
-type State struct {
-	CurrentNode string `json:"current_node"`
-}
-
-type Facts struct {
-	CurrentStep         string `json:"current_step,omitempty"`
-	Revision            int    `json:"revision,omitempty"`
-	ReopenMode          string `json:"reopen_mode,omitempty"`
-	ReviewKind          string `json:"review_kind,omitempty"`
-	ReviewTrigger       string `json:"review_trigger,omitempty"`
-	ReviewTitle         string `json:"review_title,omitempty"`
-	ReviewStatus        string `json:"review_status,omitempty"`
-	ArchiveBlockerCount int    `json:"archive_blocker_count,omitempty"`
-	PublishStatus       string `json:"publish_status,omitempty"`
-	PRURL               string `json:"pr_url,omitempty"`
-	CIStatus            string `json:"ci_status,omitempty"`
-	SyncStatus          string `json:"sync_status,omitempty"`
-	LandPRURL           string `json:"land_pr_url,omitempty"`
-	LandCommit          string `json:"land_commit,omitempty"`
-}
-
-type Artifacts struct {
-	PlanPath           string `json:"plan_path,omitempty"`
-	LocalStatePath     string `json:"local_state_path,omitempty"`
-	ReviewRoundID      string `json:"review_round_id,omitempty"`
-	CIRecordID         string `json:"ci_record_id,omitempty"`
-	PublishRecordID    string `json:"publish_record_id,omitempty"`
-	SyncRecordID       string `json:"sync_record_id,omitempty"`
-	LastLandedPlanPath string `json:"last_landed_plan_path,omitempty"`
-	LastLandedAt       string `json:"last_landed_at,omitempty"`
-}
-
-type NextAction struct {
-	Command     *string `json:"command"`
-	Description string  `json:"description"`
-}
-
-type StatusError struct {
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
+type Result = contracts.StatusResult
+type State = contracts.StatusState
+type Facts = contracts.StatusFacts
+type Artifacts = contracts.StatusOutput
+type NextAction = contracts.NextAction
+type StatusError = contracts.JSONError
 
 type reviewContext struct {
 	RoundID         string
@@ -304,7 +257,7 @@ func (s Service) Read() Result {
 		result.Warnings = append(result.Warnings, buildMissingStepCloseoutWarnings(result.State.CurrentNode, missingStepReminder)...)
 		result.NextAction = prependMissingStepCloseoutActions(result.State.CurrentNode, result.NextAction, facts, reviewCtx, missingStepReminder)
 	}
-	if facts.empty() {
+	if factsEmpty(facts) {
 		result.Facts = nil
 	} else {
 		result.Facts = facts
@@ -1377,7 +1330,7 @@ func isStructuralReviewTrigger(trigger string) bool {
 	return trigger == "step_closeout" || trigger == "pre_archive"
 }
 
-func (f *Facts) empty() bool {
+func factsEmpty(f *Facts) bool {
 	if f == nil {
 		return true
 	}
