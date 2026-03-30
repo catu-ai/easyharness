@@ -261,7 +261,11 @@ also gained explicit CLI coverage for duplicate managed-block failure and the
 coverage. After finalize review `review-003-full`, the smoke suite gained one
 more apply-mode failure path by forcing `install --scope skills` to fail while
 `.agents` is a plain file, then verifying a cleaned-up rerun converges
-successfully.
+successfully. After finalize review `review-004-full`, the smoke suite also
+gained the default full-scope retry path: `harness install` now has an
+end-to-end test that writes `AGENTS.md`, fails mid-flight while refreshing a
+read-only managed skill file, then succeeds cleanly after the blocker is
+removed.
 
 Validation passed with `go test ./internal/install ./internal/cli ./tests/smoke
 -run 'TestInstall|TestHelpShowsTopLevelUsage' -count=1`, a repo-local

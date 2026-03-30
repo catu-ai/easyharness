@@ -302,6 +302,43 @@ func TestInstallSkillsScopeRecoversAfterApplyWriteFailure(t *testing.T) {
 	support.RequireFileExists(t, workspace.Path(".agents/skills/harness-reviewer/SKILL.md"))
 }
 
+func TestInstallDefaultScopeRecoversAfterMidFlightFailure(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	blockedSkillPath := workspace.Path(".agents/skills/harness-discovery/SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(blockedSkillPath), 0o755); err != nil {
+		t.Fatalf("mkdir blocked skill dir: %v", err)
+	}
+	if err := os.WriteFile(blockedSkillPath, []byte("stale skill"), 0o400); err != nil {
+		t.Fatalf("write blocked skill file: %v", err)
+	}
+
+	failed := support.Run(t, workspace.Root, "install")
+	support.RequireExitCode(t, failed, 1)
+	support.RequireNoStderr(t, failed)
+
+	failedPayload := support.RequireJSONResult[installResult](t, failed)
+	if failedPayload.OK {
+		t.Fatalf("expected default install failure, got %#v", failedPayload)
+	}
+	support.RequireFileExists(t, workspace.Path("AGENTS.md"))
+	support.RequireFileMissing(t, workspace.Path(".agents/skills/harness-reviewer/SKILL.md"))
+
+	if err := os.Chmod(blockedSkillPath, 0o644); err != nil {
+		t.Fatalf("chmod blocked skill file: %v", err)
+	}
+
+	retry := support.Run(t, workspace.Root, "install")
+	support.RequireSuccess(t, retry)
+	support.RequireNoStderr(t, retry)
+
+	retryPayload := support.RequireJSONResult[installResult](t, retry)
+	if !retryPayload.OK || retryPayload.Scope != "all" {
+		t.Fatalf("expected successful default-scope retry payload, got %#v", retryPayload)
+	}
+	support.RequireFileExists(t, workspace.Path("AGENTS.md"))
+	support.RequireFileExists(t, workspace.Path(".agents/skills/harness-reviewer/SKILL.md"))
+}
+
 func TestInstallRefreshesExistingManagedWrapperAndThenNoops(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 	agentsPath := workspace.Path("AGENTS.md")
