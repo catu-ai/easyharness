@@ -194,7 +194,9 @@ no-op reruns after refresh. Finalize review `review-001-full` then found one
 additional marker-parsing bug: inline user-owned mentions of the marker strings
 could be mistaken for the managed block. The repair tightened marker detection
 to whole-line markers only and added a focused regression test for the inline
-mention case.
+mention case. Finalize review `review-002-full` then found one more
+repeat-run edge case on CRLF `AGENTS.md` files; the repair widened marker-line
+matching so CRLF reruns refresh or noop instead of appending a duplicate block.
 
 #### Review Notes
 
@@ -248,7 +250,10 @@ and repeat-run no-op results. After finalize review `review-001-full`
 requested stronger coverage, the smoke suite also gained failing-install
 coverage for invalid scope and a wrapper-refresh path that starts from an
 existing user-authored `AGENTS.md`, refreshes the managed block, and proves the
-next rerun is a noop.
+next rerun is a noop. After finalize review `review-002-full`, the smoke suite
+also gained explicit CLI coverage for duplicate managed-block failure and the
+`--scope skills` bootstrap path so both install branches now have end-to-end
+coverage.
 
 Validation passed with `go test ./internal/install ./internal/cli ./tests/smoke
 -run 'TestInstall|TestHelpShowsTopLevelUsage' -count=1`, a repo-local

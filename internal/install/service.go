@@ -25,8 +25,8 @@ const (
 )
 
 var (
-	agentsManagedBlockBeginPattern = regexp.MustCompile(`(?m)^<!-- easyharness:begin -->[ \t]*$`)
-	agentsManagedBlockEndPattern   = regexp.MustCompile(`(?m)^<!-- easyharness:end -->[ \t]*$`)
+	agentsManagedBlockBeginPattern = regexp.MustCompile(`(?m)^<!-- easyharness:begin -->[ \t]*\r?$`)
+	agentsManagedBlockEndPattern   = regexp.MustCompile(`(?m)^<!-- easyharness:end -->[ \t]*\r?$`)
 )
 
 type Service struct {

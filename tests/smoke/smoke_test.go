@@ -224,6 +224,53 @@ func TestInstallRejectsInvalidScopeViaCLI(t *testing.T) {
 	}
 }
 
+func TestInstallRejectsDuplicateManagedBlocksViaCLI(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	agentsPath := workspace.Path("AGENTS.md")
+	content := strings.Join([]string{
+		"# AGENTS.md",
+		"",
+		"<!-- easyharness:begin -->",
+		"one",
+		"<!-- easyharness:end -->",
+		"",
+		"<!-- easyharness:begin -->",
+		"two",
+		"<!-- easyharness:end -->",
+		"",
+	}, "\n")
+	if err := os.WriteFile(agentsPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write AGENTS.md: %v", err)
+	}
+
+	result := support.Run(t, workspace.Root, "install", "--scope", "agents")
+	support.RequireExitCode(t, result, 1)
+	support.RequireNoStderr(t, result)
+
+	payload := support.RequireJSONResult[installResult](t, result)
+	if payload.OK {
+		t.Fatalf("expected duplicate-block install failure, got %#v", payload)
+	}
+	if payload.Command != "install" || payload.Scope != "agents" {
+		t.Fatalf("unexpected duplicate-block payload: %#v", payload)
+	}
+}
+
+func TestInstallSkillsScopeBootstrapsOnlySkills(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+
+	result := support.Run(t, workspace.Root, "install", "--scope", "skills")
+	support.RequireSuccess(t, result)
+	support.RequireNoStderr(t, result)
+
+	payload := support.RequireJSONResult[installResult](t, result)
+	if !payload.OK || payload.Scope != "skills" {
+		t.Fatalf("unexpected skills-scope payload: %#v", payload)
+	}
+	support.RequireFileExists(t, workspace.Path(".agents/skills/harness-discovery/SKILL.md"))
+	support.RequireFileMissing(t, workspace.Path("AGENTS.md"))
+}
+
 func TestInstallRefreshesExistingManagedWrapperAndThenNoops(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 	agentsPath := workspace.Path("AGENTS.md")

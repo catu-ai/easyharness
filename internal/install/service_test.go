@@ -240,3 +240,34 @@ func TestInstallNoopsForRepoSpecificAgentsWrapperAfterRefresh(t *testing.T) {
 		t.Fatalf("expected repo-specific wrapper to become noop, got %#v", second.Actions)
 	}
 }
+
+func TestInstallRecognizesManagedBlockWithCRLFLineEndings(t *testing.T) {
+	root := t.TempDir()
+	content := strings.Join([]string{
+		"# AGENTS.md",
+		"",
+		"Repo-specific intro.",
+		"",
+		agentsManagedBlockBegin,
+		"old managed content",
+		agentsManagedBlockEnd,
+		"",
+	}, "\r\n")
+	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write AGENTS.md: %v", err)
+	}
+
+	svc := Service{Workdir: root}
+	first := svc.Install(Options{Scope: ScopeAgents})
+	if !first.OK {
+		t.Fatalf("first install failed: %#v", first)
+	}
+
+	second := svc.Install(Options{Scope: ScopeAgents})
+	if !second.OK {
+		t.Fatalf("second install failed: %#v", second)
+	}
+	if len(second.Actions) != 1 || second.Actions[0].Kind != ActionNoop {
+		t.Fatalf("expected CRLF rerun to noop, got %#v", second.Actions)
+	}
+}
