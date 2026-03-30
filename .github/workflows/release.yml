@@ -39,7 +39,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
+          fetch-depth: 1
+
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
           ref: ${{ steps.release-version.outputs.version }}
+          path: dist/release-source
           fetch-depth: 0
 
       - name: Verify release tag
@@ -50,13 +56,13 @@ jobs:
             echo "release version must be a v-prefixed tag, got ${version}" >&2
             exit 1
           fi
-          git fetch --force --tags origin
-          if ! git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+          git -C dist/release-source fetch --force --tags origin
+          if ! git -C dist/release-source rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
             echo "release version must reference an existing tag, got ${version}" >&2
             exit 1
           fi
-          tag_commit="$(git rev-list -n 1 "refs/tags/${version}")"
-          head_commit="$(git rev-parse HEAD)"
+          tag_commit="$(git -C dist/release-source rev-list -n 1 "refs/tags/${version}")"
+          head_commit="$(git -C dist/release-source rev-parse HEAD)"
           if [[ "${head_commit}" != "${tag_commit}" ]]; then
             echo "checked out commit ${head_commit} does not match tag ${version} (${tag_commit})" >&2
             exit 1
@@ -65,14 +71,15 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: dist/release-source/go.mod
           cache: true
 
       - name: Run tests
+        working-directory: dist/release-source
         run: go test ./...
 
       - name: Build release artifacts
-        run: scripts/build-release --version "${{ steps.release-version.outputs.version }}" --output-dir dist/release
+        run: dist/release-source/scripts/build-release --version "${{ steps.release-version.outputs.version }}" --output-dir dist/release
 
       - name: Publish release assets
         env:
@@ -90,9 +97,9 @@ jobs:
             if [[ ${#prerelease_edit_flags[@]} -gt 0 ]]; then
               gh release edit "${version}" "${prerelease_edit_flags[@]}"
             fi
-            gh release upload "${version}" dist/release/* --clobber
+            gh release upload "${version}" dist/release-source/dist/release/* --clobber
           else
-            gh release create "${version}" dist/release/* --title "${version}" --generate-notes "${prerelease_flags[@]}"
+            gh release create "${version}" dist/release-source/dist/release/* --title "${version}" --generate-notes "${prerelease_flags[@]}"
           fi
 
       - name: Verify published release namespace
@@ -109,7 +116,7 @@ jobs:
           scripts/render-homebrew-formula \
             --repo "${{ github.repository }}" \
             --tag "${{ steps.release-version.outputs.version }}" \
-            --checksums dist/release/SHA256SUMS \
+            --checksums dist/release-source/dist/release/SHA256SUMS \
             --output dist/homebrew/easyharness.rb
 
       - name: Check out Homebrew tap
@@ -157,8 +164,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.release-version.outputs.version }}
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Set up Go
         uses: actions/setup-go@v5
