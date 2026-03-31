@@ -1,0 +1,341 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v npx >/dev/null 2>&1; then
+  echo "npx is required to run Playwright browser validation." >&2
+  echo "Install Node.js/npm first, then rerun this script." >&2
+  exit 1
+fi
+
+export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+export PWCLI="$CODEX_HOME/skills/playwright/scripts/playwright_cli.sh"
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+workdir="${HARNESS_UI_WORKDIR:-$repo_root}"
+harness_bin="${HARNESS_UI_BINARY:-$workdir/.local/bin/harness}"
+host="${HARNESS_UI_HOST:-127.0.0.1}"
+port="${HARNESS_UI_PORT:-0}"
+tmp_dir="$(mktemp -d)"
+server_log="$tmp_dir/harness-ui.log"
+session_id="${HARNESS_UI_PLAYWRIGHT_SESSION:-harness-ui-smoke-$$-$(date +%s)}"
+output_dir="${HARNESS_UI_OUTPUT_DIR:-output/playwright/$session_id}"
+playwright_workdir="$tmp_dir/playwright"
+vite_log="$tmp_dir/vite-dev.log"
+
+server_pid=""
+lock_holder_pid=""
+vite_pid=""
+
+pwcli() {
+  (
+    cd "$playwright_workdir"
+    PLAYWRIGHT_CLI_SESSION="$session_id" "$PWCLI" "$@"
+  )
+}
+
+cleanup() {
+  if [[ -n "${lock_holder_pid}" ]]; then
+    kill "${lock_holder_pid}" >/dev/null 2>&1 || true
+    wait "${lock_holder_pid}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${server_pid}" ]]; then
+    kill "${server_pid}" >/dev/null 2>&1 || true
+    wait "${server_pid}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${vite_pid}" ]]; then
+    kill "${vite_pid}" >/dev/null 2>&1 || true
+    wait "${vite_pid}" >/dev/null 2>&1 || true
+  fi
+  pwcli close >/dev/null 2>&1 || true
+  rm -rf "$tmp_dir"
+}
+
+trap cleanup EXIT
+
+if [[ ! -x "$harness_bin" ]]; then
+  echo "Expected repo-local harness binary at ${harness_bin}" >&2
+  echo "Run scripts/install-dev-harness first, or override HARNESS_UI_BINARY." >&2
+  exit 1
+fi
+
+mkdir -p "$output_dir"
+mkdir -p "$playwright_workdir"
+
+vite_port="${HARNESS_UI_VITE_PORT:-$(python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)}"
+
+(
+  cd "$workdir"
+  "$harness_bin" ui --no-open --host "$host" --port "$port" >"$server_log" 2>&1
+) &
+server_pid="$!"
+
+base_url=""
+for _ in $(seq 1 50); do
+  base_url="$(sed -n 's/^Harness UI listening at \(http:\/\/[^[:space:]]*\)$/\1/p' "$server_log" | tail -n 1)"
+  if [[ -n "$base_url" ]] && curl -sf "${base_url}/api/status" >"$tmp_dir/status.json"; then
+    break
+  fi
+  sleep 0.2
+done
+
+if [[ -z "$base_url" || ! -s "$tmp_dir/status.json" ]]; then
+  echo "Harness UI failed to start." >&2
+  cat "$server_log" >&2 || true
+  exit 1
+fi
+
+status_summary="$(python3 - "$tmp_dir/status.json" <<'PY'
+import json, sys
+with open(sys.argv[1], 'r', encoding='utf-8') as fh:
+    payload = json.load(fh)
+print(payload.get("summary", ""))
+PY
+)"
+
+status_node="$(python3 - "$tmp_dir/status.json" <<'PY'
+import json, sys
+with open(sys.argv[1], 'r', encoding='utf-8') as fh:
+    payload = json.load(fh)
+print(((payload.get("state") or {}).get("current_node")) or "")
+PY
+)"
+
+plan_path="$(python3 - "$tmp_dir/status.json" <<'PY'
+import json, sys
+with open(sys.argv[1], 'r', encoding='utf-8') as fh:
+    payload = json.load(fh)
+artifacts = payload.get("artifacts") or {}
+print(artifacts.get("plan_path", ""))
+PY
+)"
+
+if [[ -z "$status_summary" || -z "$status_node" ]]; then
+  echo "Status payload did not include summary/current_node." >&2
+  cat "$tmp_dir/status.json" >&2
+  exit 1
+fi
+
+plan_stem=""
+if [[ -n "$plan_path" ]]; then
+  plan_stem="$(basename "${plan_path%.*}")"
+fi
+
+snapshot_path_from_output() {
+  sed -n 's/.*\[Snapshot](\(.*\)).*/\1/p' | tail -n 1
+}
+
+resolve_snapshot_path() {
+  local snapshot="$1"
+  if [[ "$snapshot" == /* ]]; then
+    printf '%s\n' "$snapshot"
+    return
+  fi
+  printf '%s/%s\n' "$playwright_workdir" "$snapshot"
+}
+
+capture_snapshot() {
+  local route="$1"
+  local label="$2"
+  local delay_seconds="${3:-0}"
+  local output snapshot
+  local target_url="${route}"
+
+  if [[ "$target_url" != http://* && "$target_url" != https://* ]]; then
+    target_url="${base_url}${route}"
+  fi
+
+  pwcli open "$target_url" >/dev/null
+  if [[ "$delay_seconds" != "0" ]]; then
+    sleep "$delay_seconds"
+  fi
+  output="$(pwcli snapshot)"
+  snapshot="$(resolve_snapshot_path "$(printf '%s\n' "$output" | snapshot_path_from_output)")"
+
+  if [[ -z "$snapshot" || ! -f "$snapshot" ]]; then
+    echo "Missing Playwright snapshot for ${route}" >&2
+    printf '%s\n' "$output" >&2
+    exit 1
+  fi
+
+  cp "$snapshot" "${output_dir}/${label}.yml"
+}
+
+assert_snapshot_contains() {
+  local label="$1"
+  local expected="$2"
+
+  if ! grep -Eq -- "$expected" "${output_dir}/${label}.yml"; then
+    echo "Snapshot ${output_dir}/${label}.yml did not contain expected pattern: ${expected}" >&2
+    cat "${output_dir}/${label}.yml" >&2
+    exit 1
+  fi
+}
+
+assert_snapshot_has_literal() {
+  local label="$1"
+  local expected="$2"
+  local snapshot="${output_dir}/${label}.yml"
+
+  if ! grep -Fq -- "$expected" "$snapshot"; then
+    echo "Snapshot ${snapshot} did not contain expected text: ${expected}" >&2
+    cat "$snapshot" >&2
+    exit 1
+  fi
+}
+
+link_ref_from_snapshot() {
+  local label="$1"
+  local snapshot="$2"
+  sed -n "s/.*link \"$label\" .*\\[ref=\\(e[0-9][0-9]*\\)\\].*/\\1/p" "$snapshot" | head -n 1
+}
+
+navigate_via_rail() {
+  local from_label="$1"
+  local link_label="$2"
+  local to_label="$3"
+  local expected_heading="$4"
+  local source_snapshot="${output_dir}/${from_label}.yml"
+  local link_ref
+  local output snapshot
+
+  link_ref="$(link_ref_from_snapshot "$link_label" "$source_snapshot")"
+  if [[ -z "$link_ref" ]]; then
+    echo "Could not find rail link \"$link_label\" in ${source_snapshot}" >&2
+    cat "$source_snapshot" >&2
+    exit 1
+  fi
+
+  pwcli click "$link_ref" >/dev/null
+  sleep 0.5
+  output="$(pwcli snapshot)"
+  snapshot="$(resolve_snapshot_path "$(printf '%s\n' "$output" | snapshot_path_from_output)")"
+
+  if [[ -z "$snapshot" || ! -f "$snapshot" ]]; then
+    echo "Missing Playwright snapshot after clicking ${link_label}" >&2
+    printf '%s\n' "$output" >&2
+    exit 1
+  fi
+
+  cp "$snapshot" "${output_dir}/${to_label}.yml"
+  assert_snapshot_contains "$to_label" "heading \"$expected_heading\""
+}
+
+capture_snapshot "/status" "status" 1
+assert_snapshot_contains "status" 'heading "Status"'
+assert_snapshot_has_literal "status" "$status_summary"
+assert_snapshot_has_literal "status" "$status_node"
+assert_snapshot_has_literal "status" "Next actions"
+capture_snapshot "/timeline" "timeline"
+assert_snapshot_contains "timeline" 'heading "Timeline"'
+assert_snapshot_contains "timeline" 'heading "WIP"'
+navigate_via_rail "status" "Timeline" "timeline-rail" "Timeline"
+navigate_via_rail "timeline-rail" "Status" "status-rail" "Status"
+capture_snapshot "/review" "review"
+assert_snapshot_contains "review" 'heading "Review"'
+assert_snapshot_contains "review" 'heading "WIP"'
+capture_snapshot "/diff" "diff"
+assert_snapshot_contains "diff" 'heading "Diff"'
+assert_snapshot_contains "diff" 'heading "WIP"'
+capture_snapshot "/files" "files"
+assert_snapshot_contains "files" 'heading "Files"'
+assert_snapshot_contains "files" 'heading "WIP"'
+assert_snapshot_has_literal "status" "$(basename "$workdir")"
+assert_snapshot_has_literal "status" "$workdir"
+
+if [[ -z "$plan_stem" ]]; then
+  echo "Status payload did not include an active plan path for failure-state validation." >&2
+  cat "$tmp_dir/status.json" >&2
+  exit 1
+fi
+
+lock_path="$workdir/.local/harness/plans/$plan_stem/.state-mutation.lock"
+lock_log="$tmp_dir/status-lock.log"
+python3 - "$lock_path" >"$lock_log" 2>&1 <<'PY' &
+import fcntl
+import os
+import sys
+import time
+
+lock_path = sys.argv[1]
+os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+with open(lock_path, "a+", encoding="utf-8") as fh:
+    fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+    print("locked", flush=True)
+    while True:
+        time.sleep(1)
+PY
+lock_holder_pid="$!"
+
+for _ in $(seq 1 25); do
+  if grep -Fq -- "locked" "$lock_log"; then
+    break
+  fi
+  sleep 0.1
+done
+
+if ! grep -Fq -- "locked" "$lock_log"; then
+  echo "Failed to acquire status mutation lock for failure-state validation." >&2
+  cat "$lock_log" >&2 || true
+  exit 1
+fi
+
+status_error_code="$(curl -s -o "$tmp_dir/status-error.json" -w '%{http_code}' "${base_url}/api/status")"
+if [[ "$status_error_code" != "503" ]]; then
+  echo "Expected /api/status to return 503 under lock contention, got ${status_error_code}." >&2
+  cat "$tmp_dir/status-error.json" >&2 || true
+  exit 1
+fi
+
+status_error_summary="$(python3 - "$tmp_dir/status-error.json" <<'PY'
+import json, sys
+with open(sys.argv[1], 'r', encoding='utf-8') as fh:
+    payload = json.load(fh)
+print(payload.get("summary", ""))
+PY
+)"
+
+capture_snapshot "/status" "status-error" 1
+assert_snapshot_contains "status-error" 'heading "Status"'
+assert_snapshot_has_literal "status-error" "$status_error_summary"
+assert_snapshot_has_literal "status-error" "another command is already mutating local state"
+assert_snapshot_has_literal "status-error" "retry after it finishes"
+
+kill "${lock_holder_pid}" >/dev/null 2>&1 || true
+wait "${lock_holder_pid}" >/dev/null 2>&1 || true
+lock_holder_pid=""
+
+HARNESS_UI_API_TARGET="$base_url" pnpm --dir "$repo_root/web" dev --host 127.0.0.1 --port "$vite_port" >"$vite_log" 2>&1 &
+vite_pid="$!"
+
+vite_url="http://127.0.0.1:${vite_port}"
+for _ in $(seq 1 50); do
+  if curl -sf "${vite_url}/status" >/dev/null; then
+    break
+  fi
+  sleep 0.2
+done
+
+if ! curl -sf "${vite_url}/status" >/dev/null; then
+  echo "Vite dev server failed to start." >&2
+  cat "$vite_log" >&2 || true
+  exit 1
+fi
+
+capture_snapshot "${vite_url}/status" "status-dev" 1
+assert_snapshot_contains "status-dev" 'heading "Status"'
+assert_snapshot_has_literal "status-dev" "$status_summary"
+assert_snapshot_has_literal "status-dev" "$status_node"
+assert_snapshot_has_literal "status-dev" "$workdir"
+
+kill "${vite_pid}" >/dev/null 2>&1 || true
+wait "${vite_pid}" >/dev/null 2>&1 || true
+vite_pid=""
+
+echo "Playwright UI smoke validation passed for ${base_url}"

@@ -29,6 +29,7 @@ The current command surface is:
 - `harness execute start`
 - `harness evidence submit`
 - `harness status`
+- `harness ui`
 - `harness review start`
 - `harness review submit`
 - `harness review aggregate`
@@ -69,6 +70,10 @@ default to markdown or plain text instead of the JSON envelope.
 
 `harness --version` is also a plain-text exception because it is a binary
 identity/debug probe rather than a workflow-state command.
+
+`harness ui` is another plain-text exception because it starts a local
+read-only workbench server rather than returning a workflow-state JSON
+envelope.
 
 `harness install` is a JSON-first bootstrap command, but it may omit workflow
 `state` because it manages repo-owned bootstrap assets rather than the tracked
@@ -263,6 +268,38 @@ Recommended next action:
 
 - run without `--dry-run` to apply the previewed bootstrap changes
 - open `AGENTS.md` and `.agents/skills/` to review the installed contract
+
+### `harness ui`
+
+Purpose:
+
+- start the local read-only harness UI workbench for the current repository
+
+Contract:
+
+- keep the UI read-only; it must not mutate harness state or trigger workflow
+  commands directly in the first slice
+- serve a self-contained local web application from the `harness` binary
+  rather than requiring a separate frontend runtime at execution time
+- support a small local-server flag surface:
+  - `--host`
+  - `--port`
+  - `--no-open`
+- default to binding a local interface and opening the browser automatically
+  unless `--no-open` is set
+- expose a resource-first read-only API surface for the embedded app instead
+  of introducing a second hidden product-only state store
+- render the current worktree's harness state through the UI more richly; it
+  must not fork a competing interpretation of workflow state from the CLI
+- allow the first delivered slice to keep `Timeline`, `Review`, `Diff`, and
+  `Files` as explicit WIP placeholders while `Status` is the only page backed
+  by live data
+
+Recommended next action:
+
+- open the local UI in a browser and inspect the current `Status` view
+- use `--no-open` or a fixed `--port` when debugging or automating the local
+  server
 
 ### `harness plan template`
 

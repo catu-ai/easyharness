@@ -76,6 +76,40 @@ harness --version
 After changing Go CLI code, rerun `scripts/install-dev-harness` so the direct
 `harness` command stays in sync with the working tree.
 
+When changing the embedded UI shell under `web/`, rebuild the production UI
+assets before relying on `harness ui` or rerunning Go builds/tests that embed
+the UI:
+
+```bash
+pnpm --dir web install
+pnpm --dir web build
+```
+
+For browser-level validation of the embedded shell, use the repo helper that
+drives the local UI through the
+[$playwright](/Users/yaozhang/.codex/skills/playwright/SKILL.md) wrapper:
+
+```bash
+scripts/ui-playwright-smoke
+```
+
+For frontend development against the live backend, run the bundled backend dev
+command in one terminal so Vite's default `/api` proxy has a live target on
+`127.0.0.1:4310`, then start Vite in a second terminal:
+
+```bash
+pnpm --dir web dev:harness
+pnpm --dir web dev
+```
+
+or point Vite at the actual `harness ui` URL explicitly when you prefer the
+CLI default auto-selected port:
+
+```bash
+harness ui --no-open
+HARNESS_UI_API_TARGET=http://127.0.0.1:<actual-port> pnpm --dir web dev
+```
+
 When changing the harness-managed bootstrap contract that this repository
 dogsfoods, edit `assets/bootstrap/` instead of hand-editing `.agents/skills/`.
 The `.agents/skills/` tree and this repository's managed `AGENTS.md` block are
@@ -173,6 +207,7 @@ checkout.
 - `harness execute start`
 - `harness evidence submit`
 - `harness status`
+- `harness ui`
 - `harness review start`
 - `harness review submit`
 - `harness review aggregate`
@@ -185,7 +220,11 @@ The root CLI also exposes `harness --version` as a plain-text debug flag for
 identifying the running binary. Unlike the stateful workflow commands above,
 it is not a JSON-first command surface.
 
-`harness ui` is deferred.
+`harness ui` starts a local read-only workbench for the current repository.
+The first delivered slice focuses on a live `Status` page backed by current
+harness data plus stable shell routes for `Timeline`, `Review`, `Diff`, and
+`Files`, which remain explicit WIP placeholders until their deeper data
+surfaces are implemented.
 
 ## Workflow
 

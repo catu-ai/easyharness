@@ -1,14 +1,17 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/catu-ai/easyharness/internal/evidence"
@@ -17,6 +20,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/review"
 	"github.com/catu-ai/easyharness/internal/status"
+	"github.com/catu-ai/easyharness/internal/ui"
 	versioninfo "github.com/catu-ai/easyharness/internal/version"
 )
 
@@ -67,6 +71,8 @@ func (a *App) Run(args []string) int {
 		return a.runStatus(args[1:])
 	case "install":
 		return a.runInstall(args[1:])
+	case "ui":
+		return a.runUI(args[1:])
 	case "-h", "--help", "help":
 		a.printRootUsage()
 		return 0
@@ -305,6 +311,53 @@ func (a *App) runInstall(args []string) int {
 		DryRun: *dryRun,
 	})
 	return a.writeJSONResult(result)
+}
+
+func (a *App) runUI(args []string) int {
+	fs := flag.NewFlagSet("harness ui", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	host := fs.String("host", "127.0.0.1", "Bind the local UI server to this host.")
+	port := fs.Int("port", 0, "Bind the local UI server to this port. Use 0 to auto-select an available port.")
+	noOpen := fs.Bool("no-open", false, "Start the local UI server without opening a browser.")
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness ui [--host <host>] [--port <port>] [--no-open]")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Start the local read-only harness UI workbench for the current repository.")
+		fmt.Fprintln(a.Stderr)
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	err = ui.Server{
+		Workdir:     workdir,
+		Host:        *host,
+		Port:        *port,
+		Stdout:      a.Stdout,
+		Stderr:      a.Stderr,
+		OpenBrowser: !*noOpen,
+	}.Run(ctx)
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "run harness ui: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func (a *App) runPlanTemplate(args []string) int {
@@ -695,6 +748,7 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "  reopen          Restore the current archived plan")
 	fmt.Fprintln(a.Stderr, "  status          Summarize the current plan and local execution state")
 	fmt.Fprintln(a.Stderr, "  install         Install or refresh the harness-managed repository bootstrap")
+	fmt.Fprintln(a.Stderr, "  ui              Start the local read-only harness UI workbench")
 }
 
 func (a *App) printPlanUsage() {

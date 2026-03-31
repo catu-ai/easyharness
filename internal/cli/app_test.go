@@ -228,6 +228,40 @@ func TestRootHelpMentionsVersionFlag(t *testing.T) {
 	if !strings.Contains(stderr.String(), "install         Install or refresh the harness-managed repository bootstrap") {
 		t.Fatalf("expected root help to mention install, got %q", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "ui              Start the local read-only harness UI workbench") {
+		t.Fatalf("expected root help to mention ui, got %q", stderr.String())
+	}
+}
+
+func TestUIHelpExitsZero(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"ui", "--help"})
+	if exitCode != 0 {
+		t.Fatalf("expected ui help exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "Usage: harness ui") {
+		t.Fatalf("expected ui help text, got %q", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout for ui help, got %q", stdout.String())
+	}
+}
+
+func TestUIRejectsPositionalArguments(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"ui", "extra"})
+	if exitCode != 2 {
+		t.Fatalf("expected ui positional-arg exit code 2, got %d", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "Usage: harness ui") {
+		t.Fatalf("expected ui usage on positional args, got %q", stderr.String())
+	}
 }
 
 func TestInstallCommandReturnsJSON(t *testing.T) {

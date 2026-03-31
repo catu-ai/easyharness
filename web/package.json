@@ -1,0 +1,22 @@
+{
+  "name": "harness-ui",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.32.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:harness": "harness ui --no-open --host 127.0.0.1 --port 4310",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "preact": "^10.27.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.2.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.2"
+  }
+}

@@ -19,6 +19,9 @@
 
 ## Proposals
 
+- [Harness UI Steering Surface Proposal](./proposals/harness-ui-steering-surface.md):
+  non-normative recommendation for the long-term `harness ui` workbench shape,
+  navigation model, and information architecture.
 - [Project Naming Proposal: `easyharness`](./proposals/project-name-easyharness.md):
   non-normative recommendation that favors `easyharness` over
   `microharness` and `superharness` from a user-mental-model perspective.
