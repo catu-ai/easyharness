@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/review-ledger.schema.json",
+  "$ref": "#/$defs/ReviewLedger",
+  "$defs": {
+    "ReviewLedger": {
+      "properties": {
+        "round_id": {
+          "type": "string",
+          "description": "RoundID is the stable identifier for the review round."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Kind is the review kind for the round."
+        },
+        "updated_at": {
+          "type": "string",
+          "description": "UpdatedAt is the timestamp of the most recent ledger update."
+        },
+        "slots": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ReviewLedgerSlot"
+              },
+              "type": "array",
+              "description": "Slots lists the current state of every manifest slot."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Slots lists the current state of every manifest slot."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "round_id",
+        "kind",
+        "updated_at",
+        "slots"
+      ],
+      "description": "ReviewLedger is the command-owned ledger artifact tracking submission status for a review round."
+    },
+    "ReviewLedgerSlot": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name is the human-readable dimension label."
+        },
+        "slot": {
+          "type": "string",
+          "description": "Slot is the stable slot identifier."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status is the current submission status for the slot."
+        },
+        "submission_path": {
+          "type": "string",
+          "description": "SubmissionPath is the path where the slot submission should exist."
+        },
+        "submitted_at": {
+          "type": "string",
+          "description": "SubmittedAt is the submission timestamp when the slot has been submitted."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "slot",
+        "status",
+        "submission_path"
+      ],
+      "description": "ReviewLedgerSlot records the current state for one reviewer slot in the ledger."
+    }
+  },
+  "title": "Review ledger artifact",
+  "description": "Command-owned review ledger artifact for one review round."
+}

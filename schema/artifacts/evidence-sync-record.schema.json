@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/evidence-sync-record.schema.json",
+  "$ref": "#/$defs/EvidenceSyncRecord",
+  "$defs": {
+    "EvidenceSyncRecord": {
+      "properties": {
+        "record_id": {
+          "type": "string",
+          "description": "RecordID is the stable identifier of the evidence record."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Kind is the evidence kind, always `sync` for this record family."
+        },
+        "plan_path": {
+          "type": "string",
+          "description": "PlanPath is the archived plan path associated with the record."
+        },
+        "plan_stem": {
+          "type": "string",
+          "description": "PlanStem is the durable plan stem associated with the record."
+        },
+        "revision": {
+          "type": "integer",
+          "description": "Revision is the plan-local revision associated with the record."
+        },
+        "recorded_at": {
+          "type": "string",
+          "description": "RecordedAt is the record creation timestamp."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status is the remote-sync result status."
+        },
+        "base_ref": {
+          "type": "string",
+          "description": "BaseRef is the compared base ref when one is available."
+        },
+        "head_ref": {
+          "type": "string",
+          "description": "HeadRef is the compared head ref when one is available."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason is the human-readable explanation attached to the evidence record."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "record_id",
+        "kind",
+        "plan_path",
+        "plan_stem",
+        "revision",
+        "recorded_at",
+        "status"
+      ],
+      "description": "EvidenceSyncRecord is the command-owned sync evidence artifact."
+    }
+  },
+  "title": "Sync evidence record artifact",
+  "description": "Command-owned sync evidence artifact."
+}

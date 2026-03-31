@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/inputs/evidence.ci.schema.json",
+  "$ref": "#/$defs/EvidenceCIInput",
+  "$defs": {
+    "EvidenceCIInput": {
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Status is the CI result status."
+        },
+        "provider": {
+          "type": "string",
+          "description": "Provider is the CI provider name when one is available."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL is the CI run URL when one is available."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason is the human-readable explanation attached to the evidence record."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "description": "EvidenceCIInput is the JSON input consumed by `harness evidence submit --kind ci`."
+    }
+  },
+  "title": "CI evidence input",
+  "description": "JSON input consumed by `harness evidence submit --kind ci`."
+}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	bootstrapassets "github.com/catu-ai/easyharness/assets/bootstrap"
+	"github.com/catu-ai/easyharness/internal/contracts"
 )
 
 const (
@@ -38,32 +39,10 @@ type Options struct {
 	DryRun bool
 }
 
-type Result struct {
-	OK         bool           `json:"ok"`
-	Command    string         `json:"command"`
-	Summary    string         `json:"summary"`
-	Mode       string         `json:"mode"`
-	Scope      string         `json:"scope"`
-	Actions    []Action       `json:"actions"`
-	NextAction []NextAction   `json:"next_actions"`
-	Errors     []CommandError `json:"errors,omitempty"`
-}
-
-type Action struct {
-	Path    string `json:"path"`
-	Kind    string `json:"kind"`
-	Details string `json:"details"`
-}
-
-type NextAction struct {
-	Command     *string `json:"command"`
-	Description string  `json:"description"`
-}
-
-type CommandError struct {
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
+type Result = contracts.InstallResult
+type Action = contracts.InstallAction
+type NextAction = contracts.NextAction
+type CommandError = contracts.ErrorDetail
 
 type plannedWrite struct {
 	relPath string

@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/status.result.schema.json",
+  "$ref": "#/$defs/StatusResult",
+  "$defs": {
+    "ErrorDetail": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path identifies the field, section, or artifact path associated with the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message is the human-readable explanation of the problem."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "message"
+      ],
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+    },
+    "NextAction": {
+      "properties": {
+        "command": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description explains the suggested next step in plain language."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "command",
+        "description"
+      ],
+      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
+    },
+    "StatusArtifacts": {
+      "properties": {
+        "plan_path": {
+          "type": "string",
+          "description": "PlanPath is the active, archived, or last-landed plan path relevant to the current status resolution.",
+          "examples": [
+            "docs/plans/active/2026-03-31-centralize-contract-schemas-and-generated-reference-docs.md"
+          ]
+        },
+        "local_state_path": {
+          "type": "string",
+          "description": "LocalStatePath is the plan-local state cache path when one exists.",
+          "examples": [
+            ".local/harness/plans/2026-03-31-centralize-contract-schemas-and-generated-reference-docs/state.json"
+          ]
+        },
+        "review_round_id": {
+          "type": "string",
+          "description": "ReviewRoundID is the active review round identifier when review is in flight."
+        },
+        "ci_record_id": {
+          "type": "string",
+          "description": "CIRecordID is the latest CI evidence record identifier when known."
+        },
+        "publish_record_id": {
+          "type": "string",
+          "description": "PublishRecordID is the latest publish evidence record identifier when known."
+        },
+        "sync_record_id": {
+          "type": "string",
+          "description": "SyncRecordID is the latest sync evidence record identifier when known."
+        },
+        "last_landed_plan_path": {
+          "type": "string",
+          "description": "LastLandedPlanPath is the most recent landed plan path when the repository is otherwise idle."
+        },
+        "last_landed_at": {
+          "type": "string",
+          "description": "LastLandedAt is the timestamp of the most recent landed plan."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "StatusArtifacts lists stable paths or identifiers related to the current status result."
+    },
+    "StatusFacts": {
+      "properties": {
+        "current_step": {
+          "type": "string",
+          "description": "CurrentStep is the first unfinished plan step when one exists."
+        },
+        "revision": {
+          "type": "integer",
+          "description": "Revision is the current plan-local revision number."
+        },
+        "reopen_mode": {
+          "type": "string",
+          "description": "ReopenMode is the active reopen mode when a reopen repair path is in effect."
+        },
+        "review_kind": {
+          "type": "string",
+          "description": "ReviewKind is the review kind for the active review round."
+        },
+        "review_trigger": {
+          "type": "string",
+          "description": "ReviewTrigger is the derived reason label for the active review round."
+        },
+        "review_title": {
+          "type": "string",
+          "description": "ReviewTitle is the human-readable title for the active review round when one exists."
+        },
+        "review_status": {
+          "type": "string",
+          "description": "ReviewStatus summarizes the aggregate review state for the current node."
+        },
+        "archive_blocker_count": {
+          "type": "integer",
+          "description": "ArchiveBlockerCount reports how many archive-readiness blockers are still present."
+        },
+        "publish_status": {
+          "type": "string",
+          "description": "PublishStatus summarizes the latest publish evidence state."
+        },
+        "pr_url": {
+          "type": "string",
+          "description": "PRURL is the currently known pull request URL for the candidate branch."
+        },
+        "ci_status": {
+          "type": "string",
+          "description": "CIStatus summarizes the latest CI evidence state."
+        },
+        "sync_status": {
+          "type": "string",
+          "description": "SyncStatus summarizes the latest remote-sync evidence state."
+        },
+        "land_pr_url": {
+          "type": "string",
+          "description": "LandPRURL is the pull request URL recorded for the land phase."
+        },
+        "land_commit": {
+          "type": "string",
+          "description": "LandCommit is the merge commit or landed commit recorded for the land phase."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "StatusFacts carries selected derived details that help interpret a status node without dumping the full local state model."
+    },
+    "StatusResult": {
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "OK reports whether the command succeeded."
+        },
+        "command": {
+          "type": "string",
+          "description": "Command is the stable command identifier for the result payload."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary is the concise human-readable explanation of the current state."
+        },
+        "state": {
+          "$ref": "#/$defs/StatusState",
+          "description": "State is the canonical workflow position resolved for the current worktree."
+        },
+        "facts": {
+          "$ref": "#/$defs/StatusFacts",
+          "description": "Facts carries selected high-signal derived details that help explain the current node."
+        },
+        "artifacts": {
+          "$ref": "#/$defs/StatusArtifacts",
+          "description": "Artifacts points to stable paths or identifiers that help the caller locate related contract artifacts."
+        },
+        "next_actions": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/NextAction"
+              },
+              "type": "array",
+              "description": "NextAction lists the most relevant follow-up steps in priority order."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "NextAction lists the most relevant follow-up steps in priority order."
+        },
+        "blockers": {
+          "items": {
+            "$ref": "#/$defs/ErrorDetail"
+          },
+          "type": "array",
+          "description": "Blockers lists state issues that block ordinary execution progression."
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Warnings lists non-blocking workflow reminders or ambiguity notes."
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/ErrorDetail"
+          },
+          "type": "array",
+          "description": "Errors lists hard failures that prevented full state resolution."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ok",
+        "command",
+        "summary",
+        "state",
+        "next_actions"
+      ],
+      "description": "StatusResult is the JSON result returned by `harness status`."
+    },
+    "StatusState": {
+      "properties": {
+        "current_node": {
+          "type": "string",
+          "description": "CurrentNode is the resolved v0.2 workflow node for the current worktree.",
+          "examples": [
+            "execution/step-1/implement"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "current_node"
+      ],
+      "description": "StatusState is the canonical workflow node returned by `harness status`."
+    }
+  },
+  "title": "Status command result",
+  "description": "JSON output for `harness status`."
+}

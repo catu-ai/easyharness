@@ -12,6 +12,13 @@ JSON envelopes described here assume the canonical-node runtime model from
 [State Model](./state-model.md) and the exact transition matrix from
 [State Transitions](./state-transitions.md).
 
+The prose in this spec remains normative for command purpose, workflow intent,
+and compatibility boundaries. Field-level JSON structure for the current
+command outputs and inputs lives in the checked-in schema registry at
+[`schema/index.json`](../../schema/index.json), sourced from the Go-owned
+contract module under `internal/contracts` and explained at
+[Contract Registry](./contract.md).
+
 ## Command Surface
 
 The current command surface is:
@@ -93,7 +100,9 @@ interrupted or overlapping writes.
 
 ## Shared Output Envelope
 
-Stateful commands should return an envelope shaped like:
+Stateful commands share a common JSON envelope vocabulary, but not every
+stateful command returns every field. Commands that report workflow position
+should return an envelope shaped like:
 
 ```json
 {
@@ -128,8 +137,12 @@ Stateful commands should return an envelope shaped like:
 - `ok`
 - `command`
 - `summary`
-- `state`
 - `next_actions`
+
+`state` is required for commands that report workflow position, such as
+`harness status`. Commands whose job is bootstrap, review-orchestration
+artifacts, or append-only evidence recording may omit `state` when they do not
+need to report a workflow-position payload.
 
 ### Common Optional Fields
 
@@ -138,8 +151,8 @@ Stateful commands should return an envelope shaped like:
 - `warnings`
 - `errors`
 
-`state` should describe post-command state for mutating commands and current
-state for read-only stateful commands.
+When present, `state` should describe post-command state for mutating commands
+and current state for read-only stateful commands.
 
 `artifacts` is optional and command-specific. Omit it when there are no stable
 artifact paths or IDs worth returning.
@@ -197,7 +210,8 @@ help explain the node:
 - latest evidence record IDs
 - last-landed context
 
-Legacy v0.1 fields are not part of the contract and must not be emitted:
+Legacy v0.1 fields are not part of the `harness status` contract and must not
+be emitted by `harness status`:
 
 - `plan_status`
 - `lifecycle`

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/current-plan.schema.json",
+  "$ref": "#/$defs/CurrentPlanFile",
+  "$defs": {
+    "CurrentPlanFile": {
+      "properties": {
+        "plan_path": {
+          "type": "string",
+          "description": "PlanPath is the current active or archived plan path when work is in flight."
+        },
+        "last_landed_plan_path": {
+          "type": "string",
+          "description": "LastLandedPlanPath is the most recent landed plan path when the worktree is otherwise idle."
+        },
+        "last_landed_at": {
+          "type": "string",
+          "description": "LastLandedAt is the timestamp of the most recent landed plan."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "CurrentPlanFile is the worktree-level pointer file under `.local/harness/current-plan.json`."
+    }
+  },
+  "title": "Current plan pointer file",
+  "description": "Worktree-level pointer artifact at `.local/harness/current-plan.json`."
+}

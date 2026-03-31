@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/lifecycle.result.schema.json",
+  "$ref": "#/$defs/LifecycleResult",
+  "$defs": {
+    "ErrorDetail": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path identifies the field, section, or artifact path associated with the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message is the human-readable explanation of the problem."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "message"
+      ],
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+    },
+    "LifecycleArtifacts": {
+      "properties": {
+        "from_plan_path": {
+          "type": "string",
+          "description": "FromPlanPath is the source plan path for transitions that move or archive a plan."
+        },
+        "to_plan_path": {
+          "type": "string",
+          "description": "ToPlanPath is the destination plan path for transitions that create or move a plan artifact."
+        },
+        "local_state_path": {
+          "type": "string",
+          "description": "LocalStatePath is the plan-local state cache path when one exists."
+        },
+        "current_plan_path": {
+          "type": "string",
+          "description": "CurrentPlanPath is the worktree-level current-plan pointer path when the command updated it."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from_plan_path",
+        "to_plan_path"
+      ],
+      "description": "LifecycleArtifacts lists the relevant plan and local-state paths for a lifecycle command result."
+    },
+    "LifecycleResult": {
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "OK reports whether the command succeeded."
+        },
+        "command": {
+          "type": "string",
+          "description": "Command is the stable command identifier for the result payload."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary is the concise human-readable outcome description."
+        },
+        "state": {
+          "$ref": "#/$defs/LifecycleState",
+          "description": "State carries the command-specific lifecycle status fields currently emitted by these lifecycle commands."
+        },
+        "artifacts": {
+          "$ref": "#/$defs/LifecycleArtifacts",
+          "description": "Artifacts points to relevant plan and local-state paths for the command."
+        },
+        "next_actions": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/NextAction"
+              },
+              "type": "array",
+              "description": "NextAction lists the most relevant follow-up steps in priority order."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "NextAction lists the most relevant follow-up steps in priority order."
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/ErrorDetail"
+          },
+          "type": "array",
+          "description": "Errors lists hard failures that prevented the command from succeeding."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ok",
+        "command",
+        "summary",
+        "state",
+        "next_actions"
+      ],
+      "description": "LifecycleResult is the JSON result shape currently shared by `harness execute start`, `harness archive`, `harness reopen`, `harness land`, and `harness land complete`."
+    },
+    "LifecycleState": {
+      "properties": {
+        "plan_status": {
+          "type": "string",
+          "description": "PlanStatus is the tracked plan status value used by lifecycle commands."
+        },
+        "lifecycle": {
+          "type": "string",
+          "description": "Lifecycle is the lifecycle phase value used by lifecycle commands."
+        },
+        "revision": {
+          "type": "integer",
+          "description": "Revision is the current plan-local revision number."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "plan_status",
+        "lifecycle",
+        "revision"
+      ],
+      "description": "LifecycleState carries the current lifecycle command state shape. These fields remain part of the current public contract even though `status` now centers on `current_node`."
+    },
+    "NextAction": {
+      "properties": {
+        "command": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description explains the suggested next step in plain language."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "command",
+        "description"
+      ],
+      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
+    }
+  },
+  "title": "Lifecycle command result",
+  "description": "Shared JSON output shape for lifecycle commands such as `harness execute start`, `harness archive`, `harness reopen`, `harness land`, and `harness land complete`."
+}

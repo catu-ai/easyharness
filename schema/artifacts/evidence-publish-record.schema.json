@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/evidence-publish-record.schema.json",
+  "$ref": "#/$defs/EvidencePublishRecord",
+  "$defs": {
+    "EvidencePublishRecord": {
+      "properties": {
+        "record_id": {
+          "type": "string",
+          "description": "RecordID is the stable identifier of the evidence record."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Kind is the evidence kind, always `publish` for this record family."
+        },
+        "plan_path": {
+          "type": "string",
+          "description": "PlanPath is the archived plan path associated with the record."
+        },
+        "plan_stem": {
+          "type": "string",
+          "description": "PlanStem is the durable plan stem associated with the record."
+        },
+        "revision": {
+          "type": "integer",
+          "description": "Revision is the plan-local revision associated with the record."
+        },
+        "recorded_at": {
+          "type": "string",
+          "description": "RecordedAt is the record creation timestamp."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status is the publish result status."
+        },
+        "pr_url": {
+          "type": "string",
+          "description": "PRURL is the pull request URL when one is available."
+        },
+        "branch": {
+          "type": "string",
+          "description": "Branch is the candidate branch name when one is available."
+        },
+        "base": {
+          "type": "string",
+          "description": "Base is the base branch name when one is available."
+        },
+        "commit": {
+          "type": "string",
+          "description": "Commit is the pushed commit SHA when one is available."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason is the human-readable explanation attached to the evidence record."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "record_id",
+        "kind",
+        "plan_path",
+        "plan_stem",
+        "revision",
+        "recorded_at",
+        "status"
+      ],
+      "description": "EvidencePublishRecord is the command-owned publish evidence artifact."
+    }
+  },
+  "title": "Publish evidence record artifact",
+  "description": "Command-owned publish evidence artifact."
+}

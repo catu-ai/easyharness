@@ -1,0 +1,706 @@
+package contractsync
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"reflect"
+	"sort"
+	"strings"
+
+	"github.com/catu-ai/easyharness/internal/contracts"
+	"github.com/invopop/jsonschema"
+	orderedmap "github.com/wk8/go-ordered-map/v2"
+)
+
+const (
+	schemaBaseID = "https://github.com/catu-ai/easyharness/tree/main/"
+	moduleRootID = "github.com/catu-ai/easyharness"
+)
+
+// Sync generates the checked-in contract schemas and removes deprecated generated docs.
+func Sync(workdir string, check bool) error {
+	expected, err := expectedFiles(workdir)
+	if err != nil {
+		return err
+	}
+
+	ownedRoots := []string{
+		filepath.Join(workdir, "schema"),
+		filepath.Join(workdir, "docs", "reference", "contracts"),
+	}
+	if check {
+		return checkFiles(workdir, ownedRoots, expected)
+	}
+	return writeFiles(workdir, ownedRoots, expected)
+}
+
+func expectedFiles(workdir string) (map[string][]byte, error) {
+	entries := contracts.SchemaRegistry()
+	comments, err := loadContractComments(workdir)
+	if err != nil {
+		return nil, err
+	}
+	reflector := &jsonschema.Reflector{}
+	if err := reflector.AddGoComments(moduleRootID, workdir, jsonschema.WithFullComment()); err != nil {
+		return nil, fmt.Errorf("load contract comments: %w", err)
+	}
+
+	index := schemaIndex{
+		Title:       "easyharness contract schema index",
+		Description: "Generated JSON Schema index for public command surfaces plus CLI-owned runtime artifacts.",
+		Schemas:     make([]schemaIndexEntry, 0, len(entries)),
+	}
+
+	expected := make(map[string][]byte, len(entries)+1)
+
+	for _, entry := range entries {
+		schemaObj := reflector.ReflectFromType(entry.Type)
+		applyComments(schemaObj, comments)
+		applyNullability(schemaObj, collectFieldMetadata(entry))
+		schemaObj.Version = jsonschema.Version
+		schemaObj.ID = jsonschema.ID(schemaBaseID + filepath.ToSlash(entry.Path))
+		schemaObj.Title = entry.Title
+		schemaObj.Description = entry.Description
+
+		schemaBytes, err := marshalJSON(schemaObj)
+		if err != nil {
+			return nil, fmt.Errorf("marshal schema %s: %w", entry.Key, err)
+		}
+		expected[entry.Path] = schemaBytes
+
+		index.Schemas = append(index.Schemas, schemaIndexEntry{
+			Key:         entry.Key,
+			Group:       entry.Group,
+			Surface:     schemaSurface(entry.Group),
+			Title:       entry.Title,
+			Description: entry.Description,
+			Path:        filepath.ToSlash(entry.Path),
+			ID:          string(schemaObj.ID),
+			GoType:      entry.Type.PkgPath() + "." + entry.Type.Name(),
+		})
+	}
+
+	sort.Slice(index.Schemas, func(i, j int) bool {
+		if index.Schemas[i].Group == index.Schemas[j].Group {
+			return index.Schemas[i].Key < index.Schemas[j].Key
+		}
+		return index.Schemas[i].Group < index.Schemas[j].Group
+	})
+	indexBytes, err := marshalJSON(index)
+	if err != nil {
+		return nil, fmt.Errorf("marshal schema index: %w", err)
+	}
+	expected["schema/index.json"] = indexBytes
+	return expected, nil
+}
+
+func marshalJSON(v any) ([]byte, error) {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	data = append(data, '\n')
+	return data, nil
+}
+
+func renderSchemaSection(b *strings.Builder, title string, schema map[string]any) {
+	fmt.Fprintf(b, "## %s\n\n", title)
+	if desc := stringFromAny(schema["description"]); desc != "" {
+		fmt.Fprintf(b, "%s\n\n", desc)
+	}
+	renderExamples(b, schema["examples"])
+	properties := orderedPropertyNames(schema["properties"])
+	if len(properties) == 0 {
+		b.WriteString("This schema does not define object properties.\n\n")
+		return
+	}
+
+	required := stringSet(schema["required"])
+	b.WriteString("| Field | Type | Required | Description |\n")
+	b.WriteString("| --- | --- | --- | --- |\n")
+	props := mapFromAny(schema["properties"])
+	for _, name := range properties {
+		prop := mapFromAny(props[name])
+		desc := stringFromAny(prop["description"])
+		exampleText := exampleSuffix(prop["examples"])
+		if exampleText != "" {
+			if desc != "" {
+				desc += " "
+			}
+			desc += exampleText
+		}
+		fmt.Fprintf(
+			b,
+			"| `%s` | `%s` | %s | %s |\n",
+			name,
+			schemaTypeLabel(prop),
+			yesNo(required[name]),
+			escapeTable(desc),
+		)
+	}
+	b.WriteString("\n")
+}
+
+func renderExamples(b *strings.Builder, value any) {
+	examples := examplesFromAny(value)
+	if len(examples) == 0 {
+		return
+	}
+	b.WriteString("Examples:\n")
+	for _, example := range examples {
+		fmt.Fprintf(b, "- `%s`\n", example)
+	}
+	b.WriteString("\n")
+}
+
+func orderedPropertyNames(value any) []string {
+	props := mapFromAny(value)
+	names := make([]string, 0, len(props))
+	for name := range props {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func resolveRootSchema(raw map[string]any) map[string]any {
+	if ref := stringFromAny(raw["$ref"]); strings.HasPrefix(ref, "#/$defs/") {
+		name := strings.TrimPrefix(ref, "#/$defs/")
+		if defs := mapFromAny(raw["$defs"]); defs != nil {
+			if root := mapFromAny(defs[name]); root != nil {
+				if root["description"] == nil && raw["description"] != nil {
+					root["description"] = raw["description"]
+				}
+				return root
+			}
+		}
+	}
+	return raw
+}
+
+func schemaTypeLabel(schema map[string]any) string {
+	if ref := stringFromAny(schema["$ref"]); ref != "" {
+		if strings.HasPrefix(ref, "#/$defs/") {
+			return strings.TrimPrefix(ref, "#/$defs/")
+		}
+		return ref
+	}
+
+	if t := schema["type"]; t != nil {
+		switch typed := t.(type) {
+		case string:
+			if typed == "array" {
+				if items := mapFromAny(schema["items"]); items != nil {
+					return "array<" + schemaTypeLabel(items) + ">"
+				}
+			}
+			return typed
+		case []any:
+			out := make([]string, 0, len(typed))
+			for _, item := range typed {
+				if itemStr := stringFromAny(item); itemStr != "" {
+					out = append(out, itemStr)
+				}
+			}
+			return strings.Join(out, " | ")
+		}
+	}
+
+	if enumValues := examplesFromAny(schema["enum"]); len(enumValues) > 0 {
+		return "enum"
+	}
+	if oneOf := arrayOfMaps(schema["oneOf"]); len(oneOf) > 0 {
+		parts := make([]string, 0, len(oneOf))
+		for _, branch := range oneOf {
+			parts = append(parts, schemaTypeLabel(branch))
+		}
+		return strings.Join(parts, " | ")
+	}
+	if len(mapFromAny(schema["properties"])) > 0 {
+		return "object"
+	}
+	return "any"
+}
+
+func stringSet(value any) map[string]bool {
+	items := examplesFromAny(value)
+	out := make(map[string]bool, len(items))
+	for _, item := range items {
+		out[item] = true
+	}
+	return out
+}
+
+func exampleSuffix(value any) string {
+	examples := examplesFromAny(value)
+	if len(examples) == 0 {
+		return ""
+	}
+	return "Examples: `" + strings.Join(examples, "`, `") + "`."
+}
+
+func examplesFromAny(value any) []string {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		switch typed := item.(type) {
+		case string:
+			out = append(out, typed)
+		default:
+			data, err := json.Marshal(typed)
+			if err == nil {
+				out = append(out, string(data))
+			}
+		}
+	}
+	return out
+}
+
+func arrayOfMaps(value any) []map[string]any {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		if mapped := mapFromAny(item); mapped != nil {
+			out = append(out, mapped)
+		}
+	}
+	return out
+}
+
+func mapFromAny(value any) map[string]any {
+	mapped, _ := value.(map[string]any)
+	return mapped
+}
+
+func stringFromAny(value any) string {
+	str, _ := value.(string)
+	return str
+}
+
+func yesNo(value bool) string {
+	if value {
+		return "yes"
+	}
+	return "no"
+}
+
+func escapeTable(value string) string {
+	replaced := strings.ReplaceAll(value, "\n", "<br>")
+	replaced = strings.ReplaceAll(replaced, "|", "\\|")
+	return replaced
+}
+
+func writeFiles(workdir string, ownedRoots []string, expected map[string][]byte) error {
+	for _, root := range ownedRoots {
+		if err := os.RemoveAll(root); err != nil {
+			return fmt.Errorf("remove generated root %s: %w", root, err)
+		}
+	}
+	return writeExpectedFiles(workdir, expected)
+}
+
+func writeExpectedFiles(workdir string, expected map[string][]byte) error {
+	paths := sortedPaths(expected)
+	for _, relPath := range paths {
+		absPath := filepath.Join(workdir, filepath.FromSlash(relPath))
+		if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
+			return fmt.Errorf("create parent directory for %s: %w", relPath, err)
+		}
+		if err := os.WriteFile(absPath, expected[relPath], 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", relPath, err)
+		}
+	}
+	return nil
+}
+
+func checkFiles(workdir string, ownedRoots []string, expected map[string][]byte) error {
+	var issues []string
+	for _, relPath := range sortedPaths(expected) {
+		absPath := filepath.Join(workdir, filepath.FromSlash(relPath))
+		data, err := os.ReadFile(absPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				issues = append(issues, fmt.Sprintf("missing generated file: %s", relPath))
+				continue
+			}
+			return fmt.Errorf("read %s: %w", relPath, err)
+		}
+		if !bytes.Equal(data, expected[relPath]) {
+			issues = append(issues, fmt.Sprintf("stale generated file: %s", relPath))
+		}
+	}
+
+	expectedSet := make(map[string]bool, len(expected))
+	for path := range expected {
+		expectedSet[path] = true
+	}
+	for _, root := range ownedRoots {
+		if err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				if os.IsNotExist(err) {
+					return nil
+				}
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			rel, err := filepath.Rel(workdir, path)
+			if err != nil {
+				return err
+			}
+			rel = filepath.ToSlash(rel)
+			if !expectedSet[rel] {
+				issues = append(issues, fmt.Sprintf("unexpected generated file: %s", rel))
+			}
+			return nil
+		}); err != nil {
+			return fmt.Errorf("scan generated root %s: %w", root, err)
+		}
+	}
+
+	if len(issues) > 0 {
+		sort.Strings(issues)
+		return fmt.Errorf("%s", strings.Join(issues, "\n"))
+	}
+	return nil
+}
+
+func sortedPaths(expected map[string][]byte) []string {
+	paths := make([]string, 0, len(expected))
+	for path := range expected {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+type commentMetadata struct {
+	Types  map[string]string
+	Fields map[string]map[string]string
+}
+
+type fieldMetadata struct {
+	Nullable bool
+}
+
+func loadContractComments(workdir string) (commentMetadata, error) {
+	out := commentMetadata{
+		Types:  map[string]string{},
+		Fields: map[string]map[string]string{},
+	}
+
+	fileSet := token.NewFileSet()
+	pkgs, err := parser.ParseDir(fileSet, filepath.Join(workdir, "internal", "contracts"), nil, parser.ParseComments)
+	if err != nil {
+		return out, fmt.Errorf("parse contract package comments: %w", err)
+	}
+
+	pkg := pkgs["contracts"]
+	if pkg == nil {
+		return out, fmt.Errorf("contract package not found under internal/contracts")
+	}
+
+	for _, file := range pkg.Files {
+		for _, decl := range file.Decls {
+			genDecl, ok := decl.(*ast.GenDecl)
+			if !ok || genDecl.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range genDecl.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				typeName := typeSpec.Name.Name
+				typeDoc := cleanComment(typeSpec.Doc)
+				if typeDoc == "" {
+					typeDoc = cleanComment(genDecl.Doc)
+				}
+				if typeDoc != "" {
+					out.Types[typeName] = typeDoc
+				}
+
+				structType, ok := typeSpec.Type.(*ast.StructType)
+				if !ok {
+					continue
+				}
+				fieldDocs := make(map[string]string)
+				for _, field := range structType.Fields.List {
+					fieldDoc := cleanComment(field.Doc)
+					if fieldDoc == "" {
+						fieldDoc = cleanComment(field.Comment)
+					}
+					if fieldDoc == "" {
+						continue
+					}
+
+					jsonName := jsonFieldName(field)
+					if jsonName == "" {
+						continue
+					}
+					fieldDocs[jsonName] = fieldDoc
+				}
+				if len(fieldDocs) > 0 {
+					out.Fields[typeName] = fieldDocs
+				}
+			}
+		}
+	}
+	return out, nil
+}
+
+func applyComments(schema *jsonschema.Schema, comments commentMetadata) {
+	if schema == nil {
+		return
+	}
+	for name, def := range schema.Definitions {
+		if def == nil {
+			continue
+		}
+		if def.Description == "" {
+			def.Description = comments.Types[name]
+		}
+		applyFieldComments(def.Properties, comments.Fields[name])
+	}
+}
+
+func applyFieldComments(properties *orderedmap.OrderedMap[string, *jsonschema.Schema], fieldDocs map[string]string) {
+	if properties == nil || len(fieldDocs) == 0 {
+		return
+	}
+	for pair := properties.Oldest(); pair != nil; pair = pair.Next() {
+		if pair.Value == nil || pair.Value.Description != "" {
+			continue
+		}
+		pair.Value.Description = fieldDocs[pair.Key]
+	}
+}
+
+func collectFieldMetadata(entry contracts.SchemaEntry) map[string]map[string]fieldMetadata {
+	out := map[string]map[string]fieldMetadata{}
+	seen := map[reflect.Type]bool{}
+	collectTypeMetadata(indirectType(entry.Type), entry.Shape, out, seen)
+	return out
+}
+
+func collectTypeMetadata(t reflect.Type, shape string, out map[string]map[string]fieldMetadata, seen map[reflect.Type]bool) {
+	if t == nil || seen[t] {
+		return
+	}
+	seen[t] = true
+	if t.Kind() != reflect.Struct || t.PkgPath() != "github.com/catu-ai/easyharness/internal/contracts" {
+		return
+	}
+
+	fieldMap := make(map[string]fieldMetadata)
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		jsonName, omitempty := jsonTagMetadata(field)
+		if jsonName == "" {
+			continue
+		}
+		nullable := fieldNullable(shape, field.Type, omitempty, field.Tag.Get("easyharness"))
+		fieldMap[jsonName] = fieldMetadata{
+			Nullable: nullable,
+		}
+		collectNestedFieldTypes(field.Type, shape, out, seen)
+	}
+	if len(fieldMap) > 0 {
+		out[t.Name()] = fieldMap
+	}
+}
+
+func collectNestedFieldTypes(t reflect.Type, shape string, out map[string]map[string]fieldMetadata, seen map[reflect.Type]bool) {
+	t = indirectType(t)
+	if t == nil {
+		return
+	}
+	switch t.Kind() {
+	case reflect.Struct:
+		collectTypeMetadata(t, shape, out, seen)
+	case reflect.Slice, reflect.Array:
+		collectNestedFieldTypes(t.Elem(), shape, out, seen)
+	case reflect.Map:
+		collectNestedFieldTypes(t.Elem(), shape, out, seen)
+	}
+}
+
+func indirectType(t reflect.Type) reflect.Type {
+	for t != nil && t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return t
+}
+
+func jsonTagMetadata(field reflect.StructField) (name string, omitempty bool) {
+	tag := field.Tag.Get("json")
+	if tag == "-" {
+		return "", false
+	}
+	if tag == "" {
+		return field.Name, false
+	}
+	parts := strings.Split(tag, ",")
+	name = parts[0]
+	if name == "" {
+		name = field.Name
+	}
+	for _, part := range parts[1:] {
+		if part == "omitempty" {
+			omitempty = true
+			break
+		}
+	}
+	return name, omitempty
+}
+
+func typeCanMarshalNull(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Pointer, reflect.Slice, reflect.Map, reflect.Interface:
+		return true
+	default:
+		return false
+	}
+}
+
+func fieldNullable(shape string, t reflect.Type, omitempty bool, extraTag string) bool {
+	switch extraTag {
+	case "allow_null":
+		return true
+	case "no_null":
+		return false
+	}
+	if shape == "input" {
+		return false
+	}
+	return !omitempty && typeCanMarshalNull(t)
+}
+
+func applyNullability(schema *jsonschema.Schema, fields map[string]map[string]fieldMetadata) {
+	if schema == nil {
+		return
+	}
+	for typeName, fieldMap := range fields {
+		def, ok := schema.Definitions[typeName]
+		if !ok || def == nil || def.Properties == nil {
+			continue
+		}
+		for jsonName, meta := range fieldMap {
+			if !meta.Nullable {
+				continue
+			}
+			prop, present := def.Properties.Get(jsonName)
+			if !present || prop == nil {
+				continue
+			}
+			makeSchemaNullable(prop)
+		}
+	}
+}
+
+func makeSchemaNullable(schema *jsonschema.Schema) {
+	if schema == nil || schemaAlreadyNullable(schema) {
+		return
+	}
+	base := *schema
+	base.OneOf = nil
+	base.AnyOf = nil
+	schema.Type = ""
+	schema.Ref = ""
+	schema.Items = nil
+	schema.Properties = nil
+	schema.Required = nil
+	schema.AdditionalProperties = nil
+	schema.OneOf = []*jsonschema.Schema{
+		&base,
+		{Type: "null"},
+	}
+}
+
+func schemaAlreadyNullable(schema *jsonschema.Schema) bool {
+	for _, branch := range schema.OneOf {
+		if branch != nil && branch.Type == "null" {
+			return true
+		}
+	}
+	for _, branch := range schema.AnyOf {
+		if branch != nil && branch.Type == "null" {
+			return true
+		}
+	}
+	return false
+}
+
+func cleanComment(group *ast.CommentGroup) string {
+	if group == nil {
+		return ""
+	}
+	return strings.Join(strings.Fields(group.Text()), " ")
+}
+
+func jsonFieldName(field *ast.Field) string {
+	if field == nil || field.Tag == nil {
+		return firstFieldName(field)
+	}
+	tagValue := strings.Trim(field.Tag.Value, "`")
+	jsonValue := reflect.StructTag(tagValue).Get("json")
+	if jsonValue == "-" {
+		return ""
+	}
+	if jsonValue != "" {
+		name := strings.Split(jsonValue, ",")[0]
+		if name != "" {
+			return name
+		}
+	}
+	return firstFieldName(field)
+}
+
+func firstFieldName(field *ast.Field) string {
+	if field == nil || len(field.Names) == 0 {
+		return ""
+	}
+	return field.Names[0].Name
+}
+
+type schemaIndex struct {
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	Schemas     []schemaIndexEntry `json:"schemas"`
+}
+
+type schemaIndexEntry struct {
+	Key         string `json:"key"`
+	Group       string `json:"group"`
+	Surface     string `json:"surface"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Path        string `json:"path"`
+	ID          string `json:"id"`
+	GoType      string `json:"go_type"`
+}
+
+func schemaSurface(group string) string {
+	switch group {
+	case "artifacts":
+		return "cli_owned_runtime"
+	default:
+		return "public"
+	}
+}

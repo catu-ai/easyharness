@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/shared/error-detail.schema.json",
+  "$ref": "#/$defs/ErrorDetail",
+  "$defs": {
+    "ErrorDetail": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path identifies the field, section, or artifact path associated with the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message is the human-readable explanation of the problem."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "message"
+      ],
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+    }
+  },
+  "title": "Error detail",
+  "description": "Reusable path-plus-message error shape embedded in multiple command results."
+}

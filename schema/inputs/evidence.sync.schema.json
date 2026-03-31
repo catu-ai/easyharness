@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/inputs/evidence.sync.schema.json",
+  "$ref": "#/$defs/EvidenceSyncInput",
+  "$defs": {
+    "EvidenceSyncInput": {
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Status is the remote-sync result status."
+        },
+        "base_ref": {
+          "type": "string",
+          "description": "BaseRef is the compared base ref when one is available."
+        },
+        "head_ref": {
+          "type": "string",
+          "description": "HeadRef is the compared head ref when one is available."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason is the human-readable explanation attached to the evidence record."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "description": "EvidenceSyncInput is the JSON input consumed by `harness evidence submit --kind sync`."
+    }
+  },
+  "title": "Sync evidence input",
+  "description": "JSON input consumed by `harness evidence submit --kind sync`."
+}

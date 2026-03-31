@@ -21,6 +21,23 @@ The repository is still in dogfood mode. The current cutover focuses on the
 v0.2 command surface, command-owned evidence artifacts, and the canonical
 `current_node` runtime model.
 
+Field-level contract artifacts now live in:
+
+- `schema/index.json` for the checked-in JSON Schema registry
+- `docs/specs/contract.md` for the normative guide to what that registry covers
+
+The field-level source of truth is the Go-owned contract module under
+`internal/contracts/`. We intentionally do not render one markdown page per
+schema because that was mostly duplicating the schema files themselves.
+`docs/specs/contract.md` also distinguishes the stable public command surface
+from CLI-owned runtime artifacts such as `.local/harness/*`.
+Refresh or verify the checked-in registry with:
+
+```bash
+scripts/sync-contract-artifacts
+scripts/sync-contract-artifacts --check
+```
+
 ## Development Setup
 
 Use the development installer to build a repo-local binary and expose

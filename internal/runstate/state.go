@@ -8,83 +8,22 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/catu-ai/easyharness/internal/contracts"
 )
 
 var renameFile = os.Rename
 
-type CurrentPlan struct {
-	PlanPath           string `json:"plan_path,omitempty"`
-	LastLandedPlanPath string `json:"last_landed_plan_path,omitempty"`
-	LastLandedAt       string `json:"last_landed_at,omitempty"`
-}
-
-type State struct {
-	ExecutionStartedAt string       `json:"execution_started_at,omitempty"`
-	CurrentNode        string       `json:"current_node,omitempty"`
-	PlanPath           string       `json:"plan_path,omitempty"`
-	PlanStem           string       `json:"plan_stem,omitempty"`
-	Revision           int          `json:"revision,omitempty"`
-	Reopen             *ReopenState `json:"reopen,omitempty"`
-	ActiveReviewRound  *ReviewRound `json:"active_review_round,omitempty"`
-	LatestEvidence     *EvidenceSet `json:"latest_evidence,omitempty"`
-	Land               *LandState   `json:"land,omitempty"`
-
-	// Transitional cache fields retained until status fully stops reading v0.1
-	// handoff signals directly from state.json.
-	LatestCI      *CIState   `json:"latest_ci,omitempty"`
-	Sync          *SyncState `json:"sync,omitempty"`
-	LatestPublish *Publish   `json:"latest_publish,omitempty"`
-}
-
-type ReopenState struct {
-	Mode          string `json:"mode"`
-	ReopenedAt    string `json:"reopened_at,omitempty"`
-	BaseStepCount int    `json:"base_step_count,omitempty"`
-}
-
-type ReviewRound struct {
-	RoundID    string `json:"round_id"`
-	Kind       string `json:"kind"`
-	Step       *int   `json:"step,omitempty"`
-	Revision   int    `json:"revision,omitempty"`
-	Aggregated bool   `json:"aggregated"`
-	Decision   string `json:"decision,omitempty"`
-}
-
-type EvidenceSet struct {
-	CI      *EvidencePointer `json:"ci,omitempty"`
-	Publish *EvidencePointer `json:"publish,omitempty"`
-	Sync    *EvidencePointer `json:"sync,omitempty"`
-}
-
-type EvidencePointer struct {
-	Kind       string `json:"kind"`
-	RecordID   string `json:"record_id"`
-	Path       string `json:"path"`
-	RecordedAt string `json:"recorded_at,omitempty"`
-}
-
-type LandState struct {
-	PRURL       string `json:"pr_url,omitempty"`
-	Commit      string `json:"commit,omitempty"`
-	LandedAt    string `json:"landed_at,omitempty"`
-	CompletedAt string `json:"completed_at,omitempty"`
-}
-
-type CIState struct {
-	SnapshotID string `json:"snapshot_id"`
-	Status     string `json:"status"`
-}
-
-type SyncState struct {
-	Freshness string `json:"freshness"`
-	Conflicts bool   `json:"conflicts"`
-}
-
-type Publish struct {
-	AttemptID string `json:"attempt_id"`
-	PRURL     string `json:"pr_url"`
-}
+type CurrentPlan = contracts.CurrentPlanFile
+type State = contracts.LocalStateFile
+type ReopenState = contracts.ReopenState
+type ReviewRound = contracts.ReviewRoundState
+type EvidenceSet = contracts.EvidenceSetState
+type EvidencePointer = contracts.EvidencePointerState
+type LandState = contracts.LandState
+type CIState = contracts.LegacyCIState
+type SyncState = contracts.LegacySyncState
+type Publish = contracts.LegacyPublishState
 
 type reviewAggregate struct {
 	Decision string `json:"decision"`

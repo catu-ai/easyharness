@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
@@ -19,38 +20,11 @@ type Service struct {
 	Now     func() time.Time
 }
 
-type Result struct {
-	OK         bool           `json:"ok"`
-	Command    string         `json:"command"`
-	Summary    string         `json:"summary"`
-	State      State          `json:"state"`
-	Artifacts  *Artifacts     `json:"artifacts,omitempty"`
-	NextAction []NextAction   `json:"next_actions"`
-	Errors     []CommandError `json:"errors,omitempty"`
-}
-
-type State struct {
-	PlanStatus string `json:"plan_status"`
-	Lifecycle  string `json:"lifecycle"`
-	Revision   int    `json:"revision"`
-}
-
-type Artifacts struct {
-	FromPlanPath    string `json:"from_plan_path"`
-	ToPlanPath      string `json:"to_plan_path"`
-	LocalStatePath  string `json:"local_state_path,omitempty"`
-	CurrentPlanPath string `json:"current_plan_path,omitempty"`
-}
-
-type NextAction struct {
-	Command     *string `json:"command"`
-	Description string  `json:"description"`
-}
-
-type CommandError struct {
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
+type Result = contracts.LifecycleResult
+type State = contracts.LifecycleState
+type Artifacts = contracts.LifecycleArtifacts
+type NextAction = contracts.NextAction
+type CommandError = contracts.ErrorDetail
 
 type editablePlan struct {
 	Frontmatter plan.Frontmatter

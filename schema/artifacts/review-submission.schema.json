@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/review-submission.schema.json",
+  "$ref": "#/$defs/ReviewSubmission",
+  "$defs": {
+    "ReviewFinding": {
+      "properties": {
+        "severity": {
+          "type": "string",
+          "description": "Severity is the finding severity label."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title is the short human-readable title of the finding."
+        },
+        "details": {
+          "type": "string",
+          "description": "Details is the full review finding explanation."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "severity",
+        "title",
+        "details"
+      ],
+      "description": "ReviewFinding is one review finding in a submission or aggregate."
+    },
+    "ReviewSubmission": {
+      "properties": {
+        "round_id": {
+          "type": "string",
+          "description": "RoundID is the stable identifier for the review round."
+        },
+        "slot": {
+          "type": "string",
+          "description": "Slot is the stable slot identifier."
+        },
+        "dimension": {
+          "type": "string",
+          "description": "Dimension is the human-readable review dimension label."
+        },
+        "submitted_at": {
+          "type": "string",
+          "description": "SubmittedAt is the submission timestamp."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary is the reviewer's concise overall assessment."
+        },
+        "findings": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              },
+              "type": "array",
+              "description": "Findings lists the review findings for the slot."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Findings lists the review findings for the slot."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "round_id",
+        "slot",
+        "dimension",
+        "submitted_at",
+        "summary",
+        "findings"
+      ],
+      "description": "ReviewSubmission is the command-owned submission artifact for one reviewer slot."
+    }
+  },
+  "title": "Review submission artifact",
+  "description": "Command-owned reviewer submission artifact."
+}

@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
 )
@@ -25,155 +26,25 @@ type Service struct {
 	Now     func() time.Time
 }
 
-type Spec struct {
-	Step        *int        `json:"step,omitempty"`
-	Kind        string      `json:"kind"`
-	ReviewTitle string      `json:"review_title,omitempty"`
-	Dimensions  []Dimension `json:"dimensions"`
-}
-
-type Dimension struct {
-	Name         string `json:"name"`
-	Instructions string `json:"instructions"`
-}
-
-type Manifest struct {
-	RoundID     string         `json:"round_id"`
-	Kind        string         `json:"kind"`
-	Step        *int           `json:"step,omitempty"`
-	Revision    int            `json:"revision"`
-	ReviewTitle string         `json:"review_title,omitempty"`
-	PlanPath    string         `json:"plan_path"`
-	PlanStem    string         `json:"plan_stem"`
-	CreatedAt   string         `json:"created_at"`
-	Dimensions  []ManifestSlot `json:"dimensions"`
-	LedgerPath  string         `json:"ledger_path"`
-	Aggregate   string         `json:"aggregate_path"`
-	Submissions string         `json:"submissions_dir"`
-}
-
-type ManifestSlot struct {
-	Name           string `json:"name"`
-	Slot           string `json:"slot"`
-	Instructions   string `json:"instructions"`
-	SubmissionPath string `json:"submission_path"`
-}
-
-type Ledger struct {
-	RoundID   string       `json:"round_id"`
-	Kind      string       `json:"kind"`
-	UpdatedAt string       `json:"updated_at"`
-	Slots     []LedgerSlot `json:"slots"`
-}
-
-type LedgerSlot struct {
-	Name           string `json:"name"`
-	Slot           string `json:"slot"`
-	Status         string `json:"status"`
-	SubmissionPath string `json:"submission_path"`
-	SubmittedAt    string `json:"submitted_at,omitempty"`
-}
-
-type SubmissionInput struct {
-	Summary  string    `json:"summary"`
-	Findings []Finding `json:"findings"`
-}
-
-type Submission struct {
-	RoundID     string    `json:"round_id"`
-	Slot        string    `json:"slot"`
-	Dimension   string    `json:"dimension"`
-	SubmittedAt string    `json:"submitted_at"`
-	Summary     string    `json:"summary"`
-	Findings    []Finding `json:"findings"`
-}
-
-type Finding struct {
-	Severity string `json:"severity"`
-	Title    string `json:"title"`
-	Details  string `json:"details"`
-}
-
-type Aggregate struct {
-	RoundID             string             `json:"round_id"`
-	Kind                string             `json:"kind"`
-	Step                *int               `json:"step,omitempty"`
-	Revision            int                `json:"revision"`
-	ReviewTitle         string             `json:"review_title,omitempty"`
-	Decision            string             `json:"decision"`
-	BlockingFindings    []AggregateFinding `json:"blocking_findings"`
-	NonBlockingFindings []AggregateFinding `json:"non_blocking_findings"`
-	AggregatedAt        string             `json:"aggregated_at"`
-}
-
-type AggregateFinding struct {
-	Slot      string `json:"slot"`
-	Dimension string `json:"dimension"`
-	Severity  string `json:"severity"`
-	Title     string `json:"title"`
-	Details   string `json:"details"`
-}
-
-type CommandError struct {
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
-
-type NextAction struct {
-	Command     *string `json:"command"`
-	Description string  `json:"description"`
-}
-
-type StartResult struct {
-	OK         bool            `json:"ok"`
-	Command    string          `json:"command"`
-	Summary    string          `json:"summary"`
-	Artifacts  *StartArtifacts `json:"artifacts,omitempty"`
-	NextAction []NextAction    `json:"next_actions"`
-	Errors     []CommandError  `json:"errors,omitempty"`
-}
-
-type StartArtifacts struct {
-	PlanPath       string         `json:"plan_path"`
-	LocalStatePath string         `json:"local_state_path"`
-	RoundID        string         `json:"round_id"`
-	ManifestPath   string         `json:"manifest_path"`
-	LedgerPath     string         `json:"ledger_path"`
-	AggregatePath  string         `json:"aggregate_path"`
-	Slots          []ManifestSlot `json:"slots"`
-}
-
-type SubmitResult struct {
-	OK         bool             `json:"ok"`
-	Command    string           `json:"command"`
-	Summary    string           `json:"summary"`
-	Artifacts  *SubmitArtifacts `json:"artifacts,omitempty"`
-	NextAction []NextAction     `json:"next_actions"`
-	Errors     []CommandError   `json:"errors,omitempty"`
-}
-
-type SubmitArtifacts struct {
-	RoundID        string `json:"round_id"`
-	Slot           string `json:"slot"`
-	SubmissionPath string `json:"submission_path"`
-	LedgerPath     string `json:"ledger_path"`
-}
-
-type AggregateResult struct {
-	OK         bool                `json:"ok"`
-	Command    string              `json:"command"`
-	Summary    string              `json:"summary"`
-	Artifacts  *AggregateArtifacts `json:"artifacts,omitempty"`
-	Review     *Aggregate          `json:"review,omitempty"`
-	NextAction []NextAction        `json:"next_actions"`
-	Errors     []CommandError      `json:"errors,omitempty"`
-}
-
-type AggregateArtifacts struct {
-	RoundID        string `json:"round_id"`
-	AggregatePath  string `json:"aggregate_path"`
-	LocalStatePath string `json:"local_state_path"`
-}
+type Spec = contracts.ReviewSpec
+type Dimension = contracts.ReviewDimension
+type Manifest = contracts.ReviewManifest
+type ManifestSlot = contracts.ReviewManifestSlot
+type Ledger = contracts.ReviewLedger
+type LedgerSlot = contracts.ReviewLedgerSlot
+type SubmissionInput = contracts.ReviewSubmissionInput
+type Submission = contracts.ReviewSubmission
+type Finding = contracts.ReviewFinding
+type Aggregate = contracts.ReviewAggregate
+type AggregateFinding = contracts.ReviewAggregateFinding
+type CommandError = contracts.ErrorDetail
+type NextAction = contracts.NextAction
+type StartResult = contracts.ReviewStartResult
+type StartArtifacts = contracts.ReviewStartArtifacts
+type SubmitResult = contracts.ReviewSubmitResult
+type SubmitArtifacts = contracts.ReviewSubmitArtifacts
+type AggregateResult = contracts.ReviewAggregateResult
+type AggregateArtifacts = contracts.ReviewAggregateArtifacts
 
 func (s Service) Start(specBytes []byte) StartResult {
 	lockedPlanPath, release, err := s.acquireReviewMutationLock()
@@ -693,7 +564,7 @@ func (s Service) loadCurrentExecutingPlan(lockedPlanPath string) (string, *plan.
 		if err != nil {
 			return "", nil, "", "", nil, "", &StartResult{
 				OK:      false,
-				Command: "review",
+				Command: "review start",
 				Summary: "Unable to determine the current plan.",
 				Errors:  []CommandError{{Path: "plan", Message: err.Error()}},
 			}
@@ -703,7 +574,7 @@ func (s Service) loadCurrentExecutingPlan(lockedPlanPath string) (string, *plan.
 	if err != nil {
 		return "", nil, "", "", nil, "", &StartResult{
 			OK:      false,
-			Command: "review",
+			Command: "review start",
 			Summary: "Unable to read the current plan.",
 			Errors:  []CommandError{{Path: "plan", Message: err.Error()}},
 		}
@@ -714,7 +585,7 @@ func (s Service) loadCurrentExecutingPlan(lockedPlanPath string) (string, *plan.
 	if err != nil {
 		return "", nil, "", "", nil, "", &StartResult{
 			OK:      false,
-			Command: "review",
+			Command: "review start",
 			Summary: "Unable to relativize the current plan path.",
 			Errors:  []CommandError{{Path: "plan", Message: err.Error()}},
 		}
@@ -724,7 +595,7 @@ func (s Service) loadCurrentExecutingPlan(lockedPlanPath string) (string, *plan.
 	if err != nil {
 		return "", nil, "", "", nil, "", &StartResult{
 			OK:      false,
-			Command: "review",
+			Command: "review start",
 			Summary: "Unable to read local harness state.",
 			Errors:  []CommandError{{Path: "state", Message: err.Error()}},
 		}
@@ -732,7 +603,7 @@ func (s Service) loadCurrentExecutingPlan(lockedPlanPath string) (string, *plan.
 	if doc.DerivedPlanStatus() != "active" || doc.DerivedLifecycle(state) != "executing" {
 		return "", nil, "", "", nil, "", &StartResult{
 			OK:      false,
-			Command: "review",
+			Command: "review start",
 			Summary: "Review commands require an active executing plan.",
 			Errors: []CommandError{{
 				Path:    "plan.lifecycle",

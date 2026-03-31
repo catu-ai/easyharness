@@ -1,0 +1,61 @@
+package contracts
+
+// LifecycleResult is the JSON result shape currently shared by
+// `harness execute start`, `harness archive`, `harness reopen`, `harness land`,
+// and `harness land complete`.
+type LifecycleResult struct {
+	// OK reports whether the command succeeded.
+	OK bool `json:"ok"`
+
+	// Command is the stable command identifier for the result payload.
+	Command string `json:"command"`
+
+	// Summary is the concise human-readable outcome description.
+	Summary string `json:"summary"`
+
+	// State carries the command-specific lifecycle status fields currently
+	// emitted by these lifecycle commands.
+	State LifecycleState `json:"state"`
+
+	// Artifacts points to relevant plan and local-state paths for the command.
+	Artifacts *LifecycleArtifacts `json:"artifacts,omitempty"`
+
+	// NextAction lists the most relevant follow-up steps in priority order.
+	NextAction []NextAction `json:"next_actions"`
+
+	// Errors lists hard failures that prevented the command from succeeding.
+	Errors []ErrorDetail `json:"errors,omitempty"`
+}
+
+// LifecycleState carries the current lifecycle command state shape. These
+// fields remain part of the current public contract even though `status` now
+// centers on `current_node`.
+type LifecycleState struct {
+	// PlanStatus is the tracked plan status value used by lifecycle commands.
+	PlanStatus string `json:"plan_status"`
+
+	// Lifecycle is the lifecycle phase value used by lifecycle commands.
+	Lifecycle string `json:"lifecycle"`
+
+	// Revision is the current plan-local revision number.
+	Revision int `json:"revision"`
+}
+
+// LifecycleArtifacts lists the relevant plan and local-state paths for a
+// lifecycle command result.
+type LifecycleArtifacts struct {
+	// FromPlanPath is the source plan path for transitions that move or archive a
+	// plan.
+	FromPlanPath string `json:"from_plan_path"`
+
+	// ToPlanPath is the destination plan path for transitions that create or move
+	// a plan artifact.
+	ToPlanPath string `json:"to_plan_path"`
+
+	// LocalStatePath is the plan-local state cache path when one exists.
+	LocalStatePath string `json:"local_state_path,omitempty"`
+
+	// CurrentPlanPath is the worktree-level current-plan pointer path when the
+	// command updated it.
+	CurrentPlanPath string `json:"current_plan_path,omitempty"`
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/inputs/evidence.publish.schema.json",
+  "$ref": "#/$defs/EvidencePublishInput",
+  "$defs": {
+    "EvidencePublishInput": {
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Status is the publish result status."
+        },
+        "pr_url": {
+          "type": "string",
+          "description": "PRURL is the pull request URL when one is available."
+        },
+        "branch": {
+          "type": "string",
+          "description": "Branch is the candidate branch name when one is available."
+        },
+        "base": {
+          "type": "string",
+          "description": "Base is the base branch name when one is available."
+        },
+        "commit": {
+          "type": "string",
+          "description": "Commit is the pushed commit SHA when one is available."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason is the human-readable explanation attached to the evidence record."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "description": "EvidencePublishInput is the JSON input consumed by `harness evidence submit --kind publish`."
+    }
+  },
+  "title": "Publish evidence input",
+  "description": "JSON input consumed by `harness evidence submit --kind publish`."
+}

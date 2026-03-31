@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/review-manifest.schema.json",
+  "$ref": "#/$defs/ReviewManifest",
+  "$defs": {
+    "ReviewManifest": {
+      "properties": {
+        "round_id": {
+          "type": "string",
+          "description": "RoundID is the stable identifier for the review round."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Kind is the review kind for the round."
+        },
+        "step": {
+          "type": "integer",
+          "description": "Step is the tracked plan step number when the round is step-scoped."
+        },
+        "revision": {
+          "type": "integer",
+          "description": "Revision is the plan-local revision associated with the round."
+        },
+        "review_title": {
+          "type": "string",
+          "description": "ReviewTitle is the human-readable title for the round when one exists."
+        },
+        "plan_path": {
+          "type": "string",
+          "description": "PlanPath is the tracked or archived plan path associated with the round."
+        },
+        "plan_stem": {
+          "type": "string",
+          "description": "PlanStem is the durable plan stem associated with the round."
+        },
+        "created_at": {
+          "type": "string",
+          "description": "CreatedAt is the round creation timestamp."
+        },
+        "dimensions": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ReviewManifestSlot"
+              },
+              "type": "array",
+              "description": "Dimensions lists the materialized reviewer slots for the round."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Dimensions lists the materialized reviewer slots for the round."
+        },
+        "ledger_path": {
+          "type": "string",
+          "description": "LedgerPath is the path to the round ledger artifact."
+        },
+        "aggregate_path": {
+          "type": "string",
+          "description": "Aggregate is the path to the round aggregate artifact."
+        },
+        "submissions_dir": {
+          "type": "string",
+          "description": "Submissions is the path to the round submissions directory."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "round_id",
+        "kind",
+        "revision",
+        "plan_path",
+        "plan_stem",
+        "created_at",
+        "dimensions",
+        "ledger_path",
+        "aggregate_path",
+        "submissions_dir"
+      ],
+      "description": "ReviewManifest is the command-owned review manifest artifact for one review round."
+    },
+    "ReviewManifestSlot": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name is the human-readable dimension label."
+        },
+        "slot": {
+          "type": "string",
+          "description": "Slot is the stable slot identifier."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Instructions is the reviewer prompt for this slot."
+        },
+        "submission_path": {
+          "type": "string",
+          "description": "SubmissionPath is the target path for this slot's submission artifact."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "slot",
+        "instructions",
+        "submission_path"
+      ],
+      "description": "ReviewManifestSlot describes one reviewer submission slot in a review manifest."
+    }
+  },
+  "title": "Review manifest artifact",
+  "description": "Command-owned review manifest artifact for one review round."
+}

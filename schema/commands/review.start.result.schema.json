@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/review.start.result.schema.json",
+  "$ref": "#/$defs/ReviewStartResult",
+  "$defs": {
+    "ErrorDetail": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path identifies the field, section, or artifact path associated with the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message is the human-readable explanation of the problem."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "message"
+      ],
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+    },
+    "NextAction": {
+      "properties": {
+        "command": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description explains the suggested next step in plain language."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "command",
+        "description"
+      ],
+      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
+    },
+    "ReviewManifestSlot": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name is the human-readable dimension label."
+        },
+        "slot": {
+          "type": "string",
+          "description": "Slot is the stable slot identifier."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Instructions is the reviewer prompt for this slot."
+        },
+        "submission_path": {
+          "type": "string",
+          "description": "SubmissionPath is the target path for this slot's submission artifact."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "slot",
+        "instructions",
+        "submission_path"
+      ],
+      "description": "ReviewManifestSlot describes one reviewer submission slot in a review manifest."
+    },
+    "ReviewStartArtifacts": {
+      "properties": {
+        "plan_path": {
+          "type": "string",
+          "description": "PlanPath is the current plan path associated with the review round."
+        },
+        "local_state_path": {
+          "type": "string",
+          "description": "LocalStatePath is the plan-local state cache path."
+        },
+        "round_id": {
+          "type": "string",
+          "description": "RoundID is the stable identifier for the review round."
+        },
+        "manifest_path": {
+          "type": "string",
+          "description": "ManifestPath is the path to the review manifest artifact."
+        },
+        "ledger_path": {
+          "type": "string",
+          "description": "LedgerPath is the path to the review ledger artifact."
+        },
+        "aggregate_path": {
+          "type": "string",
+          "description": "AggregatePath is the path to the review aggregate artifact."
+        },
+        "slots": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ReviewManifestSlot"
+              },
+              "type": "array",
+              "description": "Slots lists the materialized review slots created for the round."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Slots lists the materialized review slots created for the round."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "plan_path",
+        "local_state_path",
+        "round_id",
+        "manifest_path",
+        "ledger_path",
+        "aggregate_path",
+        "slots"
+      ],
+      "description": "ReviewStartArtifacts lists the review artifacts created by `harness review start`."
+    },
+    "ReviewStartResult": {
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "OK reports whether the command succeeded."
+        },
+        "command": {
+          "type": "string",
+          "description": "Command is the stable command identifier for the result payload."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary is the concise human-readable outcome description."
+        },
+        "artifacts": {
+          "$ref": "#/$defs/ReviewStartArtifacts",
+          "description": "Artifacts points to the created review artifacts for the round."
+        },
+        "next_actions": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/NextAction"
+              },
+              "type": "array",
+              "description": "NextAction lists the most relevant follow-up steps in priority order."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "NextAction lists the most relevant follow-up steps in priority order."
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/ErrorDetail"
+          },
+          "type": "array",
+          "description": "Errors lists hard failures that prevented the command from succeeding."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ok",
+        "command",
+        "summary",
+        "next_actions"
+      ],
+      "description": "ReviewStartResult is the JSON result returned by `harness review start`."
+    }
+  },
+  "title": "Review start command result",
+  "description": "JSON output for `harness review start`."
+}

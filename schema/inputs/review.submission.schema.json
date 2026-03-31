@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/inputs/review.submission.schema.json",
+  "$ref": "#/$defs/ReviewSubmissionInput",
+  "$defs": {
+    "ReviewFinding": {
+      "properties": {
+        "severity": {
+          "type": "string",
+          "description": "Severity is the finding severity label."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title is the short human-readable title of the finding."
+        },
+        "details": {
+          "type": "string",
+          "description": "Details is the full review finding explanation."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "severity",
+        "title",
+        "details"
+      ],
+      "description": "ReviewFinding is one review finding in a submission or aggregate."
+    },
+    "ReviewSubmissionInput": {
+      "properties": {
+        "summary": {
+          "type": "string",
+          "description": "Summary is the reviewer's concise overall assessment."
+        },
+        "findings": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              },
+              "type": "array",
+              "description": "Findings lists the review findings for the slot."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Findings lists the review findings for the slot."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "summary"
+      ],
+      "description": "ReviewSubmissionInput is the JSON input consumed by `harness review submit`."
+    }
+  },
+  "title": "Review submission input",
+  "description": "JSON input consumed by `harness review submit`."
+}

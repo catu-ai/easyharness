@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/review.submit.result.schema.json",
+  "$ref": "#/$defs/ReviewSubmitResult",
+  "$defs": {
+    "ErrorDetail": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path identifies the field, section, or artifact path associated with the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message is the human-readable explanation of the problem."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "message"
+      ],
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+    },
+    "NextAction": {
+      "properties": {
+        "command": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description explains the suggested next step in plain language."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "command",
+        "description"
+      ],
+      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
+    },
+    "ReviewSubmitArtifacts": {
+      "properties": {
+        "round_id": {
+          "type": "string",
+          "description": "RoundID is the stable identifier for the review round."
+        },
+        "slot": {
+          "type": "string",
+          "description": "Slot is the stable reviewer slot identifier."
+        },
+        "submission_path": {
+          "type": "string",
+          "description": "SubmissionPath is the path to the created submission artifact."
+        },
+        "ledger_path": {
+          "type": "string",
+          "description": "LedgerPath is the path to the updated review ledger artifact."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "round_id",
+        "slot",
+        "submission_path",
+        "ledger_path"
+      ],
+      "description": "ReviewSubmitArtifacts lists the artifacts touched by `harness review submit`."
+    },
+    "ReviewSubmitResult": {
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "OK reports whether the command succeeded."
+        },
+        "command": {
+          "type": "string",
+          "description": "Command is the stable command identifier for the result payload."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary is the concise human-readable outcome description."
+        },
+        "artifacts": {
+          "$ref": "#/$defs/ReviewSubmitArtifacts",
+          "description": "Artifacts points to the created submission artifacts."
+        },
+        "next_actions": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/NextAction"
+              },
+              "type": "array",
+              "description": "NextAction lists the most relevant follow-up steps in priority order."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "NextAction lists the most relevant follow-up steps in priority order."
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/ErrorDetail"
+          },
+          "type": "array",
+          "description": "Errors lists hard failures that prevented the command from succeeding."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ok",
+        "command",
+        "summary",
+        "next_actions"
+      ],
+      "description": "ReviewSubmitResult is the JSON result returned by `harness review submit`."
+    }
+  },
+  "title": "Review submit command result",
+  "description": "JSON output for `harness review submit`."
+}

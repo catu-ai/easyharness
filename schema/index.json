@@ -1,0 +1,236 @@
+{
+  "title": "easyharness contract schema index",
+  "description": "Generated JSON Schema index for public command surfaces plus CLI-owned runtime artifacts.",
+  "schemas": [
+    {
+      "key": "artifacts.current_plan",
+      "group": "artifacts",
+      "surface": "cli_owned_runtime",
+      "title": "Current plan pointer file",
+      "description": "Worktree-level pointer artifact at `.local/harness/current-plan.json`.",
+      "path": "schema/artifacts/current-plan.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/current-plan.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.CurrentPlanFile"
+    },
+    {
+      "key": "artifacts.evidence_ci_record",
+      "group": "artifacts",
+      "surface": "cli_owned_runtime",
+      "title": "CI evidence record artifact",
+      "description": "Command-owned CI evidence artifact.",
+      "path": "schema/artifacts/evidence-ci-record.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/evidence-ci-record.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.EvidenceCIRecord"
+    },
+    {
+      "key": "artifacts.evidence_publish_record",
+      "group": "artifacts",
+      "surface": "cli_owned_runtime",
+      "title": "Publish evidence record artifact",
+      "description": "Command-owned publish evidence artifact.",
+      "path": "schema/artifacts/evidence-publish-record.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/evidence-publish-record.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.EvidencePublishRecord"
+    },
+    {
+      "key": "artifacts.evidence_sync_record",
+      "group": "artifacts",
+      "surface": "cli_owned_runtime",
+      "title": "Sync evidence record artifact",
+      "description": "Command-owned sync evidence artifact.",
+      "path": "schema/artifacts/evidence-sync-record.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/evidence-sync-record.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.EvidenceSyncRecord"
+    },
+    {
+      "key": "artifacts.local_state",
+      "group": "artifacts",
+      "surface": "cli_owned_runtime",
+      "title": "Plan-local state file",
+      "description": "Plan-local runtime state artifact at `.local/harness/plans/\u003cplan-stem\u003e/state.json`.",
+      "path": "schema/artifacts/local-state.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/local-state.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.LocalStateFile"
+    },
+    {
+      "key": "artifacts.review_aggregate",
+      "group": "artifacts",
+      "surface": "cli_owned_runtime",
+      "title": "Review aggregate artifact",
+      "description": "Command-owned review aggregate artifact.",
+      "path": "schema/artifacts/review-aggregate.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/review-aggregate.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewAggregate"
+    },
+    {
+      "key": "artifacts.review_ledger",
+      "group": "artifacts",
+      "surface": "cli_owned_runtime",
+      "title": "Review ledger artifact",
+      "description": "Command-owned review ledger artifact for one review round.",
+      "path": "schema/artifacts/review-ledger.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/review-ledger.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewLedger"
+    },
+    {
+      "key": "artifacts.review_manifest",
+      "group": "artifacts",
+      "surface": "cli_owned_runtime",
+      "title": "Review manifest artifact",
+      "description": "Command-owned review manifest artifact for one review round.",
+      "path": "schema/artifacts/review-manifest.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/review-manifest.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewManifest"
+    },
+    {
+      "key": "artifacts.review_submission",
+      "group": "artifacts",
+      "surface": "cli_owned_runtime",
+      "title": "Review submission artifact",
+      "description": "Command-owned reviewer submission artifact.",
+      "path": "schema/artifacts/review-submission.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/review-submission.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewSubmission"
+    },
+    {
+      "key": "inputs.evidence.ci",
+      "group": "command_inputs",
+      "surface": "public",
+      "title": "CI evidence input",
+      "description": "JSON input consumed by `harness evidence submit --kind ci`.",
+      "path": "schema/inputs/evidence.ci.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/inputs/evidence.ci.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.EvidenceCIInput"
+    },
+    {
+      "key": "inputs.evidence.publish",
+      "group": "command_inputs",
+      "surface": "public",
+      "title": "Publish evidence input",
+      "description": "JSON input consumed by `harness evidence submit --kind publish`.",
+      "path": "schema/inputs/evidence.publish.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/inputs/evidence.publish.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.EvidencePublishInput"
+    },
+    {
+      "key": "inputs.evidence.sync",
+      "group": "command_inputs",
+      "surface": "public",
+      "title": "Sync evidence input",
+      "description": "JSON input consumed by `harness evidence submit --kind sync`.",
+      "path": "schema/inputs/evidence.sync.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/inputs/evidence.sync.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.EvidenceSyncInput"
+    },
+    {
+      "key": "inputs.review.spec",
+      "group": "command_inputs",
+      "surface": "public",
+      "title": "Review start input",
+      "description": "JSON input consumed by `harness review start`.",
+      "path": "schema/inputs/review.spec.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/inputs/review.spec.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewSpec"
+    },
+    {
+      "key": "inputs.review.submission",
+      "group": "command_inputs",
+      "surface": "public",
+      "title": "Review submission input",
+      "description": "JSON input consumed by `harness review submit`.",
+      "path": "schema/inputs/review.submission.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/inputs/review.submission.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewSubmissionInput"
+    },
+    {
+      "key": "commands.evidence.submit.result",
+      "group": "command_results",
+      "surface": "public",
+      "title": "Evidence submit command result",
+      "description": "JSON output for `harness evidence submit`.",
+      "path": "schema/commands/evidence.submit.result.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/evidence.submit.result.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.EvidenceSubmitResult"
+    },
+    {
+      "key": "commands.install.result",
+      "group": "command_results",
+      "surface": "public",
+      "title": "Install command result",
+      "description": "JSON output for `harness install`.",
+      "path": "schema/commands/install.result.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/install.result.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.InstallResult"
+    },
+    {
+      "key": "commands.lifecycle.result",
+      "group": "command_results",
+      "surface": "public",
+      "title": "Lifecycle command result",
+      "description": "Shared JSON output shape for lifecycle commands such as `harness execute start`, `harness archive`, `harness reopen`, `harness land`, and `harness land complete`.",
+      "path": "schema/commands/lifecycle.result.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/lifecycle.result.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.LifecycleResult"
+    },
+    {
+      "key": "commands.review.aggregate.result",
+      "group": "command_results",
+      "surface": "public",
+      "title": "Review aggregate command result",
+      "description": "JSON output for `harness review aggregate`.",
+      "path": "schema/commands/review.aggregate.result.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/review.aggregate.result.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewAggregateResult"
+    },
+    {
+      "key": "commands.review.start.result",
+      "group": "command_results",
+      "surface": "public",
+      "title": "Review start command result",
+      "description": "JSON output for `harness review start`.",
+      "path": "schema/commands/review.start.result.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/review.start.result.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewStartResult"
+    },
+    {
+      "key": "commands.review.submit.result",
+      "group": "command_results",
+      "surface": "public",
+      "title": "Review submit command result",
+      "description": "JSON output for `harness review submit`.",
+      "path": "schema/commands/review.submit.result.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/review.submit.result.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewSubmitResult"
+    },
+    {
+      "key": "commands.status.result",
+      "group": "command_results",
+      "surface": "public",
+      "title": "Status command result",
+      "description": "JSON output for `harness status`.",
+      "path": "schema/commands/status.result.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/status.result.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.StatusResult"
+    },
+    {
+      "key": "shared.error_detail",
+      "group": "shared",
+      "surface": "public",
+      "title": "Error detail",
+      "description": "Reusable path-plus-message error shape embedded in multiple command results.",
+      "path": "schema/shared/error-detail.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/shared/error-detail.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ErrorDetail"
+    },
+    {
+      "key": "shared.next_action",
+      "group": "shared",
+      "surface": "public",
+      "title": "Next action",
+      "description": "Reusable next-action shape embedded in multiple command results.",
+      "path": "schema/shared/next-action.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/shared/next-action.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.NextAction"
+    }
+  ]
+}

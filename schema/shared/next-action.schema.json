@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/shared/next-action.schema.json",
+  "$ref": "#/$defs/NextAction",
+  "$defs": {
+    "NextAction": {
+      "properties": {
+        "command": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description explains the suggested next step in plain language."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "command",
+        "description"
+      ],
+      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
+    }
+  },
+  "title": "Next action",
+  "description": "Reusable next-action shape embedded in multiple command results."
+}

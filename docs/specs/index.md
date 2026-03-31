@@ -10,6 +10,12 @@
   plans, local `lightweight` plans, and local state expectations.
 - [CLI Contract](./cli-contract.md): agent-facing command surface and JSON
   contract, including repository bootstrap through `harness install`.
+- [Contract Registry](./contract.md): normative guide to the checked-in JSON
+  Schema registry, its ownership model, the public-vs-runtime boundary, and
+  what is intentionally not rendered as duplicated markdown.
+- [Schema Registry](../../schema/index.json): checked-in JSON Schema index for
+  command outputs, command inputs, shared shapes, and CLI-owned local JSON
+  artifacts, with each entry labeled by surface.
 
 ## Proposals
 

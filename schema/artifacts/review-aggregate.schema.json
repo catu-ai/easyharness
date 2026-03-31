@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/review-aggregate.schema.json",
+  "$ref": "#/$defs/ReviewAggregate",
+  "$defs": {
+    "ReviewAggregate": {
+      "properties": {
+        "round_id": {
+          "type": "string",
+          "description": "RoundID is the stable identifier for the review round."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Kind is the review kind for the round."
+        },
+        "step": {
+          "type": "integer",
+          "description": "Step is the tracked plan step number when the round is step-scoped."
+        },
+        "revision": {
+          "type": "integer",
+          "description": "Revision is the plan-local revision associated with the round."
+        },
+        "review_title": {
+          "type": "string",
+          "description": "ReviewTitle is the human-readable title for the round when one exists."
+        },
+        "decision": {
+          "type": "string",
+          "description": "Decision is the aggregate review decision for the round."
+        },
+        "blocking_findings": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ReviewAggregateFinding"
+              },
+              "type": "array",
+              "description": "BlockingFindings lists the findings that currently block progression."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "BlockingFindings lists the findings that currently block progression."
+        },
+        "non_blocking_findings": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ReviewAggregateFinding"
+              },
+              "type": "array",
+              "description": "NonBlockingFindings lists the findings that were recorded without blocking progression."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "NonBlockingFindings lists the findings that were recorded without blocking progression."
+        },
+        "aggregated_at": {
+          "type": "string",
+          "description": "AggregatedAt is the aggregate timestamp."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "round_id",
+        "kind",
+        "revision",
+        "decision",
+        "blocking_findings",
+        "non_blocking_findings",
+        "aggregated_at"
+      ],
+      "description": "ReviewAggregate is the command-owned aggregate artifact for a completed review round."
+    },
+    "ReviewAggregateFinding": {
+      "properties": {
+        "slot": {
+          "type": "string",
+          "description": "Slot is the stable reviewer slot identifier."
+        },
+        "dimension": {
+          "type": "string",
+          "description": "Dimension is the human-readable review dimension label."
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity is the finding severity label."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title is the short human-readable title of the finding."
+        },
+        "details": {
+          "type": "string",
+          "description": "Details is the full review finding explanation."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "slot",
+        "dimension",
+        "severity",
+        "title",
+        "details"
+      ],
+      "description": "ReviewAggregateFinding is one aggregate finding annotated with its slot and dimension context."
+    }
+  },
+  "title": "Review aggregate artifact",
+  "description": "Command-owned review aggregate artifact."
+}
