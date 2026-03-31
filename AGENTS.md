@@ -27,6 +27,20 @@ scripts/install-dev-harness
 If you change Go CLI code, rerun the installer before relying on the direct
 `harness` command again.
 
+## Bootstrap Asset Editing
+
+This repository dogsfoods the same bootstrap assets that `harness install`
+packages for other repositories.
+
+- Edit `assets/bootstrap/` when changing the harness-managed skill pack or the
+  managed `AGENTS.md` block content.
+- Treat `.agents/skills/` in this repository as tracked materialized output from
+  `assets/bootstrap/`, not as a hand-edited source tree.
+- After editing `assets/bootstrap/`, run `scripts/sync-bootstrap-assets` to
+  refresh `.agents/skills/` and the managed block in this root `AGENTS.md`.
+- Keep easyharness-specific guidance in this root `AGENTS.md` outside the
+  managed markers below.
+
 The block below is the same harness-managed repository contract that
 `harness install --scope agents` would install into another repository.
 Keep easyharness-specific guidance outside the managed markers.

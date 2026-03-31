@@ -237,6 +237,10 @@ Contract:
   files in that tree
 - package the bootstrap assets with the harness release so the command works
   without network access
+- in this repository, treat `assets/bootstrap/` as the canonical hand-edited
+  source for those packaged assets; any dogfood copies under `.agents/skills/`
+  or the root `AGENTS.md` managed block should be derived from that source
+  rather than maintained as a second handwritten contract
 - return a JSON envelope that reports `mode`, `scope`, and per-file actions;
   workflow `state` may be omitted because the command does not mutate tracked
   plan lifecycle state

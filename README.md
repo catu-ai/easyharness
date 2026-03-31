@@ -59,6 +59,17 @@ harness --version
 After changing Go CLI code, rerun `scripts/install-dev-harness` so the direct
 `harness` command stays in sync with the working tree.
 
+When changing the harness-managed bootstrap contract that this repository
+dogsfoods, edit `assets/bootstrap/` instead of hand-editing `.agents/skills/`.
+The `.agents/skills/` tree and this repository's managed `AGENTS.md` block are
+tracked materialized outputs of those packaged bootstrap assets. Refresh them
+with:
+
+```bash
+scripts/sync-bootstrap-assets
+scripts/sync-bootstrap-assets --check
+```
+
 If the installer reports that `harness` still resolves to a different binary,
 either install into an earlier directory with `--install-dir` or move the
 chosen install directory earlier in `PATH`.
@@ -221,15 +232,19 @@ workflow starts.
 
 High-level guidance lives in [AGENTS.md](./AGENTS.md). The durable contracts
 for plans and CLI behavior live in [docs/specs/index.md](./docs/specs/index.md).
-Execution detail for agents lives in `.agents/skills/`.
+Execution detail for agents is materialized into `.agents/skills/` from the
+canonical bootstrap assets under `assets/bootstrap/`.
 
 ## Repository Layout
 
 - `cmd/harness/`: CLI entrypoint
 - `internal/`: CLI implementation
+- `assets/bootstrap/`: canonical source for packaged bootstrap assets that this
+  repository dogsfoods
 - `docs/plans/`: tracked active plans for both profiles plus archived standard plans
 - `docs/specs/`: durable repo contracts
-- `.agents/skills/`: repo-local workflow skills
+- `.agents/skills/`: tracked materialized repo-local workflow skills generated
+  from `assets/bootstrap/`
 - `AGENTS.md`: repo-specific guidance plus the harness-managed install block
 - `.local/harness/`: disposable runtime state, current-plan/last-landed
   markers, archived lightweight plan snapshots, review artifacts, evidence
