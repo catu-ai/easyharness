@@ -14,7 +14,7 @@ type ReviewSpec struct {
 
 	// Dimensions lists the review dimensions and instructions assigned to
 	// reviewers.
-	Dimensions []ReviewDimension `json:"dimensions"`
+	Dimensions []ReviewDimension `json:"dimensions" jsonschema:"minItems=1" easyharness:"no_null"`
 }
 
 // ReviewDimension defines one named review dimension and its reviewer
@@ -124,7 +124,7 @@ type ReviewSubmissionInput struct {
 	Summary string `json:"summary"`
 
 	// Findings lists the review findings for the slot.
-	Findings []ReviewFinding `json:"findings"`
+	Findings []ReviewFinding `json:"findings,omitempty" easyharness:"allow_null"`
 }
 
 // ReviewSubmission is the command-owned submission artifact for one reviewer

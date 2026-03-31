@@ -100,7 +100,9 @@ interrupted or overlapping writes.
 
 ## Shared Output Envelope
 
-Stateful commands should return an envelope shaped like:
+Stateful commands share a common JSON envelope vocabulary, but not every
+stateful command returns every field. Commands that report workflow position
+should return an envelope shaped like:
 
 ```json
 {
@@ -135,8 +137,12 @@ Stateful commands should return an envelope shaped like:
 - `ok`
 - `command`
 - `summary`
-- `state`
 - `next_actions`
+
+`state` is required for commands that report workflow position, such as
+`harness status`. Commands whose job is bootstrap, review-orchestration
+artifacts, or append-only evidence recording may omit `state` when they do not
+need to report a workflow-position payload.
 
 ### Common Optional Fields
 
@@ -145,8 +151,8 @@ Stateful commands should return an envelope shaped like:
 - `warnings`
 - `errors`
 
-`state` should describe post-command state for mutating commands and current
-state for read-only stateful commands.
+When present, `state` should describe post-command state for mutating commands
+and current state for read-only stateful commands.
 
 `artifacts` is optional and command-specific. Omit it when there are no stable
 artifact paths or IDs worth returning.

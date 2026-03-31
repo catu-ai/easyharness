@@ -63,7 +63,7 @@ func expectedFiles(workdir string) (map[string][]byte, error) {
 	for _, entry := range entries {
 		schemaObj := reflector.ReflectFromType(entry.Type)
 		applyComments(schemaObj, comments)
-		applyNullability(schemaObj, collectFieldMetadata(entry.Type))
+		applyNullability(schemaObj, collectFieldMetadata(entry))
 		schemaObj.Version = jsonschema.Version
 		schemaObj.ID = jsonschema.ID(schemaBaseID + filepath.ToSlash(entry.Path))
 		schemaObj.Title = entry.Title
@@ -561,14 +561,14 @@ func applyFieldComments(properties *orderedmap.OrderedMap[string, *jsonschema.Sc
 	}
 }
 
-func collectFieldMetadata(root reflect.Type) map[string]map[string]fieldMetadata {
+func collectFieldMetadata(entry contracts.SchemaEntry) map[string]map[string]fieldMetadata {
 	out := map[string]map[string]fieldMetadata{}
 	seen := map[reflect.Type]bool{}
-	collectTypeMetadata(indirectType(root), out, seen)
+	collectTypeMetadata(indirectType(entry.Type), entry.Shape, out, seen)
 	return out
 }
 
-func collectTypeMetadata(t reflect.Type, out map[string]map[string]fieldMetadata, seen map[reflect.Type]bool) {
+func collectTypeMetadata(t reflect.Type, shape string, out map[string]map[string]fieldMetadata, seen map[reflect.Type]bool) {
 	if t == nil || seen[t] {
 		return
 	}
@@ -587,28 +587,29 @@ func collectTypeMetadata(t reflect.Type, out map[string]map[string]fieldMetadata
 		if jsonName == "" {
 			continue
 		}
+		nullable := fieldNullable(shape, field.Type, omitempty, field.Tag.Get("easyharness"))
 		fieldMap[jsonName] = fieldMetadata{
-			Nullable: !omitempty && typeCanMarshalNull(field.Type),
+			Nullable: nullable,
 		}
-		collectNestedFieldTypes(field.Type, out, seen)
+		collectNestedFieldTypes(field.Type, shape, out, seen)
 	}
 	if len(fieldMap) > 0 {
 		out[t.Name()] = fieldMap
 	}
 }
 
-func collectNestedFieldTypes(t reflect.Type, out map[string]map[string]fieldMetadata, seen map[reflect.Type]bool) {
+func collectNestedFieldTypes(t reflect.Type, shape string, out map[string]map[string]fieldMetadata, seen map[reflect.Type]bool) {
 	t = indirectType(t)
 	if t == nil {
 		return
 	}
 	switch t.Kind() {
 	case reflect.Struct:
-		collectTypeMetadata(t, out, seen)
+		collectTypeMetadata(t, shape, out, seen)
 	case reflect.Slice, reflect.Array:
-		collectNestedFieldTypes(t.Elem(), out, seen)
+		collectNestedFieldTypes(t.Elem(), shape, out, seen)
 	case reflect.Map:
-		collectNestedFieldTypes(t.Elem(), out, seen)
+		collectNestedFieldTypes(t.Elem(), shape, out, seen)
 	}
 }
 
@@ -648,6 +649,19 @@ func typeCanMarshalNull(t reflect.Type) bool {
 	default:
 		return false
 	}
+}
+
+func fieldNullable(shape string, t reflect.Type, omitempty bool, extraTag string) bool {
+	switch extraTag {
+	case "allow_null":
+		return true
+	case "no_null":
+		return false
+	}
+	if shape == "input" {
+		return false
+	}
+	return !omitempty && typeCanMarshalNull(t)
 }
 
 func applyNullability(schema *jsonschema.Schema, fields map[string]map[string]fieldMetadata) {

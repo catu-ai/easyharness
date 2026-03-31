@@ -52,8 +52,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "summary",
-        "findings"
+        "summary"
       ],
       "description": "ReviewSubmissionInput is the JSON input consumed by `harness review submit`."
     }

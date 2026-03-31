@@ -14,7 +14,7 @@ ReviewSpec is the JSON input consumed by `harness review start`.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `dimensions` | `array<ReviewDimension> | null` | yes | Dimensions lists the review dimensions and instructions assigned to reviewers. |
+| `dimensions` | `array<ReviewDimension>` | yes | Dimensions lists the review dimensions and instructions assigned to reviewers. |
 | `kind` | `string` | yes | Kind is the review kind, such as delta or full. |
 | `review_title` | `string` | no | ReviewTitle is the human-readable title for finalize or custom review rounds. |
 | `step` | `integer` | no | Step is the tracked plan step number when the review is step-scoped. |
@@ -36,7 +36,7 @@ ReviewSpec is the JSON input consumed by `harness review start`.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `dimensions` | `array<ReviewDimension> | null` | yes | Dimensions lists the review dimensions and instructions assigned to reviewers. |
+| `dimensions` | `array<ReviewDimension>` | yes | Dimensions lists the review dimensions and instructions assigned to reviewers. |
 | `kind` | `string` | yes | Kind is the review kind, such as delta or full. |
 | `review_title` | `string` | no | ReviewTitle is the human-readable title for finalize or custom review rounds. |
 | `step` | `integer` | no | Step is the tracked plan step number when the review is step-scoped. |

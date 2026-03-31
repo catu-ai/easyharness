@@ -10,6 +10,7 @@ type SchemaEntry struct {
 	Path        string
 	Title       string
 	Description string
+	Shape       string
 	Type        reflect.Type
 }
 
@@ -23,6 +24,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/commands/status.result.schema.json",
 			Title:       "Status command result",
 			Description: "JSON output for `harness status`.",
+			Shape:       "output",
 			Type:        reflect.TypeFor[StatusResult](),
 		},
 		{
@@ -31,6 +33,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/commands/install.result.schema.json",
 			Title:       "Install command result",
 			Description: "JSON output for `harness install`.",
+			Shape:       "output",
 			Type:        reflect.TypeFor[InstallResult](),
 		},
 		{
@@ -39,6 +42,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/commands/lifecycle.result.schema.json",
 			Title:       "Lifecycle command result",
 			Description: "Shared JSON output shape for lifecycle commands such as `harness execute start`, `harness archive`, `harness reopen`, `harness land`, and `harness land complete`.",
+			Shape:       "output",
 			Type:        reflect.TypeFor[LifecycleResult](),
 		},
 		{
@@ -47,6 +51,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/commands/review.start.result.schema.json",
 			Title:       "Review start command result",
 			Description: "JSON output for `harness review start`.",
+			Shape:       "output",
 			Type:        reflect.TypeFor[ReviewStartResult](),
 		},
 		{
@@ -55,6 +60,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/commands/review.submit.result.schema.json",
 			Title:       "Review submit command result",
 			Description: "JSON output for `harness review submit`.",
+			Shape:       "output",
 			Type:        reflect.TypeFor[ReviewSubmitResult](),
 		},
 		{
@@ -63,6 +69,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/commands/review.aggregate.result.schema.json",
 			Title:       "Review aggregate command result",
 			Description: "JSON output for `harness review aggregate`.",
+			Shape:       "output",
 			Type:        reflect.TypeFor[ReviewAggregateResult](),
 		},
 		{
@@ -71,6 +78,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/commands/evidence.submit.result.schema.json",
 			Title:       "Evidence submit command result",
 			Description: "JSON output for `harness evidence submit`.",
+			Shape:       "output",
 			Type:        reflect.TypeFor[EvidenceSubmitResult](),
 		},
 		{
@@ -79,6 +87,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/inputs/review.spec.schema.json",
 			Title:       "Review start input",
 			Description: "JSON input consumed by `harness review start`.",
+			Shape:       "input",
 			Type:        reflect.TypeFor[ReviewSpec](),
 		},
 		{
@@ -87,6 +96,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/inputs/review.submission.schema.json",
 			Title:       "Review submission input",
 			Description: "JSON input consumed by `harness review submit`.",
+			Shape:       "input",
 			Type:        reflect.TypeFor[ReviewSubmissionInput](),
 		},
 		{
@@ -95,6 +105,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/inputs/evidence.ci.schema.json",
 			Title:       "CI evidence input",
 			Description: "JSON input consumed by `harness evidence submit --kind ci`.",
+			Shape:       "input",
 			Type:        reflect.TypeFor[EvidenceCIInput](),
 		},
 		{
@@ -103,6 +114,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/inputs/evidence.publish.schema.json",
 			Title:       "Publish evidence input",
 			Description: "JSON input consumed by `harness evidence submit --kind publish`.",
+			Shape:       "input",
 			Type:        reflect.TypeFor[EvidencePublishInput](),
 		},
 		{
@@ -111,6 +123,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/inputs/evidence.sync.schema.json",
 			Title:       "Sync evidence input",
 			Description: "JSON input consumed by `harness evidence submit --kind sync`.",
+			Shape:       "input",
 			Type:        reflect.TypeFor[EvidenceSyncInput](),
 		},
 		{
@@ -119,6 +132,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/artifacts/current-plan.schema.json",
 			Title:       "Current plan pointer file",
 			Description: "Worktree-level pointer artifact at `.local/harness/current-plan.json`.",
+			Shape:       "artifact",
 			Type:        reflect.TypeFor[CurrentPlanFile](),
 		},
 		{
@@ -127,6 +141,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/artifacts/local-state.schema.json",
 			Title:       "Plan-local state file",
 			Description: "Plan-local runtime state artifact at `.local/harness/plans/<plan-stem>/state.json`.",
+			Shape:       "artifact",
 			Type:        reflect.TypeFor[LocalStateFile](),
 		},
 		{
@@ -135,6 +150,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/artifacts/review-manifest.schema.json",
 			Title:       "Review manifest artifact",
 			Description: "Command-owned review manifest artifact for one review round.",
+			Shape:       "artifact",
 			Type:        reflect.TypeFor[ReviewManifest](),
 		},
 		{
@@ -143,6 +159,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/artifacts/review-ledger.schema.json",
 			Title:       "Review ledger artifact",
 			Description: "Command-owned review ledger artifact for one review round.",
+			Shape:       "artifact",
 			Type:        reflect.TypeFor[ReviewLedger](),
 		},
 		{
@@ -151,6 +168,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/artifacts/review-submission.schema.json",
 			Title:       "Review submission artifact",
 			Description: "Command-owned reviewer submission artifact.",
+			Shape:       "artifact",
 			Type:        reflect.TypeFor[ReviewSubmission](),
 		},
 		{
@@ -159,6 +177,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/artifacts/review-aggregate.schema.json",
 			Title:       "Review aggregate artifact",
 			Description: "Command-owned review aggregate artifact.",
+			Shape:       "artifact",
 			Type:        reflect.TypeFor[ReviewAggregate](),
 		},
 		{
@@ -167,6 +186,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/artifacts/evidence-ci-record.schema.json",
 			Title:       "CI evidence record artifact",
 			Description: "Command-owned CI evidence artifact.",
+			Shape:       "artifact",
 			Type:        reflect.TypeFor[EvidenceCIRecord](),
 		},
 		{
@@ -175,6 +195,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/artifacts/evidence-publish-record.schema.json",
 			Title:       "Publish evidence record artifact",
 			Description: "Command-owned publish evidence artifact.",
+			Shape:       "artifact",
 			Type:        reflect.TypeFor[EvidencePublishRecord](),
 		},
 		{
@@ -183,6 +204,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/artifacts/evidence-sync-record.schema.json",
 			Title:       "Sync evidence record artifact",
 			Description: "Command-owned sync evidence artifact.",
+			Shape:       "artifact",
 			Type:        reflect.TypeFor[EvidenceSyncRecord](),
 		},
 		{
@@ -191,6 +213,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/shared/next-action.schema.json",
 			Title:       "Next action",
 			Description: "Reusable next-action shape embedded in multiple command results.",
+			Shape:       "output",
 			Type:        reflect.TypeFor[NextAction](),
 		},
 		{
@@ -199,6 +222,7 @@ func SchemaRegistry() []SchemaEntry {
 			Path:        "schema/shared/error-detail.schema.json",
 			Title:       "Error detail",
 			Description: "Reusable path-plus-message error shape embedded in multiple command results.",
+			Shape:       "output",
 			Type:        reflect.TypeFor[ErrorDetail](),
 		},
 	}

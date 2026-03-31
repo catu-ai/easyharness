@@ -36,6 +36,44 @@ func TestExpectedStatusSchemaAllowsNullableCurrentOutputs(t *testing.T) {
 	}
 }
 
+func TestReviewInputSchemasMatchValidatorBoundaries(t *testing.T) {
+	repoRoot := filepath.Clean(filepath.Join("..", ".."))
+	files, err := expectedFiles(repoRoot)
+	if err != nil {
+		t.Fatalf("expectedFiles: %v", err)
+	}
+
+	var reviewSpec map[string]any
+	if err := json.Unmarshal(files["schema/inputs/review.spec.schema.json"], &reviewSpec); err != nil {
+		t.Fatalf("unmarshal review spec schema: %v", err)
+	}
+	specDefs := reviewSpec["$defs"].(map[string]any)
+	specRoot := specDefs["ReviewSpec"].(map[string]any)
+	specProps := specRoot["properties"].(map[string]any)
+	dimensionsSchema := specProps["dimensions"].(map[string]any)
+	if schemaAllowsNull(dimensionsSchema) {
+		t.Fatalf("expected review spec dimensions to reject null, got %#v", dimensionsSchema)
+	}
+	if got := dimensionsSchema["minItems"]; got != float64(1) {
+		t.Fatalf("expected review spec dimensions minItems=1, got %#v", got)
+	}
+
+	var submission map[string]any
+	if err := json.Unmarshal(files["schema/inputs/review.submission.schema.json"], &submission); err != nil {
+		t.Fatalf("unmarshal review submission schema: %v", err)
+	}
+	submissionDefs := submission["$defs"].(map[string]any)
+	submissionRoot := submissionDefs["ReviewSubmissionInput"].(map[string]any)
+	required := stringSet(submissionRoot["required"])
+	if required["findings"] {
+		t.Fatalf("expected review submission findings to be optional, got %#v", submissionRoot["required"])
+	}
+	findingsSchema := submissionRoot["properties"].(map[string]any)["findings"].(map[string]any)
+	if !schemaAllowsNull(findingsSchema) {
+		t.Fatalf("expected review submission findings to allow null, got %#v", findingsSchema)
+	}
+}
+
 func TestCheckFilesFailsOnMissingAndUnexpectedGeneratedFiles(t *testing.T) {
 	workdir := t.TempDir()
 	ownedRoots := []string{

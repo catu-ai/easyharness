@@ -37,18 +37,11 @@
           "description": "ReviewTitle is the human-readable title for finalize or custom review rounds."
         },
         "dimensions": {
-          "oneOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/ReviewDimension"
-              },
-              "type": "array",
-              "description": "Dimensions lists the review dimensions and instructions assigned to reviewers."
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "items": {
+            "$ref": "#/$defs/ReviewDimension"
+          },
+          "type": "array",
+          "minItems": 1,
           "description": "Dimensions lists the review dimensions and instructions assigned to reviewers."
         }
       },

@@ -14,7 +14,7 @@ ReviewSubmissionInput is the JSON input consumed by `harness review submit`.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `findings` | `array<ReviewFinding> | null` | yes | Findings lists the review findings for the slot. |
+| `findings` | `array<ReviewFinding> | null` | no | Findings lists the review findings for the slot. |
 | `summary` | `string` | yes | Summary is the reviewer's concise overall assessment. |
 
 ## Definitions
@@ -35,5 +35,5 @@ ReviewSubmissionInput is the JSON input consumed by `harness review submit`.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `findings` | `array<ReviewFinding> | null` | yes | Findings lists the review findings for the slot. |
+| `findings` | `array<ReviewFinding> | null` | no | Findings lists the review findings for the slot. |
 | `summary` | `string` | yes | Summary is the reviewer's concise overall assessment. |
