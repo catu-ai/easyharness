@@ -3,7 +3,7 @@ template_version: 0.2.0
 created_at: "2026-04-01T09:37:52+08:00"
 source_type: direct_request
 source_refs:
-  - "https://github.com/catu-ai/easyharness/issues/87"
+    - https://github.com/catu-ai/easyharness/issues/87
 ---
 
 # Drive releases from a tracked VERSION file
@@ -290,6 +290,8 @@ Review history for this candidate:
 
 ## Archive Summary
 
+- Archived At: 2026-04-01T13:05:47+08:00
+- Revision: 1
 The archive candidate converts release entry from a maintainer-pushed tag to a
 repo-tracked `VERSION` bump on `main`, while preserving the existing
 tag-driven `Release` workflow as the publish mechanism for GitHub Releases and
