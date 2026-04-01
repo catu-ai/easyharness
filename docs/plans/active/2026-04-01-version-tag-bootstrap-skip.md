@@ -133,9 +133,9 @@ this tracked lightweight plan.
 Step-closeout delta review `review-001-delta` passed clean for
 `docs_consistency` and `risk_scan`. Finalize full review `review-002-full`
 initially found one blocking `agent_ux` issue: the tracked plan lacked a
-durable PR/merge breadcrumb for the lightweight handoff. Revision 2 repairs
-that gap by recording explicit `PR` and `Merge Handoff` entries in the plan so
-archive/publish work no longer depends on chat history.
+durable PR/merge breadcrumb for the lightweight handoff. The current candidate
+repairs that gap by recording explicit `PR` and `Merge Handoff` entries in the
+plan so archive/publish work no longer depends on chat history.
 
 ## Archive Summary
 
