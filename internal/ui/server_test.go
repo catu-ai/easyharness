@@ -80,6 +80,9 @@ func TestNewHandlerFallsBackToIndexForSPAPath(t *testing.T) {
 	if !strings.Contains(body, "repoName: \""+filepath.Base(workdir)+"\"") {
 		t.Fatalf("expected injected repo name %q in embedded index, got %s", filepath.Base(workdir), body)
 	}
+	if !strings.Contains(body, "productName: \""+productDisplayName+"\"") {
+		t.Fatalf("expected injected product name %q in embedded index, got %s", productDisplayName, body)
+	}
 }
 
 func TestNewHandlerReturnsNotFoundForAPINamespaceRoot(t *testing.T) {

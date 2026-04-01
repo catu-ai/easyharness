@@ -23,6 +23,8 @@ import (
 //go:embed static
 var embeddedStatic embed.FS
 
+const productDisplayName = "easyharness"
+
 type Server struct {
 	Workdir     string
 	Host        string
@@ -139,8 +141,14 @@ func serveIndex(staticFS fs.FS, workdir string, w http.ResponseWriter) {
 		http.Error(w, "encode repo name", http.StatusInternalServerError)
 		return
 	}
+	productNameJSON, err := json.Marshal(productDisplayName)
+	if err != nil {
+		http.Error(w, "encode product name", http.StatusInternalServerError)
+		return
+	}
 	page := strings.ReplaceAll(string(data), "\"__HARNESS_UI_WORKDIR__\"", string(workdirJSON))
 	page = strings.ReplaceAll(page, "\"__HARNESS_UI_REPO_NAME__\"", string(repoNameJSON))
+	page = strings.ReplaceAll(page, "\"__HARNESS_UI_PRODUCT_NAME__\"", string(productNameJSON))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = io.WriteString(w, page)
 }

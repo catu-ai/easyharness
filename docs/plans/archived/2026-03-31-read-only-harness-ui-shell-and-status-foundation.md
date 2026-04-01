@@ -391,20 +391,30 @@ archive.
 
 ## Validation Summary
 
+Reopen revision 2 revalidated the UI shell after the post-archive visual
+feedback loop and the follow-up smoke-helper isolation repair.
+
 - `pnpm --dir web build`
 - `pnpm --dir web check`
-- `go test ./internal/ui ./internal/cli`
 - `go test ./...`
 - `scripts/install-dev-harness` after Go/embed changes so the repo-local
   `harness` binary matched the current worktree
-- `scripts/ui-playwright-smoke`, which now covers:
-  - healthy live `Status` rendering against `/api/status`
-  - left-rail SPA navigation between `Status` and `Timeline`
-  - deep-link rendering for `Timeline`, `Review`, `Diff`, and `Files`
-  - lock-induced `503` failure rendering for `Status`
-  - Vite dev-mode mount against a live backend via `HARNESS_UI_API_TARGET`
+- `bash scripts/ui-playwright-smoke`, which now:
+  - rebuilds the embedded UI assets and refreshes the repo-local `harness`
+    binary before browser validation
+  - defaults to an isolated runtime snapshot instead of mutating the shared
+    checkout-local `.local/harness` state
+  - verifies healthy live `Status` rendering against `/api/status`
+  - verifies left-rail navigation plus deep-link rendering for `Timeline`,
+    `Review`, `Diff`, and `Files`
+  - verifies lock-induced `503` failure rendering for `Status`
+  - verifies the Vite dev-mode mount against a live backend via
+    `HARNESS_UI_API_TARGET`
 
 ## Review Summary
+
+Revision 2 used two finalize review rounds after the archived candidate was
+reopened for UI polish.
 
 - `review-001-full`: changes requested for incorrect worktree metadata, broken
   pathname restoration, and missing repo-local browser validation
@@ -423,24 +433,41 @@ archive.
 - `review-008-full`: changes requested for missing rail-click navigation
   coverage and default parallel-collision risk in the smoke helper
 - `review-009-full`: full finalize review passed with no findings
+- `review-011-full`: changes requested after reopen for the hardcoded
+  `repoName` regression plus missing proof that rebuilt embedded assets and
+  helper prerequisites were covered by the validation path
+- `review-012-full`: full finalize review found no correctness regressions in
+  the refreshed VS Code-like shell, but it did request one more repair so the
+  smoke helper would stop using shared checkout-local harness state by default
+- `review-013-delta`: passed after isolating the smoke helper's runtime
+  workdir while preserving embedded-asset rebuild coverage, failure-path
+  coverage, and dev-mode validation
 
 ## Archive Summary
 
-- Archived At: 2026-04-01T00:45:05+08:00
-- Revision: 1
-- PR: NONE. Publish evidence should record the PR URL after archive.
-- Ready: `review-009-full` passed as the structural `pre_archive` gate, all
-  acceptance criteria are satisfied, and the latest validation stack is green
-  (`pnpm --dir web build`, `pnpm --dir web check`, `go test ./...`,
-  `scripts/ui-playwright-smoke`).
-- Merge Handoff: Run `harness archive`, commit the tracked archive move plus
-  the code/doc updates on `codex/read-only-harness-ui-shell`, push the branch,
-  open or refresh the PR, and record publish/CI/sync evidence until
-  `harness status` reaches `execution/finalize/await_merge`.
+- Archived At: 2026-04-01T10:33:36+08:00
+- Revision: 2
+Revision 2 is archive-ready again after `review-013-delta` passed on
+2026-04-01T10:32:18+08:00.
+
+- Reopen Mode: `finalize-fix`
+- PR: [#96](https://github.com/catu-ai/easyharness/pull/96)
+- Ready: the reopened candidate restored the dynamic repo metadata contract,
+  rebuilt the shell into a flatter VS Code-like three-column layout, tightened
+  browser validation, and removed shared-checkout runtime-state collisions
+  from `scripts/ui-playwright-smoke`.
+- Merge Handoff: run `harness archive`, commit the tracked archive move plus
+  the refreshed plan summaries and UI/script updates on
+  `codex/read-only-harness-ui-shell`, push the branch, refresh PR #96, and
+  record publish/CI/sync evidence until `harness status` returns
+  `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
+
+Revision 2 kept the MVP scope the same but materially improved the quality and
+resume-ability of the read-only UI slice.
 
 - Added `harness ui` as a read-only local workbench command with `--host`,
   `--port`, and `--no-open`.
@@ -450,6 +477,12 @@ archive.
 - Added the isolated `web/` frontend subproject with `Preact + TypeScript +
   Vite`, including the shared shell, top rail, page routes, and a live `Status`
   page backed by real `harness status` data.
+- Refined the shell into a flatter, VS Code-like three-column workbench with
+  an icon-only activity bar, page-specific sidebar, and editor pane whose
+  detail view follows the selected `Status` section.
+- Restored the metadata contract so the embedded UI continues to inject the
+  current workdir and derived repo label while separately branding the product
+  as `easyharness`.
 - Added explicit WIP pages for `Timeline`, `Review`, `Diff`, and `Files` so
   the workbench structure is visible without pretending their deeper data
   surfaces are already settled.
@@ -457,6 +490,9 @@ archive.
   Playwright smoke helper that now covers healthy status rendering, lock-based
   failure rendering, SPA rail navigation, WIP deep links, and the Vite dev-mode
   mount path.
+- Updated the Playwright smoke helper so each run gets its own browser session
+  workdirs and an isolated default runtime snapshot, which keeps future
+  parallel browser runs from contending on the shared checkout-local plan lock.
 - Documented the frontend build/dev workflow in tracked docs, including the
   repo-local harness rebuild flow and the proxy-compatible `pnpm --dir web
   dev:harness` path.

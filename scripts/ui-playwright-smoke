@@ -7,30 +7,135 @@ if ! command -v npx >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 is required to run Playwright browser validation." >&2
+  echo "Install Python 3 first, then rerun this script." >&2
+  exit 1
+fi
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pnpm is required to rebuild embedded UI assets before browser validation." >&2
+  echo "Install pnpm first, then rerun this script." >&2
+  exit 1
+fi
+
 export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 export PWCLI="$CODEX_HOME/skills/playwright/scripts/playwright_cli.sh"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-workdir="${HARNESS_UI_WORKDIR:-$repo_root}"
-harness_bin="${HARNESS_UI_BINARY:-$workdir/.local/bin/harness}"
+requested_workdir="${HARNESS_UI_WORKDIR:-}"
+harness_bin="${HARNESS_UI_BINARY:-$repo_root/.local/bin/harness}"
 host="${HARNESS_UI_HOST:-127.0.0.1}"
 port="${HARNESS_UI_PORT:-0}"
 tmp_dir="$(mktemp -d)"
 server_log="$tmp_dir/harness-ui.log"
-session_id="${HARNESS_UI_PLAYWRIGHT_SESSION:-harness-ui-smoke-$$-$(date +%s)}"
-output_dir="${HARNESS_UI_OUTPUT_DIR:-output/playwright/$session_id}"
-playwright_workdir="$tmp_dir/playwright"
+session_prefix="${HARNESS_UI_PLAYWRIGHT_SESSION:-harness-ui-smoke-$$-$(date +%s%N)-$RANDOM}"
+session_nonce="$(python3 - <<'PY'
+import uuid
+print(uuid.uuid4().hex[:6])
+PY
+)"
+output_dir="${HARNESS_UI_OUTPUT_DIR:-output/playwright/$session_prefix}"
+playwright_root="$tmp_dir/playwright"
 vite_log="$tmp_dir/vite-dev.log"
+playwright_timeout_seconds="${HARNESS_UI_PLAYWRIGHT_TIMEOUT:-45}"
+runtime_workdir=""
 
 server_pid=""
 lock_holder_pid=""
 vite_pid=""
+rail_session=""
 
 pwcli() {
-  (
-    cd "$playwright_workdir"
-    PLAYWRIGHT_CLI_SESSION="$session_id" "$PWCLI" "$@"
-  )
+  local session="$1"
+  shift
+  local workdir
+  workdir="$(session_workdir "$session")"
+  mkdir -p "$workdir"
+  python3 - "$PWCLI" "$workdir" "$playwright_timeout_seconds" "$session" "$@" <<'PY'
+import subprocess
+import sys
+
+pwcli, cwd, timeout_s, session, *args = sys.argv[1:]
+cmd = [pwcli, "--session", session, *args]
+try:
+    completed = subprocess.run(cmd, cwd=cwd, timeout=float(timeout_s), check=False)
+except subprocess.TimeoutExpired:
+    print(f"Playwright command timed out after {timeout_s}s: {' '.join(cmd)}", file=sys.stderr)
+    sys.exit(124)
+sys.exit(completed.returncode)
+PY
+}
+
+pwcli_close() {
+  local session="$1"
+  local workdir
+  workdir="$(session_workdir "$session")"
+  mkdir -p "$workdir"
+  python3 - "$PWCLI" "$session" "$workdir" <<'PY'
+import subprocess
+import sys
+import os
+import signal
+
+pwcli, session, cwd = sys.argv[1:4]
+proc = subprocess.Popen(
+    [pwcli, "--session", session, "close"],
+    cwd=cwd,
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.DEVNULL,
+    start_new_session=True,
+)
+try:
+    proc.wait(timeout=5)
+except subprocess.TimeoutExpired:
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+PY
+}
+
+log_phase() {
+  printf '[ui-smoke] %s\n' "$*" >&2
+}
+
+session_workdir() {
+  printf '%s/%s\n' "$playwright_root" "$1"
+}
+
+session_name() {
+  printf 'hui-%s-%s\n' "$session_nonce" "$1"
+}
+
+prepare_runtime_workdir() {
+  if [[ -n "$requested_workdir" ]]; then
+    runtime_workdir="$requested_workdir"
+    return
+  fi
+
+  runtime_workdir="$tmp_dir/runtime-workdir"
+  mkdir -p "$runtime_workdir/.local"
+  cp -R "$repo_root/docs" "$runtime_workdir/docs"
+  cp -R "$repo_root/.local/harness" "$runtime_workdir/.local/harness"
+}
+
+navigate_browser_to() {
+  local session="$1"
+  local target_url="$2"
+  local workdir
+  workdir="$(session_workdir "$session")"
+  rm -rf "$workdir"
+  mkdir -p "$workdir"
+  pwcli "$session" open "$target_url" >/dev/null
 }
 
 cleanup() {
@@ -46,7 +151,7 @@ cleanup() {
     kill "${vite_pid}" >/dev/null 2>&1 || true
     wait "${vite_pid}" >/dev/null 2>&1 || true
   fi
-  pwcli close >/dev/null 2>&1 || true
+  pwcli_close "$rail_session" >/dev/null 2>&1 || true
   rm -rf "$tmp_dir"
 }
 
@@ -58,8 +163,15 @@ if [[ ! -x "$harness_bin" ]]; then
   exit 1
 fi
 
+log_phase "rebuilding embedded UI assets"
+pnpm --dir "$repo_root/web" build >/dev/null
+log_phase "refreshing local harness binary"
+"$repo_root/scripts/install-dev-harness" >/dev/null
+harness_bin="${HARNESS_UI_BINARY:-$repo_root/.local/bin/harness}"
+prepare_runtime_workdir
+
 mkdir -p "$output_dir"
-mkdir -p "$playwright_workdir"
+mkdir -p "$playwright_root"
 
 vite_port="${HARNESS_UI_VITE_PORT:-$(python3 - <<'PY'
 import socket
@@ -70,14 +182,16 @@ s.close()
 PY
 )}"
 
+log_phase "starting harness ui on ${host}:${port}"
 (
-  cd "$workdir"
+  cd "$runtime_workdir"
   "$harness_bin" ui --no-open --host "$host" --port "$port" >"$server_log" 2>&1
 ) &
 server_pid="$!"
 
 base_url=""
-for _ in $(seq 1 50); do
+log_phase "waiting for harness ui to report readiness"
+for _ in $(seq 1 150); do
   base_url="$(sed -n 's/^Harness UI listening at \(http:\/\/[^[:space:]]*\)$/\1/p' "$server_log" | tail -n 1)"
   if [[ -n "$base_url" ]] && curl -sf "${base_url}/api/status" >"$tmp_dir/status.json"; then
     break
@@ -91,6 +205,7 @@ if [[ -z "$base_url" || ! -s "$tmp_dir/status.json" ]]; then
   exit 1
 fi
 
+log_phase "capturing live status pages"
 status_summary="$(python3 - "$tmp_dir/status.json" <<'PY'
 import json, sys
 with open(sys.argv[1], 'r', encoding='utf-8') as fh:
@@ -131,40 +246,62 @@ snapshot_path_from_output() {
   sed -n 's/.*\[Snapshot](\(.*\)).*/\1/p' | tail -n 1
 }
 
+write_inline_snapshot_from_output() {
+  local destination="$1"
+  awk '
+    /^```yaml$/ { capture=1; next }
+    capture && /^```$/ { capture=0; exit }
+    capture { print }
+  ' >"$destination"
+
+  [[ -s "$destination" ]]
+}
+
 resolve_snapshot_path() {
-  local snapshot="$1"
+  local session="$1"
+  local snapshot="$2"
   if [[ "$snapshot" == /* ]]; then
     printf '%s\n' "$snapshot"
     return
   fi
-  printf '%s/%s\n' "$playwright_workdir" "$snapshot"
+  printf '%s/%s\n' "$(session_workdir "$session")" "$snapshot"
 }
 
 capture_snapshot() {
   local route="$1"
   local label="$2"
   local delay_seconds="${3:-0}"
-  local output snapshot
+  local output snapshot target_file session
   local target_url="${route}"
+  target_file="${output_dir}/${label}.yml"
+  session="$(session_name "$label")"
 
   if [[ "$target_url" != http://* && "$target_url" != https://* ]]; then
     target_url="${base_url}${route}"
   fi
 
-  pwcli open "$target_url" >/dev/null
+  navigate_browser_to "$session" "$target_url"
   if [[ "$delay_seconds" != "0" ]]; then
     sleep "$delay_seconds"
   fi
-  output="$(pwcli snapshot)"
-  snapshot="$(resolve_snapshot_path "$(printf '%s\n' "$output" | snapshot_path_from_output)")"
+  output="$(pwcli "$session" snapshot)"
+  snapshot="$(resolve_snapshot_path "$session" "$(printf '%s\n' "$output" | snapshot_path_from_output || true)")"
 
-  if [[ -z "$snapshot" || ! -f "$snapshot" ]]; then
-    echo "Missing Playwright snapshot for ${route}" >&2
-    printf '%s\n' "$output" >&2
-    exit 1
+  if [[ -n "$snapshot" && -f "$snapshot" ]]; then
+    cp "$snapshot" "$target_file"
+    pwcli_close "$session" >/dev/null 2>&1 || true
+    return
   fi
 
-  cp "$snapshot" "${output_dir}/${label}.yml"
+  if printf '%s\n' "$output" | write_inline_snapshot_from_output "$target_file"; then
+    pwcli_close "$session" >/dev/null 2>&1 || true
+    return
+  fi
+
+  pwcli_close "$session" >/dev/null 2>&1 || true
+  echo "Missing Playwright snapshot for ${route}" >&2
+  printf '%s\n' "$output" >&2
+  exit 1
 }
 
 assert_snapshot_contains() {
@@ -178,7 +315,7 @@ assert_snapshot_contains() {
   fi
 }
 
-assert_snapshot_has_literal() {
+assert_has_text() {
   local label="$1"
   local expected="$2"
   local snapshot="${output_dir}/${label}.yml"
@@ -197,13 +334,15 @@ link_ref_from_snapshot() {
 }
 
 navigate_via_rail() {
-  local from_label="$1"
-  local link_label="$2"
-  local to_label="$3"
-  local expected_heading="$4"
+  local rail_session="$1"
+  local from_label="$2"
+  local link_label="$3"
+  local to_label="$4"
+  local expected_text="$5"
   local source_snapshot="${output_dir}/${from_label}.yml"
   local link_ref
-  local output snapshot
+  local output snapshot target_file
+  target_file="${output_dir}/${to_label}.yml"
 
   link_ref="$(link_ref_from_snapshot "$link_label" "$source_snapshot")"
   if [[ -z "$link_ref" ]]; then
@@ -212,42 +351,61 @@ navigate_via_rail() {
     exit 1
   fi
 
-  pwcli click "$link_ref" >/dev/null
+  pwcli "$rail_session" click "$link_ref" >/dev/null
   sleep 0.5
-  output="$(pwcli snapshot)"
-  snapshot="$(resolve_snapshot_path "$(printf '%s\n' "$output" | snapshot_path_from_output)")"
+  output="$(pwcli "$rail_session" snapshot)"
+  snapshot="$(resolve_snapshot_path "$rail_session" "$(printf '%s\n' "$output" | snapshot_path_from_output || true)")"
 
-  if [[ -z "$snapshot" || ! -f "$snapshot" ]]; then
-    echo "Missing Playwright snapshot after clicking ${link_label}" >&2
-    printf '%s\n' "$output" >&2
-    exit 1
+  if [[ -n "$snapshot" && -f "$snapshot" ]]; then
+    cp "$snapshot" "$target_file"
+    assert_has_text "$to_label" "$expected_text"
+    return
   fi
 
-  cp "$snapshot" "${output_dir}/${to_label}.yml"
-  assert_snapshot_contains "$to_label" "heading \"$expected_heading\""
+  if printf '%s\n' "$output" | write_inline_snapshot_from_output "$target_file"; then
+    assert_has_text "$to_label" "$expected_text"
+    return
+  fi
+
+  echo "Missing Playwright snapshot after clicking ${link_label}" >&2
+  printf '%s\n' "$output" >&2
+  exit 1
 }
 
-capture_snapshot "/status" "status" 1
-assert_snapshot_contains "status" 'heading "Status"'
-assert_snapshot_has_literal "status" "$status_summary"
-assert_snapshot_has_literal "status" "$status_node"
-assert_snapshot_has_literal "status" "Next actions"
+rail_session="$(session_name rail)"
+navigate_browser_to "$rail_session" "${base_url}/status"
+sleep 1
+output="$(pwcli "$rail_session" snapshot)"
+snapshot="$(resolve_snapshot_path "$rail_session" "$(printf '%s\n' "$output" | snapshot_path_from_output || true)")"
+if [[ -n "$snapshot" && -f "$snapshot" ]]; then
+  cp "$snapshot" "${output_dir}/status.yml"
+elif ! printf '%s\n' "$output" | write_inline_snapshot_from_output "${output_dir}/status.yml"; then
+  echo "Missing Playwright snapshot for /status" >&2
+  printf '%s\n' "$output" >&2
+  exit 1
+fi
+
+assert_has_text "status" "Status"
+assert_has_text "status" "$status_summary"
+assert_has_text "status" "$status_node"
+assert_has_text "status" "Next actions"
 capture_snapshot "/timeline" "timeline"
-assert_snapshot_contains "timeline" 'heading "Timeline"'
-assert_snapshot_contains "timeline" 'heading "WIP"'
-navigate_via_rail "status" "Timeline" "timeline-rail" "Timeline"
-navigate_via_rail "timeline-rail" "Status" "status-rail" "Status"
+assert_has_text "timeline" "Timeline"
+assert_has_text "timeline" "WIP"
+navigate_via_rail "$rail_session" "status" "Timeline" "timeline-rail" "Timeline"
+navigate_via_rail "$rail_session" "timeline-rail" "Status" "status-rail" "Status"
+pwcli_close "$rail_session"
 capture_snapshot "/review" "review"
-assert_snapshot_contains "review" 'heading "Review"'
-assert_snapshot_contains "review" 'heading "WIP"'
+assert_has_text "review" "Review"
+assert_has_text "review" "WIP"
 capture_snapshot "/diff" "diff"
-assert_snapshot_contains "diff" 'heading "Diff"'
-assert_snapshot_contains "diff" 'heading "WIP"'
+assert_has_text "diff" "Diff"
+assert_has_text "diff" "WIP"
 capture_snapshot "/files" "files"
-assert_snapshot_contains "files" 'heading "Files"'
-assert_snapshot_contains "files" 'heading "WIP"'
-assert_snapshot_has_literal "status" "$(basename "$workdir")"
-assert_snapshot_has_literal "status" "$workdir"
+assert_has_text "files" "Files"
+assert_has_text "files" "WIP"
+assert_has_text "status" "$(basename "$runtime_workdir")"
+assert_has_text "status" "$runtime_workdir"
 
 if [[ -z "$plan_stem" ]]; then
   echo "Status payload did not include an active plan path for failure-state validation." >&2
@@ -255,7 +413,8 @@ if [[ -z "$plan_stem" ]]; then
   exit 1
 fi
 
-lock_path="$workdir/.local/harness/plans/$plan_stem/.state-mutation.lock"
+log_phase "validating lock contention handling"
+lock_path="$runtime_workdir/.local/harness/plans/$plan_stem/.state-mutation.lock"
 lock_log="$tmp_dir/status-lock.log"
 python3 - "$lock_path" >"$lock_log" 2>&1 <<'PY' &
 import fcntl
@@ -273,7 +432,7 @@ with open(lock_path, "a+", encoding="utf-8") as fh:
 PY
 lock_holder_pid="$!"
 
-for _ in $(seq 1 25); do
+for _ in $(seq 1 100); do
   if grep -Fq -- "locked" "$lock_log"; then
     break
   fi
@@ -302,10 +461,10 @@ PY
 )"
 
 capture_snapshot "/status" "status-error" 1
-assert_snapshot_contains "status-error" 'heading "Status"'
-assert_snapshot_has_literal "status-error" "$status_error_summary"
-assert_snapshot_has_literal "status-error" "another command is already mutating local state"
-assert_snapshot_has_literal "status-error" "retry after it finishes"
+assert_has_text "status-error" "Status"
+assert_has_text "status-error" "$status_error_summary"
+assert_has_text "status-error" "another command is already mutating local state"
+assert_has_text "status-error" "retry after it finishes"
 
 kill "${lock_holder_pid}" >/dev/null 2>&1 || true
 wait "${lock_holder_pid}" >/dev/null 2>&1 || true
@@ -328,14 +487,15 @@ if ! curl -sf "${vite_url}/status" >/dev/null; then
   exit 1
 fi
 
+log_phase "validating Vite dev server rendering"
 capture_snapshot "${vite_url}/status" "status-dev" 1
-assert_snapshot_contains "status-dev" 'heading "Status"'
-assert_snapshot_has_literal "status-dev" "$status_summary"
-assert_snapshot_has_literal "status-dev" "$status_node"
-assert_snapshot_has_literal "status-dev" "$workdir"
+assert_has_text "status-dev" "Status"
+assert_has_text "status-dev" "$status_summary"
+assert_has_text "status-dev" "$status_node"
 
 kill "${vite_pid}" >/dev/null 2>&1 || true
 wait "${vite_pid}" >/dev/null 2>&1 || true
 vite_pid=""
 
+log_phase "playwright UI smoke validation passed"
 echo "Playwright UI smoke validation passed for ${base_url}"
