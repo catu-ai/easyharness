@@ -176,6 +176,62 @@ func TestReadLoadsLargeTimelineEventPayload(t *testing.T) {
 	}
 }
 
+func TestReadResolvesArtifactRefFileContents(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeActivePlanForTimeline(t, root, "docs/plans/active/2026-04-01-timeline-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+
+	manifestPath := filepath.Join(root, ".local", "harness", "plans", "2026-04-01-timeline-plan", "reviews", "review-001-full", "manifest.json")
+	if err := os.MkdirAll(filepath.Dir(manifestPath), 0o755); err != nil {
+		t.Fatalf("mkdir manifest dir: %v", err)
+	}
+	if err := os.WriteFile(manifestPath, []byte("{\"review_title\":\"Timeline artifacts\"}\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	if _, _, err := timeline.AppendEvent(root, "2026-04-01-timeline-plan", timeline.Event{
+		RecordedAt: "2026-04-01T10:00:00Z",
+		Kind:       "review",
+		Command:    "review start",
+		Summary:    "Created review round.",
+		PlanPath:   relPlanPath,
+		Revision:   1,
+		ArtifactRefs: []timeline.ArtifactRef{
+			{Label: "round_id", Value: "review-001-full"},
+			{Label: "manifest_path", Value: ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/manifest.json", Path: ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/manifest.json"},
+		},
+	}); err != nil {
+		t.Fatalf("append timeline event: %v", err)
+	}
+
+	result := timeline.Service{Workdir: root}.Read()
+	if !result.OK {
+		t.Fatalf("expected resolved artifact timeline read success, got %#v", result)
+	}
+	if len(result.Events) != 2 {
+		t.Fatalf("expected bootstrap plan plus review start event, got %#v", result.Events)
+	}
+	refs := result.Events[1].ArtifactRefs
+	if len(refs) != 2 {
+		t.Fatalf("expected artifact refs to survive read, got %#v", refs)
+	}
+	if len(refs[0].Content) != 0 {
+		t.Fatalf("expected value-only ref to remain unresolved, got %#v", refs[0])
+	}
+	if refs[1].ContentType != "json" {
+		t.Fatalf("expected resolved manifest ref content type json, got %#v", refs[1])
+	}
+	var decoded map[string]string
+	if err := json.Unmarshal(refs[1].Content, &decoded); err != nil {
+		t.Fatalf("unmarshal resolved manifest content: %v", err)
+	}
+	if decoded["review_title"] != "Timeline artifacts" {
+		t.Fatalf("unexpected manifest content: %#v", decoded)
+	}
+}
+
 func writeActivePlanForTimeline(t *testing.T, root, relPath string) string {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(relPath))

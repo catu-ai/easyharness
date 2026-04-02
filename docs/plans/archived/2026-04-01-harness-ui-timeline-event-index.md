@@ -336,22 +336,40 @@ archive.
 
 ## Validation Summary
 
+The original archive candidate was reopened in `finalize-fix` mode after
+human feedback narrowed one remaining Timeline semantic gap: the right-hand
+inspector still rendered artifact-ref tabs as ref metadata instead of file
+contents, and it still exposed context-only tabs such as `plan_path`.
+
 - `go test ./...` passes after the timeline transaction-boundary fixes,
   including new internal rollback coverage for `review start`,
   `review submit`, `review aggregate`, and `evidence submit` (`ci`,
   `publish`, and `sync`).
+- `go test ./internal/timeline ./internal/ui` also covers the new read-model
+  artifact-content expansion paths, including resolved file-content payloads
+  on `/api/timeline`.
 - `pnpm --dir web check` and `pnpm --dir web build` pass with the final
-  three-column Timeline layout and refreshed embedded assets.
+  three-column Timeline layout, refined tab filtering, and refreshed embedded
+  assets.
 - `bash scripts/ui-playwright-smoke` passes with a deterministic
   archive-to-land fixture that validates the live Timeline route, default
-  latest-event selection, raw `Output` inspection, artifact-ref tabs, lock
-  contention handling, and Vite dev rendering.
+  latest-event selection, raw `Output` inspection, resolved artifact-content
+  tabs, hidden context-only tabs, lock contention handling, and Vite dev
+  rendering.
 - Manual Playwright screenshots captured the live UI under
   `output/playwright/manual-timeline-final/timeline-default-current-state.png`
   and
   `output/playwright/manual-timeline-final/timeline-review-start-manifest-tab.png`.
+- Additional finalize-fix screenshots now live under
+  `output/playwright/manual-timeline-artifact-content/`, including
+  `timeline-review-submit-output.png` and
+  `timeline-review-start-manifest-content.png`.
 
 ## Review Summary
+
+The original archive candidate passed `review-011-full`, then reopened for one
+narrow finalize follow-up after direct human UX feedback on the Timeline
+inspector tabs.
 
 - `review-006-full` and `review-007-delta` drove the transaction-boundary
   rollback fixes that keep timeline events aligned with successful command
@@ -366,18 +384,27 @@ archive.
 - `review-011-full` passed with zero blocking and zero non-blocking findings
   after the final rollback fixes, coverage additions, smoke refresh, and
   closeout-summary updates.
+- `review-012-delta` passed with zero blocking and zero non-blocking findings
+  after the finalize-fix follow-up for resolved artifact-content tabs, hidden
+  context-only tabs, and the refined Timeline inspector behavior after reopen.
 
 ## Archive Summary
 
-- Archived At: 2026-04-02T00:59:47+08:00
-- Revision: 1
-- PR: not refreshed yet; archive-ready tracked changes still need to be
-  committed and pushed after the plan move.
-- Ready: yes; `harness status` now reports `execution/finalize/archive` after
-  clean `review-011-full` finalize review.
-- Merge Handoff: archive the plan, commit and push the tracked move, then
-  continue publish/CI/sync evidence until `harness status` reaches
-  `execution/finalize/await_merge`.
+- Archived At: 2026-04-02T10:09:56+08:00
+- Revision: 2
+This section records the first archive handoff and the state of the reopened
+candidate. Revision 1 archived successfully, then revision 2 reopened in
+`finalize-fix` mode after new UI feedback invalidated merge-readiness.
+
+- Finalize Review: `review-012-delta` passed at
+  `2026-04-02T10:09:33+08:00`.
+- PR: https://github.com/catu-ai/easyharness/pull/102 remains the working PR,
+  but it is no longer merge-ready until this finalize-fix is re-reviewed,
+  archived, and pushed.
+- Ready: archive-ready after the revision 2 finalize-fix validation and
+  clean `review-012-delta` aggregate.
+- Merge Handoff: finish the narrow tab-semantics fix, rerun finalize review,
+  archive again, and refresh the PR branch before waiting for merge approval.
 
 ## Outcome Summary
 
@@ -388,6 +415,10 @@ archive.
 - Replaced the Timeline placeholder with a VS Code-like three-column workbench:
   narrow rail, independently scrolling event navigator, and raw detail pane
   with payload/artifact tabs.
+- Refined the Timeline inspector so `Event`, `Input`, and `Output` stay
+  separate, path-backed artifact tabs render referenced file contents, and
+  context-only refs such as `plan_path` / `local_state_path` stay out of the
+  tab strip.
 - Hardened lifecycle, review, and evidence timeline writes so successful
   command results roll back if later timeline/state persistence fails.
 - Added focused regression coverage for large timeline payloads and rollback
@@ -397,8 +428,8 @@ archive.
 ### Not Delivered
 
 - The archive move itself, publish evidence refresh, CI/sync evidence refresh,
-  and merge-ready handoff are still pending the post-review archive/publish
-  loop.
+  and renewed merge-ready handoff for revision 2 are still pending the
+  post-review archive/publish loop.
 - Rich inline artifact viewers beyond raw JSON/tabbed inspection remain
   deferred.
 

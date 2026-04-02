@@ -235,6 +235,92 @@ func TestNewHandlerServesLargeTimelinePayloadWithoutTruncation(t *testing.T) {
 	}
 }
 
+func TestNewHandlerServesResolvedArtifactFileContents(t *testing.T) {
+	workdir := t.TempDir()
+	relPlanPath := "docs/plans/active/2026-04-01-ui-timeline-artifacts.md"
+	path := filepath.Join(workdir, filepath.FromSlash(relPlanPath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	rendered, err := plan.RenderTemplate(plan.TemplateOptions{Title: "UI Timeline Artifact Tabs"})
+	if err != nil {
+		t.Fatalf("render plan: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	if _, err := runstate.SaveCurrentPlan(workdir, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+
+	manifestRelPath := ".local/harness/plans/2026-04-01-ui-timeline-artifacts/reviews/review-001-full/manifest.json"
+	manifestPath := filepath.Join(workdir, filepath.FromSlash(manifestRelPath))
+	if err := os.MkdirAll(filepath.Dir(manifestPath), 0o755); err != nil {
+		t.Fatalf("mkdir manifest dir: %v", err)
+	}
+	if err := os.WriteFile(manifestPath, []byte("{\"review_title\":\"Artifact tabs\"}\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	if _, _, err := timeline.AppendEvent(workdir, "2026-04-01-ui-timeline-artifacts", timeline.Event{
+		RecordedAt: "2026-04-01T10:00:00Z",
+		Kind:       "review",
+		Command:    "review start",
+		Summary:    "Created review round.",
+		PlanPath:   relPlanPath,
+		Revision:   1,
+		ArtifactRefs: []timeline.ArtifactRef{
+			{Label: "manifest_path", Value: manifestRelPath, Path: manifestRelPath},
+		},
+	}); err != nil {
+		t.Fatalf("append timeline event: %v", err)
+	}
+
+	handler, err := NewHandler(workdir)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/timeline", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	var payload struct {
+		OK     bool `json:"ok"`
+		Events []struct {
+			Command      string `json:"command"`
+			ArtifactRefs []struct {
+				Label       string          `json:"label"`
+				ContentType string          `json:"content_type"`
+				Content     json.RawMessage `json:"content"`
+			} `json:"artifact_refs"`
+		} `json:"events"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v\n%s", err, recorder.Body.String())
+	}
+	if !payload.OK || len(payload.Events) != 2 || payload.Events[1].Command != "review start" {
+		t.Fatalf("unexpected timeline payload: %#v", payload)
+	}
+	if len(payload.Events[1].ArtifactRefs) != 1 {
+		t.Fatalf("expected one resolved artifact ref, got %#v", payload.Events[1].ArtifactRefs)
+	}
+	if payload.Events[1].ArtifactRefs[0].ContentType != "json" {
+		t.Fatalf("expected json content type, got %#v", payload.Events[1].ArtifactRefs[0])
+	}
+	var content map[string]string
+	if err := json.Unmarshal(payload.Events[1].ArtifactRefs[0].Content, &content); err != nil {
+		t.Fatalf("unmarshal resolved artifact content: %v", err)
+	}
+	if content["review_title"] != "Artifact tabs" {
+		t.Fatalf("unexpected resolved artifact content: %#v", content)
+	}
+}
+
 func TestNewHandlerReturnsNotFoundForAPINamespaceRoot(t *testing.T) {
 	handler, err := NewHandler(t.TempDir())
 	if err != nil {

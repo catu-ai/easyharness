@@ -566,7 +566,11 @@ sleep 1
 capture_session_snapshot "$timeline_inspector_session" "timeline-inspector-initial"
 assert_has_text "timeline-inspector-initial" "Output"
 assert_has_text "timeline-inspector-initial" "execution/finalize/await_merge → land"
-assert_has_text "timeline-inspector-initial" "plan_path"
+assert_has_text "timeline-inspector-initial" "publish_record"
+assert_lacks_text "timeline-inspector-initial" "plan_path"
+assert_lacks_text "timeline-inspector-initial" "from_plan_path"
+assert_lacks_text "timeline-inspector-initial" "to_plan_path"
+assert_lacks_text "timeline-inspector-initial" "current_plan_path"
 output_ref="$(interactive_ref_from_snapshot "Output" "${output_dir}/timeline-inspector-initial.yml")"
 if [[ -z "$output_ref" ]]; then
   echo "Could not find Output tab in timeline inspector snapshot." >&2
@@ -579,16 +583,17 @@ capture_session_snapshot "$timeline_inspector_session" "timeline-inspector-outpu
 assert_has_text "timeline-inspector-output" "pr_url"
 assert_has_text "timeline-inspector-output" "current_node"
 assert_has_text "timeline-inspector-output" "abc123def456"
-artifact_ref="$(interactive_ref_from_snapshot "plan_path" "${output_dir}/timeline-inspector-output.yml")"
+artifact_ref="$(interactive_ref_from_snapshot "publish_record" "${output_dir}/timeline-inspector-output.yml")"
 if [[ -z "$artifact_ref" ]]; then
-  echo "Could not find plan_path artifact tab in timeline inspector snapshot." >&2
+  echo "Could not find publish_record artifact tab in timeline inspector snapshot." >&2
   cat "${output_dir}/timeline-inspector-output.yml" >&2
   exit 1
 fi
 pwcli "$timeline_inspector_session" click "$artifact_ref" >/dev/null
 sleep 0.5
-capture_session_snapshot "$timeline_inspector_session" "timeline-inspector-plan-path"
-assert_has_text "timeline-inspector-plan-path" "docs/plans/archived/2026-03-31-read-only-harness-ui-shell-and-status-foundation.md"
+capture_session_snapshot "$timeline_inspector_session" "timeline-inspector-publish-record"
+assert_has_text "timeline-inspector-publish-record" "publish-001"
+assert_has_text "timeline-inspector-publish-record" "https://github.com/catu-ai/easyharness/pull/93"
 pwcli_close "$timeline_inspector_session"
 
 navigate_via_rail "$rail_session" "status" "Timeline" "timeline-rail" "Timeline"

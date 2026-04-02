@@ -80,6 +80,16 @@ type TimelineArtifactRef struct {
 
 	// Path is the artifact path when the reference points to a file.
 	Path string `json:"path,omitempty"`
+
+	// ContentType reports how Content should be rendered in the UI resource.
+	// It is omitted from append-only event lines and only populated by the
+	// timeline read model when it resolves a referenced file.
+	ContentType string `json:"content_type,omitempty"`
+
+	// Content is the resolved artifact file payload for UI tabs when the
+	// reference points at a readable file. It is omitted from append-only event
+	// lines and only populated by the timeline read model.
+	Content json.RawMessage `json:"content,omitempty"`
 }
 
 // TimelineResult is the read-only UI resource returned by `/api/timeline`.

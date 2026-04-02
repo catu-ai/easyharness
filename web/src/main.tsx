@@ -41,6 +41,8 @@ type TimelineArtifactRef = {
   label: string;
   value: string;
   path?: string;
+  content_type?: string;
+  content?: unknown;
 };
 
 type TimelineEvent = {
@@ -273,44 +275,81 @@ type TimelineTab = {
   id: string;
   label: string;
   value: unknown;
+  mode: "json" | "text";
 };
+
+const hiddenArtifactTabLabels = new Set([
+  "plan_path",
+  "local_state_path",
+  "current_plan_path",
+  "from_plan_path",
+  "to_plan_path",
+]);
+
+function timelineEventRecord(event: TimelineEvent): Record<string, unknown> {
+  const artifactRefs = Array.isArray(event.artifact_refs)
+    ? event.artifact_refs.map((artifactRef) => ({
+        label: artifactRef.label,
+        value: artifactRef.value,
+        ...(artifactRef.path ? { path: artifactRef.path } : {}),
+      }))
+    : undefined;
+  const value: Record<string, unknown> = {};
+  Object.entries(event).forEach(([key, next]) => {
+    if (next === undefined) return;
+    if (key === "artifact_refs") {
+      if (artifactRefs && artifactRefs.length > 0) value.artifact_refs = artifactRefs;
+      return;
+    }
+    value[key] = next;
+  });
+  return value;
+}
 
 function buildTimelineTabs(event: TimelineEvent | null): TimelineTab[] {
   if (!event) return [];
 
-  const tabs: TimelineTab[] = [{ id: "event", label: "Event", value: event }];
+  const tabs: TimelineTab[] = [{ id: "event", label: "Event", value: timelineEventRecord(event), mode: "json" }];
 
   const inputValue = firstDefinedValue(event, ["input", "raw_input"]);
   if (inputValue !== undefined) {
-    tabs.push({ id: "input", label: "Input", value: inputValue });
+    tabs.push({ id: "input", label: "Input", value: inputValue, mode: "json" });
   }
 
   const outputValue = firstDefinedValue(event, ["output", "raw_output"]);
   if (outputValue !== undefined) {
-    tabs.push({ id: "output", label: "Output", value: outputValue });
+    tabs.push({ id: "output", label: "Output", value: outputValue, mode: "json" });
   }
 
   const artifactsValue = firstDefinedValue(event, ["artifacts", "raw_artifacts"]);
   if (artifactsValue !== undefined) {
-    tabs.push({ id: "artifacts", label: "Artifacts", value: artifactsValue });
+    tabs.push({ id: "artifacts", label: "Artifacts", value: artifactsValue, mode: "json" });
   }
 
   const payloadValue = firstDefinedValue(event, ["payload"]);
   if (payloadValue !== undefined) {
-    tabs.push({ id: "payload", label: "Payload", value: payloadValue });
+    tabs.push({ id: "payload", label: "Payload", value: payloadValue, mode: "json" });
   }
 
   if (Array.isArray(event.artifact_refs)) {
     event.artifact_refs.forEach((artifactRef, index) => {
+      if (hiddenArtifactTabLabels.has(artifactRef.label)) return;
+      if (!artifactRef.path || artifactRef.content === undefined) return;
       tabs.push({
         id: `artifact-ref-${index}`,
         label: artifactRef.label || `artifact_${index + 1}`,
-        value: artifactRef,
+        value: artifactRef.content,
+        mode: artifactRef.content_type === "text" ? "text" : "json",
       });
     });
   }
 
   return tabs;
+}
+
+function timelineTabText(value: unknown, mode: "json" | "text"): string {
+  if (mode === "text" && typeof value === "string") return value;
+  return jsonStringify(value);
 }
 
 function formatStatusError(result: StatusResult | null, statusCode?: number): string {
@@ -830,6 +869,7 @@ function TimelineWorkspace(props: {
 
   const selectedTabValue =
     timelineTabs.find((tab) => tab.id === selectedTab)?.value ?? timelineTabs[0]?.value ?? selectedEvent ?? null;
+  const selectedTabMode = timelineTabs.find((tab) => tab.id === selectedTab)?.mode ?? timelineTabs[0]?.mode ?? "json";
   const transitionLabel =
     selectedEvent && (selectedEvent.from_node || selectedEvent.to_node)
       ? `${selectedEvent.from_node || "unknown"} → ${selectedEvent.to_node || "unknown"}`
@@ -915,7 +955,7 @@ function TimelineWorkspace(props: {
                   </div>
 
                   <pre class="timeline-json" aria-label={`${selectedTab} payload`}>
-                    {jsonStringify(selectedTabValue)}
+                    {timelineTabText(selectedTabValue, selectedTabMode)}
                   </pre>
                 </>
               ) : (

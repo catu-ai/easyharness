@@ -105,6 +105,7 @@ func (s Service) readPlanTimeline(relPlanPath string) Result {
 	}
 	bootstrapEvents := buildBootstrapEvents(relPlanPath, planStem, doc, state, events)
 	mergedEvents := mergeTimelineEvents(bootstrapEvents, events)
+	mergedEvents = enrichArtifactRefs(s.Workdir, mergedEvents)
 
 	summary := "No timeline events recorded yet for the current plan."
 	if len(mergedEvents) > 0 {
@@ -123,6 +124,62 @@ func (s Service) readPlanTimeline(relPlanPath string) Result {
 		Events: mergedEvents,
 		Errors: errors,
 	}
+}
+
+func enrichArtifactRefs(workdir string, events []Event) []Event {
+	cache := map[string]ArtifactRef{}
+	enriched := make([]Event, 0, len(events))
+	for _, event := range events {
+		if len(event.ArtifactRefs) == 0 {
+			enriched = append(enriched, event)
+			continue
+		}
+		next := event
+		next.ArtifactRefs = make([]ArtifactRef, 0, len(event.ArtifactRefs))
+		for _, ref := range event.ArtifactRefs {
+			enrichedRef := ref
+			if strings.TrimSpace(ref.Path) != "" {
+				normalizedPath := filepath.ToSlash(strings.TrimSpace(ref.Path))
+				if cached, ok := cache[normalizedPath]; ok {
+					enrichedRef.ContentType = cached.ContentType
+					enrichedRef.Content = append(json.RawMessage(nil), cached.Content...)
+				} else if content, contentType, err := readArtifactRefContent(workdir, normalizedPath); err == nil {
+					enrichedRef.ContentType = contentType
+					enrichedRef.Content = content
+					cache[normalizedPath] = ArtifactRef{
+						ContentType: contentType,
+						Content:     append(json.RawMessage(nil), content...),
+					}
+				}
+			}
+			next.ArtifactRefs = append(next.ArtifactRefs, enrichedRef)
+		}
+		enriched = append(enriched, next)
+	}
+	return enriched
+}
+
+func readArtifactRefContent(workdir, refPath string) (json.RawMessage, string, error) {
+	resolvedPath := refPath
+	if !filepath.IsAbs(resolvedPath) {
+		resolvedPath = filepath.Join(workdir, filepath.FromSlash(refPath))
+	}
+	data, err := os.ReadFile(resolvedPath)
+	if err != nil {
+		return nil, "", err
+	}
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" {
+		return nil, "", nil
+	}
+	if json.Valid([]byte(trimmed)) {
+		return json.RawMessage([]byte(trimmed)), "json", nil
+	}
+	encoded, err := json.Marshal(trimmed)
+	if err != nil {
+		return nil, "", err
+	}
+	return encoded, "text", nil
 }
 
 func AppendEvent(workdir, planStem string, event Event) (string, Event, error) {
