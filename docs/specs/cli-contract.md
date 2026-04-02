@@ -291,9 +291,11 @@ Contract:
   of introducing a second hidden product-only state store
 - render the current worktree's harness state through the UI more richly; it
   must not fork a competing interpretation of workflow state from the CLI
-- allow the first delivered slice to keep `Timeline`, `Review`, `Diff`, and
-  `Files` as explicit WIP placeholders while `Status` is the only page backed
-  by live data
+- expose `Status` and `Timeline` through real read-only resources while
+  keeping `Review`, `Diff`, and `Files` as explicit WIP placeholders until
+  their data surfaces are implemented
+- keep timeline data grounded in command-owned runtime artifacts rather than
+  reconstructing history from ad hoc client-side state
 
 Recommended next action:
 

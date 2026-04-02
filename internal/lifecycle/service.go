@@ -16,8 +16,9 @@ import (
 )
 
 type Service struct {
-	Workdir string
-	Now     func() time.Time
+	Workdir       string
+	Now           func() time.Time
+	AfterMutation func(Result) error
 }
 
 type Result = contracts.LifecycleResult
@@ -33,10 +34,10 @@ type editablePlan struct {
 
 func (s Service) ExecuteStart() Result {
 	now := s.now()
-	_, doc, _, planStem, relCurrentPath, state, statePath, release, result := s.loadCurrentPlan()
-	if result != nil {
-		result.Command = "execute start"
-		return *result
+	_, doc, _, planStem, relCurrentPath, state, statePath, release, errResult := s.loadCurrentPlan()
+	if errResult != nil {
+		errResult.Command = "execute start"
+		return *errResult
 	}
 	defer release()
 
@@ -51,6 +52,10 @@ func (s Service) ExecuteStart() Result {
 		state = &runstate.State{Revision: 1}
 	}
 	originalState := cloneState(state)
+	currentPlanBefore, err := runstate.LoadCurrentPlan(s.Workdir)
+	if err != nil {
+		return errorResult("execute start", "Unable to read the current-plan pointer before execution start.", []CommandError{{Path: "state", Message: err.Error()}})
+	}
 	alreadyStarted := strings.TrimSpace(state.ExecutionStartedAt) != ""
 	if state.Revision <= 0 {
 		state.Revision = 1
@@ -86,7 +91,7 @@ func (s Service) ExecuteStart() Result {
 		summary = "Execution is already started for the current active plan."
 	}
 
-	return Result{
+	result := Result{
 		OK:      true,
 		Command: "execute start",
 		Summary: summary,
@@ -104,14 +109,21 @@ func (s Service) ExecuteStart() Result {
 			{Command: nil, Description: "Continue the current step and keep step-local Execution Notes and Review Notes up to date."},
 		},
 	}
+	return s.finalizeMutation(result, func() []CommandError {
+		issues := restoreStateSnapshot(s.Workdir, planStem, originalState, savedStatePath)
+		if _, restoreErr := runstate.WriteCurrentPlan(s.Workdir, currentPlanBefore); restoreErr != nil {
+			issues = append(issues, CommandError{Path: "state", Message: fmt.Sprintf("rollback current-plan pointer: %v", restoreErr)})
+		}
+		return issues
+	})
 }
 
 func (s Service) Archive() Result {
 	now := s.now()
-	currentPath, doc, editable, planStem, relCurrentPath, state, statePath, release, result := s.loadCurrentPlan()
-	if result != nil {
-		result.Command = "archive"
-		return *result
+	currentPath, doc, editable, planStem, relCurrentPath, state, statePath, release, errResult := s.loadCurrentPlan()
+	if errResult != nil {
+		errResult.Command = "archive"
+		return *errResult
 	}
 	defer release()
 	if doc.DerivedPlanStatus() != "active" || doc.DerivedLifecycle(state) != "executing" {
@@ -189,12 +201,6 @@ func (s Service) Archive() Result {
 		return errorResult("archive", "Unable to update current-plan pointer.", []CommandError{{Path: "state", Message: err.Error()}})
 	}
 
-	if err := os.Remove(currentPath); err != nil {
-		rollbackErrors := rollbackTransition(s.Workdir, relCurrentPath, planStem, originalState, targetPath)
-		rollbackErrors = append([]CommandError{{Path: "path", Message: err.Error()}}, rollbackErrors...)
-		return errorResult("archive", "Unable to remove the active plan after archiving.", rollbackErrors)
-	}
-
 	nextActions := []NextAction{
 		{Command: nil, Description: "Commit and push the tracked plan change created by archiving before treating the candidate as truly waiting for merge approval."},
 		{Command: nil, Description: "Wait for human merge approval or merge manually from the PR once checks are green."},
@@ -207,7 +213,7 @@ func (s Service) Archive() Result {
 		}, nextActions...)
 	}
 
-	return Result{
+	result := Result{
 		OK:      true,
 		Command: "archive",
 		Summary: "Plan archived and frozen for merge handoff.",
@@ -224,14 +230,23 @@ func (s Service) Archive() Result {
 		},
 		NextAction: nextActions,
 	}
+	if err := os.Remove(currentPath); err != nil {
+		rollbackErrors := rollbackTransition(s.Workdir, relCurrentPath, planStem, originalState, targetPath, statePath)
+		rollbackErrors = append([]CommandError{{Path: "path", Message: err.Error()}}, rollbackErrors...)
+		return errorResult("archive", "Unable to remove the active plan after archiving.", rollbackErrors)
+	}
+	result = s.finalizeMutation(result, func() []CommandError {
+		return rollbackTransition(s.Workdir, relCurrentPath, planStem, originalState, targetPath, statePath)
+	})
+	return result
 }
 
 func (s Service) Reopen(mode string) Result {
 	now := s.now()
-	currentPath, doc, editable, planStem, relCurrentPath, state, statePath, release, result := s.loadCurrentPlan()
-	if result != nil {
-		result.Command = "reopen"
-		return *result
+	currentPath, doc, editable, planStem, relCurrentPath, state, statePath, release, errResult := s.loadCurrentPlan()
+	if errResult != nil {
+		errResult.Command = "reopen"
+		return *errResult
 	}
 	defer release()
 	if doc.DerivedPlanStatus() != "archived" || doc.DerivedLifecycle(state) != "awaiting_merge_approval" {
@@ -334,13 +349,7 @@ func (s Service) Reopen(mode string) Result {
 		return errorResult("reopen", "Unable to update current-plan pointer.", []CommandError{{Path: "state", Message: err.Error()}})
 	}
 
-	if err := os.Remove(currentPath); err != nil {
-		rollbackErrors := rollbackTransition(s.Workdir, relCurrentPath, planStem, originalState, targetPath)
-		rollbackErrors = append([]CommandError{{Path: "path", Message: err.Error()}}, rollbackErrors...)
-		return errorResult("reopen", "Unable to remove the archived plan after reopening.", rollbackErrors)
-	}
-
-	return Result{
+	result := Result{
 		OK:      true,
 		Command: "reopen",
 		Summary: "Archived plan reopened for active execution.",
@@ -361,14 +370,23 @@ func (s Service) Reopen(mode string) Result {
 			{Command: nil, Description: reopenNextActionDescription(mode)},
 		},
 	}
+	if err := os.Remove(currentPath); err != nil {
+		rollbackErrors := rollbackTransition(s.Workdir, relCurrentPath, planStem, originalState, targetPath, statePath)
+		rollbackErrors = append([]CommandError{{Path: "path", Message: err.Error()}}, rollbackErrors...)
+		return errorResult("reopen", "Unable to remove the archived plan after reopening.", rollbackErrors)
+	}
+	result = s.finalizeMutation(result, func() []CommandError {
+		return rollbackTransition(s.Workdir, relCurrentPath, planStem, originalState, targetPath, statePath)
+	})
+	return result
 }
 
 func (s Service) Land(prURL, commit string) Result {
 	now := s.now()
-	currentPath, doc, _, planStem, relCurrentPath, state, statePath, release, result := s.loadCurrentPlan()
-	if result != nil {
-		result.Command = "land"
-		return *result
+	currentPath, doc, _, planStem, relCurrentPath, state, statePath, release, errResult := s.loadCurrentPlan()
+	if errResult != nil {
+		errResult.Command = "land"
+		return *errResult
 	}
 	defer release()
 	if doc.DerivedPlanStatus() != "archived" || doc.DerivedLifecycle(state) != "awaiting_merge_approval" {
@@ -395,12 +413,13 @@ func (s Service) Land(prURL, commit string) Result {
 			}})
 		}
 		if requestedCommit != "" && recordedCommit == "" {
+			originalState := cloneState(state)
 			state.Land.Commit = requestedCommit
 			statePath, err := runstate.SaveState(s.Workdir, planStem, state)
 			if err != nil {
 				return errorResult("land", "Unable to update land entry state.", []CommandError{{Path: "state", Message: err.Error()}})
 			}
-			return Result{
+			result := Result{
 				OK:      true,
 				Command: "land",
 				Summary: fmt.Sprintf("Recorded landed commit for the in-progress cleanup of %s.", filepath.Base(currentPath)),
@@ -418,8 +437,11 @@ func (s Service) Land(prURL, commit string) Result {
 					{Command: strPtr("harness land complete"), Description: "Record cleanup completion once post-merge follow-up is done."},
 				},
 			}
+			return s.finalizeMutation(result, func() []CommandError {
+				return restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
+			})
 		}
-		return Result{
+		return s.finalizeMutation(Result{
 			OK:      true,
 			Command: "land",
 			Summary: fmt.Sprintf("Land cleanup is already in progress for %s.", filepath.Base(currentPath)),
@@ -436,11 +458,12 @@ func (s Service) Land(prURL, commit string) Result {
 				{Command: nil, Description: "Finish post-merge cleanup such as comments, issue closure, local branch sync, and any final remote updates."},
 				{Command: strPtr("harness land complete"), Description: "Record cleanup completion once post-merge follow-up is done."},
 			},
-		}
+		}, nil)
 	}
 	if issues := s.landReadinessIssues(state, prURL); len(issues) > 0 {
 		return errorResult("land", "Archived candidate is not ready to enter land cleanup.", issues)
 	}
+	originalState := cloneState(state)
 	if state == nil {
 		state = &runstate.State{}
 	}
@@ -460,7 +483,7 @@ func (s Service) Land(prURL, commit string) Result {
 		return errorResult("land", "Unable to record land entry state.", []CommandError{{Path: "state", Message: err.Error()}})
 	}
 
-	return Result{
+	result := Result{
 		OK:      true,
 		Command: "land",
 		Summary: fmt.Sprintf("Recorded merge confirmation for %s and entered land cleanup.", filepath.Base(currentPath)),
@@ -478,14 +501,17 @@ func (s Service) Land(prURL, commit string) Result {
 			{Command: strPtr("harness land complete"), Description: "Record cleanup completion once post-merge follow-up is done."},
 		},
 	}
+	return s.finalizeMutation(result, func() []CommandError {
+		return restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
+	})
 }
 
 func (s Service) LandComplete() Result {
 	now := s.now()
-	currentPath, doc, _, planStem, relCurrentPath, state, statePath, release, result := s.loadCurrentPlan()
-	if result != nil {
-		result.Command = "land complete"
-		return *result
+	currentPath, doc, _, planStem, relCurrentPath, state, statePath, release, errResult := s.loadCurrentPlan()
+	if errResult != nil {
+		errResult.Command = "land complete"
+		return *errResult
 	}
 	defer release()
 	if doc.DerivedPlanStatus() != "archived" || doc.DerivedLifecycle(state) != "awaiting_merge_approval" {
@@ -501,9 +527,13 @@ func (s Service) LandComplete() Result {
 		}})
 	}
 	originalState := cloneState(state)
+	currentPlanBefore, err := runstate.LoadCurrentPlan(s.Workdir)
+	if err != nil {
+		return errorResult("land complete", "Unable to read the current-plan pointer before land completion.", []CommandError{{Path: "state", Message: err.Error()}})
+	}
 	state.CurrentNode = "idle"
 	state.Land.CompletedAt = now.Format(time.RFC3339)
-	statePath, err := runstate.SaveState(s.Workdir, planStem, state)
+	statePath, err = runstate.SaveState(s.Workdir, planStem, state)
 	if err != nil {
 		return errorResult("land complete", "Unable to persist land completion state.", []CommandError{{Path: "state", Message: err.Error()}})
 	}
@@ -519,7 +549,7 @@ func (s Service) LandComplete() Result {
 		}
 		return errorResult("land complete", "Unable to record landed worktree state.", []CommandError{{Path: "state", Message: err.Error()}})
 	}
-	return Result{
+	result := Result{
 		OK:      true,
 		Command: "land complete",
 		Summary: fmt.Sprintf("Recorded post-merge cleanup completion for %s.", filepath.Base(currentPath)),
@@ -536,6 +566,13 @@ func (s Service) LandComplete() Result {
 			{Command: nil, Description: "Start discovery or create a new plan when the next slice is ready."},
 		},
 	}
+	return s.finalizeMutation(result, func() []CommandError {
+		issues := restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
+		if _, restoreErr := runstate.WriteCurrentPlan(s.Workdir, currentPlanBefore); restoreErr != nil {
+			issues = append(issues, CommandError{Path: "state", Message: fmt.Sprintf("rollback current-plan pointer: %v", restoreErr)})
+		}
+		return issues
+	})
 }
 
 func (s Service) loadCurrentPlan() (string, *plan.Document, *editablePlan, string, string, *runstate.State, string, func(), *Result) {
@@ -788,6 +825,20 @@ func errorResult(command, summary string, errors []CommandError) Result {
 	}
 }
 
+func (s Service) finalizeMutation(result Result, rollback func() []CommandError) Result {
+	if !result.OK || s.AfterMutation == nil {
+		return result
+	}
+	if err := s.AfterMutation(result); err != nil {
+		issues := []CommandError{{Path: "timeline", Message: err.Error()}}
+		if rollback != nil {
+			issues = append(issues, rollback()...)
+		}
+		return errorResult(result.Command, "Unable to record the timeline event for the successful command result.", issues)
+	}
+	return result
+}
+
 func (s Service) now() time.Time {
 	if s.Now != nil {
 		return s.Now()
@@ -854,18 +905,50 @@ func reopenNextActionDescription(mode string) string {
 	return "Repair the reopened finalize-scope issues, refresh durable summaries as needed, and rerun review before archive."
 }
 
-func rollbackTransition(workdir, relCurrentPath, planStem string, originalState *runstate.State, targetPath string) []CommandError {
+func rollbackTransition(workdir, relCurrentPath, planStem string, originalState *runstate.State, targetPath, statePath string) []CommandError {
 	issues := make([]CommandError, 0)
+	absCurrentPath := filepath.Join(workdir, filepath.FromSlash(relCurrentPath))
+	currentExists := false
+	if _, err := os.Stat(absCurrentPath); err == nil {
+		currentExists = true
+	} else if !os.IsNotExist(err) {
+		issues = append(issues, CommandError{Path: "path", Message: fmt.Sprintf("rollback current path stat: %v", err)})
+	}
+	if _, err := os.Stat(targetPath); err == nil {
+		if currentExists {
+			if err := os.Remove(targetPath); err != nil && !os.IsNotExist(err) {
+				issues = append(issues, CommandError{Path: "path", Message: fmt.Sprintf("rollback target path: %v", err)})
+			}
+		} else {
+			if err := os.MkdirAll(filepath.Dir(absCurrentPath), 0o755); err != nil {
+				issues = append(issues, CommandError{Path: "path", Message: fmt.Sprintf("rollback current path parent: %v", err)})
+			} else if err := os.Rename(targetPath, absCurrentPath); err != nil {
+				issues = append(issues, CommandError{Path: "path", Message: fmt.Sprintf("rollback target restore: %v", err)})
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		issues = append(issues, CommandError{Path: "path", Message: fmt.Sprintf("rollback target path stat: %v", err)})
+	}
 	if _, err := runstate.SaveCurrentPlan(workdir, relCurrentPath); err != nil {
 		issues = append(issues, CommandError{Path: "state", Message: fmt.Sprintf("rollback current-plan pointer: %v", err)})
 	}
+	issues = append(issues, restoreStateSnapshot(workdir, planStem, originalState, statePath)...)
+	return issues
+}
+
+func restoreStateSnapshot(workdir, planStem string, originalState *runstate.State, statePath string) []CommandError {
+	issues := make([]CommandError, 0)
 	if originalState != nil {
 		if _, err := runstate.SaveState(workdir, planStem, originalState); err != nil {
 			issues = append(issues, CommandError{Path: "state", Message: fmt.Sprintf("rollback local state: %v", err)})
 		}
+		return issues
 	}
-	if err := os.Remove(targetPath); err != nil && !os.IsNotExist(err) {
-		issues = append(issues, CommandError{Path: "path", Message: fmt.Sprintf("rollback target path: %v", err)})
+	if statePath == "" {
+		return issues
+	}
+	if err := os.Remove(statePath); err != nil && !os.IsNotExist(err) {
+		issues = append(issues, CommandError{Path: "state", Message: fmt.Sprintf("rollback local state: %v", err)})
 	}
 	return issues
 }

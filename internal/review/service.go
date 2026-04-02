@@ -20,10 +20,15 @@ import (
 
 var slotNamePattern = regexp.MustCompile(`[^a-z0-9]+`)
 var compactRoundIDPattern = regexp.MustCompile(`^review-([0-9]+)-([a-z0-9-]+)$`)
+var saveState = runstate.SaveState
+var writeJSON = writeJSONFile
 
 type Service struct {
-	Workdir string
-	Now     func() time.Time
+	Workdir        string
+	Now            func() time.Time
+	AfterStart     func(StartResult) error
+	AfterSubmit    func(SubmitResult) error
+	AfterAggregate func(AggregateResult) error
 }
 
 type Spec = contracts.ReviewSpec
@@ -164,7 +169,8 @@ func (s Service) Start(specBytes []byte) StartResult {
 		Aggregate:   aggregatePath,
 		Submissions: submissionsDir,
 	}
-	if err := writeJSONFile(manifestPath, manifest); err != nil {
+	if err := writeJSON(manifestPath, manifest); err != nil {
+		_ = os.RemoveAll(roundDir)
 		return StartResult{
 			OK:      false,
 			Command: "review start",
@@ -172,7 +178,8 @@ func (s Service) Start(specBytes []byte) StartResult {
 			Errors:  []CommandError{{Path: "manifest", Message: err.Error()}},
 		}
 	}
-	if err := writeJSONFile(ledgerPath, ledger); err != nil {
+	if err := writeJSON(ledgerPath, ledger); err != nil {
+		_ = os.RemoveAll(roundDir)
 		return StartResult{
 			OK:      false,
 			Command: "review start",
@@ -181,6 +188,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 		}
 	}
 
+	originalState := cloneState(state)
 	if state == nil {
 		state = &runstate.State{}
 	}
@@ -194,19 +202,24 @@ func (s Service) Start(specBytes []byte) StartResult {
 		Aggregated: false,
 		Decision:   "",
 	}
-	statePath, err = runstate.SaveState(s.Workdir, planStem, state)
+	statePath, err = saveState(s.Workdir, planStem, state)
 	if err != nil {
+		issues := restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
+		if removeErr := os.RemoveAll(roundDir); removeErr != nil && !os.IsNotExist(removeErr) {
+			issues = append(issues, CommandError{Path: "round", Message: fmt.Sprintf("rollback review round: %v", removeErr)})
+		}
+		issues = append([]CommandError{{Path: "state", Message: err.Error()}}, issues...)
 		return StartResult{
 			OK:      false,
 			Command: "review start",
 			Summary: "Unable to persist local harness state.",
-			Errors:  []CommandError{{Path: "state", Message: err.Error()}},
+			Errors:  issues,
 		}
 	}
 
 	_ = doc
 
-	return StartResult{
+	return s.finalizeStart(StartResult{
 		OK:      true,
 		Command: "review start",
 		Summary: fmt.Sprintf("Created %s review round %q.", spec.Kind, roundID),
@@ -229,11 +242,28 @@ func (s Service) Start(specBytes []byte) StartResult {
 				Description: "Aggregate the round once every expected reviewer submission has landed.",
 			},
 		},
-	}
+	}, func() []CommandError {
+		issues := restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
+		if err := os.RemoveAll(roundDir); err != nil && !os.IsNotExist(err) {
+			issues = append(issues, CommandError{Path: "round", Message: fmt.Sprintf("rollback review round: %v", err)})
+		}
+		return issues
+	})
 }
 
 func (s Service) Submit(roundID, slot string, inputBytes []byte) SubmitResult {
-	_, _, planStem, _, _, _, errResult := s.loadCurrentExecutingPlan("")
+	lockedPlanPath, release, err := s.acquireReviewMutationLock()
+	if err == nil {
+		defer release()
+	} else {
+		return SubmitResult{
+			OK:      false,
+			Command: "review submit",
+			Summary: "Another review state mutation is already in progress.",
+			Errors:  []CommandError{{Path: "review", Message: err.Error()}},
+		}
+	}
+	_, _, planStem, _, _, _, errResult := s.loadCurrentExecutingPlan(lockedPlanPath)
 	if errResult != nil {
 		return SubmitResult{
 			OK:      false,
@@ -290,15 +320,15 @@ func (s Service) Submit(roundID, slot string, inputBytes []byte) SubmitResult {
 		Summary:     strings.TrimSpace(input.Summary),
 		Findings:    input.Findings,
 	}
-	if err := writeJSONFile(slotDef.SubmissionPath, submission); err != nil {
+	previousSubmission, previousSubmissionExists, err := readFileIfExists(slotDef.SubmissionPath)
+	if err != nil {
 		return SubmitResult{
 			OK:      false,
 			Command: "review submit",
-			Summary: "Unable to persist the reviewer submission.",
+			Summary: "Unable to snapshot the previous reviewer submission.",
 			Errors:  []CommandError{{Path: "submission", Message: err.Error()}},
 		}
 	}
-
 	ledger, err := loadLedger(manifest.LedgerPath)
 	if err != nil {
 		return SubmitResult{
@@ -308,6 +338,23 @@ func (s Service) Submit(roundID, slot string, inputBytes []byte) SubmitResult {
 			Errors:  []CommandError{{Path: "ledger", Message: err.Error()}},
 		}
 	}
+	previousLedger, previousLedgerExists, err := readFileIfExists(manifest.LedgerPath)
+	if err != nil {
+		return SubmitResult{
+			OK:      false,
+			Command: "review submit",
+			Summary: "Unable to snapshot the review ledger before writing the submission.",
+			Errors:  []CommandError{{Path: "ledger", Message: err.Error()}},
+		}
+	}
+	if err := writeJSON(slotDef.SubmissionPath, submission); err != nil {
+		return SubmitResult{
+			OK:      false,
+			Command: "review submit",
+			Summary: "Unable to persist the reviewer submission.",
+			Errors:  []CommandError{{Path: "submission", Message: err.Error()}},
+		}
+	}
 	for i := range ledger.Slots {
 		if ledger.Slots[i].Slot == slotDef.Slot {
 			ledger.Slots[i].Status = "submitted"
@@ -315,16 +362,19 @@ func (s Service) Submit(roundID, slot string, inputBytes []byte) SubmitResult {
 		}
 	}
 	ledger.UpdatedAt = now
-	if err := writeJSONFile(manifest.LedgerPath, ledger); err != nil {
+	if err := writeJSON(manifest.LedgerPath, ledger); err != nil {
+		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "ledger")
+		issues = append(issues, restoreJSONFileSnapshot(slotDef.SubmissionPath, previousSubmission, previousSubmissionExists, "submission")...)
+		issues = append([]CommandError{{Path: "ledger", Message: err.Error()}}, issues...)
 		return SubmitResult{
 			OK:      false,
 			Command: "review submit",
 			Summary: "Unable to persist the review ledger.",
-			Errors:  []CommandError{{Path: "ledger", Message: err.Error()}},
+			Errors:  issues,
 		}
 	}
 
-	return SubmitResult{
+	return s.finalizeSubmit(SubmitResult{
 		OK:      true,
 		Command: "review submit",
 		Summary: fmt.Sprintf("Recorded submission for slot %q in review round %q.", slotDef.Slot, roundID),
@@ -340,7 +390,11 @@ func (s Service) Submit(roundID, slot string, inputBytes []byte) SubmitResult {
 				Description: "Report the submission receipt to the controller agent and end the reviewer thread. If the same slot later needs a narrow follow-up for the same tracked step or the same finalize review title in the same revision, the controller may reopen this reviewer through the runtime's native resume mechanism only after this submission is verified and only while the slot instructions still materially match.",
 			},
 		},
-	}
+	}, func() []CommandError {
+		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "ledger")
+		issues = append(issues, restoreJSONFileSnapshot(slotDef.SubmissionPath, previousSubmission, previousSubmissionExists, "submission")...)
+		return issues
+	})
 }
 
 func (s Service) Aggregate(roundID string) AggregateResult {
@@ -462,7 +516,17 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 	if guard := activeAggregateRoundError(state, roundID); guard != nil {
 		return *guard
 	}
-	if err := writeJSONFile(manifest.Aggregate, aggregate); err != nil {
+	originalState := cloneState(state)
+	previousAggregate, previousAggregateExists, err := readFileIfExists(manifest.Aggregate)
+	if err != nil {
+		return AggregateResult{
+			OK:      false,
+			Command: "review aggregate",
+			Summary: "Unable to snapshot the previous aggregate artifact.",
+			Errors:  []CommandError{{Path: "aggregate", Message: err.Error()}},
+		}
+	}
+	if err := writeJSON(manifest.Aggregate, aggregate); err != nil {
 		return AggregateResult{
 			OK:      false,
 			Command: "review aggregate",
@@ -484,17 +548,20 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		Aggregated: true,
 		Decision:   decision,
 	}
-	statePath, err = runstate.SaveState(s.Workdir, planStem, state)
+	statePath, err = saveState(s.Workdir, planStem, state)
 	if err != nil {
+		issues := restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
+		issues = append(issues, restoreJSONFileSnapshot(manifest.Aggregate, previousAggregate, previousAggregateExists, "aggregate")...)
+		issues = append([]CommandError{{Path: "state", Message: err.Error()}}, issues...)
 		return AggregateResult{
 			OK:      false,
 			Command: "review aggregate",
 			Summary: "Unable to persist local harness state.",
-			Errors:  []CommandError{{Path: "state", Message: err.Error()}},
+			Errors:  issues,
 		}
 	}
 
-	return AggregateResult{
+	return s.finalizeAggregate(AggregateResult{
 		OK:      true,
 		Command: "review aggregate",
 		Summary: buildAggregateSummary(manifest.Kind, decision, len(blocking), len(nonBlocking)),
@@ -505,7 +572,11 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		},
 		Review:     &aggregate,
 		NextAction: buildAggregateNextActions(manifest.Kind, decision),
-	}
+	}, func() []CommandError {
+		issues := restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
+		issues = append(issues, restoreJSONFileSnapshot(manifest.Aggregate, previousAggregate, previousAggregateExists, "aggregate")...)
+		return issues
+	})
 }
 
 func activeAggregateRoundError(state *runstate.State, roundID string) *AggregateResult {
@@ -903,6 +974,156 @@ func buildAggregateNextActions(kind, decision string) []NextAction {
 		Command:     nil,
 		Description: "Fix the blocking findings before archive and rerun full review if the candidate scope changed materially.",
 	}}
+}
+
+func (s Service) finalizeStart(result StartResult, rollback func() []CommandError) StartResult {
+	if !result.OK || s.AfterStart == nil {
+		return result
+	}
+	if err := s.AfterStart(result); err != nil {
+		issues := []CommandError{{Path: "timeline", Message: err.Error()}}
+		if rollback != nil {
+			issues = append(issues, rollback()...)
+		}
+		return StartResult{
+			OK:      false,
+			Command: result.Command,
+			Summary: "Unable to record the timeline event for the successful command result.",
+			Errors:  issues,
+		}
+	}
+	return result
+}
+
+func (s Service) finalizeSubmit(result SubmitResult, rollback func() []CommandError) SubmitResult {
+	if !result.OK || s.AfterSubmit == nil {
+		return result
+	}
+	if err := s.AfterSubmit(result); err != nil {
+		issues := []CommandError{{Path: "timeline", Message: err.Error()}}
+		if rollback != nil {
+			issues = append(issues, rollback()...)
+		}
+		return SubmitResult{
+			OK:      false,
+			Command: result.Command,
+			Summary: "Unable to record the timeline event for the successful command result.",
+			Errors:  issues,
+		}
+	}
+	return result
+}
+
+func (s Service) finalizeAggregate(result AggregateResult, rollback func() []CommandError) AggregateResult {
+	if !result.OK || s.AfterAggregate == nil {
+		return result
+	}
+	if err := s.AfterAggregate(result); err != nil {
+		issues := []CommandError{{Path: "timeline", Message: err.Error()}}
+		if rollback != nil {
+			issues = append(issues, rollback()...)
+		}
+		return AggregateResult{
+			OK:      false,
+			Command: result.Command,
+			Summary: "Unable to record the timeline event for the successful command result.",
+			Errors:  issues,
+		}
+	}
+	return result
+}
+
+func cloneState(state *runstate.State) *runstate.State {
+	if state == nil {
+		return nil
+	}
+	cloned := *state
+	if state.ActiveReviewRound != nil {
+		round := *state.ActiveReviewRound
+		cloned.ActiveReviewRound = &round
+	}
+	if state.Reopen != nil {
+		reopen := *state.Reopen
+		cloned.Reopen = &reopen
+	}
+	if state.LatestEvidence != nil {
+		evidenceSet := *state.LatestEvidence
+		cloned.LatestEvidence = &evidenceSet
+		if state.LatestEvidence.CI != nil {
+			ciPtr := *state.LatestEvidence.CI
+			cloned.LatestEvidence.CI = &ciPtr
+		}
+		if state.LatestEvidence.Publish != nil {
+			publishPtr := *state.LatestEvidence.Publish
+			cloned.LatestEvidence.Publish = &publishPtr
+		}
+		if state.LatestEvidence.Sync != nil {
+			syncPtr := *state.LatestEvidence.Sync
+			cloned.LatestEvidence.Sync = &syncPtr
+		}
+	}
+	if state.Land != nil {
+		land := *state.Land
+		cloned.Land = &land
+	}
+	if state.LatestCI != nil {
+		ci := *state.LatestCI
+		cloned.LatestCI = &ci
+	}
+	if state.Sync != nil {
+		sync := *state.Sync
+		cloned.Sync = &sync
+	}
+	if state.LatestPublish != nil {
+		publish := *state.LatestPublish
+		cloned.LatestPublish = &publish
+	}
+	return &cloned
+}
+
+func restoreStateSnapshot(workdir, planStem string, originalState *runstate.State, statePath string) []CommandError {
+	issues := make([]CommandError, 0)
+	if originalState != nil {
+		if _, err := runstate.SaveState(workdir, planStem, originalState); err != nil {
+			issues = append(issues, CommandError{Path: "state", Message: fmt.Sprintf("rollback local state: %v", err)})
+		}
+		return issues
+	}
+	if statePath == "" {
+		return issues
+	}
+	if err := os.Remove(statePath); err != nil && !os.IsNotExist(err) {
+		issues = append(issues, CommandError{Path: "state", Message: fmt.Sprintf("rollback local state: %v", err)})
+	}
+	return issues
+}
+
+func readFileIfExists(path string) ([]byte, bool, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return data, true, nil
+}
+
+func restoreJSONFileSnapshot(path string, data []byte, existed bool, pathLabel string) []CommandError {
+	issues := make([]CommandError, 0, 1)
+	if existed {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return append(issues, CommandError{Path: pathLabel, Message: fmt.Sprintf("rollback %s: %v", pathLabel, err)})
+		}
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			return append(issues, CommandError{Path: pathLabel, Message: fmt.Sprintf("rollback %s: %v", pathLabel, err)})
+		}
+		return issues
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		issues = append(issues, CommandError{Path: pathLabel, Message: fmt.Sprintf("rollback %s: %v", pathLabel, err)})
+	}
+	return issues
 }
 
 func (s Service) now() time.Time {

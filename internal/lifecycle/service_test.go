@@ -2,6 +2,7 @@ package lifecycle_test
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -412,6 +413,56 @@ func TestArchiveRollsBackWhenCurrentPlanWriteFails(t *testing.T) {
 	}
 }
 
+func TestArchiveRestoresActivePlanWhenTimelineAppendFailsAfterCleanup(t *testing.T) {
+	root := t.TempDir()
+	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
+	activePath := writeActiveArchiveCandidate(t, root, activeRelPath)
+	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+		PlanPath:           activeRelPath,
+		PlanStem:           "2026-03-18-archive-smoke",
+		ExecutionStartedAt: "2026-03-18T01:55:00Z",
+		ActiveReviewRound: &runstate.ReviewRound{
+			RoundID:    "review-001-full",
+			Kind:       "full",
+			Revision:   1,
+			Aggregated: true,
+			Decision:   "pass",
+		},
+	}); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+
+	result := lifecycle.Service{
+		Workdir: root,
+		AfterMutation: func(lifecycle.Result) error {
+			return errors.New("timeline append failed")
+		},
+	}.Archive()
+	if result.OK {
+		t.Fatalf("expected archive failure, got %#v", result)
+	}
+	if _, err := os.Stat(activePath); err != nil {
+		t.Fatalf("expected active plan to be restored, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "docs/plans/archived/2026-03-18-archive-smoke.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected archived target to be removed on rollback, got %v", err)
+	}
+	current, err := runstate.LoadCurrentPlan(root)
+	if err != nil {
+		t.Fatalf("load current plan: %v", err)
+	}
+	if current == nil || current.PlanPath != activeRelPath {
+		t.Fatalf("expected current plan pointer to be restored, got %#v", current)
+	}
+	state, _, err := runstate.LoadState(root, "2026-03-18-archive-smoke")
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if state == nil || state.PlanPath != activeRelPath {
+		t.Fatalf("expected state to roll back to active path, got %#v", state)
+	}
+}
+
 func TestArchiveRejectsUnresolvedLocalState(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -686,6 +737,129 @@ func TestReopenMovesArchivedPlanBackToActiveAndResetsSummaries(t *testing.T) {
 	}
 	if current == nil || current.PlanPath != "docs/plans/active/2026-03-18-archive-smoke.md" {
 		t.Fatalf("expected reopened current-plan pointer to move back to active path, got %#v", current)
+	}
+}
+
+func TestReopenRestoresArchivedPlanWhenTimelineAppendFailsAfterCleanup(t *testing.T) {
+	root := t.TempDir()
+	writeActiveArchiveCandidate(t, root, "docs/plans/active/2026-03-18-archive-smoke.md")
+	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+		PlanPath:           "docs/plans/active/2026-03-18-archive-smoke.md",
+		PlanStem:           "2026-03-18-archive-smoke",
+		ExecutionStartedAt: "2026-03-18T01:55:00Z",
+		ActiveReviewRound: &runstate.ReviewRound{
+			RoundID:    "review-001-full",
+			Kind:       "full",
+			Revision:   1,
+			Aggregated: true,
+			Decision:   "pass",
+		},
+	}); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+
+	svc := lifecycle.Service{Workdir: root}
+	archive := svc.Archive()
+	if !archive.OK {
+		t.Fatalf("archive failed: %#v", archive)
+	}
+
+	archivedRelPath := "docs/plans/archived/2026-03-18-archive-smoke.md"
+	archivedPath := filepath.Join(root, archivedRelPath)
+	reopen := lifecycle.Service{
+		Workdir: root,
+		AfterMutation: func(lifecycle.Result) error {
+			return errors.New("timeline append failed")
+		},
+	}.Reopen("finalize-fix")
+	if reopen.OK {
+		t.Fatalf("expected reopen failure, got %#v", reopen)
+	}
+	if _, err := os.Stat(archivedPath); err != nil {
+		t.Fatalf("expected archived plan to be restored, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "docs/plans/active/2026-03-18-archive-smoke.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected reopened active target to be removed on rollback, got %v", err)
+	}
+	current, err := runstate.LoadCurrentPlan(root)
+	if err != nil {
+		t.Fatalf("load current plan: %v", err)
+	}
+	if current == nil || current.PlanPath != archivedRelPath {
+		t.Fatalf("expected current plan pointer to be restored to archived path, got %#v", current)
+	}
+	state, _, err := runstate.LoadState(root, "2026-03-18-archive-smoke")
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if state == nil || state.PlanPath != archivedRelPath {
+		t.Fatalf("expected state to roll back to archived path, got %#v", state)
+	}
+}
+
+func TestReopenRemovesSynthesizedStateWhenTimelineAppendFailsWithoutPriorState(t *testing.T) {
+	root := t.TempDir()
+	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
+	writeActiveArchiveCandidate(t, root, activeRelPath)
+	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+		PlanPath:           activeRelPath,
+		PlanStem:           "2026-03-18-archive-smoke",
+		ExecutionStartedAt: "2026-03-18T01:55:00Z",
+		ActiveReviewRound: &runstate.ReviewRound{
+			RoundID:    "review-001-full",
+			Kind:       "full",
+			Revision:   1,
+			Aggregated: true,
+			Decision:   "pass",
+		},
+	}); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+
+	svc := lifecycle.Service{Workdir: root}
+	archive := svc.Archive()
+	if !archive.OK {
+		t.Fatalf("archive failed: %#v", archive)
+	}
+
+	statePath := filepath.Join(root, ".local/harness/plans/2026-03-18-archive-smoke/state.json")
+	if err := os.Remove(statePath); err != nil {
+		t.Fatalf("remove archived state: %v", err)
+	}
+
+	archivedRelPath := "docs/plans/archived/2026-03-18-archive-smoke.md"
+	archivedPath := filepath.Join(root, archivedRelPath)
+	reopen := lifecycle.Service{
+		Workdir: root,
+		AfterMutation: func(lifecycle.Result) error {
+			return errors.New("timeline append failed")
+		},
+	}.Reopen("finalize-fix")
+	if reopen.OK {
+		t.Fatalf("expected reopen failure, got %#v", reopen)
+	}
+	if _, err := os.Stat(archivedPath); err != nil {
+		t.Fatalf("expected archived plan to be restored, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, activeRelPath)); !os.IsNotExist(err) {
+		t.Fatalf("expected reopened active target to be removed on rollback, got %v", err)
+	}
+	if _, err := os.Stat(statePath); !os.IsNotExist(err) {
+		t.Fatalf("expected synthesized reopened state to be removed, got %v", err)
+	}
+	state, _, err := runstate.LoadState(root, "2026-03-18-archive-smoke")
+	if err != nil {
+		t.Fatalf("load state after failed reopen: %v", err)
+	}
+	if state != nil {
+		t.Fatalf("expected no persisted state after failed reopen rollback, got %#v", state)
+	}
+	current, err := runstate.LoadCurrentPlan(root)
+	if err != nil {
+		t.Fatalf("load current plan: %v", err)
+	}
+	if current == nil || current.PlanPath != archivedRelPath {
+		t.Fatalf("expected current plan pointer to be restored to archived path, got %#v", current)
 	}
 }
 

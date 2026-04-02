@@ -19,6 +19,15 @@ type SchemaEntry struct {
 func SchemaRegistry() []SchemaEntry {
 	return []SchemaEntry{
 		{
+			Key:         "ui_resources.timeline",
+			Group:       "ui_resources",
+			Path:        "schema/ui-resources/timeline.schema.json",
+			Title:       "Timeline UI resource",
+			Description: "Read-only JSON resource returned by `/api/timeline` for `harness ui`.",
+			Shape:       "output",
+			Type:        reflect.TypeFor[TimelineResult](),
+		},
+		{
 			Key:         "commands.status.result",
 			Group:       "command_results",
 			Path:        "schema/commands/status.result.schema.json",
@@ -125,6 +134,15 @@ func SchemaRegistry() []SchemaEntry {
 			Description: "JSON input consumed by `harness evidence submit --kind sync`.",
 			Shape:       "input",
 			Type:        reflect.TypeFor[EvidenceSyncInput](),
+		},
+		{
+			Key:         "artifacts.timeline_event",
+			Group:       "artifacts",
+			Path:        "schema/artifacts/timeline-event.schema.json",
+			Title:       "Timeline event artifact line",
+			Description: "One append-only JSONL event line from `.local/harness/plans/<plan-stem>/events.jsonl`.",
+			Shape:       "artifact",
+			Type:        reflect.TypeFor[TimelineEvent](),
 		},
 		{
 			Key:         "artifacts.current_plan",

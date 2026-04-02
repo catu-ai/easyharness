@@ -93,6 +93,16 @@
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewSubmission"
     },
     {
+      "key": "artifacts.timeline_event",
+      "group": "artifacts",
+      "surface": "cli_owned_runtime",
+      "title": "Timeline event artifact line",
+      "description": "One append-only JSONL event line from `.local/harness/plans/\u003cplan-stem\u003e/events.jsonl`.",
+      "path": "schema/artifacts/timeline-event.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/timeline-event.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.TimelineEvent"
+    },
+    {
       "key": "inputs.evidence.ci",
       "group": "command_inputs",
       "surface": "public",
@@ -231,6 +241,16 @@
       "path": "schema/shared/next-action.schema.json",
       "id": "https://github.com/catu-ai/easyharness/tree/main/schema/shared/next-action.schema.json",
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.NextAction"
+    },
+    {
+      "key": "ui_resources.timeline",
+      "group": "ui_resources",
+      "surface": "public",
+      "title": "Timeline UI resource",
+      "description": "Read-only JSON resource returned by `/api/timeline` for `harness ui`.",
+      "path": "schema/ui-resources/timeline.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/ui-resources/timeline.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.TimelineResult"
     }
   ]
 }

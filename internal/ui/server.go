@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/catu-ai/easyharness/internal/status"
+	"github.com/catu-ai/easyharness/internal/timeline"
 )
 
 //go:embed static
@@ -94,6 +95,13 @@ func NewHandler(workdir string) (http.Handler, error) {
 		}
 		writeStatusJSON(w, status.Service{Workdir: workdir}.Read())
 	})
+	mux.HandleFunc("/api/timeline", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		writeTimelineJSON(w, timeline.Service{Workdir: workdir}.Read())
+	})
 	mux.Handle("/", spaHandler(staticFS, workdir))
 	return mux, nil
 }
@@ -154,6 +162,14 @@ func serveIndex(staticFS fs.FS, workdir string, w http.ResponseWriter) {
 }
 
 func writeStatusJSON(w http.ResponseWriter, result status.Result) {
+	statusCode := http.StatusOK
+	if !result.OK {
+		statusCode = http.StatusServiceUnavailable
+	}
+	writeJSON(w, statusCode, result)
+}
+
+func writeTimelineJSON(w http.ResponseWriter, result timeline.Result) {
 	statusCode := http.StatusOK
 	if !result.OK {
 		statusCode = http.StatusServiceUnavailable

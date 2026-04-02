@@ -121,6 +121,8 @@ For active work in both profiles, this plan artifact is a tracked file under
 - review manifests, ledgers, submissions, and aggregates, including optional
   reviewer-provided finding locations preserved in submission and aggregate
   artifacts
+- append-only timeline event indexes under
+  `.local/harness/plans/<plan-stem>/events.jsonl`
 - append-only `ci`, `publish`, and `sync` evidence records
 - archive milestones
 - reopen milestones, including the explicit reopen mode

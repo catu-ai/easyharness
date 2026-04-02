@@ -246,7 +246,16 @@ func (a *App) runEvidenceSubmit(args []string) int {
 		fmt.Fprintf(a.Stderr, "read evidence input: %v\n", err)
 		return 1
 	}
-	result := evidence.Service{Workdir: workdir, Now: a.Now}.Submit(*kind, inputBytes)
+	recordedAt := a.Now().Format(time.RFC3339)
+	beforeStatus := readStatusSnapshot(workdir)
+	result := evidence.Service{
+		Workdir: workdir,
+		Now:     a.Now,
+		AfterMutation: evidenceTimelineHook(workdir, beforeStatus, recordedAt, *kind, map[string]any{
+			"kind":  *kind,
+			"input": json.RawMessage(inputBytes),
+		}),
+	}.Submit(*kind, inputBytes)
 	return a.writeJSONResult(result)
 }
 
@@ -275,7 +284,16 @@ func (a *App) runLandEntry(args []string) int {
 		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
 		return 1
 	}
-	result := lifecycle.Service{Workdir: workdir, Now: a.Now}.Land(*prURL, *commit)
+	recordedAt := a.Now().Format(time.RFC3339)
+	beforeStatus := readStatusSnapshot(workdir)
+	result := lifecycle.Service{
+		Workdir: workdir,
+		Now:     a.Now,
+		AfterMutation: lifecycleTimelineHook(workdir, beforeStatus, recordedAt, map[string]any{
+			"pr":     *prURL,
+			"commit": strings.TrimSpace(*commit),
+		}),
+	}.Land(*prURL, *commit)
 	return a.writeJSONResult(result)
 }
 
@@ -532,7 +550,13 @@ func (a *App) runReviewStart(args []string) int {
 		fmt.Fprintf(a.Stderr, "read review spec: %v\n", err)
 		return 1
 	}
-	result := review.Service{Workdir: workdir, Now: a.Now}.Start(specBytes)
+	recordedAt := a.Now().Format(time.RFC3339)
+	beforeStatus := readStatusSnapshot(workdir)
+	result := review.Service{
+		Workdir:    workdir,
+		Now:        a.Now,
+		AfterStart: reviewStartTimelineHook(workdir, beforeStatus, recordedAt, specBytes),
+	}.Start(specBytes)
 	return a.writeJSONResult(result)
 }
 
@@ -567,7 +591,13 @@ func (a *App) runReviewSubmit(args []string) int {
 		fmt.Fprintf(a.Stderr, "read reviewer submission: %v\n", err)
 		return 1
 	}
-	result := review.Service{Workdir: workdir, Now: a.Now}.Submit(*roundID, *slot, inputBytes)
+	recordedAt := a.Now().Format(time.RFC3339)
+	beforeStatus := readStatusSnapshot(workdir)
+	result := review.Service{
+		Workdir:     workdir,
+		Now:         a.Now,
+		AfterSubmit: reviewSubmitTimelineHook(workdir, beforeStatus, recordedAt, inputBytes),
+	}.Submit(*roundID, *slot, inputBytes)
 	return a.writeJSONResult(result)
 }
 
@@ -595,7 +625,13 @@ func (a *App) runReviewAggregate(args []string) int {
 		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
 		return 1
 	}
-	result := review.Service{Workdir: workdir, Now: a.Now}.Aggregate(*roundID)
+	recordedAt := a.Now().Format(time.RFC3339)
+	beforeStatus := readStatusSnapshot(workdir)
+	result := review.Service{
+		Workdir:        workdir,
+		Now:            a.Now,
+		AfterAggregate: reviewAggregateTimelineHook(workdir, beforeStatus, recordedAt, map[string]any{"round_id": *roundID}),
+	}.Aggregate(*roundID)
 	return a.writeJSONResult(result)
 }
 
@@ -622,7 +658,13 @@ func (a *App) runExecuteStart(args []string) int {
 		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
 		return 1
 	}
-	result := lifecycle.Service{Workdir: workdir, Now: a.Now}.ExecuteStart()
+	recordedAt := a.Now().Format(time.RFC3339)
+	beforeStatus := readStatusSnapshot(workdir)
+	result := lifecycle.Service{
+		Workdir:       workdir,
+		Now:           a.Now,
+		AfterMutation: lifecycleTimelineHook(workdir, beforeStatus, recordedAt, nil),
+	}.ExecuteStart()
 	return a.writeJSONResult(result)
 }
 
@@ -649,7 +691,13 @@ func (a *App) runLandComplete(args []string) int {
 		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
 		return 1
 	}
-	result := lifecycle.Service{Workdir: workdir, Now: a.Now}.LandComplete()
+	recordedAt := a.Now().Format(time.RFC3339)
+	beforeStatus := readStatusSnapshot(workdir)
+	result := lifecycle.Service{
+		Workdir:       workdir,
+		Now:           a.Now,
+		AfterMutation: lifecycleTimelineHook(workdir, beforeStatus, recordedAt, nil),
+	}.LandComplete()
 	return a.writeJSONResult(result)
 }
 
@@ -676,7 +724,13 @@ func (a *App) runArchive(args []string) int {
 		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
 		return 1
 	}
-	result := lifecycle.Service{Workdir: workdir, Now: a.Now}.Archive()
+	recordedAt := a.Now().Format(time.RFC3339)
+	beforeStatus := readStatusSnapshot(workdir)
+	result := lifecycle.Service{
+		Workdir:       workdir,
+		Now:           a.Now,
+		AfterMutation: lifecycleTimelineHook(workdir, beforeStatus, recordedAt, nil),
+	}.Archive()
 	return a.writeJSONResult(result)
 }
 
@@ -704,7 +758,13 @@ func (a *App) runReopen(args []string) int {
 		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
 		return 1
 	}
-	result := lifecycle.Service{Workdir: workdir, Now: a.Now}.Reopen(*mode)
+	recordedAt := a.Now().Format(time.RFC3339)
+	beforeStatus := readStatusSnapshot(workdir)
+	result := lifecycle.Service{
+		Workdir:       workdir,
+		Now:           a.Now,
+		AfterMutation: lifecycleTimelineHook(workdir, beforeStatus, recordedAt, map[string]any{"mode": *mode}),
+	}.Reopen(*mode)
 	return a.writeJSONResult(result)
 }
 

@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/timeline-event.schema.json",
+  "$ref": "#/$defs/TimelineEvent",
+  "$defs": {
+    "TimelineArtifactRef": {
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Label is the stable label for the referenced artifact."
+        },
+        "value": {
+          "type": "string",
+          "description": "Value is the rendered identifier or path value."
+        },
+        "path": {
+          "type": "string",
+          "description": "Path is the artifact path when the reference points to a file."
+        },
+        "content_type": {
+          "type": "string",
+          "description": "ContentType reports how Content should be rendered in the UI resource. It is omitted from append-only event lines and only populated by the timeline read model when it resolves a referenced file."
+        },
+        "content": {
+          "description": "Content is the resolved artifact file payload for UI tabs when the reference points at a readable file. It is omitted from append-only event lines and only populated by the timeline read model."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "label",
+        "value"
+      ],
+      "description": "TimelineArtifactRef points at one existing harness-owned artifact or identifier related to a timeline event."
+    },
+    "TimelineDetail": {
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Key is the stable label for the detail."
+        },
+        "value": {
+          "type": "string",
+          "description": "Value is the rendered detail value."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key",
+        "value"
+      ],
+      "description": "TimelineDetail is one small display-ready fact carried on a timeline event."
+    },
+    "TimelineEvent": {
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "description": "EventID is the stable identifier for this event within one plan timeline."
+        },
+        "sequence": {
+          "type": "integer",
+          "description": "Sequence is the monotonically increasing event sequence for the plan."
+        },
+        "recorded_at": {
+          "type": "string",
+          "description": "RecordedAt is the event creation timestamp."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Kind groups related event families such as lifecycle, review, or evidence."
+        },
+        "command": {
+          "type": "string",
+          "description": "Command is the harness command that produced the event."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary is the concise human-readable command outcome."
+        },
+        "plan_path": {
+          "type": "string",
+          "description": "PlanPath is the tracked or archived plan path associated with this event."
+        },
+        "plan_stem": {
+          "type": "string",
+          "description": "PlanStem is the durable plan stem associated with this event."
+        },
+        "revision": {
+          "type": "integer",
+          "description": "Revision is the plan-local revision associated with this event."
+        },
+        "from_node": {
+          "type": "string",
+          "description": "FromNode is the canonical workflow node before the command when known."
+        },
+        "to_node": {
+          "type": "string",
+          "description": "ToNode is the canonical workflow node after the command when known."
+        },
+        "synthetic": {
+          "type": "boolean",
+          "description": "Synthetic reports that this entry is a read-model bootstrap row derived from durable plan or state data rather than a line from `events.jsonl`."
+        },
+        "details": {
+          "items": {
+            "$ref": "#/$defs/TimelineDetail"
+          },
+          "type": "array",
+          "description": "Details lists small, display-ready event facts without duplicating full underlying artifact payloads."
+        },
+        "artifact_refs": {
+          "items": {
+            "$ref": "#/$defs/TimelineArtifactRef"
+          },
+          "type": "array",
+          "description": "ArtifactRefs points at high-signal existing harness artifacts related to the event."
+        },
+        "input": {
+          "description": "Input is the raw JSON input payload when the command accepted one."
+        },
+        "output": {
+          "description": "Output is the raw JSON command result payload."
+        },
+        "artifacts": {
+          "description": "Artifacts is the raw JSON artifact payload associated with the event."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "event_id",
+        "sequence",
+        "recorded_at",
+        "kind",
+        "command",
+        "summary",
+        "plan_stem"
+      ],
+      "description": "TimelineEvent is one append-only line in `.local/harness/plans/\u003cplan-stem\u003e/events.jsonl`."
+    }
+  },
+  "title": "Timeline event artifact line",
+  "description": "One append-only JSONL event line from `.local/harness/plans/\u003cplan-stem\u003e/events.jsonl`."
+}

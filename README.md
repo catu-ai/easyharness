@@ -228,10 +228,10 @@ identifying the running binary. Unlike the stateful workflow commands above,
 it is not a JSON-first command surface.
 
 `harness ui` starts a local read-only workbench for the current repository.
-The first delivered slice focuses on a live `Status` page backed by current
-harness data plus stable shell routes for `Timeline`, `Review`, `Diff`, and
-`Files`, which remain explicit WIP placeholders until their deeper data
-surfaces are implemented.
+The first delivered slices expose a live `Status` page plus a read-only
+`Timeline` page backed by the current plan's command-owned event index.
+`Review`, `Diff`, and `Files` still ship as explicit WIP placeholders until
+their deeper data surfaces are implemented.
 
 ## Workflow
 

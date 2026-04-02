@@ -62,6 +62,17 @@ func SaveLandedPlan(workdir, planPath, landedAt string) (string, error) {
 	})
 }
 
+func WriteCurrentPlan(workdir string, current *CurrentPlan) (string, error) {
+	path := filepath.Join(workdir, ".local", "harness", "current-plan.json")
+	if current == nil {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return "", err
+		}
+		return path, nil
+	}
+	return saveCurrentPlan(workdir, *current)
+}
+
 func saveCurrentPlan(workdir string, current CurrentPlan) (string, error) {
 	path := filepath.Join(workdir, ".local", "harness", "current-plan.json")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -111,6 +122,11 @@ func SaveState(workdir, planStem string, state *State) (string, error) {
 func AcquireStateMutationLock(workdir, planStem string) (func(), error) {
 	return acquirePlanFileLock(workdir, planStem, ".state-mutation.lock",
 		fmt.Sprintf("another command is already mutating local state for plan %q; retry after it finishes", planStem))
+}
+
+func AcquireTimelineMutationLock(workdir, planStem string) (func(), error) {
+	return acquirePlanFileLock(workdir, planStem, ".timeline-mutation.lock",
+		fmt.Sprintf("another command is already appending timeline events for plan %q; retry after it finishes", planStem))
 }
 
 func writeJSONAtomic(path string, data []byte, perm os.FileMode) (err error) {

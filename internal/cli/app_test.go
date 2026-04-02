@@ -15,6 +15,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/status"
+	"github.com/catu-ai/easyharness/internal/timeline"
 	version "github.com/catu-ai/easyharness/internal/version"
 )
 
@@ -437,6 +438,55 @@ func TestExecuteStartCommandReturnsJSON(t *testing.T) {
 	if payload["command"] != "execute start" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
+
+	timelineResult := timeline.Service{Workdir: root}.Read()
+	if !timelineResult.OK || len(timelineResult.Events) != 2 {
+		t.Fatalf("expected bootstrap plan plus execute-start event, got %#v", timelineResult)
+	}
+	if timelineResult.Events[0].Command != "plan" || timelineResult.Events[1].Command != "execute start" {
+		t.Fatalf("unexpected execute-start timeline events: %#v", timelineResult.Events)
+	}
+}
+
+func TestExecuteStartRollsBackWhenTimelineAppendFails(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 15, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+
+	outputPath := filepath.Join(root, "docs/plans/active/2026-03-18-test-plan.md")
+	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Generated Plan", "--output", outputPath}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+	if err := os.MkdirAll(filepath.Join(root, ".local/harness/plans/2026-03-18-test-plan/events.jsonl"), 0o755); err != nil {
+		t.Fatalf("seed broken event index path: %v", err)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	exitCode := app.Run([]string{"execute", "start"})
+	if exitCode != 1 {
+		t.Fatalf("expected execute start failure when timeline append fails, got %d", exitCode)
+	}
+
+	state, _, err := runstate.LoadState(root, "2026-03-18-test-plan")
+	if err != nil {
+		t.Fatalf("load state after rollback: %v", err)
+	}
+	if state == nil || state.ExecutionStartedAt != "" || state.CurrentNode != "plan" {
+		t.Fatalf("expected execute start rollback to restore pre-start state, got %#v", state)
+	}
+	current, err := runstate.LoadCurrentPlan(root)
+	if err != nil {
+		t.Fatalf("load current plan after rollback: %v", err)
+	}
+	if current != nil {
+		t.Fatalf("expected execute start rollback to restore nil current-plan pointer, got %#v", current)
+	}
 }
 
 func TestEvidenceSubmitCommandReturnsJSON(t *testing.T) {
@@ -467,6 +517,244 @@ func TestEvidenceSubmitCommandReturnsJSON(t *testing.T) {
 	if payload["command"] != "evidence submit" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
+
+	timelineResult := timeline.Service{Workdir: root}.Read()
+	if !timelineResult.OK || len(timelineResult.Events) != 2 {
+		t.Fatalf("expected bootstrap plan plus evidence event, got %#v", timelineResult)
+	}
+	if timelineResult.Events[0].Command != "plan" || timelineResult.Events[1].Command != "evidence submit" {
+		t.Fatalf("unexpected evidence timeline events: %#v", timelineResult.Events)
+	}
+}
+
+func TestReviewStartCommandAppendsTimelineEvent(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 15, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+
+	outputPath := filepath.Join(root, "docs/plans/active/2026-03-18-test-plan.md")
+	if exitCode := app.Run([]string{
+		"plan", "template",
+		"--title", "CLI Review Plan",
+		"--output", outputPath,
+	}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+
+	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
+		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	exitCode := app.Run([]string{"review", "start"})
+	if exitCode != 0 {
+		t.Fatalf("review start command failed with %d: %s", exitCode, stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON review start output: %v\n%s", err, stdout.String())
+	}
+	if payload["command"] != "review start" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+
+	timelineResult := timeline.Service{Workdir: root}.Read()
+	if !timelineResult.OK || len(timelineResult.Events) != 3 {
+		t.Fatalf("expected plan, execute-start, and review-start events, got %#v", timelineResult)
+	}
+	last := timelineResult.Events[len(timelineResult.Events)-1]
+	if last.Command != "review start" {
+		t.Fatalf("unexpected review-start timeline event: %#v", last)
+	}
+}
+
+func TestReviewSubmitCommandAppendsTimelineEvent(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 15, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+
+	outputPath := filepath.Join(root, "docs/plans/active/2026-03-18-test-plan.md")
+	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Review Submit Plan", "--output", outputPath}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
+		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
+		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	app.Stdin = bytes.NewBufferString(`{"summary":"Looks good","findings":[]}`)
+	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness"}); exitCode != 0 {
+		t.Fatalf("review submit failed with %d: %s", exitCode, stderr.String())
+	}
+
+	assertLastTimelineEventCommand(t, root, "review submit")
+}
+
+func TestReviewAggregateCommandAppendsTimelineEvent(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 15, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+
+	outputPath := filepath.Join(root, "docs/plans/active/2026-03-18-test-plan.md")
+	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Review Aggregate Plan", "--output", outputPath}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
+		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
+		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	app.Stdin = bytes.NewBufferString(`{"summary":"Looks good","findings":[]}`)
+	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness"}); exitCode != 0 {
+		t.Fatalf("review submit failed with %d: %s", exitCode, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if exitCode := app.Run([]string{"review", "aggregate", "--round", "review-001-delta"}); exitCode != 0 {
+		t.Fatalf("review aggregate failed with %d: %s", exitCode, stderr.String())
+	}
+
+	assertLastTimelineEventCommand(t, root, "review aggregate")
+}
+
+func TestReviewSubmitRollsBackWhenTimelineAppendFails(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 15, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+
+	outputPath := filepath.Join(root, "docs/plans/active/2026-03-18-test-plan.md")
+	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Review Submit Rollback Plan", "--output", outputPath}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
+		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
+		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
+	}
+
+	eventIndexPath := filepath.Join(root, ".local/harness/plans/2026-03-18-test-plan/events.jsonl")
+	if err := os.Remove(eventIndexPath); err != nil {
+		t.Fatalf("remove seeded event index: %v", err)
+	}
+	if err := os.MkdirAll(eventIndexPath, 0o755); err != nil {
+		t.Fatalf("replace event index with directory: %v", err)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	app.Stdin = bytes.NewBufferString(`{"summary":"Looks good","findings":[]}`)
+	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness"}); exitCode != 1 {
+		t.Fatalf("expected review submit failure when timeline append fails, got %d", exitCode)
+	}
+
+	submissionPath := filepath.Join(root, ".local/harness/plans/2026-03-18-test-plan/reviews/review-001-delta/submissions/correctness.json")
+	if _, err := os.Stat(submissionPath); !os.IsNotExist(err) {
+		t.Fatalf("expected submission rollback after timeline append failure, got err=%v", err)
+	}
+	ledgerPath := filepath.Join(root, ".local/harness/plans/2026-03-18-test-plan/reviews/review-001-delta/ledger.json")
+	var ledger struct {
+		Slots []struct {
+			Slot   string `json:"slot"`
+			Status string `json:"status"`
+		} `json:"slots"`
+	}
+	ledgerBytes, err := os.ReadFile(ledgerPath)
+	if err != nil {
+		t.Fatalf("read ledger after rollback: %v", err)
+	}
+	if err := json.Unmarshal(ledgerBytes, &ledger); err != nil {
+		t.Fatalf("unmarshal ledger after rollback: %v", err)
+	}
+	if len(ledger.Slots) != 1 || ledger.Slots[0].Status != "pending" {
+		t.Fatalf("expected pending ledger after rollback, got %#v", ledger.Slots)
+	}
+}
+
+func TestArchiveCommandAppendsTimelineEvent(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 16, 0, 0, 0, time.UTC)
+	}
+
+	relPlanPath := "docs/plans/active/2026-03-18-archive-ready.md"
+	writeArchiveReadyPlanForCLI(t, root, relPlanPath)
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if _, err := runstate.SaveState(root, "2026-03-18-archive-ready", &runstate.State{
+		PlanPath:           relPlanPath,
+		PlanStem:           "2026-03-18-archive-ready",
+		ExecutionStartedAt: "2026-03-18T15:00:00Z",
+		Revision:           1,
+		ActiveReviewRound: &runstate.ReviewRound{
+			RoundID:    "review-001-full",
+			Kind:       "full",
+			Revision:   1,
+			Aggregated: true,
+			Decision:   "pass",
+		},
+	}); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+	seedPassingFinalizeReviewForCLI(t, root, "2026-03-18-archive-ready", relPlanPath, "review-001-full")
+
+	if exitCode := app.Run([]string{"archive"}); exitCode != 0 {
+		t.Fatalf("archive failed with %d: %s", exitCode, stderr.String())
+	}
+
+	assertLastTimelineEventCommand(t, root, "archive")
 }
 
 func TestLandCommandReturnsJSON(t *testing.T) {
@@ -500,6 +788,8 @@ func TestLandCommandReturnsJSON(t *testing.T) {
 	if payload["command"] != "land" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
+
+	assertLastTimelineEventCommand(t, root, "land")
 }
 
 func TestReopenNewStepCommandReturnsJSON(t *testing.T) {
@@ -609,6 +899,8 @@ func TestReopenFinalizeFixCommandReturnsJSON(t *testing.T) {
 	if len(statusResult.NextAction) == 0 || !strings.Contains(statusResult.NextAction[0].Description, "review-023-full") && !strings.Contains(strings.ToLower(statusResult.NextAction[0].Description), "review") {
 		t.Fatalf("expected finalize-fix guidance after reopen, got %#v", statusResult.NextAction)
 	}
+
+	assertLastTimelineEventCommand(t, root, "reopen")
 }
 
 func TestReopenCommandRequiresMode(t *testing.T) {
@@ -814,6 +1106,8 @@ func TestLandCompleteCommandReturnsJSON(t *testing.T) {
 	if !statusResult.OK || statusResult.State.CurrentNode != "idle" {
 		t.Fatalf("expected idle status after land complete, got %#v", statusResult)
 	}
+
+	assertLastTimelineEventCommand(t, root, "land complete")
 }
 
 func TestLandCommandRejectsActivePlanWithoutWritingLandedMarker(t *testing.T) {
@@ -893,6 +1187,82 @@ func seedMergeReadyEvidenceForCLI(t *testing.T, root string) {
 	}
 	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
 		t.Fatalf("seed sync evidence: %#v", result)
+	}
+}
+
+func assertLastTimelineEventCommand(t *testing.T, root, command string) {
+	t.Helper()
+	timelineResult := timeline.Service{Workdir: root}.Read()
+	if !timelineResult.OK || len(timelineResult.Events) == 0 {
+		t.Fatalf("expected timeline events for %q, got %#v", command, timelineResult)
+	}
+	last := timelineResult.Events[len(timelineResult.Events)-1]
+	if last.Command != command {
+		t.Fatalf("expected last timeline event %q, got %#v", command, last)
+	}
+}
+
+func writeArchiveReadyPlanForCLI(t *testing.T, root, relPath string) string {
+	t.Helper()
+	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
+		Title:      "CLI Archive Ready Plan",
+		Timestamp:  time.Date(2026, 3, 18, 2, 0, 0, 0, time.UTC),
+		SourceType: "direct_request",
+	})
+	if err != nil {
+		t.Fatalf("RenderTemplate: %v", err)
+	}
+	content := rendered
+	content = replaceCLIAll(content, "- Done: [ ]", "- Done: [x]")
+	content = replaceCLIAll(content, "- Status: pending", "- Status: completed")
+	content = replaceCLIAll(content, "- [ ]", "- [x]")
+	content = replaceCLIAll(content, "PENDING_STEP_EXECUTION", "Done.")
+	content = replaceCLIAll(content, "PENDING_STEP_REVIEW", "NO_STEP_REVIEW_NEEDED: Archive-ready CLI fixture uses finalize review artifacts.")
+	content = replaceCLI(content, "## Validation Summary\n\nPENDING_UNTIL_ARCHIVE", "## Validation Summary\n\nValidated the slice before archive.")
+	content = replaceCLI(content, "## Review Summary\n\nPENDING_UNTIL_ARCHIVE", "## Review Summary\n\nFull review passed before archive.")
+	content = replaceCLI(content, "## Archive Summary\n\nPENDING_UNTIL_ARCHIVE", "## Archive Summary\n\n- PR: NONE\n- Ready: The candidate satisfies the acceptance criteria and is ready for merge approval.\n- Merge Handoff: Commit and push the archive move before treating this candidate as awaiting merge approval.")
+	content = replaceCLI(content, "### Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Delivered\n\nDelivered the slice.")
+	content = replaceCLI(content, "### Not Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Not Delivered\n\nNONE.")
+	content = replaceCLI(content, "### Follow-Up Issues\n\nPENDING_UNTIL_ARCHIVE", "### Follow-Up Issues\n\nNONE")
+	path := filepath.Join(root, relPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write archive-ready plan: %v", err)
+	}
+	return path
+}
+
+func seedPassingFinalizeReviewForCLI(t *testing.T, root, planStem, relPlanPath, roundID string) {
+	t.Helper()
+	reviewDir := filepath.Join(root, ".local/harness/plans", planStem, "reviews", roundID)
+	if err := os.MkdirAll(reviewDir, 0o755); err != nil {
+		t.Fatalf("mkdir review dir: %v", err)
+	}
+	manifest := `{
+  "round_id": "` + roundID + `",
+  "kind": "full",
+  "revision": 1,
+  "review_title": "Full branch candidate before archive",
+  "plan_path": "` + relPlanPath + `",
+  "plan_stem": "` + planStem + `"
+}`
+	if err := os.WriteFile(filepath.Join(reviewDir, "manifest.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	aggregate := `{
+  "round_id": "` + roundID + `",
+  "kind": "full",
+  "revision": 1,
+  "review_title": "Full branch candidate before archive",
+  "decision": "pass",
+  "blocking_findings": [],
+  "non_blocking_findings": [],
+  "aggregated_at": "2026-03-18T15:30:00Z"
+}`
+	if err := os.WriteFile(filepath.Join(reviewDir, "aggregate.json"), []byte(aggregate), 0o644); err != nil {
+		t.Fatalf("write aggregate: %v", err)
 	}
 }
 

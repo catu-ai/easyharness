@@ -16,10 +16,12 @@ import (
 )
 
 var recordIDPattern = regexp.MustCompile(`^(ci|publish|sync)-([0-9]+)\.json$`)
+var saveState = runstate.SaveState
 
 type Service struct {
-	Workdir string
-	Now     func() time.Time
+	Workdir       string
+	Now           func() time.Time
+	AfterMutation func(Result) error
 }
 
 type Result = contracts.EvidenceSubmitResult
@@ -71,13 +73,18 @@ func (s Service) Submit(kind string, inputBytes []byte) Result {
 		if err := writeJSONFile(recordPath, record); err != nil {
 			return errorResult("evidence submit", "Unable to persist the evidence artifact.", []CommandError{{Path: "record", Message: err.Error()}})
 		}
+		originalState := cloneState(state)
 		statePath, err = updateStateAfterEvidence(s.Workdir, planStem, relPlanPath, state, statePath, kind, recordID, recordPath, now, func(next *runstate.State) {
 			next.LatestCI = &runstate.CIState{SnapshotID: recordID, Status: record.Status}
 		})
 		if err != nil {
-			return errorResult("evidence submit", "Unable to update local harness state.", []CommandError{{Path: "state", Message: err.Error()}})
+			issues := rollbackEvidenceMutation(s.Workdir, planStem, originalState, statePath, recordPath)
+			issues = append([]CommandError{{Path: "state", Message: err.Error()}}, issues...)
+			return errorResult("evidence submit", "Unable to update local harness state.", issues)
 		}
-		return successResult(planPath, statePath, kind, recordID, recordPath, "Recorded CI evidence for the current archived candidate.")
+		return s.finalizeMutation(successResult(planPath, statePath, kind, recordID, recordPath, "Recorded CI evidence for the current archived candidate."), func() []CommandError {
+			return rollbackEvidenceMutation(s.Workdir, planStem, originalState, statePath, recordPath)
+		})
 	case "publish":
 		var input PublishInput
 		if err := decodeInput(inputBytes, &input); err != nil {
@@ -107,6 +114,7 @@ func (s Service) Submit(kind string, inputBytes []byte) Result {
 		if err := writeJSONFile(recordPath, record); err != nil {
 			return errorResult("evidence submit", "Unable to persist the evidence artifact.", []CommandError{{Path: "record", Message: err.Error()}})
 		}
+		originalState := cloneState(state)
 		statePath, err = updateStateAfterEvidence(s.Workdir, planStem, relPlanPath, state, statePath, kind, recordID, recordPath, now, func(next *runstate.State) {
 			if record.Status == "recorded" {
 				next.LatestPublish = &runstate.Publish{AttemptID: recordID, PRURL: record.PRURL}
@@ -115,9 +123,13 @@ func (s Service) Submit(kind string, inputBytes []byte) Result {
 			next.LatestPublish = nil
 		})
 		if err != nil {
-			return errorResult("evidence submit", "Unable to update local harness state.", []CommandError{{Path: "state", Message: err.Error()}})
+			issues := rollbackEvidenceMutation(s.Workdir, planStem, originalState, statePath, recordPath)
+			issues = append([]CommandError{{Path: "state", Message: err.Error()}}, issues...)
+			return errorResult("evidence submit", "Unable to update local harness state.", issues)
 		}
-		return successResult(planPath, statePath, kind, recordID, recordPath, "Recorded publish evidence for the current archived candidate.")
+		return s.finalizeMutation(successResult(planPath, statePath, kind, recordID, recordPath, "Recorded publish evidence for the current archived candidate."), func() []CommandError {
+			return rollbackEvidenceMutation(s.Workdir, planStem, originalState, statePath, recordPath)
+		})
 	case "sync":
 		var input SyncInput
 		if err := decodeInput(inputBytes, &input); err != nil {
@@ -145,6 +157,7 @@ func (s Service) Submit(kind string, inputBytes []byte) Result {
 		if err := writeJSONFile(recordPath, record); err != nil {
 			return errorResult("evidence submit", "Unable to persist the evidence artifact.", []CommandError{{Path: "record", Message: err.Error()}})
 		}
+		originalState := cloneState(state)
 		statePath, err = updateStateAfterEvidence(s.Workdir, planStem, relPlanPath, state, statePath, kind, recordID, recordPath, now, func(next *runstate.State) {
 			switch record.Status {
 			case "fresh":
@@ -158,9 +171,13 @@ func (s Service) Submit(kind string, inputBytes []byte) Result {
 			}
 		})
 		if err != nil {
-			return errorResult("evidence submit", "Unable to update local harness state.", []CommandError{{Path: "state", Message: err.Error()}})
+			issues := rollbackEvidenceMutation(s.Workdir, planStem, originalState, statePath, recordPath)
+			issues = append([]CommandError{{Path: "state", Message: err.Error()}}, issues...)
+			return errorResult("evidence submit", "Unable to update local harness state.", issues)
 		}
-		return successResult(planPath, statePath, kind, recordID, recordPath, "Recorded sync evidence for the current archived candidate.")
+		return s.finalizeMutation(successResult(planPath, statePath, kind, recordID, recordPath, "Recorded sync evidence for the current archived candidate."), func() []CommandError {
+			return rollbackEvidenceMutation(s.Workdir, planStem, originalState, statePath, recordPath)
+		})
 	default:
 		return errorResult("evidence submit", "Evidence kind is invalid.", []CommandError{{
 			Path:    "kind",
@@ -358,7 +375,7 @@ func updateStateAfterEvidence(workdir, planStem, relPlanPath string, state *runs
 		state.LatestEvidence.Sync = pointer
 	}
 	mutate(state)
-	return runstate.SaveState(workdir, planStem, state)
+	return saveState(workdir, planStem, state)
 }
 
 func successResult(planPath, statePath, kind, recordID, recordPath, summary string) Result {
@@ -399,6 +416,20 @@ func errorResult(command, summary string, errors []CommandError) Result {
 		Summary: summary,
 		Errors:  errors,
 	}
+}
+
+func (s Service) finalizeMutation(result Result, rollback func() []CommandError) Result {
+	if !result.OK || s.AfterMutation == nil {
+		return result
+	}
+	if err := s.AfterMutation(result); err != nil {
+		issues := []CommandError{{Path: "timeline", Message: err.Error()}}
+		if rollback != nil {
+			issues = append(issues, rollback()...)
+		}
+		return errorResult(result.Command, "Unable to record the timeline event for the successful command result.", issues)
+	}
+	return result
 }
 
 func writeJSONFile(path string, value any) error {
@@ -502,4 +533,69 @@ func (s Service) now() time.Time {
 		return s.Now()
 	}
 	return time.Now()
+}
+
+func cloneState(state *runstate.State) *runstate.State {
+	if state == nil {
+		return nil
+	}
+	cloned := *state
+	if state.ActiveReviewRound != nil {
+		round := *state.ActiveReviewRound
+		cloned.ActiveReviewRound = &round
+	}
+	if state.Reopen != nil {
+		reopen := *state.Reopen
+		cloned.Reopen = &reopen
+	}
+	if state.LatestEvidence != nil {
+		evidenceSet := *state.LatestEvidence
+		cloned.LatestEvidence = &evidenceSet
+		if state.LatestEvidence.CI != nil {
+			ciPtr := *state.LatestEvidence.CI
+			cloned.LatestEvidence.CI = &ciPtr
+		}
+		if state.LatestEvidence.Publish != nil {
+			publishPtr := *state.LatestEvidence.Publish
+			cloned.LatestEvidence.Publish = &publishPtr
+		}
+		if state.LatestEvidence.Sync != nil {
+			syncPtr := *state.LatestEvidence.Sync
+			cloned.LatestEvidence.Sync = &syncPtr
+		}
+	}
+	if state.Land != nil {
+		land := *state.Land
+		cloned.Land = &land
+	}
+	if state.LatestCI != nil {
+		ci := *state.LatestCI
+		cloned.LatestCI = &ci
+	}
+	if state.Sync != nil {
+		sync := *state.Sync
+		cloned.Sync = &sync
+	}
+	if state.LatestPublish != nil {
+		publish := *state.LatestPublish
+		cloned.LatestPublish = &publish
+	}
+	return &cloned
+}
+
+func rollbackEvidenceMutation(workdir, planStem string, originalState *runstate.State, statePath, recordPath string) []CommandError {
+	issues := make([]CommandError, 0, 2)
+	if originalState != nil {
+		if _, err := runstate.SaveState(workdir, planStem, originalState); err != nil {
+			issues = append(issues, CommandError{Path: "state", Message: fmt.Sprintf("rollback local state: %v", err)})
+		}
+	} else if statePath != "" {
+		if err := os.Remove(statePath); err != nil && !os.IsNotExist(err) {
+			issues = append(issues, CommandError{Path: "state", Message: fmt.Sprintf("rollback local state: %v", err)})
+		}
+	}
+	if err := os.Remove(recordPath); err != nil && !os.IsNotExist(err) {
+		issues = append(issues, CommandError{Path: "record", Message: fmt.Sprintf("rollback evidence artifact: %v", err)})
+	}
+	return issues
 }

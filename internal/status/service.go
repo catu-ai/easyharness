@@ -77,6 +77,14 @@ type latestStepCloseoutScan struct {
 }
 
 func (s Service) Read() Result {
+	return s.read(true)
+}
+
+func (s Service) ReadUnlocked() Result {
+	return s.read(false)
+}
+
+func (s Service) read(acquireLock bool) Result {
 	currentPlan, err := runstate.LoadCurrentPlan(s.Workdir)
 	if err != nil {
 		return Result{
@@ -101,27 +109,30 @@ func (s Service) Read() Result {
 	}
 
 	planStem := strings.TrimSuffix(filepath.Base(planPath), filepath.Ext(planPath))
-	release, err := runstate.AcquireStateMutationLock(s.Workdir, planStem)
-	if err != nil {
-		return Result{
-			OK:      false,
-			Command: "status",
-			Summary: "Another local state mutation is already in progress.",
-			Artifacts: &Artifacts{
-				PlanPath: planPath,
-			},
-			Errors: []StatusError{{Path: "state", Message: err.Error()}},
+	release := func() {}
+	if acquireLock {
+		release, err = runstate.AcquireStateMutationLock(s.Workdir, planStem)
+		if err != nil {
+			return Result{
+				OK:      false,
+				Command: "status",
+				Summary: "Another local state mutation is already in progress.",
+				Artifacts: &Artifacts{
+					PlanPath: planPath,
+				},
+				Errors: []StatusError{{Path: "state", Message: err.Error()}},
+			}
 		}
-	}
-	defer release()
+		defer release()
 
-	planPath, err = plan.DetectCurrentPathLocked(s.Workdir, planStem)
-	if err != nil {
-		return Result{
-			OK:      false,
-			Command: "status",
-			Summary: "Unable to determine the current plan.",
-			Errors:  []StatusError{{Path: "plan", Message: err.Error()}},
+		planPath, err = plan.DetectCurrentPathLocked(s.Workdir, planStem)
+		if err != nil {
+			return Result{
+				OK:      false,
+				Command: "status",
+				Summary: "Unable to determine the current plan.",
+				Errors:  []StatusError{{Path: "plan", Message: err.Error()}},
+			}
 		}
 	}
 

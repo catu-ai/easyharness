@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/ui-resources/timeline.schema.json",
+  "$ref": "#/$defs/TimelineResult",
+  "$defs": {
+    "ErrorDetail": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path identifies the field, section, or artifact path associated with the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message is the human-readable explanation of the problem."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "message"
+      ],
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+    },
+    "TimelineArtifactRef": {
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Label is the stable label for the referenced artifact."
+        },
+        "value": {
+          "type": "string",
+          "description": "Value is the rendered identifier or path value."
+        },
+        "path": {
+          "type": "string",
+          "description": "Path is the artifact path when the reference points to a file."
+        },
+        "content_type": {
+          "type": "string",
+          "description": "ContentType reports how Content should be rendered in the UI resource. It is omitted from append-only event lines and only populated by the timeline read model when it resolves a referenced file."
+        },
+        "content": {
+          "description": "Content is the resolved artifact file payload for UI tabs when the reference points at a readable file. It is omitted from append-only event lines and only populated by the timeline read model."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "label",
+        "value"
+      ],
+      "description": "TimelineArtifactRef points at one existing harness-owned artifact or identifier related to a timeline event."
+    },
+    "TimelineArtifacts": {
+      "properties": {
+        "plan_path": {
+          "type": "string",
+          "description": "PlanPath is the current or last-landed plan path associated with the timeline."
+        },
+        "local_state_path": {
+          "type": "string",
+          "description": "LocalStatePath is the plan-local state cache path when one exists."
+        },
+        "event_index_path": {
+          "type": "string",
+          "description": "EventIndexPath is the append-only event index path."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "TimelineArtifacts points to the current plan-local timeline sources."
+    },
+    "TimelineDetail": {
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Key is the stable label for the detail."
+        },
+        "value": {
+          "type": "string",
+          "description": "Value is the rendered detail value."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key",
+        "value"
+      ],
+      "description": "TimelineDetail is one small display-ready fact carried on a timeline event."
+    },
+    "TimelineEvent": {
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "description": "EventID is the stable identifier for this event within one plan timeline."
+        },
+        "sequence": {
+          "type": "integer",
+          "description": "Sequence is the monotonically increasing event sequence for the plan."
+        },
+        "recorded_at": {
+          "type": "string",
+          "description": "RecordedAt is the event creation timestamp."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Kind groups related event families such as lifecycle, review, or evidence."
+        },
+        "command": {
+          "type": "string",
+          "description": "Command is the harness command that produced the event."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary is the concise human-readable command outcome."
+        },
+        "plan_path": {
+          "type": "string",
+          "description": "PlanPath is the tracked or archived plan path associated with this event."
+        },
+        "plan_stem": {
+          "type": "string",
+          "description": "PlanStem is the durable plan stem associated with this event."
+        },
+        "revision": {
+          "type": "integer",
+          "description": "Revision is the plan-local revision associated with this event."
+        },
+        "from_node": {
+          "type": "string",
+          "description": "FromNode is the canonical workflow node before the command when known."
+        },
+        "to_node": {
+          "type": "string",
+          "description": "ToNode is the canonical workflow node after the command when known."
+        },
+        "synthetic": {
+          "type": "boolean",
+          "description": "Synthetic reports that this entry is a read-model bootstrap row derived from durable plan or state data rather than a line from `events.jsonl`."
+        },
+        "details": {
+          "items": {
+            "$ref": "#/$defs/TimelineDetail"
+          },
+          "type": "array",
+          "description": "Details lists small, display-ready event facts without duplicating full underlying artifact payloads."
+        },
+        "artifact_refs": {
+          "items": {
+            "$ref": "#/$defs/TimelineArtifactRef"
+          },
+          "type": "array",
+          "description": "ArtifactRefs points at high-signal existing harness artifacts related to the event."
+        },
+        "input": {
+          "description": "Input is the raw JSON input payload when the command accepted one."
+        },
+        "output": {
+          "description": "Output is the raw JSON command result payload."
+        },
+        "artifacts": {
+          "description": "Artifacts is the raw JSON artifact payload associated with the event."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "event_id",
+        "sequence",
+        "recorded_at",
+        "kind",
+        "command",
+        "summary",
+        "plan_stem"
+      ],
+      "description": "TimelineEvent is one append-only line in `.local/harness/plans/\u003cplan-stem\u003e/events.jsonl`."
+    },
+    "TimelineResult": {
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "OK reports whether timeline loading succeeded."
+        },
+        "resource": {
+          "type": "string",
+          "description": "Resource is the stable UI resource identifier."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary is the concise human-readable explanation of the loaded timeline."
+        },
+        "artifacts": {
+          "$ref": "#/$defs/TimelineArtifacts",
+          "description": "Artifacts points to the plan and local timeline artifact paths used to build this response."
+        },
+        "events": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/TimelineEvent"
+              },
+              "type": "array",
+              "description": "Events lists the ordered timeline entries for the selected plan."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Events lists the ordered timeline entries for the selected plan."
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/ErrorDetail"
+          },
+          "type": "array",
+          "description": "Errors lists hard failures that prevented timeline loading."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ok",
+        "resource",
+        "summary",
+        "events"
+      ],
+      "description": "TimelineResult is the read-only UI resource returned by `/api/timeline`."
+    }
+  },
+  "title": "Timeline UI resource",
+  "description": "Read-only JSON resource returned by `/api/timeline` for `harness ui`."
+}

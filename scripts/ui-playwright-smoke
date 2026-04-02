@@ -125,7 +125,121 @@ prepare_runtime_workdir() {
   runtime_workdir="$tmp_dir/runtime-workdir"
   mkdir -p "$runtime_workdir/.local"
   cp -R "$repo_root/docs" "$runtime_workdir/docs"
-  cp -R "$repo_root/.local/harness" "$runtime_workdir/.local/harness"
+}
+
+seed_timeline_handoff_fixture() {
+  local fixture_plan_rel="docs/plans/archived/2026-03-31-read-only-harness-ui-shell-and-status-foundation.md"
+  local fixture_plan_stem="2026-03-31-read-only-harness-ui-shell-and-status-foundation"
+  local plan_dir="$runtime_workdir/.local/harness/plans/$fixture_plan_stem"
+
+  rm -rf "$runtime_workdir/docs/plans/active"
+  rm -rf "$runtime_workdir/.local/harness"
+  mkdir -p "$plan_dir/evidence/publish" "$plan_dir/evidence/ci" "$plan_dir/evidence/sync"
+
+  cat >"$runtime_workdir/.local/harness/current-plan.json" <<EOF
+{
+  "plan_path": "$fixture_plan_rel"
+}
+EOF
+
+  cat >"$plan_dir/state.json" <<EOF
+{
+  "execution_started_at": "2026-04-01T21:36:30+08:00",
+  "current_node": "land",
+  "plan_path": "$fixture_plan_rel",
+  "plan_stem": "$fixture_plan_stem",
+  "revision": 1,
+  "latest_evidence": {
+    "publish": {
+      "kind": "publish",
+      "record_id": "publish-001",
+      "path": ".local/harness/plans/$fixture_plan_stem/evidence/publish/publish-001.json",
+      "recorded_at": "2026-04-01T22:36:30+08:00"
+    },
+    "ci": {
+      "kind": "ci",
+      "record_id": "ci-001",
+      "path": ".local/harness/plans/$fixture_plan_stem/evidence/ci/ci-001.json",
+      "recorded_at": "2026-04-01T22:40:00+08:00"
+    },
+    "sync": {
+      "kind": "sync",
+      "record_id": "sync-001",
+      "path": ".local/harness/plans/$fixture_plan_stem/evidence/sync/sync-001.json",
+      "recorded_at": "2026-04-01T22:42:00+08:00"
+    }
+  },
+  "latest_ci": {
+    "snapshot_id": "ci-001",
+    "status": "success"
+  },
+  "latest_publish": {
+    "attempt_id": "publish-001",
+    "pr_url": "https://github.com/catu-ai/easyharness/pull/93"
+  },
+  "sync": {
+    "freshness": "fresh",
+    "conflicts": false
+  },
+  "land": {
+    "pr_url": "https://github.com/catu-ai/easyharness/pull/93",
+    "commit": "abc123def456",
+    "landed_at": "2026-04-01T22:45:00+08:00"
+  }
+}
+EOF
+
+  cat >"$plan_dir/evidence/publish/publish-001.json" <<EOF
+{
+  "record_id": "publish-001",
+  "kind": "publish",
+  "plan_path": "$fixture_plan_rel",
+  "plan_stem": "$fixture_plan_stem",
+  "revision": 1,
+  "recorded_at": "2026-04-01T22:36:30+08:00",
+  "status": "recorded",
+  "pr_url": "https://github.com/catu-ai/easyharness/pull/93",
+  "branch": "codex/issue-93",
+  "base": "main",
+  "commit": "abc123def456"
+}
+EOF
+
+  cat >"$plan_dir/evidence/ci/ci-001.json" <<EOF
+{
+  "record_id": "ci-001",
+  "kind": "ci",
+  "plan_path": "$fixture_plan_rel",
+  "plan_stem": "$fixture_plan_stem",
+  "revision": 1,
+  "recorded_at": "2026-04-01T22:40:00+08:00",
+  "status": "success",
+  "provider": "buildkite",
+  "url": "https://ci.example/93"
+}
+EOF
+
+  cat >"$plan_dir/evidence/sync/sync-001.json" <<EOF
+{
+  "record_id": "sync-001",
+  "kind": "sync",
+  "plan_path": "$fixture_plan_rel",
+  "plan_stem": "$fixture_plan_stem",
+  "revision": 1,
+  "recorded_at": "2026-04-01T22:42:00+08:00",
+  "status": "fresh",
+  "base_ref": "main",
+  "head_ref": "codex/issue-93"
+}
+EOF
+
+  cat >"$plan_dir/events.jsonl" <<EOF
+{"event_id":"event-001","sequence":1,"recorded_at":"2026-04-01T22:30:00+08:00","kind":"lifecycle","command":"archive","summary":"Archived the current plan.","plan_path":"$fixture_plan_rel","plan_stem":"$fixture_plan_stem","revision":1,"from_node":"execution/finalize/archive","to_node":"execution/finalize/publish","artifact_refs":[{"label":"from_plan_path","value":"docs/plans/active/2026-03-31-read-only-harness-ui-shell-and-status-foundation.md","path":"docs/plans/active/2026-03-31-read-only-harness-ui-shell-and-status-foundation.md"},{"label":"to_plan_path","value":"$fixture_plan_rel","path":"$fixture_plan_rel"}],"output":{"command":"archive","summary":"Archived the current plan.","artifacts":{"to_plan_path":"$fixture_plan_rel"}}}
+{"event_id":"event-002","sequence":2,"recorded_at":"2026-04-01T22:36:30+08:00","kind":"evidence","command":"evidence submit","summary":"Recorded publish evidence for the current archived candidate.","plan_path":"$fixture_plan_rel","plan_stem":"$fixture_plan_stem","revision":1,"from_node":"execution/finalize/publish","to_node":"execution/finalize/publish","input":{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/93","branch":"codex/issue-93","base":"main","commit":"abc123def456"},"output":{"command":"evidence submit","summary":"Recorded publish evidence for the current archived candidate.","artifacts":{"record_id":"publish-001","kind":"publish"}},"artifact_refs":[{"label":"publish_record","value":".local/harness/plans/$fixture_plan_stem/evidence/publish/publish-001.json","path":".local/harness/plans/$fixture_plan_stem/evidence/publish/publish-001.json"}]}
+{"event_id":"event-003","sequence":3,"recorded_at":"2026-04-01T22:40:00+08:00","kind":"evidence","command":"evidence submit","summary":"Recorded CI evidence for the current archived candidate.","plan_path":"$fixture_plan_rel","plan_stem":"$fixture_plan_stem","revision":1,"from_node":"execution/finalize/publish","to_node":"execution/finalize/publish","input":{"status":"success","provider":"buildkite","url":"https://ci.example/93"},"output":{"command":"evidence submit","summary":"Recorded CI evidence for the current archived candidate.","artifacts":{"record_id":"ci-001","kind":"ci"}},"artifact_refs":[{"label":"ci_record","value":".local/harness/plans/$fixture_plan_stem/evidence/ci/ci-001.json","path":".local/harness/plans/$fixture_plan_stem/evidence/ci/ci-001.json"}]}
+{"event_id":"event-004","sequence":4,"recorded_at":"2026-04-01T22:42:00+08:00","kind":"evidence","command":"evidence submit","summary":"Recorded sync evidence for the current archived candidate.","plan_path":"$fixture_plan_rel","plan_stem":"$fixture_plan_stem","revision":1,"from_node":"execution/finalize/publish","to_node":"execution/finalize/await_merge","input":{"status":"fresh","base_ref":"main","head_ref":"codex/issue-93"},"output":{"command":"evidence submit","summary":"Recorded sync evidence for the current archived candidate.","artifacts":{"record_id":"sync-001","kind":"sync"}},"artifact_refs":[{"label":"sync_record","value":".local/harness/plans/$fixture_plan_stem/evidence/sync/sync-001.json","path":".local/harness/plans/$fixture_plan_stem/evidence/sync/sync-001.json"}]}
+{"event_id":"event-005","sequence":5,"recorded_at":"2026-04-01T22:45:00+08:00","kind":"lifecycle","command":"land","summary":"Recorded merge confirmation for the current archived candidate.","plan_path":"$fixture_plan_rel","plan_stem":"$fixture_plan_stem","revision":1,"from_node":"execution/finalize/await_merge","to_node":"land","artifact_refs":[{"label":"plan_path","value":"$fixture_plan_rel","path":"$fixture_plan_rel"},{"label":"publish_record","value":".local/harness/plans/$fixture_plan_stem/evidence/publish/publish-001.json","path":".local/harness/plans/$fixture_plan_stem/evidence/publish/publish-001.json"}],"output":{"command":"land","summary":"Recorded merge confirmation for the current archived candidate.","artifacts":{"plan_path":"$fixture_plan_rel","pr_url":"https://github.com/catu-ai/easyharness/pull/93","commit":"abc123def456","state":{"current_node":"land","plan_path":"$fixture_plan_rel","plan_stem":"$fixture_plan_stem","revision":1,"land":{"pr_url":"https://github.com/catu-ai/easyharness/pull/93","commit":"abc123def456","landed_at":"2026-04-01T22:45:00+08:00"}}}}}
+EOF
 }
 
 navigate_browser_to() {
@@ -169,6 +283,12 @@ log_phase "refreshing local harness binary"
 "$repo_root/scripts/install-dev-harness" >/dev/null
 harness_bin="${HARNESS_UI_BINARY:-$repo_root/.local/bin/harness}"
 prepare_runtime_workdir
+if [[ -z "$requested_workdir" ]]; then
+  log_phase "seeding a deterministic archive-to-land timeline fixture"
+  seed_timeline_handoff_fixture
+else
+  log_phase "using requested runtime workdir without fixture seeding"
+fi
 
 mkdir -p "$output_dir"
 mkdir -p "$playwright_root"
@@ -327,10 +447,50 @@ assert_has_text() {
   fi
 }
 
+assert_lacks_text() {
+  local label="$1"
+  local unexpected="$2"
+  local snapshot="${output_dir}/${label}.yml"
+
+  if grep -Fq -- "$unexpected" "$snapshot"; then
+    echo "Snapshot ${snapshot} unexpectedly contained text: ${unexpected}" >&2
+    cat "$snapshot" >&2
+    exit 1
+  fi
+}
+
 link_ref_from_snapshot() {
   local label="$1"
   local snapshot="$2"
   sed -n "s/.*link \"$label\" .*\\[ref=\\(e[0-9][0-9]*\\)\\].*/\\1/p" "$snapshot" | head -n 1
+}
+
+interactive_ref_from_snapshot() {
+  local label="$1"
+  local snapshot="$2"
+  grep -F "\"$label\"" "$snapshot" | head -n 1 | sed -n 's/.*\[ref=\(e[0-9][0-9]*\)\].*/\1/p'
+}
+
+capture_session_snapshot() {
+  local session="$1"
+  local label="$2"
+  local output snapshot target_file
+  target_file="${output_dir}/${label}.yml"
+  output="$(pwcli "$session" snapshot)"
+  snapshot="$(resolve_snapshot_path "$session" "$(printf '%s\n' "$output" | snapshot_path_from_output || true)")"
+
+  if [[ -n "$snapshot" && -f "$snapshot" ]]; then
+    cp "$snapshot" "$target_file"
+    return
+  fi
+
+  if printf '%s\n' "$output" | write_inline_snapshot_from_output "$target_file"; then
+    return
+  fi
+
+  echo "Missing Playwright snapshot for session ${session}" >&2
+  printf '%s\n' "$output" >&2
+  exit 1
 }
 
 navigate_via_rail() {
@@ -391,7 +551,47 @@ assert_has_text "status" "$status_node"
 assert_has_text "status" "Next actions"
 capture_snapshot "/timeline" "timeline"
 assert_has_text "timeline" "Timeline"
-assert_has_text "timeline" "WIP"
+assert_has_text "timeline" "Explorer"
+assert_has_text "timeline" "Event"
+assert_has_text "timeline" "plan"
+assert_has_text "timeline" "land"
+assert_lacks_text "timeline" "WIP"
+capture_snapshot "/timeline#events" "timeline-events"
+assert_lacks_text "timeline-events" "WIP"
+assert_snapshot_contains "timeline-events" "No timeline events recorded yet|plan|implement|execute start|review start|review aggregate|archive|reopen|evidence submit|land"
+
+timeline_inspector_session="$(session_name timeline-inspector)"
+navigate_browser_to "$timeline_inspector_session" "${base_url}/timeline"
+sleep 1
+capture_session_snapshot "$timeline_inspector_session" "timeline-inspector-initial"
+assert_has_text "timeline-inspector-initial" "Output"
+assert_has_text "timeline-inspector-initial" "execution/finalize/await_merge → land"
+assert_has_text "timeline-inspector-initial" "Publish Record"
+output_ref="$(interactive_ref_from_snapshot "Output" "${output_dir}/timeline-inspector-initial.yml")"
+if [[ -z "$output_ref" ]]; then
+  echo "Could not find Output tab in timeline inspector snapshot." >&2
+  cat "${output_dir}/timeline-inspector-initial.yml" >&2
+  exit 1
+fi
+pwcli "$timeline_inspector_session" click "$output_ref" >/dev/null
+sleep 0.5
+capture_session_snapshot "$timeline_inspector_session" "timeline-inspector-output"
+assert_has_text "timeline-inspector-output" "pr_url"
+assert_has_text "timeline-inspector-output" "current_node"
+assert_has_text "timeline-inspector-output" "abc123def456"
+artifact_ref="$(interactive_ref_from_snapshot "Publish Record" "${output_dir}/timeline-inspector-output.yml")"
+if [[ -z "$artifact_ref" ]]; then
+  echo "Could not find Publish Record artifact tab in timeline inspector snapshot." >&2
+  cat "${output_dir}/timeline-inspector-output.yml" >&2
+  exit 1
+fi
+pwcli "$timeline_inspector_session" click "$artifact_ref" >/dev/null
+sleep 0.5
+capture_session_snapshot "$timeline_inspector_session" "timeline-inspector-publish-record"
+assert_has_text "timeline-inspector-publish-record" "publish-001"
+assert_has_text "timeline-inspector-publish-record" "https://github.com/catu-ai/easyharness/pull/93"
+pwcli_close "$timeline_inspector_session"
+
 navigate_via_rail "$rail_session" "status" "Timeline" "timeline-rail" "Timeline"
 navigate_via_rail "$rail_session" "timeline-rail" "Status" "status-rail" "Status"
 pwcli_close "$rail_session"

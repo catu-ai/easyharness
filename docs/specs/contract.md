@@ -24,6 +24,7 @@ The schema registry currently covers:
 
 - public CLI JSON command results
 - JSON command inputs such as review and evidence payloads
+- read-only UI resource payloads served by `harness ui`
 - shared reusable JSON shapes
 - CLI-owned `.local/harness/` JSON artifacts
 
@@ -39,6 +40,7 @@ Treat these as the stable external contract surface:
 
 - command results under `schema/commands/`
 - command inputs under `schema/inputs/`
+- read-only UI resources under `schema/ui-resources/`
 - shared reusable shapes under `schema/shared/` when they are embedded in the
   public command surface
 
