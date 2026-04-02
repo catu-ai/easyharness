@@ -206,6 +206,16 @@ function humanizeLabel(value: string): string {
   return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : value;
 }
 
+function titleizeLabel(value: string): string {
+  return value
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function timelineEventTitle(event: TimelineEvent): string {
   const command = event.command.trim();
   if (command) return command;
@@ -224,30 +234,25 @@ function timelineEventSubtitle(event: TimelineEvent): string {
 
 function sortTimelineEvents(events: TimelineEvent[]): TimelineEvent[] {
   return [...events].sort((left, right) => {
-    const leftPriority = left.synthetic && left.command.trim().toLowerCase() === "plan" ? 0 : left.synthetic && left.command.trim().toLowerCase() === "implement" ? 1 : 2;
-    const rightPriority = right.synthetic && right.command.trim().toLowerCase() === "plan" ? 0 : right.synthetic && right.command.trim().toLowerCase() === "implement" ? 1 : 2;
-    if (leftPriority !== rightPriority) return leftPriority - rightPriority;
     const leftTime = Date.parse(left.recorded_at);
     const rightTime = Date.parse(right.recorded_at);
     if (!Number.isNaN(leftTime) && !Number.isNaN(rightTime) && leftTime !== rightTime) {
-      return leftTime - rightTime;
+      return rightTime - leftTime;
     }
     if (!Number.isNaN(leftTime) && Number.isNaN(rightTime)) return -1;
     if (Number.isNaN(leftTime) && !Number.isNaN(rightTime)) return 1;
-    if (left.synthetic !== right.synthetic) return left.synthetic ? -1 : 1;
-    if (left.sequence === 0 && right.sequence !== 0) return -1;
-    if (right.sequence === 0 && left.sequence !== 0) return 1;
-    if (left.sequence !== right.sequence) return left.sequence - right.sequence;
-    return left.event_id.localeCompare(right.event_id);
+    if (left.sequence !== right.sequence) return right.sequence - left.sequence;
+    if (left.synthetic !== right.synthetic) return left.synthetic ? 1 : -1;
+    return right.event_id.localeCompare(left.event_id);
   });
 }
 
 function pickDefaultTimelineEvent(events: TimelineEvent[]): TimelineEvent | null {
   if (events.length === 0) return null;
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    if (!events[index].synthetic) return events[index];
+  for (const event of events) {
+    if (!event.synthetic) return event;
   }
-  return events[events.length - 1];
+  return events[0];
 }
 
 function jsonStringify(value: unknown): string {
@@ -285,6 +290,13 @@ const hiddenArtifactTabLabels = new Set([
   "from_plan_path",
   "to_plan_path",
 ]);
+
+function artifactTabLabel(artifactRef: TimelineArtifactRef, index: number): string {
+  const rawLabel = artifactRef.label?.trim();
+  if (!rawLabel) return `Artifact ${index + 1}`;
+  const normalized = rawLabel.replace(/_path$/i, "");
+  return titleizeLabel(normalized);
+}
 
 function timelineEventRecord(event: TimelineEvent): Record<string, unknown> {
   const artifactRefs = Array.isArray(event.artifact_refs)
@@ -337,7 +349,7 @@ function buildTimelineTabs(event: TimelineEvent | null): TimelineTab[] {
       if (!artifactRef.path || artifactRef.content === undefined) return;
       tabs.push({
         id: `artifact-ref-${index}`,
-        label: artifactRef.label || `artifact_${index + 1}`,
+        label: artifactTabLabel(artifactRef, index),
         value: artifactRef.content,
         mode: artifactRef.content_type === "text" ? "text" : "json",
       });
@@ -556,7 +568,7 @@ function App() {
     return {
       events,
       artifacts,
-      latestEvent: events.length > 0 ? events[events.length - 1] : null,
+      latestEvent: events.length > 0 ? events[0] : null,
     };
   }, [timeline]);
 

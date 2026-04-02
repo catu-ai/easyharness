@@ -303,7 +303,14 @@ state persistence fails, and the browser smoke flow now seeds a deterministic
 archive-to-land fixture so the UI validation proves raw handoff inspection for
 `archive`, `evidence submit`, and `land`. Manual Playwright verification also
 captured fresh screenshots under `output/playwright/manual-timeline-final/`
-for the current default view and a `review start` artifact-tab inspection.
+for the current default view and a `review start` artifact-tab inspection. The
+latest reopen then tightened the remaining presentation polish: the middle
+event navigator now renders newest-first so fresh activity stays at the top,
+and file-backed tabs now read like content tabs (`Manifest`, `Submission`,
+`Publish Record`) instead of exposing raw `*_path` implementation names.
+Validation for that pass refreshed embedded UI assets, reran
+`go test ./...`, reran `bash scripts/ui-playwright-smoke`, and captured new
+headed Playwright screenshots under `output/playwright/manual-timeline-r3/`.
 
 #### Review Notes
 
@@ -335,11 +342,14 @@ archive.
     presentation contract.
 
 ## Validation Summary
-
 The original archive candidate was reopened in `finalize-fix` mode after
 human feedback narrowed one remaining Timeline semantic gap: the right-hand
 inspector still rendered artifact-ref tabs as ref metadata instead of file
-contents, and it still exposed context-only tabs such as `plan_path`.
+contents, and it still exposed context-only tabs such as `plan_path`. The
+current revision 3 follow-up then closed the last two presentation gaps:
+path-backed file tabs still showed raw labels like `submission_path`, and the
+event explorer still rendered oldest-first instead of showing the freshest
+activity at the top.
 
 - `go test ./...` passes after the timeline transaction-boundary fixes,
   including new internal rollback coverage for `review start`,
@@ -364,9 +374,13 @@ contents, and it still exposed context-only tabs such as `plan_path`.
   `output/playwright/manual-timeline-artifact-content/`, including
   `timeline-review-submit-output.png` and
   `timeline-review-start-manifest-content.png`.
+- A revision 3 follow-up pass also refreshed the embedded UI assets, reran
+  `go test ./...`, reran `bash scripts/ui-playwright-smoke`, and captured
+  headed Playwright screenshots under `output/playwright/manual-timeline-r3/`,
+  including `review-start-manifest.png` and
+  `review-submit-submission.png`.
 
 ## Review Summary
-
 The original archive candidate passed `review-011-full`, then reopened for one
 narrow finalize follow-up after direct human UX feedback on the Timeline
 inspector tabs.
@@ -387,24 +401,29 @@ inspector tabs.
 - `review-012-delta` passed with zero blocking and zero non-blocking findings
   after the finalize-fix follow-up for resolved artifact-content tabs, hidden
   context-only tabs, and the refined Timeline inspector behavior after reopen.
+- `review-013-delta` passed with zero blocking and zero non-blocking findings
+  at `2026-04-02T22:14:36+08:00` after the revision 3 polish pass for
+  newest-first explorer ordering and content-oriented artifact-tab labels.
 
 ## Archive Summary
 
-- Archived At: 2026-04-02T10:09:56+08:00
-- Revision: 2
+- Archived At: 2026-04-02T22:15:49+08:00
+- Revision: 3
 This section records the first archive handoff and the state of the reopened
 candidate. Revision 1 archived successfully, then revision 2 reopened in
-`finalize-fix` mode after new UI feedback invalidated merge-readiness.
+`finalize-fix` mode after new UI feedback invalidated merge-readiness. The
+candidate has since reopened again into revision 3 for one last Timeline
+presentation polish pass.
 
-- Finalize Review: `review-012-delta` passed at
-  `2026-04-02T10:09:33+08:00`.
+- Finalize Review: `review-013-delta` passed at
+  `2026-04-02T22:14:36+08:00`.
 - PR: https://github.com/catu-ai/easyharness/pull/102 remains the working PR,
-  but it is no longer merge-ready until this finalize-fix is re-reviewed,
-  archived, and pushed.
-- Ready: archive-ready after the revision 2 finalize-fix validation and
-  clean `review-012-delta` aggregate.
-- Merge Handoff: finish the narrow tab-semantics fix, rerun finalize review,
-  archive again, and refresh the PR branch before waiting for merge approval.
+  but it is not merge-ready again until the revision 3 archive is committed,
+  pushed, and backed by refreshed publish/CI/sync evidence.
+- Ready: yes for archive closeout; `review-013-delta` passed clean and the
+  remaining work is the controller-owned archive/publish/CI/sync loop.
+- Merge Handoff: commit and push the revision 3 archive plus UI polish,
+  recompute publish/CI/sync evidence, and then wait for human merge approval.
 
 ## Outcome Summary
 
@@ -419,6 +438,10 @@ candidate. Revision 1 archived successfully, then revision 2 reopened in
   separate, path-backed artifact tabs render referenced file contents, and
   context-only refs such as `plan_path` / `local_state_path` stay out of the
   tab strip.
+- Polished the follow-up Timeline UX so the event explorer now shows newest
+  activity first and file-backed tabs are labeled by the content being viewed
+  (`Manifest`, `Submission`, `Publish Record`) instead of raw `*_path`
+  identifiers.
 - Hardened lifecycle, review, and evidence timeline writes so successful
   command results roll back if later timeline/state persistence fails.
 - Added focused regression coverage for large timeline payloads and rollback
@@ -428,7 +451,7 @@ candidate. Revision 1 archived successfully, then revision 2 reopened in
 ### Not Delivered
 
 - The archive move itself, publish evidence refresh, CI/sync evidence refresh,
-  and renewed merge-ready handoff for revision 2 are still pending the
+  and renewed merge-ready handoff for revision 3 are still pending the
   post-review archive/publish loop.
 - Rich inline artifact viewers beyond raw JSON/tabbed inspection remain
   deferred.
