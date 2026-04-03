@@ -105,9 +105,10 @@ The controller owns shared repository context and the final workflow judgment.
 Spawn subagents only for bounded subproblems; do not split one shared context
 bundle across multiple subagents just to get summaries back.
 
-Use `0`, `1`, or multiple subagents according to the current question shape:
+Discovery and execution may stay local, use one subagent, or use multiple
+subagents in parallel according to the current question shape:
 
-- use `0` when the controller can answer the next question from the shared
+- stay local when the controller can answer the next question from the shared
   context it already needs to hold
 - use `1` when one bounded question or hypothesis needs independent repo
   checking

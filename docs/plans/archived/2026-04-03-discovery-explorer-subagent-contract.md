@@ -261,25 +261,29 @@ will receive branch-level review.
 - direct reread of the synced `AGENTS.md` block and
   `.agents/skills/harness-discovery/SKILL.md` to confirm they match the
   bootstrap sources and remain consistent with the existing review reference
+- direct reread after revision 2 to confirm the shared subagent section now
+  uses `stay local` wording instead of the earlier `0 subagents` phrasing
 
 ## Review Summary
 
 - `review-001-full`: finalize review passed with no findings across the
   `docs_consistency` and `agent_ux` dimensions
+- `review-002-delta`: reopen follow-up review passed with no findings after the
+  wording fix replaced the rigid `0 subagents` phrasing with `stay local`
 
 ## Archive Summary
 
-- Archived At: 2026-04-03T23:13:03+08:00
-- Revision: 1
-- PR: NONE. The candidate is still local and has not been pushed or opened as
-  a pull request yet.
+- Archived At: 2026-04-03T23:24:43+08:00
+- Revision: 2
+- PR: https://github.com/catu-ai/easyharness/pull/106
 - Ready: The candidate satisfies the acceptance criteria, the managed
   `AGENTS.md` contract now defines shared subagent use plus the Codex
   close-after-use default, the bootstrap and synced discovery skills agree on
-  bounded on-demand explorer use, and `review-001-full` passed clean.
-- Merge Handoff: Run `harness archive`, commit the tracked changes on a
-  `codex/...` branch, push the branch, open a PR, and keep the candidate in
-  publish/merge handoff until `harness status` reaches
+  bounded on-demand explorer use, the wording now says `stay local` where the
+  earlier draft said `0 subagents`, and `review-002-delta` passed clean.
+- Merge Handoff: Re-archive the candidate, commit the revision-2 wording fix on
+  `codex/discovery-explorer-subagents`, push the branch to update PR #106, and
+  refresh publish/CI/sync evidence until `harness status` returns to
   `execution/finalize/await_merge`.
 
 ## Outcome Summary
@@ -295,6 +299,8 @@ will receive branch-level review.
   synthesis and next-question decisions remain local.
 - Refreshed the materialized `.agents` discovery skill output and verified the
   new wording stays aligned with the existing review orchestration reference.
+- Refined the shared subagent section wording so the local case now reads
+  `stay local` instead of the more mechanical `0 subagents` phrasing.
 
 ### Not Delivered
 
