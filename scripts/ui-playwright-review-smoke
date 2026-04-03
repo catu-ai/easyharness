@@ -834,7 +834,7 @@ run_empty_review_smoke() {
   clear_pwcli_socket "$empty_session_name"
   "$PWCLI" --session "$empty_session_name" open "${empty_base_url}/review" >/dev/null
   "$PWCLI" --session "$empty_session_name" snapshot | snapshot_to_file "$empty_tmp_dir/review-empty.yml"
-  assert_has_text "$empty_tmp_dir/review-empty.yml" "No review rounds recorded yet for the active plan."
+  assert_has_text "$empty_tmp_dir/review-empty.yml" "No review rounds recorded yet for the current plan."
   assert_not_has_text "$empty_tmp_dir/review-empty.yml" "WIP"
 
   python3 - "$PWCLI" "$empty_session_name" "$empty_session_dir" <<'PY'
@@ -927,7 +927,7 @@ assert_has_text "${output_dir}/review-initial.yml" "Review rounds"
 assert_has_text "${output_dir}/review-initial.yml" "review-005-full"
 assert_has_text "${output_dir}/review-initial.yml" "Core review artifacts are missing."
 assert_has_text "${output_dir}/review-initial.yml" "Degraded"
-assert_has_text "${output_dir}/review-initial.yml" "Reviewers"
+assert_has_text "${output_dir}/review-initial.yml" "Content"
 assert_has_text "${output_dir}/review-initial.yml" "Supporting evidence"
 if grep -Fq -- "WIP" "${output_dir}/review-initial.yml"; then
   echo "Review snapshot still contains WIP placeholder text." >&2
@@ -947,10 +947,8 @@ fi
 "$PWCLI" --session "$session_name" click "$round_ref" >/dev/null
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-pending-round.yml"
 assert_has_text "${output_dir}/review-pending-round.yml" "Waiting for submissions"
-assert_has_text "${output_dir}/review-pending-round.yml" "Assigned task"
-assert_has_text "${output_dir}/review-pending-round.yml" "Returned result"
-assert_has_text "${output_dir}/review-pending-round.yml" "Message clarity"
-assert_has_text "${output_dir}/review-pending-round.yml" "web/src/main.tsx#L1-L5"
+assert_has_text "${output_dir}/review-pending-round.yml" "Content"
+assert_has_text "${output_dir}/review-pending-round.yml" "Summary"
 
 ux_ref="$(tab_ref_from_snapshot "UX" "${output_dir}/review-pending-round.yml")"
 if [[ -z "$ux_ref" ]]; then
@@ -960,6 +958,8 @@ if [[ -z "$ux_ref" ]]; then
 fi
 "$PWCLI" --session "$session_name" click "$ux_ref" >/dev/null
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-ux.yml"
+assert_has_text "${output_dir}/review-ux.yml" "Assigned task"
+assert_has_text "${output_dir}/review-ux.yml" "Returned result"
 assert_has_text "${output_dir}/review-ux.yml" "Check hierarchy, density, and visual polish."
 assert_has_text "${output_dir}/review-ux.yml" "This reviewer has not submitted a result yet."
 
@@ -998,7 +998,7 @@ fi
 "$PWCLI" --session "$session_name" click "$aggregation_ref" >/dev/null
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-waiting-aggregation.yml"
 assert_has_text "${output_dir}/review-waiting-aggregation.yml" "Waiting for aggregation"
-assert_has_text "${output_dir}/review-waiting-aggregation.yml" "All submissions are present while aggregation is pending."
+assert_has_text "${output_dir}/review-waiting-aggregation.yml" "All reviewer submissions are present; waiting for aggregation."
 
 round_ref="$(button_ref_from_snapshot "Step 1 closeout Pass Delta · step 1 · rev 1 Apr 2, 2026, 6:00 PM 1/1 submitted" "${output_dir}/review-waiting-aggregation.yml")"
 if [[ -z "$round_ref" ]]; then
@@ -1013,7 +1013,6 @@ fi
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-clean-round.yml"
 assert_has_text "${output_dir}/review-clean-round.yml" "Step 1 closeout"
 assert_has_text "${output_dir}/review-clean-round.yml" "Pass"
-assert_has_text "${output_dir}/review-clean-round.yml" "Looks clean."
 
 positive_ref="$(button_ref_from_snapshot "Positive findings round" "${output_dir}/review-clean-round.yml")"
 if [[ -z "$positive_ref" ]]; then
@@ -1084,7 +1083,6 @@ assert_has_text "${output_dir}/review-damaged-round.yml" "Step 2 closeout"
 assert_has_text "${output_dir}/review-damaged-round.yml" "Degraded"
 assert_has_text "${output_dir}/review-damaged-round.yml" "Ledger is not valid JSON."
 assert_has_text "${output_dir}/review-damaged-round.yml" "malformed"
-assert_has_text "${output_dir}/review-damaged-round.yml" "Recovered while the ledger is malformed."
 assert_not_has_text "${output_dir}/review-damaged-round.yml" "Aggregate review passed cleanly."
 
 risk_ref="$(tab_ref_from_snapshot "Risk" "${output_dir}/review-damaged-round.yml")"
@@ -1096,6 +1094,8 @@ fi
 "$PWCLI" --session "$session_name" click "$risk_ref" >/dev/null
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-damaged-risk.yml"
 assert_has_text "${output_dir}/review-damaged-risk.yml" "Risk"
+assert_has_text "${output_dir}/review-damaged-risk.yml" "Assigned task"
+assert_has_text "${output_dir}/review-damaged-risk.yml" "Returned result"
 assert_has_text "${output_dir}/review-damaged-risk.yml" "Check for hidden workflow or data risks."
 assert_has_text "${output_dir}/review-damaged-risk.yml" "Recovered while the ledger is malformed."
 assert_has_text "${output_dir}/review-damaged-risk.yml" "No findings recorded for this reviewer."
@@ -1136,7 +1136,6 @@ fi
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-manifest-damaged.yml"
 assert_has_text "${output_dir}/review-manifest-damaged.yml" "Degraded"
 assert_has_text "${output_dir}/review-manifest-damaged.yml" "Manifest is not valid JSON."
-assert_has_text "${output_dir}/review-manifest-damaged.yml" "Recovered while the manifest is malformed."
 
 aggregate_ref="$(button_ref_from_snapshot "Step 4 closeout Degraded Delta · step 4 · rev 2 Apr 2, 2026, 8:50 PM 1/1 submitted" "${output_dir}/review-manifest-damaged.yml")"
 if [[ -z "$aggregate_ref" ]]; then
@@ -1151,13 +1150,12 @@ fi
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-aggregate-damaged.yml"
 assert_has_text "${output_dir}/review-aggregate-damaged.yml" "Degraded"
 assert_has_text "${output_dir}/review-aggregate-damaged.yml" "Aggregate is not valid JSON."
-assert_has_text "${output_dir}/review-aggregate-damaged.yml" "Recovered while the aggregate is malformed."
 
 rm -rf "$fixture_reviews_dir"
 printf 'not-a-directory\n' > "$fixture_reviews_dir"
 "$PWCLI" --session "$session_name" run-code "async (page) => { await page.goto('${base_url}/review?failure=1'); }" >/dev/null
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-error.yml"
-assert_has_text "${output_dir}/review-error.yml" "Unable to enumerate review rounds for the active plan."
+assert_has_text "${output_dir}/review-error.yml" "Unable to enumerate review rounds for the current plan."
 assert_has_text "${output_dir}/review-error.yml" "reviews:"
 assert_has_text "${output_dir}/review-error.yml" "not a directory"
 

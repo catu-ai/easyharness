@@ -14,11 +14,11 @@ type ReviewResult struct {
 	// rounds.
 	Summary string `json:"summary"`
 
-	// Artifacts points to the active-plan review artifact paths used to build
+	// Artifacts points to the current-plan review artifact paths used to build
 	// this response.
 	Artifacts *ReviewArtifacts `json:"artifacts,omitempty"`
 
-	// Rounds lists the discovered review rounds for the current active plan.
+	// Rounds lists the discovered review rounds for the current plan.
 	Rounds []ReviewRoundView `json:"rounds"`
 
 	// Warnings lists non-fatal degraded-state notes for the overall review
@@ -29,15 +29,15 @@ type ReviewResult struct {
 	Errors []ErrorDetail `json:"errors,omitempty"`
 }
 
-// ReviewArtifacts points to the current active plan review sources.
+// ReviewArtifacts points to the current plan review sources.
 type ReviewArtifacts struct {
-	// PlanPath is the current active plan path associated with the review data.
+	// PlanPath is the current plan path associated with the review data.
 	PlanPath string `json:"plan_path,omitempty"`
 
 	// LocalStatePath is the plan-local state cache path when one exists.
 	LocalStatePath string `json:"local_state_path,omitempty"`
 
-	// ReviewsDir is the active plan review rounds directory.
+	// ReviewsDir is the current-plan review rounds directory.
 	ReviewsDir string `json:"reviews_dir,omitempty"`
 
 	// ActiveRoundID is the currently active review round when one exists in

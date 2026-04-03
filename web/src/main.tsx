@@ -443,8 +443,14 @@ function reviewRoundTitle(round: ReviewRound): string {
   return round.round_id;
 }
 
-function reviewRoundSubtitle(round: ReviewRound): string {
-  const parts: string[] = [];
+function reviewRoundSequenceLabel(round: ReviewRound): string {
+  const match = round.round_id.trim().match(/^review-(\d+)(?:-.+)?$/i);
+  if (!match) return round.round_id;
+  return `Round ${match[1]}`;
+}
+
+function reviewRoundListLabel(round: ReviewRound): string {
+  const parts = [reviewRoundSequenceLabel(round)];
   if (round.kind?.trim()) parts.push(humanizeLabel(round.kind));
   if (typeof round.step === "number") {
     parts.push(`step ${round.step}`);
@@ -452,6 +458,16 @@ function reviewRoundSubtitle(round: ReviewRound): string {
     parts.push("finalize");
   }
   if (typeof round.revision === "number" && round.revision > 0) parts.push(`rev ${round.revision}`);
+  return parts.join(" · ");
+}
+
+function reviewRoundSubtitle(round: ReviewRound): string {
+  const parts: string[] = [];
+  if (typeof round.step === "number") {
+    parts.push(`Step ${round.step}`);
+  } else if (round.kind?.trim() === "full") {
+    parts.push("Finalize scope");
+  }
   return parts.join(" · ") || round.round_id;
 }
 
@@ -1275,6 +1291,7 @@ function ReviewWorkspace(props: {
 }) {
   const { loading, error, summary, rounds, warnings, artifacts } = props;
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
+  const [selectedDetailTab, setSelectedDetailTab] = useState<string>("summary");
   const selectedRound = useMemo(() => {
     if (rounds.length === 0) return null;
     if (selectedRoundId) {
@@ -1283,19 +1300,18 @@ function ReviewWorkspace(props: {
     }
     return rounds[0];
   }, [rounds, selectedRoundId]);
-  const [selectedReviewerSlot, setSelectedReviewerSlot] = useState<string | null>(null);
   const [selectedArtifactKey, setSelectedArtifactKey] = useState<string | null>(null);
   const [supportExpanded, setSupportExpanded] = useState(false);
   const reviewers = Array.isArray(selectedRound?.reviewers) ? selectedRound.reviewers ?? [] : [];
   const supportArtifacts = Array.isArray(selectedRound?.artifacts) ? selectedRound.artifacts ?? [] : [];
   const selectedReviewer = useMemo(() => {
-    if (reviewers.length === 0) return null;
-    if (selectedReviewerSlot) {
-      const found = reviewers.find((reviewer) => reviewer.slot === selectedReviewerSlot);
-      if (found) return found;
+    if (reviewers.length === 0 || selectedDetailTab === "summary") return null;
+    const found = reviewers.find((reviewer) => reviewer.slot === selectedDetailTab);
+    if (found) {
+      return found;
     }
-    return reviewers[0];
-  }, [reviewers, selectedReviewerSlot]);
+    return null;
+  }, [reviewers, selectedDetailTab]);
   const selectedArtifact = useMemo(() => {
     if (supportArtifacts.length === 0) return null;
     if (selectedArtifactKey) {
@@ -1306,6 +1322,7 @@ function ReviewWorkspace(props: {
   }, [supportArtifacts, selectedArtifactKey]);
   const blockingFindings = Array.isArray(selectedRound?.blocking_findings) ? selectedRound.blocking_findings ?? [] : [];
   const nonBlockingFindings = Array.isArray(selectedRound?.non_blocking_findings) ? selectedRound.non_blocking_findings ?? [] : [];
+  const selectedRoundWarnings = Array.isArray(selectedRound?.warnings) ? selectedRound.warnings ?? [] : [];
 
   useEffect(() => {
     if (rounds.length === 0) {
@@ -1321,17 +1338,8 @@ function ReviewWorkspace(props: {
   }, [rounds]);
 
   useEffect(() => {
-    if (reviewers.length === 0) {
-      setSelectedReviewerSlot(null);
-      return;
-    }
-    setSelectedReviewerSlot((current) => {
-      if (current && reviewers.some((reviewer) => reviewer.slot === current)) {
-        return current;
-      }
-      return reviewers[0]?.slot ?? null;
-    });
-  }, [reviewers, selectedRound?.round_id]);
+    setSelectedDetailTab("summary");
+  }, [selectedRound?.round_id]);
 
   useEffect(() => {
     if (supportArtifacts.length === 0) {
@@ -1370,11 +1378,14 @@ function ReviewWorkspace(props: {
                   onClick={() => setSelectedRoundId(round.round_id)}
                   aria-pressed={selected}
                 >
-                  <div class="review-round-row">
+                  <div class="review-round-main">
+                    <div class="review-round-row">
+                      <div class="review-round-id">{reviewRoundListLabel(round)}</div>
+                      <span class={`status-badge is-${reviewRoundStatusTone(round)}`}>{reviewRoundStatusLabel(round)}</span>
+                    </div>
                     <div class="review-round-title">{reviewRoundTitle(round)}</div>
-                    <span class={`status-badge is-${reviewRoundStatusTone(round)}`}>{reviewRoundStatusLabel(round)}</span>
+                    <div class="review-round-subtitle">{reviewRoundSubtitle(round)}</div>
                   </div>
-                  <div class="review-round-subtitle">{reviewRoundSubtitle(round)}</div>
                   <div class="review-round-meta">
                     <span>{round.created_at || round.updated_at || round.aggregated_at ? formatTimestamp(round.created_at ?? round.updated_at ?? round.aggregated_at ?? "") : "time unknown"}</span>
                     <span>
@@ -1385,7 +1396,7 @@ function ReviewWorkspace(props: {
               );
             })
           ) : (
-            <div class="empty-row">{summary || "No review rounds recorded yet for this active plan."}</div>
+            <div class="empty-row">{summary || "No review rounds recorded yet for the current plan."}</div>
           )}
         </div>
       </aside>
@@ -1409,11 +1420,11 @@ function ReviewWorkspace(props: {
 
           {selectedRound ? (
             <div class="review-body">
-              <section class="review-overview-card">
+              <section class="review-header">
                 <div class="review-overview-head">
                   <div>
                     <div class="review-overview-title">{reviewRoundTitle(selectedRound)}</div>
-                    <div class="review-overview-subtitle">{selectedRound.status_summary || summary}</div>
+                    <div class="review-overview-subtitle">{reviewRoundListLabel(selectedRound)}</div>
                   </div>
                   <div class="review-badges">
                     {selectedRound.is_active ? <span class="status-badge is-muted">Active</span> : null}
@@ -1422,73 +1433,100 @@ function ReviewWorkspace(props: {
                   </div>
                 </div>
 
-                <section class="review-metrics-grid" aria-label="Review round summary">
-                  <div class="review-metric-card">
+                <section class="status-grid review-status-grid" aria-label="Review round summary">
+                  <div class="status-block">
                     <span class="label">decision</span>
-                    <strong>{selectedRound.decision || reviewRoundStatusLabel(selectedRound)}</strong>
+                    <strong>{selectedRound.decision ? humanizeLabel(selectedRound.decision) : reviewRoundStatusLabel(selectedRound)}</strong>
                   </div>
-                  <div class="review-metric-card">
+                  <div class="status-block">
                     <span class="label">progress</span>
                     <strong>
                       {reviewCountLabel(selectedRound.submitted_slots)}/{reviewCountLabel(selectedRound.total_slots)} submitted
                     </strong>
                   </div>
-                  <div class="review-metric-card">
+                  <div class="status-block">
                     <span class="label">revision</span>
                     <strong>{selectedRound.revision ? `rev ${selectedRound.revision}` : "unknown"}</strong>
                   </div>
-                  <div class="review-metric-card">
+                  <div class="status-block">
                     <span class="label">updated</span>
                     <strong>{formatTimestamp(selectedRound.aggregated_at || selectedRound.updated_at || selectedRound.created_at || "unknown")}</strong>
                   </div>
                 </section>
               </section>
 
-              {Array.isArray(selectedRound.warnings) && selectedRound.warnings.length > 0 ? (
-                <section class="review-section">
-                  <div class="section-head">
-                    <h2>Warnings</h2>
-                    <span class="muted">{selectedRound.warnings.length}</span>
-                  </div>
-                  <div class="review-warning-list">
-                    {selectedRound.warnings.map((warning) => (
-                      <div key={warning} class="review-warning-item">
-                        {warning}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-
-              <section class="review-section">
+              <section class="review-section" aria-label="Review content">
                 <div class="section-head">
-                  <h2>Overview</h2>
-                  <span class="muted">{selectedRound.round_id}</span>
+                  <h2>Content</h2>
+                  <span class="muted">{selectedDetailTab === "summary" ? "summary" : selectedReviewer ? reviewReviewerStatusLabel(selectedReviewer) : "reviewer"}</span>
                 </div>
-                <div class="review-summary-grid">
-                  <div class="review-summary-panel">
-                    <div class="review-summary-head">
-                      <span class="label">round summary</span>
-                    </div>
-                    <p class="detail-copy">{selectedRound.status_summary || summary}</p>
-                    <dl class="kv-list">
-                      <div>
-                        <dt>Kind</dt>
-                        <dd>{selectedRound.kind ? humanizeLabel(selectedRound.kind) : "unknown"}</dd>
-                      </div>
-                      <div>
-                        <dt>Target</dt>
-                        <dd>{typeof selectedRound.step === "number" ? `Step ${selectedRound.step}` : selectedRound.review_title || "Finalize / unscoped"}</dd>
-                      </div>
-                      <div>
-                        <dt>Created</dt>
-                        <dd>{formatTimestamp(selectedRound.created_at || "unknown")}</dd>
-                      </div>
-                    </dl>
-                  </div>
+                <div class="reviewer-tabs" role="tablist" aria-label="Review content tabs">
+                  <button
+                    type="button"
+                    class={`timeline-inspector-tab${selectedDetailTab === "summary" ? " is-active" : ""}`}
+                    onClick={() => setSelectedDetailTab("summary")}
+                    role="tab"
+                    aria-selected={selectedDetailTab === "summary"}
+                  >
+                    Summary
+                  </button>
+                  {reviewers.map((reviewer) => (
+                    <button
+                      key={reviewer.slot}
+                      type="button"
+                      class={`timeline-inspector-tab${selectedDetailTab === reviewer.slot ? " is-active" : ""}`}
+                      onClick={() => setSelectedDetailTab(reviewer.slot)}
+                      role="tab"
+                      aria-selected={selectedDetailTab === reviewer.slot}
+                    >
+                      {reviewReviewerLabel(reviewer)}
+                    </button>
+                  ))}
+                </div>
 
-                  <div class="review-findings-panel">
-                    <div class="review-findings-column">
+                {selectedDetailTab === "summary" ? (
+                  <div class="review-tab-panel">
+                    {selectedRoundWarnings.length > 0 ? (
+                      <section class="review-subsection">
+                        <div class="section-head">
+                          <h3>Warnings</h3>
+                          <span class="muted">{selectedRoundWarnings.length}</span>
+                        </div>
+                        <div class="review-warning-list">
+                          {selectedRoundWarnings.map((warning) => (
+                            <div key={warning} class="review-warning-item">
+                              {warning}
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    ) : null}
+
+                    <section class="review-subsection">
+                      <div class="section-head">
+                        <h3>Overview</h3>
+                        <span class="muted">{selectedRound.round_id}</span>
+                      </div>
+                      <div class="review-summary-panel">
+                        <p class="detail-copy">{selectedRound.status_summary || summary}</p>
+                        <dl class="kv-list">
+                          <div>
+                            <dt>Kind</dt>
+                            <dd>{selectedRound.kind ? humanizeLabel(selectedRound.kind) : "unknown"}</dd>
+                          </div>
+                          <div>
+                            <dt>Target</dt>
+                            <dd>{typeof selectedRound.step === "number" ? `Step ${selectedRound.step}` : selectedRound.review_title || "Finalize / unscoped"}</dd>
+                          </div>
+                          <div>
+                            <dt>Created</dt>
+                            <dd>{formatTimestamp(selectedRound.created_at || "unknown")}</dd>
+                          </div>
+                        </dl>
+                      </div>
+                    </section>
+
+                    <section class="review-subsection">
                       <div class="section-head">
                         <h3>Blocking findings</h3>
                         <span class="muted">{blockingFindings.length}</span>
@@ -1506,9 +1544,9 @@ function ReviewWorkspace(props: {
                       ) : (
                         <div class="empty-row">No blocking findings recorded.</div>
                       )}
-                    </div>
+                    </section>
 
-                    <div class="review-findings-column">
+                    <section class="review-subsection">
                       <div class="section-head">
                         <h3>Non-blocking findings</h3>
                         <span class="muted">{nonBlockingFindings.length}</span>
@@ -1526,95 +1564,97 @@ function ReviewWorkspace(props: {
                       ) : (
                         <div class="empty-row">No non-blocking findings recorded.</div>
                       )}
+                    </section>
+                  </div>
+                ) : selectedReviewer ? (
+                  <div class="reviewer-panel">
+                    <div class="reviewer-panel-head">
+                      <div>
+                        <div class="review-overview-title">{reviewReviewerLabel(selectedReviewer)}</div>
+                        <div class="review-overview-subtitle">{reviewReviewerStatusLabel(selectedReviewer)}</div>
+                      </div>
+                      <div class="review-badges">
+                        <span class={`status-badge is-${reviewReviewerStatusTone(selectedReviewer)}`}>
+                          {reviewReviewerStatusLabel(selectedReviewer)}
+                        </span>
+                        {selectedReviewer.submitted_at ? <span class="status-badge is-muted">{formatTimestamp(selectedReviewer.submitted_at)}</span> : null}
+                      </div>
+                    </div>
+
+                    <div class="review-context-strip" aria-label="Selected round context">
+                      <div class="review-context-item">
+                        <span class="label">round</span>
+                        <strong>{selectedRound.round_id}</strong>
+                      </div>
+                      <div class="review-context-item">
+                        <span class="label">decision</span>
+                        <strong>{selectedRound.decision ? humanizeLabel(selectedRound.decision) : reviewRoundStatusLabel(selectedRound)}</strong>
+                      </div>
+                      <div class="review-context-item">
+                        <span class="label">blocking</span>
+                        <strong>{blockingFindings.length}</strong>
+                      </div>
+                      <div class="review-context-item">
+                        <span class="label">warnings</span>
+                        <strong>{selectedRoundWarnings.length}</strong>
+                      </div>
+                    </div>
+
+                    <div class="review-tab-panel reviewer-tab-panel">
+                      <details class="review-fold review-fold-task" open>
+                        <summary class="review-fold-summary">
+                          <span>Assigned task</span>
+                          <span class="muted">{selectedReviewer.instructions?.trim() ? "available" : "missing"}</span>
+                        </summary>
+                        <div class="review-fold-body">
+                          {selectedReviewer.instructions?.trim() ? (
+                            <p class="detail-copy">{selectedReviewer.instructions}</p>
+                          ) : (
+                            <div class="empty-row">Instructions are unavailable for this reviewer slot.</div>
+                          )}
+                        </div>
+                      </details>
+
+                      <details class="review-fold review-fold-result" open>
+                        <summary class="review-fold-summary">
+                          <span>Returned result</span>
+                          <span class="muted">
+                            {selectedReviewer.summary?.trim()
+                              ? `${Array.isArray(selectedReviewer.findings) ? selectedReviewer.findings.length : 0} finding(s)`
+                              : reviewReviewerStatusLabel(selectedReviewer)}
+                          </span>
+                        </summary>
+                        <div class="review-fold-body">
+                          {selectedReviewer.summary?.trim() ? (
+                            <>
+                              <p class="detail-copy">{selectedReviewer.summary}</p>
+                              <div class="review-finding-list">
+                                {Array.isArray(selectedReviewer.findings) && selectedReviewer.findings.length > 0 ? (
+                                  selectedReviewer.findings.map((finding, index) => (
+                                    <ReviewFindingCard key={reviewFindingKey(finding, index)} finding={finding} />
+                                  ))
+                                ) : (
+                                  <div class="empty-row">No findings recorded for this reviewer.</div>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <div class="empty-row">This reviewer has not submitted a result yet.</div>
+                          )}
+                        </div>
+                      </details>
+
+                      {Array.isArray(selectedReviewer.warnings) && selectedReviewer.warnings.length > 0 ? (
+                        <div class="review-warning-list">
+                          {selectedReviewer.warnings.map((warning) => (
+                            <div key={warning} class="review-warning-item">
+                              {warning}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
-                </div>
-              </section>
-
-              <section class="review-section" aria-label="Reviewer details">
-                <div class="section-head">
-                  <h2>Reviewers</h2>
-                  <span class="muted">{reviewers.length}</span>
-                </div>
-                {reviewers.length > 0 ? (
-                  <>
-                    <div class="reviewer-tabs" role="tablist" aria-label="Reviewers">
-                      {reviewers.map((reviewer) => (
-                        <button
-                          key={reviewer.slot}
-                          type="button"
-                          class={`timeline-inspector-tab${selectedReviewer?.slot === reviewer.slot ? " is-active" : ""}`}
-                          onClick={() => setSelectedReviewerSlot(reviewer.slot)}
-                          role="tab"
-                          aria-selected={selectedReviewer?.slot === reviewer.slot}
-                        >
-                          {reviewReviewerLabel(reviewer)}
-                        </button>
-                      ))}
-                    </div>
-
-                    {selectedReviewer ? (
-                      <div class="reviewer-panel">
-                        <div class="reviewer-panel-head">
-                          <div>
-                            <div class="review-overview-title">{reviewReviewerLabel(selectedReviewer)}</div>
-                            <div class="review-overview-subtitle">{reviewReviewerStatusLabel(selectedReviewer)}</div>
-                          </div>
-                          <div class="review-badges">
-                            <span class={`status-badge is-${reviewReviewerStatusTone(selectedReviewer)}`}>
-                              {reviewReviewerStatusLabel(selectedReviewer)}
-                            </span>
-                            {selectedReviewer.submitted_at ? <span class="status-badge is-muted">{formatTimestamp(selectedReviewer.submitted_at)}</span> : null}
-                          </div>
-                        </div>
-
-                        <div class="reviewer-grid">
-                          <section class="reviewer-pane reviewer-pane-task">
-                            <div class="section-head">
-                              <h3>Assigned task</h3>
-                            </div>
-                            {selectedReviewer.instructions?.trim() ? (
-                              <p class="detail-copy">{selectedReviewer.instructions}</p>
-                            ) : (
-                              <div class="empty-row">Instructions are unavailable for this reviewer slot.</div>
-                            )}
-                          </section>
-
-                          <section class="reviewer-pane reviewer-pane-result">
-                            <div class="section-head">
-                              <h3>Returned result</h3>
-                            </div>
-                            {selectedReviewer.summary?.trim() ? (
-                              <>
-                                <p class="detail-copy">{selectedReviewer.summary}</p>
-                                <div class="review-finding-list">
-                                  {Array.isArray(selectedReviewer.findings) && selectedReviewer.findings.length > 0 ? (
-                                    selectedReviewer.findings.map((finding, index) => (
-                                      <ReviewFindingCard key={reviewFindingKey(finding, index)} finding={finding} />
-                                    ))
-                                  ) : (
-                                    <div class="empty-row">No findings recorded for this reviewer.</div>
-                                  )}
-                                </div>
-                              </>
-                            ) : (
-                              <div class="empty-row">This reviewer has not submitted a result yet.</div>
-                            )}
-                          </section>
-                        </div>
-
-                        {Array.isArray(selectedReviewer.warnings) && selectedReviewer.warnings.length > 0 ? (
-                          <div class="review-warning-list">
-                            {selectedReviewer.warnings.map((warning) => (
-                              <div key={warning} class="review-warning-item">
-                                {warning}
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </>
                 ) : (
                   <div class="empty-row">No reviewer slots are available for this round.</div>
                 )}
@@ -1701,7 +1741,7 @@ function ReviewWorkspace(props: {
             </div>
           ) : (
             <div class="workspace-inner">
-              <div class="empty-row">{summary || "No review rounds recorded yet for this active plan."}</div>
+              <div class="empty-row">{summary || "No review rounds recorded yet for the current plan."}</div>
             </div>
           )}
         </section>

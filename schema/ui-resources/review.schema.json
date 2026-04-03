@@ -100,7 +100,7 @@
       "properties": {
         "plan_path": {
           "type": "string",
-          "description": "PlanPath is the current active plan path associated with the review data."
+          "description": "PlanPath is the current plan path associated with the review data."
         },
         "local_state_path": {
           "type": "string",
@@ -108,7 +108,7 @@
         },
         "reviews_dir": {
           "type": "string",
-          "description": "ReviewsDir is the active plan review rounds directory."
+          "description": "ReviewsDir is the current-plan review rounds directory."
         },
         "active_round_id": {
           "type": "string",
@@ -117,7 +117,7 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "ReviewArtifacts points to the current active plan review sources."
+      "description": "ReviewArtifacts points to the current plan review sources."
     },
     "ReviewFinding": {
       "properties": {
@@ -166,7 +166,7 @@
         },
         "artifacts": {
           "$ref": "#/$defs/ReviewArtifacts",
-          "description": "Artifacts points to the active-plan review artifact paths used to build this response."
+          "description": "Artifacts points to the current-plan review artifact paths used to build this response."
         },
         "rounds": {
           "oneOf": [
@@ -175,13 +175,13 @@
                 "$ref": "#/$defs/ReviewRoundView"
               },
               "type": "array",
-              "description": "Rounds lists the discovered review rounds for the current active plan."
+              "description": "Rounds lists the discovered review rounds for the current plan."
             },
             {
               "type": "null"
             }
           ],
-          "description": "Rounds lists the discovered review rounds for the current active plan."
+          "description": "Rounds lists the discovered review rounds for the current plan."
         },
         "warnings": {
           "items": {

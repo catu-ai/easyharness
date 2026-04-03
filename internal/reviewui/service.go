@@ -41,7 +41,7 @@ func (s Service) Read() Result {
 			return Result{
 				OK:       true,
 				Resource: "review",
-				Summary:  "No active plan review data is available in this worktree.",
+				Summary:  "No current plan review data is available in this worktree.",
 				Rounds:   []Round{},
 			}
 		}
@@ -65,11 +65,11 @@ func (s Service) Read() Result {
 		}
 	}
 	relPlanPath = filepath.ToSlash(relPlanPath)
-	if !strings.HasPrefix(relPlanPath, "docs/plans/active/") {
+	if !isSupportedReviewPlanPath(relPlanPath) {
 		return Result{
 			OK:       true,
 			Resource: "review",
-			Summary:  "Review data is only shown for active plans.",
+			Summary:  "Review data is only shown for the current tracked plan.",
 			Artifacts: &Artifacts{
 				PlanPath: relPlanPath,
 			},
@@ -83,6 +83,19 @@ func (s Service) Read() Result {
 	if err != nil {
 		warnings = append(warnings, fmt.Sprintf("Unable to read local review state for %s; active-round hints may be incomplete.", planStem))
 	}
+	if isArchivedReviewPlanPath(relPlanPath) && archivedReviewHiddenDuringLand(state) {
+		return Result{
+			OK:       true,
+			Resource: "review",
+			Summary:  "Review data is hidden once land cleanup begins.",
+			Artifacts: &Artifacts{
+				PlanPath:       relPlanPath,
+				LocalStatePath: statePath,
+			},
+			Rounds:   []Round{},
+			Warnings: warnings,
+		}
+	}
 
 	reviewsDir := filepath.Join(s.Workdir, ".local", "harness", "plans", planStem, "reviews")
 	roundIDs, discoverWarnings, discoverErr := discoverRoundIDs(reviewsDir, state)
@@ -91,7 +104,7 @@ func (s Service) Read() Result {
 		return Result{
 			OK:       false,
 			Resource: "review",
-			Summary:  "Unable to enumerate review rounds for the active plan.",
+			Summary:  "Unable to enumerate review rounds for the current plan.",
 			Artifacts: &Artifacts{
 				PlanPath:       relPlanPath,
 				LocalStatePath: statePath,
@@ -112,7 +125,7 @@ func (s Service) Read() Result {
 	}
 	sortRounds(rounds)
 
-	summary := "No review rounds recorded yet for the active plan."
+	summary := "No review rounds recorded yet for the current plan."
 	if len(rounds) > 0 {
 		summary = fmt.Sprintf("Loaded %d review round(s) for %s.", len(rounds), filepath.Base(relPlanPath))
 	}
@@ -130,6 +143,29 @@ func (s Service) Read() Result {
 		Rounds:   rounds,
 		Warnings: warnings,
 	}
+}
+
+func archivedReviewHiddenDuringLand(state *runstate.State) bool {
+	if state == nil {
+		return false
+	}
+	if strings.TrimSpace(state.CurrentNode) == "land" {
+		return true
+	}
+	return state.Land != nil &&
+		strings.TrimSpace(state.Land.LandedAt) != "" &&
+		strings.TrimSpace(state.Land.CompletedAt) == ""
+}
+
+func isSupportedReviewPlanPath(relPlanPath string) bool {
+	return strings.HasPrefix(relPlanPath, "docs/plans/active/") ||
+		strings.HasPrefix(relPlanPath, "docs/plans/archived/") ||
+		strings.HasPrefix(relPlanPath, ".local/harness/plans/archived/")
+}
+
+func isArchivedReviewPlanPath(relPlanPath string) bool {
+	return strings.HasPrefix(relPlanPath, "docs/plans/archived/") ||
+		strings.HasPrefix(relPlanPath, ".local/harness/plans/archived/")
 }
 
 func discoverRoundIDs(reviewsDir string, state *runstate.State) ([]string, []string, error) {

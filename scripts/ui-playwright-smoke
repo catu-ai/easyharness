@@ -134,7 +134,7 @@ seed_timeline_handoff_fixture() {
 
   rm -rf "$runtime_workdir/docs/plans/active"
   rm -rf "$runtime_workdir/.local/harness"
-  mkdir -p "$plan_dir/evidence/publish" "$plan_dir/evidence/ci" "$plan_dir/evidence/sync"
+  mkdir -p "$plan_dir/evidence/publish" "$plan_dir/evidence/ci" "$plan_dir/evidence/sync" "$plan_dir/reviews/review-001-full/submissions"
 
   cat >"$runtime_workdir/.local/harness/current-plan.json" <<EOF
 {
@@ -239,6 +239,70 @@ EOF
 {"event_id":"event-003","sequence":3,"recorded_at":"2026-04-01T22:40:00+08:00","kind":"evidence","command":"evidence submit","summary":"Recorded CI evidence for the current archived candidate.","plan_path":"$fixture_plan_rel","plan_stem":"$fixture_plan_stem","revision":1,"from_node":"execution/finalize/publish","to_node":"execution/finalize/publish","input":{"status":"success","provider":"buildkite","url":"https://ci.example/93"},"output":{"command":"evidence submit","summary":"Recorded CI evidence for the current archived candidate.","artifacts":{"record_id":"ci-001","kind":"ci"}},"artifact_refs":[{"label":"ci_record","value":".local/harness/plans/$fixture_plan_stem/evidence/ci/ci-001.json","path":".local/harness/plans/$fixture_plan_stem/evidence/ci/ci-001.json"}]}
 {"event_id":"event-004","sequence":4,"recorded_at":"2026-04-01T22:42:00+08:00","kind":"evidence","command":"evidence submit","summary":"Recorded sync evidence for the current archived candidate.","plan_path":"$fixture_plan_rel","plan_stem":"$fixture_plan_stem","revision":1,"from_node":"execution/finalize/publish","to_node":"execution/finalize/await_merge","input":{"status":"fresh","base_ref":"main","head_ref":"codex/issue-93"},"output":{"command":"evidence submit","summary":"Recorded sync evidence for the current archived candidate.","artifacts":{"record_id":"sync-001","kind":"sync"}},"artifact_refs":[{"label":"sync_record","value":".local/harness/plans/$fixture_plan_stem/evidence/sync/sync-001.json","path":".local/harness/plans/$fixture_plan_stem/evidence/sync/sync-001.json"}]}
 {"event_id":"event-005","sequence":5,"recorded_at":"2026-04-01T22:45:00+08:00","kind":"lifecycle","command":"land","summary":"Recorded merge confirmation for the current archived candidate.","plan_path":"$fixture_plan_rel","plan_stem":"$fixture_plan_stem","revision":1,"from_node":"execution/finalize/await_merge","to_node":"land","artifact_refs":[{"label":"plan_path","value":"$fixture_plan_rel","path":"$fixture_plan_rel"},{"label":"publish_record","value":".local/harness/plans/$fixture_plan_stem/evidence/publish/publish-001.json","path":".local/harness/plans/$fixture_plan_stem/evidence/publish/publish-001.json"}],"output":{"command":"land","summary":"Recorded merge confirmation for the current archived candidate.","artifacts":{"plan_path":"$fixture_plan_rel","pr_url":"https://github.com/catu-ai/easyharness/pull/93","commit":"abc123def456","state":{"current_node":"land","plan_path":"$fixture_plan_rel","plan_stem":"$fixture_plan_stem","revision":1,"land":{"pr_url":"https://github.com/catu-ai/easyharness/pull/93","commit":"abc123def456","landed_at":"2026-04-01T22:45:00+08:00"}}}}}
+EOF
+
+  cat >"$plan_dir/reviews/review-001-full/manifest.json" <<EOF
+{
+  "round_id": "review-001-full",
+  "kind": "full",
+  "revision": 1,
+  "review_title": "Archived finalize review",
+  "plan_path": "$fixture_plan_rel",
+  "plan_stem": "$fixture_plan_stem",
+  "created_at": "2026-04-01T22:20:00+08:00",
+  "ledger_path": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/ledger.json",
+  "aggregate_path": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/aggregate.json",
+  "submissions_dir": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/submissions",
+  "dimensions": [
+    {
+      "name": "correctness",
+      "slot": "correctness",
+      "instructions": "Verify the archived review candidate is still readable.",
+      "submission_path": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/submissions/correctness.json"
+    }
+  ]
+}
+EOF
+
+  cat >"$plan_dir/reviews/review-001-full/ledger.json" <<EOF
+{
+  "round_id": "review-001-full",
+  "kind": "full",
+  "updated_at": "2026-04-01T22:24:00+08:00",
+  "slots": [
+    {
+      "name": "correctness",
+      "slot": "correctness",
+      "status": "submitted",
+      "submitted_at": "2026-04-01T22:23:00+08:00",
+      "submission_path": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/submissions/correctness.json"
+    }
+  ]
+}
+EOF
+
+  cat >"$plan_dir/reviews/review-001-full/aggregate.json" <<EOF
+{
+  "round_id": "review-001-full",
+  "kind": "full",
+  "revision": 1,
+  "review_title": "Archived finalize review",
+  "decision": "pass",
+  "aggregated_at": "2026-04-01T22:25:00+08:00",
+  "blocking_findings": [],
+  "non_blocking_findings": []
+}
+EOF
+
+  cat >"$plan_dir/reviews/review-001-full/submissions/correctness.json" <<EOF
+{
+  "round_id": "review-001-full",
+  "slot": "correctness",
+  "dimension": "Correctness",
+  "submitted_at": "2026-04-01T22:23:00+08:00",
+  "summary": "Archived review content is still available.",
+  "findings": []
+}
 EOF
 }
 
@@ -594,14 +658,51 @@ pwcli_close "$timeline_inspector_session"
 
 navigate_via_rail "$rail_session" "status" "Timeline" "timeline-rail" "Timeline"
 navigate_via_rail "$rail_session" "timeline-rail" "Status" "status-rail" "Status"
-navigate_via_rail "$rail_session" "status-rail" "Review" "review-rail" "Review data is only shown for active plans."
+navigate_via_rail "$rail_session" "status-rail" "Review" "review-rail" "Review data is hidden once land cleanup begins."
 navigate_via_rail "$rail_session" "review-rail" "Status" "status-return" "Status"
 pwcli_close "$rail_session"
 capture_snapshot "/review" "review"
 assert_has_text "review" "Review"
 assert_has_text "review" "Review rounds"
-assert_has_text "review" "Review data is only shown for active plans."
+assert_has_text "review" "Review data is hidden once land cleanup begins."
+assert_lacks_text "review" "Archived finalize review"
 assert_lacks_text "review" "WIP"
+
+python3 - "$runtime_workdir/.local/harness/plans/$plan_stem/state.json" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as fh:
+    payload = json.load(fh)
+payload["current_node"] = "execution/finalize/await_merge"
+payload.pop("land", None)
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(payload, fh)
+PY
+
+capture_snapshot "/review" "review-archived-visible"
+assert_has_text "review-archived-visible" "Archived finalize review"
+assert_has_text "review-archived-visible" "Aggregate review passed cleanly."
+assert_lacks_text "review-archived-visible" "Review data is hidden once land cleanup begins."
+
+python3 - "$runtime_workdir/.local/harness/plans/$plan_stem/state.json" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as fh:
+    payload = json.load(fh)
+payload["current_node"] = "land"
+payload["land"] = {
+    "pr_url": "https://github.com/catu-ai/easyharness/pull/93",
+    "commit": "abc123def456",
+    "landed_at": "2026-04-01T22:45:00+08:00",
+}
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(payload, fh)
+PY
+
 capture_snapshot "/diff" "diff"
 assert_has_text "diff" "Diff"
 assert_has_text "diff" "WIP"

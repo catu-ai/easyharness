@@ -11,7 +11,7 @@ source_refs:
 ## Goal
 
 Replace the `Review` page placeholder with a real read-only workbench for the
-active plan's review rounds. The page should help a human understand current
+current plan's review rounds. The page should help a human understand current
 review state, compare rounds, inspect each reviewer slot's assigned task and
 submitted result, and judge what needs attention next without falling back to
 raw artifact spelunking.
@@ -26,8 +26,8 @@ to support the UI.
 
 ### In Scope
 
-- Add a read-only review resource for `harness ui` that only reads review
-  rounds under the current active plan.
+- Add a read-only review resource for `harness ui` that reads review rounds
+  for the current tracked plan, including archived-but-not-landed candidates.
 - Build a `Review` round browser with:
   - a round list in the navigation pane
   - an overview-first detail pane for the selected round
@@ -49,7 +49,7 @@ to support the UI.
   `harness review aggregate`, or their CLI JSON contracts.
 - Any new write-side artifact, background indexing, or timeline/event mutation
   added solely for the `Review` page.
-- Reading review rounds outside the current active plan.
+- Reading review rounds outside the current tracked plan.
 - UI-triggered review actions, command execution, or local-state mutation.
 - Turning the page into a raw artifact browser where manifest/ledger/aggregate
   tabs dominate the default experience.
@@ -57,7 +57,7 @@ to support the UI.
 ## Acceptance Criteria
 
 - [x] `Review` no longer renders as a WIP placeholder and instead loads review
-      rounds for the current active plan only.
+      rounds for the current tracked plan, including archived candidates.
 - [x] The page presents a round browser shape where the second column lists
       available rounds with high-signal metadata such as round id, kind,
       title/target, timestamp, and current decision or waiting state.
@@ -94,7 +94,7 @@ to support the UI.
 
 ## Deferred Items
 
-- Reading review history across archived or non-active plans.
+- Reading review history across plans other than the current tracked plan.
 - Deep file-anchor navigation from review finding locations into `Diff` or
   `Files`.
 - Editing or triggering review actions from the UI.
@@ -108,13 +108,13 @@ to support the UI.
 
 #### Objective
 
-Lock the backend read-model boundary for active-plan review rounds and document
+Lock the backend read-model boundary for current-plan review rounds and document
 how incomplete or damaged artifacts should degrade in the UI.
 
 #### Details
 
 Follow the `status` pattern instead of the `timeline` write-side pattern. The
-backend should detect the current active plan, enumerate only that plan's
+backend should detect the current tracked plan, enumerate only that plan's
 review rounds from existing local artifacts, and assemble a UI-facing read
 model without changing any review command contract or mutation behavior.
 
@@ -133,7 +133,7 @@ artifact is imperfect.
 
 #### Validation
 
-- The review resource loads rounds only from the current active plan.
+- The review resource loads rounds only from the current tracked plan.
 - A cold reader can tell from the plan and resource shape that no review CLI
   contracts or write-side logic need to change.
 - Tests cover at least one clean round, one in-progress round, and one damaged
@@ -143,7 +143,7 @@ artifact is imperfect.
 
 Added a new read-only `internal/reviewui` service plus `/api/review` wiring in
 the UI server. The read model only inspects review rounds under the current
-active plan and stays on the `status` pattern: no command-contract changes and
+tracked plan and stays on the `status` pattern: no command-contract changes and
 no new write-side runtime artifacts. The service now degrades conservatively
 for missing review directories, malformed JSON artifacts, missing submissions,
 and aggregate gaps while still returning the rest of the round browser data.
@@ -170,12 +170,12 @@ content rather than raw artifact management.
 
 #### Details
 
-The second column should list rounds for the active plan, with enough metadata
+The second column should list rounds for the current plan, with enough metadata
 to quickly distinguish step/finalize rounds, newer versus older rounds, and
 clean versus waiting/problem states. The selected round's detail pane should
 lead with a compact overview of review state, then let the user inspect each
-reviewer slot in a combined pane that pairs the assigned instructions with the
-submitted summary/findings.
+reviewer slot in a cleaner vertical flow that keeps assigned instructions and
+returned results in one reviewer tab without wasting horizontal space.
 
 Raw artifact access should still exist, but as supporting evidence. The
 frontend should avoid making `manifest`, `ledger`, and `aggregate` tabs feel
@@ -192,7 +192,7 @@ workbench shell: dense, calm, technical, and readable next to the already-live
 #### Validation
 
 - The page defaults to the most relevant available round and renders a stable
-  empty state when the active plan has no review rounds.
+  empty state when the current plan has no review rounds.
 - Reviewer panes clearly show task plus result in one place and still make
   pending reviewers understandable.
 - Supporting artifact views are present but visually secondary.
@@ -202,10 +202,11 @@ workbench shell: dense, calm, technical, and readable next to the already-live
 Replaced the `Review` placeholder with a dedicated review workspace instead of
 forcing it through the generic sidebar layout. The page now uses the accepted
 product shape: round browser in the second column, overview-first detail pane
-in the third column, combined reviewer task/result panes, and secondary raw
-artifact tabs for manifest/ledger/aggregate/submissions. A small follow-up
-visual pass trimmed the artifact inspector height so raw JSON stays secondary
-to the review content itself.
+in the third column, tabbed reviewers, and secondary raw artifact tabs for
+manifest/ledger/aggregate/submissions. A later finalize-fix repair then kept
+archived current-plan rounds visible after `harness archive`, collapsed the
+reviewer detail into a vertical flow closer to `Timeline`, and stripped back
+the heavier card styling so the page reads more like the rest of the workbench.
 
 #### Review Notes
 
@@ -297,54 +298,60 @@ the later finalize review of the whole slice.
 
 ## Validation Summary
 
-- `harness plan lint docs/plans/active/2026-04-02-hook-review-round-data-into-harness-ui.md`
-  passed after the closeout summaries and deferred-scope handoff were updated.
-- `pnpm --dir web check` and `go test ./...` passed after the final
-  supporting-artifact summary polish and review-smoke helper hardening.
+- `pnpm --dir web check` passed after the round-browser copy and layout
+  refinements, including the explorer round labeling cleanup and the vertical
+  reviewer-pane polish.
+- `go test ./internal/reviewui ./internal/ui` passed after the archived-plan
+  land-compatibility helper and focused UI/browser-facing assertions were
+  updated.
+- `go test ./...` passed for the full repository after the reopen fixes and
+  the latest embedded UI assets were rebuilt into the repo-local harness
+  binary.
 - `scripts/ui-playwright-review-smoke` passed with populated review rounds,
-  empty active-plan state, damaged manifest/ledger/aggregate artifacts, and a
-  malformed submission artifact that now renders its validation summary in the
-  supporting-evidence pane.
-- `scripts/ui-playwright-smoke` passed with the live `/review` page in the
-  main browser path and the archived-plan review copy still covered.
-- Interactive headed Playwright inspection against the live worktree review UI
-  confirmed the reviewer result pane remains more prominent than the assigned
-  task pane and that supporting artifacts stay visually secondary after adding
-  artifact summaries. Captured screenshots live under
-  `output/playwright/manual-review-visual-r6/`.
+  empty current-plan state, damaged artifacts, malformed submissions, and the
+  updated reviewer-tab layout.
+- `scripts/ui-playwright-smoke` passed with the archived-plan review browser
+  hidden during land cleanup, visible again for archived-but-not-landed state,
+  and the broader status/timeline workbench paths still intact.
+- Interactive headed Playwright inspection confirmed the review page now reads
+  closer to `Status` / `Timeline`: the explorer column distinguishes rounds by
+  round id plus revision, the detail pane keeps a vertical summary-first flow,
+  reviewer tabs feel scannable, and task/result folds remain readable without
+  wasting horizontal space. Captured screenshots live under
+  `output/playwright/manual-review-visual-r11/`.
 
 ## Review Summary
 
-- `review-001-full` through `review-010-full` progressively tightened the
-  slice around semantic artifact validation, degraded-round rendering,
-  provenance display, reviewer-pane hierarchy, README validation guidance, and
-  malformed-submission browser coverage.
-- `review-010-full` was the final changes-requested round; it identified the
-  last two blockers: the populated review smoke needed to be part of the
-  documented browser validation path, and the review smoke fixture still
-  lacked malformed submission coverage.
-- Those findings were fixed by documenting
-  `scripts/ui-playwright-review-smoke`, extending the review smoke fixture to
-  exercise malformed submissions, hardening the smoke selector fallback under
-  `set -euo pipefail`, and surfacing supporting-artifact summaries directly in
-  the UI.
-- `review-011-full` then passed cleanly across `correctness`, `tests`, and
-  `agent-ux` with zero blocking and zero non-blocking findings.
+- Earlier finalize rounds established the review browser, conservative
+  degraded-state handling, archived current-plan visibility, and review smoke
+  coverage, but the reopen follow-up still needed another pass to address
+  archived-plan compatibility, visual alignment with `Timeline`, and explorer
+  row readability.
+- `review-014-full` surfaced the last real reopen blockers: archived-plan
+  land-compatibility needed to cover legacy `land` state, reviewer context had
+  to remain legible in the new tabbed layout, and the explorer/detail panes
+  still felt heavier than the surrounding workbench surfaces.
+- Those findings were fixed by adding the shared archived-land helper plus
+  focused tests, restructuring the detail pane into a cleaner vertical
+  summary/reviewer flow, tightening the explorer rows around round identity,
+  and rerunning both automated and manual Playwright validation.
+- `review-015-full` then passed cleanly across `correctness`, `tests`, and
+  `agent_ux` with zero blocking and zero non-blocking findings.
 
 ## Archive Summary
 
-- Archived At: 2026-04-03T02:36:48+08:00
-- Revision: 1
-- PR: NONE. The branch has not been pushed or opened as a PR yet.
-- Ready: Acceptance criteria are satisfied, the `Review` page is now backed by
-  a read-only active-plan review resource, degraded review rounds render
-  conservatively, Playwright automation covers both general UI and
-  review-specific paths, and the latest finalize review passed cleanly in
-  `review-011-full`.
-- Merge Handoff: Run `harness archive`, commit the tracked plan move plus the
-  implementation and closeout summaries, push branch
-  `codex/review-ui-round-browser`, open or refresh the PR, and record
-  publish/CI/sync evidence until `harness status` reaches
+- Archived At: 2026-04-03T10:29:31+08:00
+- Revision: 2
+candidate.
+- PR: Existing branch/PR follow-up remains on `codex/review-ui-round-browser`
+  and [#104](https://github.com/catu-ai/easyharness/pull/104) once this
+  repaired candidate is re-archived and republished.
+- Ready: Acceptance criteria are satisfied, `review-015-full` passed cleanly,
+  the archived-plan/current-plan boundary now matches the approved scope, and
+  automated plus manual Playwright validation both cover the repaired UI.
+- Merge Handoff: Archive this repaired candidate, commit the tracked plan move
+  plus the reopen closeout updates, refresh publish/CI/sync evidence on the
+  existing PR, and drive the candidate back to
   `execution/finalize/await_merge`.
 
 ## Outcome Summary
@@ -352,7 +359,7 @@ the later finalize review of the whole slice.
 ### Delivered
 
 - Added a read-only `/api/review` resource and contract wiring that only reads
-  review rounds for the current active plan without changing review CLI
+  review rounds for the current tracked plan without changing review CLI
   contracts or write-side behavior.
 - Replaced the `Review` placeholder with an overview-first round browser that
   lists rounds, summarizes round status, and centers reviewer task/result
@@ -366,10 +373,17 @@ the later finalize review of the whole slice.
 - Added focused backend coverage, `/api/review` integration coverage, review
   smoke automation, main UI smoke updates, and manual headed Playwright
   screenshots for final aesthetic validation.
+- Repaired the reopen follow-up by keeping archived-but-not-landed current
+  plans visible, hiding landed candidates conservatively during land cleanup,
+  and aligning the review browser layout more closely with the calmer
+  `Status` / `Timeline` shell.
+- Cleaned up the explorer round list so repeated finalize titles stay
+  navigable through round id, revision, and timestamp instead of reading like
+  duplicate rows.
 
 ### Not Delivered
 
-- Review history browsing across archived or non-active plans.
+- Review history browsing beyond the current tracked plan.
 - Deep finding navigation into the future `Diff` and `Files` data surfaces.
 - UI-triggered review actions or command handoff affordances.
 - Rich side-by-side raw artifact diffing beyond the current supporting

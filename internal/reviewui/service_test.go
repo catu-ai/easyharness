@@ -212,20 +212,182 @@ func TestServiceReadReturnsActivePlanRoundsWithConservativeStatuses(t *testing.T
 	}
 }
 
-func TestServiceReadReturnsEmptyForArchivedPlan(t *testing.T) {
+func TestServiceReadReturnsArchivedPlanRounds(t *testing.T) {
 	workdir := t.TempDir()
 	relPlanPath, planStem := seedArchivedPlan(t, workdir, "2026-04-02-review-ui-archived.md", "Review UI Archived")
-	saveReviewState(t, workdir, planStem, relPlanPath, 1, "")
+	saveReviewStateWithNode(t, workdir, planStem, relPlanPath, 1, "", "execution/finalize/await_merge")
+
+	writeReviewRoundFixture(t, workdir, planStem, "review-001-full", map[string]any{
+		"round_id":        "review-001-full",
+		"kind":            "full",
+		"revision":        1,
+		"review_title":    "Archived finalize review",
+		"plan_path":       relPlanPath,
+		"plan_stem":       planStem,
+		"created_at":      "2026-04-02T12:00:00Z",
+		"ledger_path":     roundArtifactPath(workdir, planStem, "review-001-full", "ledger.json"),
+		"aggregate_path":  roundArtifactPath(workdir, planStem, "review-001-full", "aggregate.json"),
+		"submissions_dir": filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", "review-001-full", "submissions"),
+		"dimensions": []map[string]any{
+			{
+				"name":            "Correctness",
+				"slot":            "correctness",
+				"instructions":    "Check archived candidate correctness.",
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+			},
+		},
+	}, map[string]any{
+		"round_id":   "review-001-full",
+		"kind":       "full",
+		"updated_at": "2026-04-02T12:10:00Z",
+		"slots": []map[string]any{
+			{
+				"name":            "Correctness",
+				"slot":            "correctness",
+				"status":          "submitted",
+				"submitted_at":    "2026-04-02T12:07:00Z",
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+			},
+		},
+	}, map[string]any{
+		"round_id":              "review-001-full",
+		"kind":                  "full",
+		"revision":              1,
+		"review_title":          "Archived finalize review",
+		"decision":              "pass",
+		"aggregated_at":         "2026-04-02T12:12:00Z",
+		"blocking_findings":     []any{},
+		"non_blocking_findings": []any{},
+	}, map[string]map[string]any{
+		"correctness": {
+			"round_id":     "review-001-full",
+			"slot":         "correctness",
+			"dimension":    "Correctness",
+			"submitted_at": "2026-04-02T12:07:00Z",
+			"summary":      "Archived candidate still looks good.",
+			"findings":     []any{},
+		},
+	})
+
+	result := Service{Workdir: workdir}.Read()
+	if !result.OK {
+		t.Fatalf("expected review read to succeed, got %#v", result)
+	}
+	if len(result.Rounds) != 1 {
+		t.Fatalf("expected archived plan to keep review rounds visible, got %#v", result.Rounds)
+	}
+	if result.Rounds[0].RoundID != "review-001-full" || result.Rounds[0].Status != "pass" {
+		t.Fatalf("expected archived review round to stay readable, got %#v", result.Rounds[0])
+	}
+	if result.Artifacts == nil || !strings.Contains(result.Artifacts.PlanPath, "docs/plans/archived/2026-04-02-review-ui-archived.md") {
+		t.Fatalf("expected archived plan artifacts to point at the archived plan, got %#v", result.Artifacts)
+	}
+}
+
+func TestServiceReadHidesArchivedRoundsDuringLandCleanup(t *testing.T) {
+	workdir := t.TempDir()
+	relPlanPath, planStem := seedArchivedPlan(t, workdir, "2026-04-02-review-ui-landed.md", "Review UI Landed")
+	saveReviewStateWithNode(t, workdir, planStem, relPlanPath, 1, "", "land")
+
+	writeReviewRoundFixture(t, workdir, planStem, "review-001-full", map[string]any{
+		"round_id":        "review-001-full",
+		"kind":            "full",
+		"revision":        1,
+		"review_title":    "Landed finalize review",
+		"plan_path":       relPlanPath,
+		"plan_stem":       planStem,
+		"created_at":      "2026-04-02T12:00:00Z",
+		"ledger_path":     roundArtifactPath(workdir, planStem, "review-001-full", "ledger.json"),
+		"aggregate_path":  roundArtifactPath(workdir, planStem, "review-001-full", "aggregate.json"),
+		"submissions_dir": filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", "review-001-full", "submissions"),
+		"dimensions":      []map[string]any{},
+	}, nil, nil, nil)
 
 	result := Service{Workdir: workdir}.Read()
 	if !result.OK {
 		t.Fatalf("expected review read to succeed, got %#v", result)
 	}
 	if len(result.Rounds) != 0 {
-		t.Fatalf("expected archived plan to return no rounds, got %#v", result.Rounds)
+		t.Fatalf("expected landed archived plan to hide review rounds, got %#v", result.Rounds)
 	}
-	if !strings.Contains(result.Summary, "only shown for active plans") {
-		t.Fatalf("unexpected summary: %#v", result)
+	if !strings.Contains(result.Summary, "hidden once land cleanup begins") {
+		t.Fatalf("unexpected summary for landed archived plan: %#v", result)
+	}
+}
+
+func TestServiceReadHidesArchivedRoundsDuringLegacyLandCleanup(t *testing.T) {
+	workdir := t.TempDir()
+	relPlanPath, planStem := seedArchivedPlan(t, workdir, "2026-04-02-review-ui-legacy-land.md", "Review UI Legacy Land")
+	saveReviewStateWithLand(t, workdir, planStem, relPlanPath, 1, "2026-04-03T01:00:00Z", "")
+
+	writeReviewRoundFixture(t, workdir, planStem, "review-001-full", map[string]any{
+		"round_id":        "review-001-full",
+		"kind":            "full",
+		"revision":        1,
+		"review_title":    "Legacy landed finalize review",
+		"plan_path":       relPlanPath,
+		"plan_stem":       planStem,
+		"created_at":      "2026-04-02T12:00:00Z",
+		"ledger_path":     roundArtifactPath(workdir, planStem, "review-001-full", "ledger.json"),
+		"aggregate_path":  roundArtifactPath(workdir, planStem, "review-001-full", "aggregate.json"),
+		"submissions_dir": filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", "review-001-full", "submissions"),
+		"dimensions":      []map[string]any{},
+	}, nil, nil, nil)
+
+	result := Service{Workdir: workdir}.Read()
+	if !result.OK {
+		t.Fatalf("expected review read to succeed, got %#v", result)
+	}
+	if len(result.Rounds) != 0 {
+		t.Fatalf("expected legacy land cleanup state to hide archived review rounds, got %#v", result.Rounds)
+	}
+	if !strings.Contains(result.Summary, "hidden once land cleanup begins") {
+		t.Fatalf("unexpected summary for legacy landed archived plan: %#v", result)
+	}
+}
+
+func TestServiceReadReturnsLightweightArchivedPlanRounds(t *testing.T) {
+	workdir := t.TempDir()
+	relPlanPath, planStem := seedLocalArchivedPlan(t, workdir, "2026-04-02-review-ui-lightweight.md", "Review UI Lightweight")
+	saveReviewStateWithNode(t, workdir, planStem, relPlanPath, 1, "", "execution/finalize/await_merge")
+
+	writeReviewRoundFixture(t, workdir, planStem, "review-001-full", map[string]any{
+		"round_id":        "review-001-full",
+		"kind":            "full",
+		"revision":        1,
+		"review_title":    "Lightweight finalize review",
+		"plan_path":       relPlanPath,
+		"plan_stem":       planStem,
+		"created_at":      "2026-04-02T12:00:00Z",
+		"ledger_path":     roundArtifactPath(workdir, planStem, "review-001-full", "ledger.json"),
+		"aggregate_path":  roundArtifactPath(workdir, planStem, "review-001-full", "aggregate.json"),
+		"submissions_dir": filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", "review-001-full", "submissions"),
+		"dimensions":      []map[string]any{},
+	}, map[string]any{
+		"round_id":   "review-001-full",
+		"kind":       "full",
+		"updated_at": "2026-04-02T12:10:00Z",
+		"slots":      []map[string]any{},
+	}, map[string]any{
+		"round_id":              "review-001-full",
+		"kind":                  "full",
+		"revision":              1,
+		"review_title":          "Lightweight finalize review",
+		"decision":              "pass",
+		"aggregated_at":         "2026-04-02T12:12:00Z",
+		"blocking_findings":     []any{},
+		"non_blocking_findings": []any{},
+	}, nil)
+
+	result := Service{Workdir: workdir}.Read()
+	if !result.OK {
+		t.Fatalf("expected review read to succeed, got %#v", result)
+	}
+	if len(result.Rounds) != 1 || result.Rounds[0].RoundID != "review-001-full" {
+		t.Fatalf("expected lightweight archived plan to keep review rounds visible, got %#v", result.Rounds)
+	}
+	if result.Artifacts == nil || !strings.Contains(result.Artifacts.PlanPath, ".local/harness/plans/archived/2026-04-02-review-ui-lightweight.md") {
+		t.Fatalf("expected lightweight archived plan artifacts to point at the local archive, got %#v", result.Artifacts)
 	}
 }
 
@@ -240,7 +402,7 @@ func TestServiceReadReturnsEmptyForActivePlanWithoutReviewRounds(t *testing.T) {
 	if len(result.Rounds) != 0 {
 		t.Fatalf("expected active plan with no review rounds to return none, got %#v", result.Rounds)
 	}
-	if !strings.Contains(result.Summary, "No review rounds recorded yet for the active plan.") {
+	if !strings.Contains(result.Summary, "No review rounds recorded yet for the current plan.") {
 		t.Fatalf("unexpected summary for empty active plan: %#v", result)
 	}
 	if result.Artifacts == nil || !strings.Contains(result.Artifacts.PlanPath, "docs/plans/active/2026-04-02-review-ui-empty.md") {
@@ -727,6 +889,11 @@ func seedArchivedPlan(t *testing.T, workdir, filename, title string) (string, st
 	return seedPlan(t, workdir, filepath.Join("docs/plans/archived", filename), title)
 }
 
+func seedLocalArchivedPlan(t *testing.T, workdir, filename, title string) (string, string) {
+	t.Helper()
+	return seedPlan(t, workdir, filepath.Join(".local/harness/plans/archived", filename), title)
+}
+
 func seedPlan(t *testing.T, workdir, relPlanPath, title string) (string, string) {
 	t.Helper()
 	path := filepath.Join(workdir, filepath.FromSlash(relPlanPath))
@@ -748,10 +915,16 @@ func seedPlan(t *testing.T, workdir, relPlanPath, title string) (string, string)
 
 func saveReviewState(t *testing.T, workdir, planStem, relPlanPath string, revision int, activeRoundID string) {
 	t.Helper()
+	saveReviewStateWithNode(t, workdir, planStem, relPlanPath, revision, activeRoundID, "")
+}
+
+func saveReviewStateWithNode(t *testing.T, workdir, planStem, relPlanPath string, revision int, activeRoundID, currentNode string) {
+	t.Helper()
 	state := &runstate.State{
-		PlanPath: relPlanPath,
-		PlanStem: planStem,
-		Revision: revision,
+		CurrentNode: currentNode,
+		PlanPath:    relPlanPath,
+		PlanStem:    planStem,
+		Revision:    revision,
 	}
 	if activeRoundID != "" {
 		state.ActiveReviewRound = &runstate.ReviewRound{
@@ -760,6 +933,22 @@ func saveReviewState(t *testing.T, workdir, planStem, relPlanPath string, revisi
 			Revision:   revision,
 			Aggregated: false,
 		}
+	}
+	if _, err := runstate.SaveState(workdir, planStem, state); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+}
+
+func saveReviewStateWithLand(t *testing.T, workdir, planStem, relPlanPath string, revision int, landedAt, completedAt string) {
+	t.Helper()
+	state := &runstate.State{
+		PlanPath: relPlanPath,
+		PlanStem: planStem,
+		Revision: revision,
+		Land: &runstate.LandState{
+			LandedAt:    landedAt,
+			CompletedAt: completedAt,
+		},
 	}
 	if _, err := runstate.SaveState(workdir, planStem, state); err != nil {
 		t.Fatalf("save state: %v", err)
