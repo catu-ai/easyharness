@@ -766,6 +766,85 @@ snapshot_to_file() {
   [[ -s "$destination" ]]
 }
 
+screenshot_path_from_output() {
+  sed -n 's/^- \[Screenshot of viewport\](\(.*\))$/\1/p' | head -n 1
+}
+
+resolve_artifact_path() {
+  local base_dir="$1"
+  local path="$2"
+  if [[ "$path" == /* ]]; then
+    printf '%s\n' "$path"
+    return
+  fi
+  printf '%s/%s\n' "$base_dir" "$path"
+}
+
+capture_screenshot() {
+  local session="$1"
+  local destination="$2"
+  local output screenshot_path
+
+  output="$(
+    cd "$session_dir"
+    "$PWCLI" --session "$session" screenshot
+  )"
+  screenshot_path="$(resolve_artifact_path "$session_dir" "$(printf '%s\n' "$output" | screenshot_path_from_output || true)")"
+  if [[ -z "$screenshot_path" || ! -f "$screenshot_path" ]]; then
+    echo "Missing Playwright screenshot for ${destination}" >&2
+    printf '%s\n' "$output" >&2
+    exit 1
+  fi
+  cp "$screenshot_path" "$destination"
+}
+
+run_code_checked() {
+  local session="$1"
+  local code="$2"
+  local output
+  output="$("$PWCLI" --session "$session" run-code "$code")"
+  if printf '%s\n' "$output" | grep -Fq "### Error"; then
+    printf '%s\n' "$output" >&2
+    exit 1
+  fi
+  printf '%s\n' "$output"
+}
+
+capture_locator_screenshot() {
+  local session="$1"
+  local selector="$2"
+  local destination="$3"
+  local resolved_destination selector_js destination_js
+  resolved_destination="$(resolve_artifact_path "$repo_root" "$destination")"
+  selector_js="$(python3 - <<'PY' "$selector"
+import json
+import sys
+print(json.dumps(sys.argv[1]))
+PY
+)"
+  destination_js="$(python3 - <<'PY' "$resolved_destination"
+import json
+import sys
+print(json.dumps(sys.argv[1]))
+PY
+)"
+  run_code_checked "$session" "async (page) => { await page.locator(${selector_js}).first().screenshot({ path: ${destination_js} }); return true; }" >/dev/null
+}
+
+assert_visual_baseline() {
+  local baseline="$1"
+  local candidate="$2"
+  local label="$3"
+  local resolved_baseline resolved_candidate
+  resolved_baseline="$(resolve_artifact_path "$repo_root" "$baseline")"
+  resolved_candidate="$(resolve_artifact_path "$repo_root" "$candidate")"
+  if [[ ! -f "$resolved_baseline" ]]; then
+    echo "Missing review visual baseline: ${resolved_baseline}" >&2
+    exit 1
+  fi
+  pnpm --dir "$repo_root/web" exec node "$repo_root/scripts/compare-review-visual.mjs" "$resolved_baseline" "$resolved_candidate" "$label"
+}
+
 assert_has_text() {
   local file="$1"
   local expected="$2"
@@ -922,18 +1001,69 @@ log_phase "opening /review"
 clear_pwcli_socket "$session_name"
 "$PWCLI" --session "$session_name" open "${base_url}/review" >/dev/null
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-initial.yml"
+capture_screenshot "$session_name" "${output_dir}/review-initial.png"
+capture_locator_screenshot "$session_name" ".review-round-item.is-active" "${output_dir}/review-row-active.png"
+capture_locator_screenshot "$session_name" ".review-round-item:not(.is-active)" "${output_dir}/review-row-peer.png"
+assert_visual_baseline "scripts/testdata/review-visual/active-row.png" "${output_dir}/review-row-active.png" "active review row"
+assert_visual_baseline "scripts/testdata/review-visual/peer-row.png" "${output_dir}/review-row-peer.png" "peer review row"
 
 assert_has_text "${output_dir}/review-initial.yml" "Review rounds"
 assert_has_text "${output_dir}/review-initial.yml" "review-005-full"
 assert_has_text "${output_dir}/review-initial.yml" "Core review artifacts are missing."
 assert_has_text "${output_dir}/review-initial.yml" "Degraded"
-assert_has_text "${output_dir}/review-initial.yml" "Content"
+assert_has_text "${output_dir}/review-initial.yml" "Summary"
 assert_has_text "${output_dir}/review-initial.yml" "Supporting evidence"
 if grep -Fq -- "WIP" "${output_dir}/review-initial.yml"; then
   echo "Review snapshot still contains WIP placeholder text." >&2
   cat "${output_dir}/review-initial.yml" >&2
   exit 1
 fi
+
+run_code_checked "$session_name" '
+async (page) => await page.evaluate(() => {
+  const rows = [...document.querySelectorAll(".review-round-item")];
+  if (rows.length < 2) {
+    throw new Error("expected multiple review rounds for explorer validation");
+  }
+  const activeRow = rows.find((candidate) => candidate.classList.contains("is-active"));
+  if (!activeRow) {
+    throw new Error("missing active review round row");
+  }
+  if (activeRow.getAttribute("aria-pressed") !== "true") {
+    throw new Error("active review round is not marked pressed");
+  }
+  const activeMeta = activeRow.querySelector(".review-round-id");
+  if (!activeMeta || !/(PASS|CHG|WAIT|AGGR|DEG|WIP|DONE|PART)/.test(activeMeta.textContent || "")) {
+    throw new Error(`active row is missing visible status token: ${(activeMeta && activeMeta.textContent) || ""}`);
+  }
+  const initialSelected = document.querySelector(".review-detail-tabs [aria-selected=\"true\"]");
+  if (!initialSelected || (initialSelected.textContent || "").trim() !== "Summary") {
+    throw new Error(`expected Summary to be selected on first load, got ${(initialSelected && initialSelected.textContent) || ""}`);
+  }
+  const row = rows.find((candidate) => !candidate.classList.contains("is-active")) ?? rows[0];
+  const rowStyle = getComputedStyle(row);
+  if (!rowStyle.boxShadow || rowStyle.boxShadow === "none") {
+    throw new Error("missing explorer status rail");
+  }
+  const statusText = row.getAttribute("aria-label") || "";
+  if (!/Pass|Changes requested|Waiting|Degraded|Complete|Aggregated|Incomplete|In progress/.test(statusText)) {
+    throw new Error(`missing readable status text in row label: ${statusText}`);
+  }
+  const meta = row.querySelector(".review-round-id");
+  if (!meta || !/is-(good|danger|warning|muted)/.test(meta.className)) {
+    throw new Error("missing toned status meta");
+  }
+  const indicator = row.querySelector(".review-round-indicator");
+  if (!indicator) {
+    throw new Error("missing explorer status indicator");
+  }
+  const rect = indicator.getBoundingClientRect();
+  if (rect.width < 6 || rect.height < 6) {
+    throw new Error(`status indicator too small: ${rect.width}x${rect.height}`);
+  }
+  return true;
+})
+' >/dev/null
 
 round_ref="$(button_ref_from_snapshot "Finalize review Waiting for submissions Full · finalize · rev 2 Apr 2, 2026, 8:00 PM 1/2 submitted" "${output_dir}/review-initial.yml")"
 if [[ -z "$round_ref" ]]; then
@@ -947,8 +1077,19 @@ fi
 "$PWCLI" --session "$session_name" click "$round_ref" >/dev/null
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-pending-round.yml"
 assert_has_text "${output_dir}/review-pending-round.yml" "Waiting for submissions"
-assert_has_text "${output_dir}/review-pending-round.yml" "Content"
 assert_has_text "${output_dir}/review-pending-round.yml" "Summary"
+run_code_checked "$session_name" '
+async (page) => await page.evaluate(() => {
+  const selected = document.querySelector(".review-detail-tabs [aria-selected=\"true\"]");
+  if (!selected) {
+    throw new Error("missing selected review detail tab");
+  }
+  if ((selected.textContent || "").trim() !== "Summary") {
+    throw new Error(`expected Summary to be selected after round switch, got ${(selected.textContent || "").trim()}`);
+  }
+  return true;
+})
+' >/dev/null
 
 ux_ref="$(tab_ref_from_snapshot "UX" "${output_dir}/review-pending-round.yml")"
 if [[ -z "$ux_ref" ]]; then
@@ -958,10 +1099,28 @@ if [[ -z "$ux_ref" ]]; then
 fi
 "$PWCLI" --session "$session_name" click "$ux_ref" >/dev/null
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-ux.yml"
+capture_screenshot "$session_name" "${output_dir}/review-ux.png"
+capture_locator_screenshot "$session_name" ".review-tab-panel.reviewer-tab-panel" "${output_dir}/reviewer-panel.png"
+assert_visual_baseline "scripts/testdata/review-visual/reviewer-panel.png" "${output_dir}/reviewer-panel.png" "reviewer panel"
 assert_has_text "${output_dir}/review-ux.yml" "Assigned task"
 assert_has_text "${output_dir}/review-ux.yml" "Returned result"
 assert_has_text "${output_dir}/review-ux.yml" "Check hierarchy, density, and visual polish."
 assert_has_text "${output_dir}/review-ux.yml" "This reviewer has not submitted a result yet."
+run_code_checked "$session_name" '
+async (page) => await page.evaluate(() => {
+  const task = document.querySelector(".review-fold-task");
+  const result = document.querySelector(".review-fold-result");
+  if (!task || !result) {
+    throw new Error("missing reviewer folds");
+  }
+  const taskRect = task.getBoundingClientRect();
+  const resultRect = result.getBoundingClientRect();
+  if (resultRect.top <= taskRect.bottom - 4) {
+    throw new Error(`reviewer folds are not vertically stacked: ${taskRect.bottom} vs ${resultRect.top}`);
+  }
+  return true;
+})
+' >/dev/null
 
 support_ref="$(button_ref_from_snapshot "Supporting evidence 9" "${output_dir}/review-ux.yml")"
 if [[ -z "$support_ref" ]]; then
@@ -1111,6 +1270,25 @@ if [[ -z "$damaged_support_ref" ]]; then
 fi
 "$PWCLI" --session "$session_name" click "$damaged_support_ref" >/dev/null
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-damaged-support.yml"
+capture_screenshot "$session_name" "${output_dir}/review-damaged-support.png"
+
+run_code_checked "$session_name" '
+async (page) => await page.evaluate(() => {
+  const scroller = document.querySelector(".review-detail-body");
+  if (!scroller) {
+    throw new Error("missing review-detail-body scroller");
+  }
+  if (getComputedStyle(scroller).overflowY !== "auto") {
+    throw new Error(`unexpected overflow mode: ${getComputedStyle(scroller).overflowY}`);
+  }
+  const before = scroller.scrollTop;
+  scroller.scrollTop = scroller.scrollHeight;
+  if (scroller.scrollTop <= before) {
+    throw new Error("review-detail-body did not scroll after expanded support evidence");
+  }
+  return true;
+})
+' >/dev/null
 
 damaged_submission_ref="$(tab_ref_from_snapshot "Submission: Risk" "${output_dir}/review-damaged-support.yml")"
 if [[ -z "$damaged_submission_ref" ]]; then

@@ -298,55 +298,59 @@ the later finalize review of the whole slice.
 
 ## Validation Summary
 
-- `pnpm --dir web check` passed after the round-browser copy and layout
-  refinements, including the explorer round labeling cleanup and the vertical
-  reviewer-pane polish.
-- `go test ./internal/reviewui ./internal/ui` passed after the archived-plan
-  land-compatibility helper and focused UI/browser-facing assertions were
-  updated.
-- `go test ./...` passed for the full repository after the reopen fixes and
-  the latest embedded UI assets were rebuilt into the repo-local harness
-  binary.
+- `pnpm --dir web check` passed after the final explorer/status readability
+  cleanup, the component-level screenshot baseline wiring, and the review
+  smoke refactor away from silent `run-code` failures.
+- `go test ./...` passed for the full repository after the reopen follow-up
+  fixes, the new screenshot comparison helper, and the latest embedded UI
+  assets were rebuilt into the repo-local harness binary.
 - `scripts/ui-playwright-review-smoke` passed with populated review rounds,
-  empty current-plan state, damaged artifacts, malformed submissions, and the
-  updated reviewer-tab layout.
+  empty current-plan state, damaged artifacts, malformed submissions, real
+  Playwright failure propagation, and component-level screenshot diffs for the
+  active explorer row, a peer explorer row, and the reviewer panel.
 - `scripts/ui-playwright-smoke` passed with the archived-plan review browser
   hidden during land cleanup, visible again for archived-but-not-landed state,
-  and the broader status/timeline workbench paths still intact.
+  and the broader status/timeline/review workbench paths still intact.
 - Interactive headed Playwright inspection confirmed the review page now reads
   closer to `Status` / `Timeline`: the explorer column distinguishes rounds by
   round id plus revision, the detail pane keeps a vertical summary-first flow,
   reviewer tabs feel scannable, and task/result folds remain readable without
   wasting horizontal space. Captured screenshots live under
-  `output/playwright/manual-review-visual-r11/`.
+  `output/playwright/manual-review-visual-r15/`, and the manual scroll probe
+  confirmed the third pane scrolls (`scrollTop: 237`, `scrollHeight: 1036`,
+  `clientHeight: 799`).
 
 ## Review Summary
 
 - Earlier finalize rounds established the review browser, conservative
-  degraded-state handling, archived current-plan visibility, and review smoke
-  coverage, but the reopen follow-up still needed another pass to address
-  archived-plan compatibility, visual alignment with `Timeline`, and explorer
-  row readability.
-- `review-014-full` surfaced the last real reopen blockers: archived-plan
-  land-compatibility needed to cover legacy `land` state, reviewer context had
-  to remain legible in the new tabbed layout, and the explorer/detail panes
-  still felt heavier than the surrounding workbench surfaces.
-- Those findings were fixed by adding the shared archived-land helper plus
-  focused tests, restructuring the detail pane into a cleaner vertical
-  summary/reviewer flow, tightening the explorer rows around round identity,
-  and rerunning both automated and manual Playwright validation.
-- `review-015-full` then passed cleanly across `correctness`, `tests`, and
+  degraded-state handling, archived current-plan visibility, and the first
+  review-specific Playwright smoke, but the finalize-fix reopen exposed a
+  second wave of polish issues around archived-plan visibility, explorer row
+  readability, and the visual weight of the review layout.
+- `review-023-full`, `review-024-full`, and `review-025-full` progressively
+  narrowed the remaining blockers from “status is still effectively
+  color-first” and “visual smoke is not actually trustworthy” down to one
+  concrete concern: the screenshot smoke needed to guard the actual polished
+  components rather than sampled brightness heuristics.
+- Those findings were fixed by making `run-code` failures real test failures,
+  expanding the smoke to capture component screenshots, and checking the
+  active explorer row, peer explorer row, and reviewer panel against committed
+  fixture baselines under `scripts/testdata/review-visual/`.
+- `review-026-full` then passed cleanly across `correctness`, `tests`, and
   `agent_ux` with zero blocking and zero non-blocking findings.
 
 ## Archive Summary
 
-- Archived At: 2026-04-03T10:29:31+08:00
-- Revision: 2
-candidate.
+- Archived At: 2026-04-03T13:12:21+08:00
+- Revision: 3
+written back.
+- Candidate: finalize-fix reopen of the review UI round-browser slice after
+  post-archive product feedback on archived-plan visibility, explorer layout,
+  and Playwright visual validation strength.
 - PR: Existing branch/PR follow-up remains on `codex/review-ui-round-browser`
   and [#104](https://github.com/catu-ai/easyharness/pull/104) once this
   repaired candidate is re-archived and republished.
-- Ready: Acceptance criteria are satisfied, `review-015-full` passed cleanly,
+- Ready: Acceptance criteria are satisfied, `review-026-full` passed cleanly,
   the archived-plan/current-plan boundary now matches the approved scope, and
   automated plus manual Playwright validation both cover the repaired UI.
 - Merge Handoff: Archive this repaired candidate, commit the tracked plan move
@@ -380,6 +384,9 @@ candidate.
 - Cleaned up the explorer round list so repeated finalize titles stay
   navigable through round id, revision, and timestamp instead of reading like
   duplicate rows.
+- Upgraded the reopened Playwright review smoke from brittle text-only checks
+  to real failure-propagating browser assertions plus component-level visual
+  baseline diffs for the explorer rows and reviewer panel.
 
 ### Not Delivered
 

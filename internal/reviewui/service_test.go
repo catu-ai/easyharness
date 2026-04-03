@@ -727,6 +727,91 @@ func TestServiceReadKeepsMalformedLedgerRoundsDegradedEvenWithAggregateDecision(
 	}
 }
 
+func TestServiceReadKeepsUnreadableAggregateRoundsDegraded(t *testing.T) {
+	workdir := t.TempDir()
+	relPlanPath, planStem := seedActivePlan(t, workdir, "2026-04-02-review-ui-unreadable-aggregate.md", "Review UI Unreadable Aggregate")
+	saveReviewState(t, workdir, planStem, relPlanPath, 1, "")
+
+	writeReviewRoundFixture(t, workdir, planStem, "review-001-full", map[string]any{
+		"round_id":        "review-001-full",
+		"kind":            "full",
+		"revision":        1,
+		"review_title":    "Finalize review",
+		"plan_path":       relPlanPath,
+		"plan_stem":       planStem,
+		"created_at":      "2026-04-02T12:00:00Z",
+		"ledger_path":     roundArtifactPath(workdir, planStem, "review-001-full", "ledger.json"),
+		"aggregate_path":  roundArtifactPath(workdir, planStem, "review-001-full", "aggregate.json"),
+		"submissions_dir": filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", "review-001-full", "submissions"),
+		"dimensions": []map[string]any{
+			{
+				"name":            "Correctness",
+				"slot":            "correctness",
+				"instructions":    "Check final behavior.",
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+			},
+		},
+	}, map[string]any{
+		"round_id":   "review-001-full",
+		"kind":       "full",
+		"updated_at": "2026-04-02T12:08:00Z",
+		"slots": []map[string]any{
+			{
+				"name":            "Correctness",
+				"slot":            "correctness",
+				"status":          "submitted",
+				"submitted_at":    "2026-04-02T12:07:00Z",
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+			},
+		},
+	}, map[string]any{
+		"round_id":              "review-001-full",
+		"kind":                  "full",
+		"revision":              1,
+		"review_title":          "Finalize review",
+		"decision":              "pass",
+		"aggregated_at":         "2026-04-02T12:10:00Z",
+		"blocking_findings":     []any{},
+		"non_blocking_findings": []any{},
+	}, map[string]map[string]any{
+		"correctness": {
+			"round_id":     "review-001-full",
+			"slot":         "correctness",
+			"dimension":    "Correctness",
+			"submitted_at": "2026-04-02T12:07:00Z",
+			"summary":      "Submission exists, but aggregate is unreadable.",
+			"findings":     []any{},
+		},
+	})
+
+	aggregatePath := roundArtifactPath(workdir, planStem, "review-001-full", "aggregate.json")
+	if err := os.Remove(aggregatePath); err != nil {
+		t.Fatalf("remove aggregate file: %v", err)
+	}
+	if err := os.Mkdir(aggregatePath, 0o755); err != nil {
+		t.Fatalf("replace aggregate with directory: %v", err)
+	}
+
+	result := Service{Workdir: workdir}.Read()
+	if !result.OK {
+		t.Fatalf("expected review read to succeed, got %#v", result)
+	}
+	if len(result.Rounds) != 1 {
+		t.Fatalf("expected one round, got %#v", result.Rounds)
+	}
+
+	round := result.Rounds[0]
+	if round.Status != "degraded" {
+		t.Fatalf("expected unreadable aggregate to force degraded status, got %#v", round)
+	}
+	if len(round.Warnings) == 0 || !strings.Contains(strings.Join(round.Warnings, " "), "Unable to read aggregate") {
+		t.Fatalf("expected unreadable aggregate warning, got %#v", round)
+	}
+	if len(round.Artifacts) < 3 || round.Artifacts[2].Status != "invalid" {
+		t.Fatalf("expected aggregate artifact to be invalid, got %#v", round.Artifacts)
+	}
+}
+
 func TestServiceReadKeepsSemanticallyBrokenArtifactsConservative(t *testing.T) {
 	workdir := t.TempDir()
 	relPlanPath, planStem := seedActivePlan(t, workdir, "2026-04-02-review-ui-semantic-damage.md", "Review UI Semantic Damage")

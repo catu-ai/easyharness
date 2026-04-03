@@ -603,7 +603,7 @@ func readJSONArtifact[T any](label, path string, validator artifactValidator[T])
 			artifact.Summary = "Artifact file is missing."
 			return artifact, nil, fmt.Sprintf("%s is missing.", label)
 		}
-		artifact.Status = "missing"
+		artifact.Status = "invalid"
 		artifact.Summary = err.Error()
 		return artifact, nil, fmt.Sprintf("Unable to read %s: %v", strings.ToLower(label), err)
 	}
