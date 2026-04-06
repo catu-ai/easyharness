@@ -1,4 +1,5 @@
-import type { ComponentChildren } from "preact";
+import type { ComponentChildren, JSX } from "preact";
+import { useEffect, useState } from "preact/hooks";
 
 type Tone = "good" | "danger" | "warning" | "muted";
 
@@ -96,12 +97,75 @@ export function WorkbenchFrame(props: {
   pageTitle: string;
   detailLabel: string;
   loading?: boolean;
+  storageKey: string;
+  defaultExplorerWidth?: number;
   explorerContent: ComponentChildren;
   children: ComponentChildren;
 }) {
-  const { explorerLabel, explorerTitle, explorerCount, pageTitle, detailLabel, loading, explorerContent, children } = props;
+  const {
+    explorerLabel,
+    explorerTitle,
+    explorerCount,
+    pageTitle,
+    detailLabel,
+    loading,
+    storageKey,
+    defaultExplorerWidth = 288,
+    explorerContent,
+    children,
+  } = props;
+  const widthStorageKey = `harness-ui:explorer-width:${storageKey}`;
+  const minExplorerWidth = 220;
+  const maxExplorerWidth = 420;
+  const [explorerWidth, setExplorerWidth] = useState(defaultExplorerWidth);
+  const [dragState, setDragState] = useState<{ pointerId: number; startX: number; startWidth: number } | null>(null);
+
+  const clampExplorerWidth = (nextWidth: number) => Math.min(maxExplorerWidth, Math.max(minExplorerWidth, nextWidth));
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(widthStorageKey);
+    if (!stored) return;
+    const parsed = Number.parseInt(stored, 10);
+    if (Number.isNaN(parsed)) return;
+    setExplorerWidth(clampExplorerWidth(parsed));
+  }, [widthStorageKey]);
+
+  useEffect(() => {
+    window.localStorage.setItem(widthStorageKey, String(explorerWidth));
+  }, [explorerWidth, widthStorageKey]);
+
+  useEffect(() => {
+    if (!dragState) return;
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.pointerId !== dragState.pointerId) return;
+      const nextWidth = dragState.startWidth + (event.clientX - dragState.startX);
+      setExplorerWidth(clampExplorerWidth(nextWidth));
+    };
+
+    const stopDragging = () => {
+      setDragState(null);
+      document.body.classList.remove("is-resizing-workbench");
+    };
+
+    document.body.classList.add("is-resizing-workbench");
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", stopDragging);
+    window.addEventListener("pointercancel", stopDragging);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", stopDragging);
+      window.removeEventListener("pointercancel", stopDragging);
+      document.body.classList.remove("is-resizing-workbench");
+    };
+  }, [dragState]);
+
+  const frameStyle: JSX.CSSProperties = {
+    gridTemplateColumns: `${explorerWidth}px 8px minmax(0, 1fr)`,
+  };
+
   return (
-    <section class="workbench-page">
+    <section class="workbench-page" style={frameStyle}>
       <aside class="workbench-explorer">
         <div class="workbench-explorer-header">
           <span class="sidebar-label">{explorerLabel}</span>
@@ -110,6 +174,33 @@ export function WorkbenchFrame(props: {
         </div>
         <div class="workbench-explorer-body">{explorerContent}</div>
       </aside>
+
+      <div
+        class="workbench-divider"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={`${explorerTitle} width`}
+        aria-valuemin={minExplorerWidth}
+        aria-valuemax={maxExplorerWidth}
+        aria-valuenow={explorerWidth}
+        tabIndex={0}
+        onPointerDown={(event) => {
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          setDragState({ pointerId: event.pointerId, startX: event.clientX, startWidth: explorerWidth });
+          event.preventDefault();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft") {
+            setExplorerWidth((current) => clampExplorerWidth(current - 16));
+            event.preventDefault();
+            return;
+          }
+          if (event.key === "ArrowRight") {
+            setExplorerWidth((current) => clampExplorerWidth(current + 16));
+            event.preventDefault();
+          }
+        }}
+      />
 
       <section class="workbench-inspector">
         <header class="workbench-header">

@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 is required to run Playwright browser validation." >&2
+  exit 1
+fi
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pnpm is required to rebuild embedded UI assets before browser validation." >&2
+  exit 1
+fi
+
+export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+PWCLI="$CODEX_HOME/skills/playwright/scripts/playwright_cli.sh"
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+harness_bin="${HARNESS_UI_BINARY:-$repo_root/.local/bin/harness}"
+host="${HARNESS_UI_HOST:-127.0.0.1}"
+port="${HARNESS_UI_PORT:-4310}"
+tmp_dir="$(mktemp -d)"
+server_log="$tmp_dir/harness-ui.log"
+output_dir="${HARNESS_UI_OUTPUT_DIR:-output/playwright/topbar-smoke}"
+session="topbar-smoke"
+server_pid=""
+
+stop_pid() {
+  local pid="$1"
+  if [[ -z "$pid" ]]; then
+    return
+  fi
+  kill "$pid" >/dev/null 2>&1 || true
+  for _ in $(seq 1 20); do
+    if ! kill -0 "$pid" >/dev/null 2>&1; then
+      wait "$pid" >/dev/null 2>&1 || true
+      return
+    fi
+    sleep 0.1
+  done
+  kill -9 "$pid" >/dev/null 2>&1 || true
+  wait "$pid" >/dev/null 2>&1 || true
+}
+
+cleanup() {
+  stop_pid "$server_pid"
+  "$PWCLI" --session "$session" close >/dev/null 2>&1 || true
+  rm -rf "$tmp_dir"
+}
+
+trap cleanup EXIT
+
+mkdir -p "$output_dir"
+
+pnpm --dir "$repo_root/web" build >/dev/null
+"$repo_root/scripts/install-dev-harness" >/dev/null
+harness_bin="${HARNESS_UI_BINARY:-$repo_root/.local/bin/harness}"
+
+(
+  cd "$repo_root"
+  "$harness_bin" ui --no-open --host "$host" --port "$port" >"$server_log" 2>&1
+) &
+server_pid="$!"
+
+base_url="http://${host}:${port}"
+for _ in $(seq 1 50); do
+  if curl -sf "${base_url}/api/status" >/dev/null; then
+    break
+  fi
+  sleep 0.2
+done
+curl -sf "${base_url}/api/status" >/dev/null
+
+find "${TMPDIR:-/tmp}" -path "*/pw-*/cli/*-${session}.sock" -delete 2>/dev/null || true
+"$PWCLI" --session "$session" open "${base_url}/timeline" >/dev/null
+"$PWCLI" --session "$session" run-code '
+async (page) => {
+  const banner = page.getByRole("banner");
+  await banner.getByRole("button", { name: /^Actions / }).click();
+  await page.waitForURL(/\/status#next-actions$/);
+  await banner.getByRole("button", { name: /^Warnings / }).click();
+  await page.waitForURL(/\/status#warnings$/);
+  await page.screenshot({ path: ".playwright-cli/topbar-smoke-status.png", scale: "css", type: "png" });
+  return {
+    pathname: page.url(),
+    heading: await page.locator(".editor-tab").textContent(),
+    section: await page.locator(".editor-section-label").textContent(),
+  };
+}
+' >"$output_dir/topbar-smoke.txt"
+
+cp "$repo_root/.playwright-cli/topbar-smoke-status.png" "$output_dir/topbar-smoke-status.png"
+
+if ! grep -Fq "/status#warnings" "$output_dir/topbar-smoke.txt"; then
+  echo "Topbar smoke did not navigate to the warnings section." >&2
+  cat "$output_dir/topbar-smoke.txt" >&2
+  exit 1
+fi
+
+if ! grep -Fq "Status" "$output_dir/topbar-smoke.txt"; then
+  echo "Topbar smoke did not land on the Status page." >&2
+  cat "$output_dir/topbar-smoke.txt" >&2
+  exit 1
+fi
+
+echo "Playwright topbar smoke validation passed for ${base_url}"

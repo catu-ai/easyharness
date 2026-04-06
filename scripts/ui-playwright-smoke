@@ -581,6 +581,12 @@ interactive_ref_from_snapshot() {
   grep -F "\"$label\"" "$snapshot" | head -n 1 | sed -n 's/.*\[ref=\(e[0-9][0-9]*\)\].*/\1/p'
 }
 
+button_ref_from_snapshot() {
+  local label="$1"
+  local snapshot="$2"
+  grep -F "button \"$label" "$snapshot" | head -n 1 | sed -n 's/.*\[ref=\(e[0-9][0-9]*\)\].*/\1/p'
+}
+
 capture_session_snapshot() {
   local session="$1"
   local label="$2"
@@ -742,6 +748,34 @@ assert_has_text "timeline-inspector-publish-record" "https://github.com/catu-ai/
 pwcli_close "$timeline_inspector_session"
 
 navigate_via_rail "$rail_session" "status" "Timeline" "timeline-rail" "Timeline"
+actions_ref="$(button_ref_from_snapshot "Actions" "${output_dir}/timeline-rail.yml")"
+if [[ -z "$actions_ref" ]]; then
+  actions_ref="$(button_ref_from_snapshot "Actions 2" "${output_dir}/timeline-rail.yml")"
+fi
+if [[ -z "$actions_ref" ]]; then
+  echo "Could not find topbar Actions summary in ${output_dir}/timeline-rail.yml" >&2
+  cat "${output_dir}/timeline-rail.yml" >&2
+  exit 1
+fi
+pwcli "$rail_session" click "$actions_ref" >/dev/null
+sleep 0.5
+capture_session_snapshot "$rail_session" "status-topbar-actions"
+assert_has_text "status-topbar-actions" "Status"
+assert_has_text "status-topbar-actions" "Next actions"
+assert_has_text "status-topbar-actions" "$status_node"
+warning_ref="$(button_ref_from_snapshot "Warnings" "${output_dir}/status-topbar-actions.yml")"
+if [[ -z "$warning_ref" ]]; then
+  warning_ref="$(button_ref_from_snapshot "Warnings 0" "${output_dir}/status-topbar-actions.yml")"
+fi
+if [[ -z "$warning_ref" ]]; then
+  echo "Could not find topbar Warnings summary in ${output_dir}/status-topbar-actions.yml" >&2
+  cat "${output_dir}/status-topbar-actions.yml" >&2
+  exit 1
+fi
+pwcli "$rail_session" click "$warning_ref" >/dev/null
+sleep 0.5
+capture_session_snapshot "$rail_session" "status-topbar-warnings"
+assert_has_text "status-topbar-warnings" "Warnings"
 navigate_via_rail "$rail_session" "timeline-rail" "Status" "status-rail" "Status"
 navigate_via_rail "$rail_session" "status-rail" "Review" "review-rail" "Review data is hidden once land cleanup begins."
 navigate_via_rail "$rail_session" "review-rail" "Status" "status-return" "Status"

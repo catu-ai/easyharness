@@ -252,6 +252,8 @@ export function StatusWorkspace(props: {
       pageTitle="Status"
       detailLabel={activeSectionLabel}
       loading={loading}
+      storageKey="status"
+      defaultExplorerWidth={288}
       explorerContent={
         <ExplorerList ariaLabel="Status sections">
           {sections.map((item) => (
@@ -329,6 +331,8 @@ export function TimelineWorkspace(props: {
       pageTitle="Timeline"
       detailLabel={selectedEvent ? timelineEventTitle(selectedEvent) : "Events"}
       loading={loading}
+      storageKey="timeline"
+      defaultExplorerWidth={304}
       explorerContent={
         <ExplorerList ariaLabel="Timeline events">
           {sortedEvents.length > 0 ? (
@@ -467,6 +471,8 @@ export function ReviewWorkspace(props: {
       pageTitle="Review"
       detailLabel={selectedRound ? reviewRoundTitle(selectedRound) : "Rounds"}
       loading={loading}
+      storageKey="review"
+      defaultExplorerWidth={304}
       explorerContent={
         <ExplorerList ariaLabel="Review rounds">
           {rounds.length > 0 ? (
@@ -478,12 +484,11 @@ export function ReviewWorkspace(props: {
                 ariaLabel={reviewRoundAriaLabel(round)}
                 title={
                   <div class="review-explorer-title">
-                    <span>{reviewRoundTitle(round)}</span>
+                    <span class="review-explorer-title-text">{reviewRoundTitle(round)}</span>
                     <span class={`review-round-indicator is-${reviewRoundStatusTone(round)}`} aria-hidden="true" />
                   </div>
                 }
-                subtitle={reviewRoundSubtitle(round)}
-                meta={`${reviewCountLabel(round.submitted_slots)}/${reviewCountLabel(round.total_slots)} submitted`}
+                subtitle={`${reviewRoundSubtitle(round)} · ${reviewCountLabel(round.submitted_slots)}/${reviewCountLabel(round.total_slots)} submitted`}
                 trailing={<span class="review-round-status-text">{reviewRoundCompactStatusLabel(round)}</span>}
                 tone={reviewRoundStatusTone(round)}
               />

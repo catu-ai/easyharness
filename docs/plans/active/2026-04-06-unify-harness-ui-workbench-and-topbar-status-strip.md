@@ -314,19 +314,31 @@ workbench now reads as one coherent product.
 
 Ran `pnpm --dir web check` and `pnpm --dir web build`, then updated the
 Playwright smoke scripts to validate the new topbar summary and shared
-Explorer/Inspector structure. Interactive Playwright runs produced fresh
-snapshots and screenshots for `Status`, `Timeline`, and `Review`, including:
+Explorer/Inspector structure. Follow-up fixes after the first review round
+closed the remaining polish gaps: Review explorer rows no longer overlap under
+long titles, the `Status` mobile breakpoint now collapses into the same
+stacked shell language as the other pages, and the Explorer/Inspector divider
+uses a shared draggable splitter with pointer + keyboard support.
+
+Interactive Playwright runs produced fresh snapshots and screenshots for
+`Status`, `Timeline`, and `Review`, including:
 
 - `output/playwright/manual-status-polish/status-current.png`
+- `.playwright-cli/status-mobile-verified.png`
+- `.playwright-cli/review-desktop-verified.png`
 - `output/playwright/harness-ui-smoke-*/timeline-inspector-initial.png`
 - `output/playwright/ruis-*/review-initial.png`
 - `output/playwright/ruis-*/review-ux.png`
+- `output/playwright/topbar-smoke/topbar-smoke-status.png`
 
 Reviewed those screenshots manually for topbar density, Explorer consistency,
 inspector hierarchy, and cross-page visual coherence. The shell wrappers in
 this environment produced the expected artifacts and assertions but were
 slower to return than ordinary unit/build commands, so the screenshot artifacts
-themselves were used as the durable evidence source.
+themselves were used as the durable evidence source. Final automated coverage
+passed with `scripts/ui-playwright-smoke`,
+`scripts/ui-playwright-review-smoke`, and
+`scripts/ui-playwright-topbar-smoke`.
 
 #### Review Notes
 
