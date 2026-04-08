@@ -258,6 +258,10 @@ work remains in `land` until `harness land complete` intentionally restores
 ## Step and Review Rules
 
 - The first unfinished step determines the current execution step.
+- In the ordinary loop, `execution/step-<k>/...` names the current execution
+  frontier. However, an explicit earlier-step closeout repair may intentionally
+  re-enter `execution/step-<i>/review` or `execution/step-<i>/implement` for a
+  completed earlier step that is being repaired.
 - A step should not be marked done until its implementation, execution notes,
   review notes, and relevant review loop are complete, or the step records why
   no review was needed.
@@ -284,6 +288,13 @@ work remains in `land` until `harness land complete` intentionally restores
   still missing review-complete closeout, it should keep the current step or
   finalize node stable, add warning-driven repair guidance, and avoid pretending
   that the earlier closeout is complete.
+- If an explicit earlier-step closeout repair review is started, status should
+  treat the targeted earlier step as current for that repair loop while the
+  review is in flight or after a non-clean aggregate.
+- If an explicit earlier-step closeout repair review later fails, the fix work
+  still belongs to the same overall candidate, but the repaired step remains
+  current until a later clean closeout review or explicit no-review-needed
+  note resolves that earlier-step debt.
 - Finalize review remains a distinct whole-branch gate even if an earlier step
   review used a full-review recipe.
 - After `execution/finalize/fix`, the candidate must pass a later finalize
