@@ -45,8 +45,8 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 		t,
 		planPath,
 		1,
-		"Established the earlier closeout target that later explicit repair rounds will revisit.",
-		"NO_STEP_REVIEW_NEEDED: The built-binary transition exercise intentionally uses explicit earlier-step repair instead of ordinary closeout review for step 1.",
+		"Established the earlier closeout target and intentionally left real earlier-step closeout debt for later explicit repair rounds to clear.",
+		"Completed review notes without review-complete closeout evidence so explicit earlier-step repair must clear the debt before finalize can proceed.",
 	)
 
 	stepTwoStatus := runStatus(t, workspace.Root)
@@ -106,30 +106,12 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 	finalizeReviewStatus := runStatus(t, workspace.Root)
 	assertNode(t, finalizeReviewStatus, "execution/finalize/review")
 
-	finalizeReviewRepair := startReviewRound(t, workspace, "tmp/finalize-review-explicit-step1.json", map[string]any{
-		"step": 1,
-		"kind": "full",
-		"dimensions": []map[string]any{
-			{
-				"name":         "correctness",
-				"instructions": "Exercise explicit earlier-step repair from finalize review.",
-			},
-		},
-	})
-	assertNode(t, runStatus(t, workspace.Root), "execution/step-1/review")
-	submitReviewSlot(t, workspace, finalizeReviewRepair.Artifacts.RoundID, finalizeReviewRepair.Artifacts.Slots[0], "Earlier-step repair from finalize review is clean.", nil)
-	finalizeReviewRepairAggregate := aggregateReviewRound(t, workspace, finalizeReviewRepair.Artifacts.RoundID)
-	if finalizeReviewRepairAggregate.Review.Decision != "pass" {
-		t.Fatalf("expected finalize-review explicit repair to pass, got %#v", finalizeReviewRepairAggregate)
-	}
-	assertNode(t, runStatus(t, workspace.Root), "execution/finalize/review")
-
 	finalizeFailure := startReviewRound(t, workspace, "tmp/finalize-failure.json", map[string]any{
 		"kind": "full",
 		"dimensions": []map[string]any{
 			{
 				"name":         "correctness",
-				"instructions": "Drive the candidate into finalize fix before the final explicit repair start.",
+				"instructions": "Prove the ordinary finalize path is restored after explicit earlier-step repair clears the debt.",
 			},
 		},
 	})
@@ -143,7 +125,7 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 	})
 	finalizeFailureAggregate := aggregateReviewRound(t, workspace, finalizeFailure.Artifacts.RoundID)
 	if finalizeFailureAggregate.Review.Decision != "changes_requested" {
-		t.Fatalf("expected finalize review to move into finalize fix, got %#v", finalizeFailureAggregate)
+		t.Fatalf("expected repaired candidate to allow a default finalize review start before moving into finalize fix, got %#v", finalizeFailureAggregate)
 	}
 	assertNode(t, runStatus(t, workspace.Root), "execution/finalize/fix")
 
@@ -161,22 +143,49 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 	if !strings.HasSuffix(finalizeFixRepair.Artifacts.RoundID, "-delta") {
 		t.Fatalf("expected explicit repair from finalize fix to use delta fixture round id, got %#v", finalizeFixRepair)
 	}
+	submitReviewSlot(t, workspace, finalizeFixRepair.Artifacts.RoundID, finalizeFixRepair.Artifacts.Slots[0], "Earlier-step repair from finalize fix is clean.", nil)
+	finalizeFixRepairAggregate := aggregateReviewRound(t, workspace, finalizeFixRepair.Artifacts.RoundID)
+	if finalizeFixRepairAggregate.Review.Decision != "pass" {
+		t.Fatalf("expected explicit repair from finalize fix to pass, got %#v", finalizeFixRepairAggregate)
+	}
+	assertNode(t, runStatus(t, workspace.Root), "execution/finalize/review")
+
+	finalizeReviewRepair := startReviewRound(t, workspace, "tmp/finalize-review-explicit-step1.json", map[string]any{
+		"step": 1,
+		"kind": "full",
+		"dimensions": []map[string]any{
+			{
+				"name":         "correctness",
+				"instructions": "Exercise explicit earlier-step repair from finalize review after the ordinary finalize path has been restored.",
+			},
+		},
+	})
+	assertNode(t, runStatus(t, workspace.Root), "execution/step-1/review")
+	submitReviewSlot(t, workspace, finalizeReviewRepair.Artifacts.RoundID, finalizeReviewRepair.Artifacts.Slots[0], "Earlier-step repair from finalize review is clean.", nil)
+	finalizeReviewRepairAggregate := aggregateReviewRound(t, workspace, finalizeReviewRepair.Artifacts.RoundID)
+	if finalizeReviewRepairAggregate.Review.Decision != "pass" {
+		t.Fatalf("expected finalize-review explicit repair to pass, got %#v", finalizeReviewRepairAggregate)
+	}
+	assertNode(t, runStatus(t, workspace.Root), "execution/finalize/review")
 }
 
 func explicitStepRepairPlanBody() string {
 	return strings.TrimSpace(`
 ## Goal
 
-Exercise the built-binary transitions for explicit earlier-step closeout
-repair from a later execution frontier, from finalize review, and from
-finalize fix.
+Exercise the built-binary transitions for real explicit earlier-step closeout
+repair from a later execution frontier, prove that the repaired candidate can
+re-enter ordinary finalize review, and cover explicit repair from finalize
+review and finalize fix.
 
 ## Scope
 
 ### In Scope
 
+- leave real earlier-step closeout debt behind after a completed earlier step
 - start an explicit earlier-step repair from a later unfinished step
 - cover failing and passing explicit repair aggregates
+- prove a clean explicit repair restores the normal finalize review path
 - re-enter explicit repair from finalize review and finalize fix
 
 ### Out of Scope
@@ -188,6 +197,7 @@ finalize fix.
 
 - [ ] later-frontier explicit repair can fail and pin the earlier step
 - [ ] later-frontier explicit repair can pass and return to the ordinary frontier
+- [ ] a clean explicit repair clears real earlier-step debt so ordinary finalize review can start
 - [ ] finalize review and finalize fix can both start explicit earlier-step repair
 
 ## Deferred Items

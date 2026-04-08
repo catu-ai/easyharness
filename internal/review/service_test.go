@@ -173,6 +173,69 @@ func TestStartAcceptsExplicitEarlierStepFromFinalizeContext(t *testing.T) {
 	}
 }
 
+func TestStartRejectsDefaultFinalizeReviewWhenEarlierCloseoutDebtExists(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+
+	svc := review.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 18, 1, 25, 0, 0, time.UTC)
+		},
+	}
+
+	result := svc.Start(mustJSON(t, review.Spec{
+		Kind: "full",
+		Dimensions: []review.Dimension{
+			{Name: "correctness", Instructions: "Check the finalize candidate."},
+		},
+	}))
+	if result.OK {
+		t.Fatalf("expected default finalize review start to reject unresolved earlier-step closeout debt, got %#v", result)
+	}
+	assertStartError(t, result, "spec")
+	if len(result.Errors) == 0 || !strings.Contains(result.Errors[0].Message, "Step 1: Replace with first step title") || !strings.Contains(result.Errors[0].Message, "spec.step") {
+		t.Fatalf("expected explicit earlier-step repair guidance in the start error, got %#v", result.Errors)
+	}
+}
+
+func TestStartAllowsDefaultFinalizeReviewWhenEarlierCloseoutDebtIsSatisfied(t *testing.T) {
+	root := t.TempDir()
+	path := writeExecutingFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	markAllPlanStepsNoReviewNeeded(t, path)
+
+	svc := review.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 18, 1, 30, 0, 0, time.UTC)
+		},
+	}
+
+	result := svc.Start(mustJSON(t, review.Spec{
+		Kind: "full",
+		Dimensions: []review.Dimension{
+			{Name: "correctness", Instructions: "Check the finalize candidate."},
+		},
+	}))
+	if !result.OK {
+		t.Fatalf("expected default finalize review start success once earlier-step closeout debt is satisfied, got %#v", result)
+	}
+	if result.Artifacts == nil {
+		t.Fatalf("expected finalize review artifacts, got %#v", result)
+	}
+	var manifest review.Manifest
+	data, err := os.ReadFile(result.Artifacts.ManifestPath)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatalf("parse manifest: %v", err)
+	}
+	if manifest.Step != nil {
+		t.Fatalf("expected finalize-bound review manifest after debt is cleared, got %#v", manifest)
+	}
+}
+
 func TestStartAcceptsExecutionStartMilestoneWithoutLegacyExecutingLifecycle(t *testing.T) {
 	root := t.TempDir()
 	relPath := "docs/plans/active/2026-03-18-review-contract.md"
@@ -206,7 +269,7 @@ func TestStartAcceptsExecutionStartMilestoneWithoutLegacyExecutingLifecycle(t *t
 func TestStartIgnoresLegacyTimestampReviewDirectoriesForCompactSequence(t *testing.T) {
 	root := t.TempDir()
 	planStem := "2026-03-18-review-contract"
-	writeExecutingFinalizePlan(t, root, "docs/plans/active/"+planStem+".md")
+	writeArchiveReadyFinalizePlan(t, root, "docs/plans/active/"+planStem+".md")
 
 	legacyRoundDir := filepath.Join(root, ".local", "harness", "plans", planStem, "reviews", "review-20260318t010000000000000z-delta")
 	if err := os.MkdirAll(legacyRoundDir, 0o755); err != nil {
@@ -797,7 +860,7 @@ func TestAggregateDeltaPassUpdatesState(t *testing.T) {
 
 func TestAggregateRejectsNonActiveRound(t *testing.T) {
 	root := t.TempDir()
-	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	writeArchiveReadyFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 
 	svc := review.Service{
 		Workdir: root,
@@ -806,7 +869,7 @@ func TestAggregateRejectsNonActiveRound(t *testing.T) {
 		},
 	}
 	stale := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind: "full",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -824,7 +887,6 @@ func TestAggregateRejectsNonActiveRound(t *testing.T) {
 	svc.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 1, 5, 0, 0, time.UTC)
 	}
-	writeExecutingFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 	active := svc.Start(mustJSON(t, review.Spec{
 		Kind: "full",
 		Dimensions: []review.Dimension{
@@ -996,7 +1058,7 @@ func TestAggregateRejectsWhenStateMutationLockIsHeld(t *testing.T) {
 
 func TestAggregateFullWithBlockingFindings(t *testing.T) {
 	root := t.TempDir()
-	writeExecutingFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	writeArchiveReadyFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 
 	svc := review.Service{
 		Workdir: root,
@@ -1055,7 +1117,7 @@ func TestAggregateFullWithBlockingFindings(t *testing.T) {
 
 func TestAggregatePreservesExplicitEmptyLocationsArray(t *testing.T) {
 	root := t.TempDir()
-	writeExecutingFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	writeArchiveReadyFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 
 	svc := review.Service{
 		Workdir: root,
@@ -1144,6 +1206,13 @@ func writeExecutingFinalizePlan(t *testing.T, root, relPath string) string {
 	return path
 }
 
+func writeArchiveReadyFinalizePlan(t *testing.T, root, relPath string) string {
+	t.Helper()
+	path := writeExecutingFinalizePlan(t, root, relPath)
+	markAllPlanStepsNoReviewNeeded(t, path)
+	return path
+}
+
 func writePlainReviewPlan(t *testing.T, root, relPath string) string {
 	t.Helper()
 	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
@@ -1182,6 +1251,22 @@ func markFirstPlanStepDone(t *testing.T, path string) {
 		t.Fatalf("read plan: %v", err)
 	}
 	content := strings.Replace(string(data), "- Done: [ ]", "- Done: [x]", 1)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write updated plan: %v", err)
+	}
+}
+
+func markAllPlanStepsNoReviewNeeded(t *testing.T, path string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read plan: %v", err)
+	}
+	content := strings.ReplaceAll(
+		string(data),
+		"#### Review Notes\n\nPENDING_STEP_REVIEW",
+		"#### Review Notes\n\nNO_STEP_REVIEW_NEEDED: Test fixture uses explicit review-complete closeout.",
+	)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write updated plan: %v", err)
 	}

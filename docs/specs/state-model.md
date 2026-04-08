@@ -295,6 +295,9 @@ work remains in `land` until `harness land complete` intentionally restores
   still belongs to the same overall candidate, but the repaired step remains
   current until a later clean closeout review or explicit no-review-needed
   note resolves that earlier-step debt.
+- Default finalize review start and archive must reject unresolved earlier-step
+  review-complete debt even though status may continue surfacing the current
+  later-step or finalize node as the stable workflow position.
 - Finalize review remains a distinct whole-branch gate even if an earlier step
   review used a full-review recipe.
 - After `execution/finalize/fix`, the candidate must pass a later finalize

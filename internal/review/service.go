@@ -17,6 +17,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/inputschema"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
+	"github.com/catu-ai/easyharness/internal/stepcloseout"
 )
 
 var slotNamePattern = regexp.MustCompile(`[^a-z0-9]+`)
@@ -99,7 +100,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 			Errors:  issues,
 		}
 	}
-	inferredStep, revision, reviewTitle, err := inferReviewBinding(doc, state, spec)
+	inferredStep, revision, reviewTitle, err := inferReviewBinding(s.Workdir, planStem, doc, state, spec)
 	if err != nil {
 		return StartResult{
 			OK:      false,
@@ -815,7 +816,7 @@ func formatRoundID(sequence int, kind string) string {
 	return fmt.Sprintf("review-%03d-%s", sequence, kind)
 }
 
-func inferReviewBinding(doc *plan.Document, state *runstate.State, spec Spec) (*int, int, string, error) {
+func inferReviewBinding(workdir, planStem string, doc *plan.Document, state *runstate.State, spec Spec) (*int, int, string, error) {
 	revision := runstate.CurrentRevision(state)
 	if stepIndex, ok, err := inferReviewStepIndex(doc, state, spec); err != nil {
 		return nil, 0, "", err
@@ -833,6 +834,12 @@ func inferReviewBinding(doc *plan.Document, state *runstate.State, spec Spec) (*
 	}
 	if !doc.AllStepsCompleted() {
 		return nil, 0, "", fmt.Errorf("no reviewable tracked step could be inferred; set spec.step to select a tracked step explicitly")
+	}
+	reminder := stepcloseout.LoadReminder(workdir, planStem, doc, "execution/finalize/review", nil)
+	if len(reminder.MissingTitles) > 0 {
+		earliestTitle := reminder.MissingTitles[0]
+		earliestStepNumber := reminder.MissingIndexes[0] + 1
+		return nil, 0, "", fmt.Errorf("earlier completed steps still need review-complete closeout; repair %s first with spec.step=%d or record NO_STEP_REVIEW_NEEDED: <reason> in Review Notes before starting default finalize review", earliestTitle, earliestStepNumber)
 	}
 
 	reviewTitle := strings.TrimSpace(spec.ReviewTitle)
