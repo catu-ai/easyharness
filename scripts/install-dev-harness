@@ -3,12 +3,13 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/install-dev-harness [--install-dir <path>] [--force]
+Usage: scripts/install-dev-harness [--global] [--install-dir <path>] [--force]
 
 Build the current repo's harness binary into .local/bin and install a
 worktree-aware `harness` wrapper from a user-local directory.
 
 Options:
+  --global              Refresh the fallback binary used outside easyharness source trees.
   --install-dir <path>  Override the target directory for the harness wrapper.
   --force               Replace an existing non-matching harness entry.
   -h, --help            Show this help text.
@@ -16,10 +17,14 @@ EOF
 }
 
 install_dir=""
+install_global_fallback=0
 force=0
 
 while (($#)); do
   case "$1" in
+    --global)
+      install_global_fallback=1
+      ;;
     --install-dir)
       shift
       if (($# == 0)); then
@@ -95,14 +100,6 @@ choose_install_dir() {
   fi
 
   if [[ -n "${HOME:-}" ]]; then
-    if path_has_entry "${HOME}/.local/bin"; then
-      printf '%s\n' "${HOME}/.local/bin"
-      return
-    fi
-    if path_has_entry "${HOME}/bin"; then
-      printf '%s\n' "${HOME}/bin"
-      return
-    fi
     printf '%s\n' "${HOME}/.local/bin"
     return
   fi
@@ -125,8 +122,18 @@ choose_install_dir() {
   printf '%s\n' "${repo_root}/.local/dev-bin"
 }
 
+choose_global_fallback_path() {
+  if [[ -n "${HOME:-}" ]]; then
+    printf '%s\n' "${HOME}/.local/share/easyharness/dev/harness"
+    return
+  fi
+
+  printf '%s\n' ""
+}
+
 target_dir="$(choose_install_dir)"
 command_path="${target_dir}/harness"
+global_fallback_path="$(choose_global_fallback_path)"
 
 if [[ "${command_path}" == "${binary_path}" ]]; then
   echo "Refusing to install the wrapper over the repo-local binary at ${binary_path}." >&2
@@ -136,7 +143,7 @@ fi
 
 wrapper_content() {
   local fallback_binary_path template
-  fallback_binary_path="$(printf '%q' "${binary_path}")"
+  fallback_binary_path="$(printf '%q' "${global_fallback_path}")"
   template="$(cat <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -203,11 +210,11 @@ if repo_root="$(find_repo_root)"; then
     echo "Run scripts/install-dev-harness from this worktree first." >&2
     exit 1
   fi
-elif [[ -x "${fallback_binary_path}" ]]; then
+elif [[ -n "${fallback_binary_path}" && -x "${fallback_binary_path}" ]]; then
   binary_path="${fallback_binary_path}"
 else
-  echo "Could not find an easyharness worktree from ${PWD}, and the fallback harness binary is unavailable at ${fallback_binary_path}." >&2
-  echo "Run scripts/install-dev-harness from an easyharness worktree first." >&2
+  echo "Could not find an easyharness source tree from ${PWD}, and the global fallback harness binary is unavailable at ${fallback_binary_path:-<unset>}." >&2
+  echo "Run scripts/install-dev-harness --global from the easyharness checkout you want to use outside source trees." >&2
   exit 1
 fi
 
@@ -285,6 +292,19 @@ build_args=("-o" "${binary_path}" "-ldflags" "${build_ldflags[*]}" "./cmd/harnes
 )
 "${binary_path}" --help >/dev/null
 
+global_fallback_updated=0
+if [[ "${install_global_fallback}" -eq 1 ]]; then
+  if [[ -z "${global_fallback_path}" ]]; then
+    echo "Cannot install a global fallback without HOME set." >&2
+    exit 1
+  fi
+
+  mkdir -p "$(dirname "${global_fallback_path}")"
+  cp "${binary_path}" "${global_fallback_path}"
+  chmod 755 "${global_fallback_path}"
+  global_fallback_updated=1
+fi
+
 mkdir -p "${target_dir}"
 if [[ -e "${command_path}" || -L "${command_path}" ]]; then
   if [[ "${force}" -eq 1 ]]; then
@@ -311,7 +331,15 @@ fi
 echo "Built dev harness binary at ${binary_path}"
 echo "Installed harness wrapper at ${command_path}"
 echo "Verified the repo-local binary directly at ${binary_path}"
-echo "Wrapper fallback binary outside easyharness worktrees: ${binary_path}"
+if [[ -n "${global_fallback_path}" ]]; then
+  if [[ "${global_fallback_updated}" -eq 1 ]]; then
+    echo "Updated global fallback binary at ${global_fallback_path}"
+  elif [[ -x "${global_fallback_path}" ]]; then
+    echo "Global fallback binary remains at ${global_fallback_path}"
+  else
+    echo "No global fallback binary installed yet; run scripts/install-dev-harness --global to set one."
+  fi
+fi
 
 if [[ ":${PATH}:" == *":${target_dir}:"* ]]; then
   resolved_path="$(command -v harness || true)"

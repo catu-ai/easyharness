@@ -55,19 +55,39 @@ By default the installer:
 
 - builds the binary at `.local/bin/harness`
 - installs a small worktree-aware `harness` wrapper in a user-local bin dir
-- uses `~/.local/bin` by default, or `~/bin` when that is already on `PATH`
+- uses `~/.local/bin` by default
 - keeps parallel worktrees isolated by dispatching to the current worktree's
   `.local/bin/harness`
-- falls back outside `easyharness` worktrees to the binary from the worktree
-  that last installed the wrapper
+- only updates the outside-source-tree fallback when you install with
+  `--global`
 
 Useful options:
 
 ```bash
 scripts/install-dev-harness --help
+scripts/install-dev-harness --global
 scripts/install-dev-harness --install-dir "$HOME/.local/bin"
 scripts/install-dev-harness --force
 ```
+
+Development installs expect `~/.local/bin` to be on `PATH` so the wrapper can
+be called directly:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+When you want a checkout to provide the fallback used outside easyharness
+source trees, refresh it explicitly:
+
+```bash
+cd ~/Workspace/superharness
+scripts/install-dev-harness --global
+```
+
+Inside any easyharness source tree, the wrapper still dispatches to that
+checkout's local `.local/bin/harness` and does not silently fall back to the
+global binary.
 
 Verify the command is available:
 

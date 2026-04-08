@@ -104,16 +104,18 @@ func TestInstallDevHarnessWrapperDispatchesToCurrentWorktree(t *testing.T) {
 
 	repoRoot := copyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "global-bin")
+	homeDir := t.TempDir()
 
 	result := runCommand(
 		t,
 		repoRoot,
 		installerEnv(t, map[string]string{
-			"HOME": t.TempDir(),
+			"HOME": homeDir,
 			"PATH": installerPath(t),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
+		"--global",
 		"--install-dir", installDir,
 	)
 	if result.ExitCode != 0 {
@@ -122,6 +124,8 @@ func TestInstallDevHarnessWrapperDispatchesToCurrentWorktree(t *testing.T) {
 
 	wrapperPath := filepath.Join(installDir, "harness")
 	support.RequireFileExists(t, wrapperPath)
+	globalFallback := filepath.Join(homeDir, ".local", "share", "easyharness", "dev", "harness")
+	writeFixtureFile(t, globalFallback, "#!/bin/sh\nprintf 'unexpected-global\\n'\n", 0o755)
 
 	_, nestedDir := newFakeWorktree(t)
 	wrapperResult := runCommand(
@@ -139,9 +143,12 @@ func TestInstallDevHarnessWrapperDispatchesToCurrentWorktree(t *testing.T) {
 
 	support.RequireContains(t, wrapperResult.Stdout, "fake worktree harness")
 	support.RequireContains(t, wrapperResult.Stdout, "args=status")
+	if strings.Contains(wrapperResult.CombinedOutput(), "unexpected-global") {
+		t.Fatalf("expected wrapper to prefer the worktree-local binary over the global fallback\nstdout:\n%s\nstderr:\n%s", wrapperResult.Stdout, wrapperResult.Stderr)
+	}
 }
 
-func TestInstallDevHarnessWrapperFallsBackOutsideWorktree(t *testing.T) {
+func TestInstallDevHarnessWrapperRequiresExplicitGlobalFallbackOutsideWorktree(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
@@ -177,11 +184,60 @@ func TestInstallDevHarnessWrapperFallsBackOutsideWorktree(t *testing.T) {
 		wrapperPath,
 		"--help",
 	)
-	if wrapperResult.ExitCode != 0 {
-		t.Fatalf("wrapper fallback failed with exit %d\nstdout:\n%s\nstderr:\n%s", wrapperResult.ExitCode, wrapperResult.Stdout, wrapperResult.Stderr)
+	if wrapperResult.ExitCode == 0 {
+		t.Fatalf("expected wrapper without --global fallback to fail outside easyharness source trees\nstdout:\n%s\nstderr:\n%s", wrapperResult.Stdout, wrapperResult.Stderr)
 	}
 
-	support.RequireContains(t, wrapperResult.CombinedOutput(), "Usage: harness <command> [subcommand] [flags]")
+	support.RequireContains(t, wrapperResult.Stderr, "Could not find an easyharness source tree")
+	support.RequireContains(t, wrapperResult.Stderr, "scripts/install-dev-harness --global")
+}
+
+func TestInstallDevHarnessWrapperUsesExplicitGlobalFallbackOutsideWorktree(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("installer smoke tests require a POSIX shell")
+	}
+
+	repoRoot := copyInstallerFixture(t)
+	installDir := filepath.Join(t.TempDir(), "global-bin")
+	homeDir := t.TempDir()
+
+	result := runCommand(
+		t,
+		repoRoot,
+		installerEnv(t, map[string]string{
+			"HOME": homeDir,
+			"PATH": installerPath(t),
+		}),
+		"/bin/bash",
+		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
+		"--global",
+		"--install-dir", installDir,
+	)
+	if result.ExitCode != 0 {
+		t.Fatalf("install-dev-harness failed with exit %d\nstdout:\n%s\nstderr:\n%s", result.ExitCode, result.Stdout, result.Stderr)
+	}
+
+	wrapperPath := filepath.Join(installDir, "harness")
+	support.RequireFileExists(t, wrapperPath)
+	globalFallback := filepath.Join(homeDir, ".local", "share", "easyharness", "dev", "harness")
+	support.RequireFileExists(t, globalFallback)
+	support.RequireContains(t, result.Stdout, "Updated global fallback binary at "+globalFallback)
+
+	otherProject := t.TempDir()
+	helpResult := runCommand(
+		t,
+		otherProject,
+		envWithOverrides(t, map[string]string{
+			"PATH": installerPath(t),
+		}),
+		wrapperPath,
+		"--help",
+	)
+	if helpResult.ExitCode != 0 {
+		t.Fatalf("wrapper global fallback failed with exit %d\nstdout:\n%s\nstderr:\n%s", helpResult.ExitCode, helpResult.Stdout, helpResult.Stderr)
+	}
+
+	support.RequireContains(t, helpResult.CombinedOutput(), "Usage: harness <command> [subcommand] [flags]")
 }
 
 func TestInstallDevHarnessVersionReportsDevModeAndPath(t *testing.T) {
@@ -193,16 +249,18 @@ func TestInstallDevHarnessVersionReportsDevModeAndPath(t *testing.T) {
 	installDir := filepath.Join(t.TempDir(), "global-bin")
 	expectedCommit := "0123456789abcdef0123456789abcdef01234567"
 	fakeGitDir := fakeGitDirForHeadCommit(t, repoRoot, expectedCommit)
+	homeDir := t.TempDir()
 
 	result := runCommand(
 		t,
 		repoRoot,
 		installerEnv(t, map[string]string{
-			"HOME": t.TempDir(),
+			"HOME": homeDir,
 			"PATH": installerPath(t, fakeGitDir),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
+		"--global",
 		"--install-dir", installDir,
 	)
 	if result.ExitCode != 0 {
@@ -232,7 +290,7 @@ func TestInstallDevHarnessVersionReportsDevModeAndPath(t *testing.T) {
 	if commit := requireVersionField(t, versionResult.Stdout, "commit"); commit != expectedCommit {
 		t.Fatalf("expected injected dev commit %q, got %q\noutput:\n%s", expectedCommit, commit, versionResult.Stdout)
 	}
-	expectedPath := filepath.Join(repoRoot, ".local", "bin", "harness")
+	expectedPath := filepath.Join(homeDir, ".local", "share", "easyharness", "dev", "harness")
 	if path := requireVersionField(t, versionResult.Stdout, "path"); path != expectedPath {
 		t.Fatalf("expected dev path %q, got %q\noutput:\n%s", expectedPath, path, versionResult.Stdout)
 	}
@@ -241,7 +299,7 @@ func TestInstallDevHarnessVersionReportsDevModeAndPath(t *testing.T) {
 	}
 }
 
-func TestInstallDevHarnessRefreshesManagedWrapperWithoutForce(t *testing.T) {
+func TestInstallDevHarnessNormalInstallDoesNotReplaceExistingGlobalFallback(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
@@ -249,34 +307,32 @@ func TestInstallDevHarnessRefreshesManagedWrapperWithoutForce(t *testing.T) {
 	repoOne := copyInstallerFixture(t)
 	repoTwo := copyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "global-bin")
+	homeDir := t.TempDir()
 
 	firstInstall := runCommand(
 		t,
 		repoOne,
 		installerEnv(t, map[string]string{
-			"HOME": t.TempDir(),
+			"HOME": homeDir,
 			"PATH": installerPath(t),
 		}),
 		"/bin/bash",
 		filepath.Join(repoOne, "scripts", "install-dev-harness"),
+		"--global",
 		"--install-dir", installDir,
 	)
 	if firstInstall.ExitCode != 0 {
 		t.Fatalf("first install-dev-harness failed with exit %d\nstdout:\n%s\nstderr:\n%s", firstInstall.ExitCode, firstInstall.Stdout, firstInstall.Stderr)
 	}
 
-	wrapperPath := filepath.Join(installDir, "harness")
-	before, err := os.ReadFile(wrapperPath)
-	if err != nil {
-		t.Fatalf("read first wrapper: %v", err)
-	}
-	support.RequireContains(t, string(before), filepath.Join(repoOne, ".local", "bin", "harness"))
+	globalFallback := filepath.Join(homeDir, ".local", "share", "easyharness", "dev", "harness")
+	writeFixtureFile(t, globalFallback, "#!/bin/sh\nprintf 'global-from-first\\n'\n", 0o755)
 
 	secondInstall := runCommand(
 		t,
 		repoTwo,
 		installerEnv(t, map[string]string{
-			"HOME": t.TempDir(),
+			"HOME": homeDir,
 			"PATH": installerPath(t),
 		}),
 		"/bin/bash",
@@ -287,14 +343,22 @@ func TestInstallDevHarnessRefreshesManagedWrapperWithoutForce(t *testing.T) {
 		t.Fatalf("second install-dev-harness failed with exit %d\nstdout:\n%s\nstderr:\n%s", secondInstall.ExitCode, secondInstall.Stdout, secondInstall.Stderr)
 	}
 
-	after, err := os.ReadFile(wrapperPath)
-	if err != nil {
-		t.Fatalf("read refreshed wrapper: %v", err)
+	support.RequireContains(t, secondInstall.Stdout, "Global fallback binary remains at "+globalFallback)
+
+	wrapperPath := filepath.Join(installDir, "harness")
+	wrapperResult := runCommand(
+		t,
+		t.TempDir(),
+		envWithOverrides(t, map[string]string{
+			"PATH": installerPath(t),
+		}),
+		wrapperPath,
+		"--help",
+	)
+	if wrapperResult.ExitCode != 0 {
+		t.Fatalf("wrapper with preserved global fallback failed with exit %d\nstdout:\n%s\nstderr:\n%s", wrapperResult.ExitCode, wrapperResult.Stdout, wrapperResult.Stderr)
 	}
-	support.RequireContains(t, string(after), filepath.Join(repoTwo, ".local", "bin", "harness"))
-	if strings.Contains(string(after), filepath.Join(repoOne, ".local", "bin", "harness")) {
-		t.Fatalf("expected refreshed wrapper to stop pointing at first worktree fallback\nwrapper:\n%s", string(after))
-	}
+	support.RequireContains(t, wrapperResult.Stdout, "global-from-first")
 }
 
 func TestInstallDevHarnessReplacesLegacyManagedWrapperWithoutForce(t *testing.T) {
@@ -449,9 +513,58 @@ func TestInstallDevHarnessReplacesLegacySymlinkedBinaryWithoutForce(t *testing.T
 			if err != nil {
 				t.Fatalf("read refreshed wrapper: %v", err)
 			}
-	support.RequireContains(t, string(refreshed), "# easyharness-install-dev-wrapper")
-			support.RequireContains(t, string(refreshed), filepath.Join(repoRoot, ".local", "bin", "harness"))
+			support.RequireContains(t, string(refreshed), "# easyharness-install-dev-wrapper")
 		})
+	}
+}
+
+func TestInstallDevHarnessWrapperDoesNotUseGlobalFallbackInsideSourceTreeWithoutLocalBinary(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("installer smoke tests require a POSIX shell")
+	}
+
+	repoRoot := copyInstallerFixture(t)
+	installDir := filepath.Join(t.TempDir(), "global-bin")
+	homeDir := t.TempDir()
+
+	result := runCommand(
+		t,
+		repoRoot,
+		installerEnv(t, map[string]string{
+			"HOME": homeDir,
+			"PATH": installerPath(t),
+		}),
+		"/bin/bash",
+		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
+		"--global",
+		"--install-dir", installDir,
+	)
+	if result.ExitCode != 0 {
+		t.Fatalf("install-dev-harness failed with exit %d\nstdout:\n%s\nstderr:\n%s", result.ExitCode, result.Stdout, result.Stderr)
+	}
+
+	_, nestedDir := newFakeWorktreeWithoutLocalBinary(t)
+	globalFallback := filepath.Join(homeDir, ".local", "share", "easyharness", "dev", "harness")
+	writeFixtureFile(t, globalFallback, "#!/bin/sh\nprintf 'unexpected-global-fallback\\n'\n", 0o755)
+
+	wrapperPath := filepath.Join(installDir, "harness")
+	wrapperResult := runCommand(
+		t,
+		nestedDir,
+		envWithOverrides(t, map[string]string{
+			"PATH": installerPath(t),
+		}),
+		wrapperPath,
+		"status",
+	)
+	if wrapperResult.ExitCode == 0 {
+		t.Fatalf("expected source-tree invocation without local binary to fail\nstdout:\n%s\nstderr:\n%s", wrapperResult.Stdout, wrapperResult.Stderr)
+	}
+
+	support.RequireContains(t, wrapperResult.Stderr, "No repo-local harness binary found at ")
+	support.RequireContains(t, wrapperResult.Stderr, filepath.Join(".local", "bin", "harness"))
+	if strings.Contains(wrapperResult.CombinedOutput(), "unexpected-global-fallback") {
+		t.Fatalf("expected source-tree invocation to refuse the global fallback\nstdout:\n%s\nstderr:\n%s", wrapperResult.Stdout, wrapperResult.Stderr)
 	}
 }
 
@@ -540,6 +653,27 @@ func newFakeWorktree(t *testing.T) (string, string) {
 		"#!/bin/sh\nprintf 'fake worktree harness\\n'\nprintf 'args=%s\\n' \"$*\"\n",
 		0o755,
 	)
+
+	return root, filepath.Join(root, "nested", "dir")
+}
+
+func newFakeWorktreeWithoutLocalBinary(t *testing.T) (string, string) {
+	t.Helper()
+
+	root := t.TempDir()
+	for _, dir := range []string{
+		filepath.Join(root, "scripts"),
+		filepath.Join(root, "cmd", "harness"),
+		filepath.Join(root, "nested", "dir"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+	}
+
+	writeFixtureFile(t, filepath.Join(root, "scripts", "install-dev-harness"), "#!/usr/bin/env bash\n", 0o755)
+	writeFixtureFile(t, filepath.Join(root, "cmd", "harness", "main.go"), "package main\n", 0o644)
+	writeFixtureFile(t, filepath.Join(root, "go.mod"), "module github.com/catu-ai/easyharness\n", 0o644)
 
 	return root, filepath.Join(root, "nested", "dir")
 }
