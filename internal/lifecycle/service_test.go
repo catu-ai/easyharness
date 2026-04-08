@@ -572,6 +572,35 @@ func TestArchiveRequiresPassingReviewForRevisionOne(t *testing.T) {
 	}
 }
 
+func TestArchiveRejectsEarlierStepCloseoutDebtEvenAfterPassingFinalizeReview(t *testing.T) {
+	root := t.TempDir()
+	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
+	writeActiveArchiveCandidateWithCloseoutDebt(t, root, activeRelPath)
+
+	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+		PlanPath:           activeRelPath,
+		PlanStem:           "2026-03-18-archive-smoke",
+		ExecutionStartedAt: "2026-03-18T03:35:00Z",
+		ActiveReviewRound: &runstate.ReviewRound{
+			RoundID:    "review-001-full",
+			Kind:       "full",
+			Revision:   1,
+			Aggregated: true,
+			Decision:   "pass",
+		},
+	}); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+
+	result := lifecycle.Service{Workdir: root}.Archive()
+	if result.OK {
+		t.Fatalf("expected archive failure when earlier-step closeout debt remains, got %#v", result)
+	}
+	assertErrorPath(t, result.Errors, "plan.steps[0].review_notes")
+	assertErrorContains(t, result.Errors, "plan.steps[0].review_notes", "Step 1: Replace with first step title")
+	assertErrorContains(t, result.Errors, "plan.steps[0].review_notes", "review-complete closeout")
+}
+
 func TestArchiveAllowsPassingDeltaReviewForReopenedRevision(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
@@ -1496,13 +1525,38 @@ func buildActiveArchiveCandidate(t *testing.T) string {
 	rendered = strings.ReplaceAll(rendered, "- Done: [ ]", "- Done: [x]")
 	rendered = strings.ReplaceAll(rendered, "- [ ]", "- [x]")
 	rendered = strings.ReplaceAll(rendered, "PENDING_STEP_EXECUTION", "Completed execution notes.")
-	rendered = strings.ReplaceAll(rendered, "PENDING_STEP_REVIEW", "Completed review notes.")
+	rendered = strings.ReplaceAll(
+		rendered,
+		"#### Review Notes\n\nPENDING_STEP_REVIEW",
+		"#### Review Notes\n\nNO_STEP_REVIEW_NEEDED: Test fixture uses explicit review-complete closeout.",
+	)
 	rendered = strings.Replace(rendered, "## Validation Summary\n\nPENDING_UNTIL_ARCHIVE", "## Validation Summary\n\nValidated the implementation and command surfaces.", 1)
 	rendered = strings.Replace(rendered, "## Review Summary\n\nPENDING_UNTIL_ARCHIVE", "## Review Summary\n\nNo unresolved blocking review findings remain.", 1)
 	rendered = strings.Replace(rendered, "## Archive Summary\n\nPENDING_UNTIL_ARCHIVE", "## Archive Summary\n\n- PR: NONE\n- Ready: The candidate satisfies the acceptance criteria and is ready for merge approval.\n- Merge Handoff: Commit and push the archive move before treating this candidate as awaiting merge approval.", 1)
 	rendered = strings.Replace(rendered, "### Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Delivered\n\nDelivered the planned CLI slice.", 1)
 	rendered = strings.Replace(rendered, "### Not Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Not Delivered\n\nNONE.", 1)
 	return rendered
+}
+
+func writeActiveArchiveCandidateWithCloseoutDebt(t *testing.T, root, relPath string) string {
+	t.Helper()
+	path := filepath.Join(root, relPath)
+	rendered := buildAwaitingPlan(t, "Archive Smoke")
+	rendered = strings.ReplaceAll(rendered, "- Done: [ ]", "- Done: [x]")
+	rendered = strings.ReplaceAll(rendered, "- [ ]", "- [x]")
+	rendered = strings.ReplaceAll(rendered, "PENDING_STEP_EXECUTION", "Completed execution notes.")
+	rendered = strings.ReplaceAll(
+		rendered,
+		"#### Review Notes\n\nPENDING_STEP_REVIEW",
+		"#### Review Notes\n\nCompleted review notes.",
+	)
+	rendered = strings.Replace(rendered, "## Validation Summary\n\nPENDING_UNTIL_ARCHIVE", "## Validation Summary\n\nValidated the implementation and command surfaces.", 1)
+	rendered = strings.Replace(rendered, "## Review Summary\n\nPENDING_UNTIL_ARCHIVE", "## Review Summary\n\nNo unresolved blocking review findings remain.", 1)
+	rendered = strings.Replace(rendered, "## Archive Summary\n\nPENDING_UNTIL_ARCHIVE", "## Archive Summary\n\n- PR: NONE\n- Ready: The candidate satisfies the acceptance criteria and is ready for merge approval.\n- Merge Handoff: Commit and push the archive move before treating this candidate as awaiting merge approval.", 1)
+	rendered = strings.Replace(rendered, "### Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Delivered\n\nDelivered the planned CLI slice.", 1)
+	rendered = strings.Replace(rendered, "### Not Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Not Delivered\n\nNONE.", 1)
+	writeFile(t, path, rendered)
+	return path
 }
 
 func buildAwaitingPlan(t *testing.T, title string) string {

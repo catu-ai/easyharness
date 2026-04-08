@@ -465,6 +465,9 @@ Contract:
 - normalize each review dimension into a deterministic reviewer slot
 - reserve reviewer output paths
 - initialize a dispatch or audit ledger
+- when `step` is omitted and the inferred binding would be finalize review,
+  reject the request if earlier completed steps still lack review-complete
+  closeout and direct the controller toward explicit `step=<i>` repair instead
 - update local `state.json` so `harness status` can surface the active round
 - return round metadata plus next actions for the controller agent
 
@@ -711,6 +714,8 @@ Contract:
 - assume the plan's durable summary sections have already been written from the
   current plan plus local artifacts, not reconstructed from agent memory
 - require finalize review to be satisfied before archive succeeds
+- reject archive while earlier completed steps still lack review-complete
+  closeout, even if the latest finalize review is clean
 - if the plan still contains `## Deferred Items`, require
   `## Outcome Summary > Follow-Up Issues` to be something other than `NONE`
   before allowing archive to succeed

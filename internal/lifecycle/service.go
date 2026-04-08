@@ -12,6 +12,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
+	"github.com/catu-ai/easyharness/internal/stepcloseout"
 	"gopkg.in/yaml.v3"
 )
 
@@ -966,8 +967,22 @@ func EvaluateArchiveReadiness(workdir, planStem string, doc *plan.Document, stat
 	for _, issue := range doc.ArchiveReadinessIssues() {
 		issues = append(issues, CommandError{Path: issue.Path, Message: issue.Message})
 	}
+	issues = append(issues, archiveEarlierStepCloseoutIssues(workdir, planStem, doc)...)
 	issues = append(issues, archiveStateIssues(workdir, planStem, runstate.CurrentRevision(state), state)...)
 	return issues
+}
+
+func archiveEarlierStepCloseoutIssues(workdir, planStem string, doc *plan.Document) []CommandError {
+	reminder := stepcloseout.LoadReminder(workdir, planStem, doc, "execution/finalize/archive", nil)
+	if len(reminder.MissingTitles) == 0 {
+		return nil
+	}
+	earliestIndex := reminder.MissingIndexes[0]
+	earliestTitle := reminder.MissingTitles[0]
+	return []CommandError{{
+		Path:    fmt.Sprintf("plan.steps[%d].review_notes", earliestIndex),
+		Message: fmt.Sprintf("%s still needs review-complete closeout before archive; start an explicit repair review for that step or record NO_STEP_REVIEW_NEEDED: <reason> in Review Notes first", earliestTitle),
+	}}
 }
 
 func archiveStateIssues(workdir, planStem string, revision int, state *runstate.State) []CommandError {

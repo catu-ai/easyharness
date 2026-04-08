@@ -1,12 +1,9 @@
 package status
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"unicode"
 
@@ -15,6 +12,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/lifecycle"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
+	"github.com/catu-ai/easyharness/internal/stepcloseout"
 )
 
 type Service struct {
@@ -53,28 +51,7 @@ type missingStepCloseoutReminder struct {
 	UnscopedRoundID string
 }
 
-type historicalReviewManifest struct {
-	ReviewTitle string `json:"review_title,omitempty"`
-	Step        *int   `json:"step,omitempty"`
-	Revision    int    `json:"revision,omitempty"`
-}
-
-type latestStepCloseoutRound struct {
-	RoundID  string
-	Sequence int
-	Decision string
-}
-
-type latestUnknownHistoricalReviewRound struct {
-	RoundID  string
-	Sequence int
-}
-
-type latestStepCloseoutScan struct {
-	LatestByStepIndex   map[int]latestStepCloseoutRound
-	Warnings            []string
-	LatestUnscopedRound *latestUnknownHistoricalReviewRound
-}
+type latestStepCloseoutRound = stepcloseout.RoundRecord
 
 func (s Service) Read() Result {
 	return s.read(true)
@@ -484,73 +461,14 @@ func loadEvidenceContext(workdir string, state *runstate.State) (*evidenceContex
 }
 
 func loadMissingStepCloseoutReminder(workdir, planStem string, doc *plan.Document, reviewCtx *reviewContext, currentNode string) (*missingStepCloseoutReminder, []string) {
-	candidateIndexes := completedStepIndexesBeforeCurrentPosition(doc, currentNode)
-	if len(candidateIndexes) == 0 {
-		return nil, nil
-	}
-
-	scan := loadLatestStepCloseoutScan(workdir, planStem, doc, reviewCtx)
-	latestSteps := scan.LatestByStepIndex
-	warnings := scan.Warnings
-	missingTitles := make([]string, 0)
-	unscopedRoundID := ""
-	for _, index := range candidateIndexes {
-		step := doc.Steps[index]
-		if !step.Done {
-			continue
-		}
-		if latest, ok := latestSteps[index]; ok {
-			if latest.Decision == "pass" {
-				if scan.LatestUnscopedRound != nil && isUnknownHistoricalReviewRoundLaterThanStepCloseout(*scan.LatestUnscopedRound, latest) {
-					unscopedRoundID = scan.LatestUnscopedRound.RoundID
-				}
-				continue
-			}
-			missingTitles = append(missingTitles, step.Title)
-			continue
-		}
-		if hasNoStepReviewNeededMarker(step.Sections["Review Notes"]) {
-			if scan.LatestUnscopedRound != nil {
-				unscopedRoundID = scan.LatestUnscopedRound.RoundID
-			}
-			continue
-		}
-		missingTitles = append(missingTitles, step.Title)
-	}
-	if len(missingTitles) == 0 && unscopedRoundID == "" {
-		return nil, warnings
+	reminder := stepcloseout.LoadReminder(workdir, planStem, doc, currentNode, activeReviewForStepCloseoutScan(reviewCtx))
+	if len(reminder.MissingTitles) == 0 && reminder.UnscopedRoundID == "" {
+		return nil, reminder.Warnings
 	}
 	return &missingStepCloseoutReminder{
-		MissingTitles:   missingTitles,
-		UnscopedRoundID: unscopedRoundID,
-	}, warnings
-}
-
-func completedStepIndexesBeforeCurrentPosition(doc *plan.Document, currentNode string) []int {
-	switch {
-	case strings.HasPrefix(currentNode, "execution/finalize/"):
-		indexes := make([]int, 0, len(doc.Steps))
-		for index, step := range doc.Steps {
-			if step.Done {
-				indexes = append(indexes, index)
-			}
-		}
-		return indexes
-	case strings.HasPrefix(currentNode, "execution/step-"):
-		index, ok := stepIndexFromNode(currentNode)
-		if !ok || index <= 0 {
-			return nil
-		}
-		indexes := make([]int, 0, index)
-		for candidate := 0; candidate < index; candidate++ {
-			if doc.Steps[candidate].Done {
-				indexes = append(indexes, candidate)
-			}
-		}
-		return indexes
-	default:
-		return nil
-	}
+		MissingTitles:   reminder.MissingTitles,
+		UnscopedRoundID: reminder.UnscopedRoundID,
+	}, reminder.Warnings
 }
 
 func loadSatisfiedStepCloseoutTargets(workdir, planStem string, doc *plan.Document, reviewCtx *reviewContext) (map[string]bool, []string) {
@@ -566,7 +484,7 @@ func loadSatisfiedStepCloseoutTargets(workdir, planStem string, doc *plan.Docume
 }
 
 func loadLatestStepCloseoutTargets(workdir, planStem string, doc *plan.Document, reviewCtx *reviewContext) (map[string]latestStepCloseoutRound, []string) {
-	scan := loadLatestStepCloseoutScan(workdir, planStem, doc, reviewCtx)
+	scan := stepcloseout.LoadLatestScan(workdir, planStem, doc, activeReviewForStepCloseoutScan(reviewCtx))
 	latestByTarget := map[string]latestStepCloseoutRound{}
 	for index, record := range scan.LatestByStepIndex {
 		if index >= 0 && index < len(doc.Steps) {
@@ -574,157 +492,6 @@ func loadLatestStepCloseoutTargets(workdir, planStem string, doc *plan.Document,
 		}
 	}
 	return latestByTarget, scan.Warnings
-}
-
-func loadLatestStepCloseoutScan(workdir, planStem string, doc *plan.Document, reviewCtx *reviewContext) latestStepCloseoutScan {
-	reviewsDir := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews")
-	entries, err := os.ReadDir(reviewsDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return latestStepCloseoutScan{LatestByStepIndex: map[int]latestStepCloseoutRound{}}
-		}
-		return latestStepCloseoutScan{
-			LatestByStepIndex: map[int]latestStepCloseoutRound{},
-			Warnings:          []string{fmt.Sprintf("Unable to inspect historical step-closeout reviews: %v", err)},
-		}
-	}
-
-	latestByStepIndex := map[int]latestStepCloseoutRound{}
-	warnings := make([]string, 0)
-	var latestUnscopedRound *latestUnknownHistoricalReviewRound
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		roundID := entry.Name()
-		sequence := historicalReviewRoundSequence(roundID)
-		manifestPath := filepath.Join(reviewsDir, roundID, "manifest.json")
-		aggregatePath := filepath.Join(reviewsDir, roundID, "aggregate.json")
-
-		var manifest historicalReviewManifest
-		manifestErr := readJSONFile(manifestPath, &manifest)
-		record := latestStepCloseoutRound{
-			RoundID:  roundID,
-			Sequence: sequence,
-			Decision: "",
-		}
-		var aggregate struct {
-			Decision string `json:"decision"`
-		}
-		if readJSONFile(aggregatePath, &aggregate) == nil {
-			record.Decision = strings.TrimSpace(aggregate.Decision)
-		}
-
-		if manifestErr != nil {
-			warnings = append(warnings, fmt.Sprintf("Unable to read historical review manifest for %s; status may miss older step-closeout evidence.", roundID))
-			if reviewCtx != nil && reviewCtx.RoundID == roundID {
-				if reviewCtx.Trigger == "step_closeout" && reviewCtx.TargetStepIndex >= 0 {
-					existing, ok := latestByStepIndex[reviewCtx.TargetStepIndex]
-					if ok && !isLaterHistoricalStepCloseoutRound(record, existing) {
-						continue
-					}
-					latestByStepIndex[reviewCtx.TargetStepIndex] = record
-					continue
-				}
-				if reviewCtx.Trigger == "pre_archive" {
-					continue
-				}
-			}
-			candidate := latestUnknownHistoricalReviewRound{
-				RoundID:  roundID,
-				Sequence: sequence,
-			}
-			if latestUnscopedRound == nil || isLaterUnknownHistoricalReviewRound(candidate, *latestUnscopedRound) {
-				latestUnscopedRound = &candidate
-			}
-			continue
-		}
-
-		if manifest.Revision <= 0 {
-			warnings = append(warnings, fmt.Sprintf("Historical review round %s is invalid and cannot be mapped to a tracked step; it is being ignored and you do not need to do anything.", roundID))
-			candidate := latestUnknownHistoricalReviewRound{
-				RoundID:  roundID,
-				Sequence: sequence,
-			}
-			if latestUnscopedRound == nil || isLaterUnknownHistoricalReviewRound(candidate, *latestUnscopedRound) {
-				latestUnscopedRound = &candidate
-			}
-			continue
-		}
-		if manifest.Step == nil {
-			continue
-		}
-		if *manifest.Step <= 0 || *manifest.Step > len(doc.Steps) {
-			warnings = append(warnings, fmt.Sprintf("Historical review round %s is invalid and cannot be mapped to a tracked step; it is being ignored and you do not need to do anything.", roundID))
-			candidate := latestUnknownHistoricalReviewRound{
-				RoundID:  roundID,
-				Sequence: sequence,
-			}
-			if latestUnscopedRound == nil || isLaterUnknownHistoricalReviewRound(candidate, *latestUnscopedRound) {
-				latestUnscopedRound = &candidate
-			}
-			continue
-		}
-		stepIndex := *manifest.Step - 1
-
-		existing, ok := latestByStepIndex[stepIndex]
-		if ok && !isLaterHistoricalStepCloseoutRound(record, existing) {
-			continue
-		}
-		latestByStepIndex[stepIndex] = record
-	}
-
-	return latestStepCloseoutScan{
-		LatestByStepIndex:   latestByStepIndex,
-		Warnings:            warnings,
-		LatestUnscopedRound: latestUnscopedRound,
-	}
-}
-
-func historicalReviewRoundSequence(roundID string) int {
-	parts := strings.Split(strings.TrimSpace(roundID), "-")
-	if len(parts) < 3 || parts[0] != "review" {
-		return 0
-	}
-	sequence, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return 0
-	}
-	return sequence
-}
-
-func isLaterHistoricalStepCloseoutRound(candidate, existing latestStepCloseoutRound) bool {
-	if candidate.Sequence != existing.Sequence {
-		return candidate.Sequence > existing.Sequence
-	}
-	return candidate.RoundID > existing.RoundID
-}
-
-func isLaterUnknownHistoricalReviewRound(candidate, existing latestUnknownHistoricalReviewRound) bool {
-	if candidate.Sequence != existing.Sequence {
-		return candidate.Sequence > existing.Sequence
-	}
-	return candidate.RoundID > existing.RoundID
-}
-
-func isUnknownHistoricalReviewRoundLaterThanStepCloseout(unknown latestUnknownHistoricalReviewRound, known latestStepCloseoutRound) bool {
-	if unknown.Sequence != known.Sequence {
-		return unknown.Sequence > known.Sequence
-	}
-	return unknown.RoundID > known.RoundID
-}
-
-func hasNoStepReviewNeededMarker(reviewNotes string) bool {
-	for _, line := range strings.Split(reviewNotes, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "NO_STEP_REVIEW_NEEDED:") {
-			continue
-		}
-		if strings.TrimSpace(strings.TrimPrefix(line, "NO_STEP_REVIEW_NEEDED:")) != "" {
-			return true
-		}
-	}
-	return false
 }
 
 func applyEvidenceFacts(facts *Facts, artifacts *Artifacts, evidenceCtx *evidenceContext) {
@@ -1279,15 +1046,15 @@ func defaultFinalizeReviewTitle(kind string) string {
 	return "Branch candidate before archive"
 }
 
-func readJSONFile(path string, target any) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
+func activeReviewForStepCloseoutScan(reviewCtx *reviewContext) *stepcloseout.ActiveReviewContext {
+	if reviewCtx == nil {
+		return nil
 	}
-	if err := json.Unmarshal(data, target); err != nil {
-		return err
+	return &stepcloseout.ActiveReviewContext{
+		RoundID:         reviewCtx.RoundID,
+		Trigger:         reviewCtx.Trigger,
+		TargetStepIndex: reviewCtx.TargetStepIndex,
 	}
-	return nil
 }
 
 func fallbackReviewTitleStep(doc *plan.Document, state *runstate.State) (int, bool) {
