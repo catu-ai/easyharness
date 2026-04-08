@@ -52,11 +52,11 @@ func TestAwaitMergeReopenFinalizeFixWithBuiltBinary(t *testing.T) {
 	reopen := support.Run(t, workspace.Root, "reopen", "--mode", "finalize-fix")
 	support.RequireSuccess(t, reopen)
 	support.RequireNoStderr(t, reopen)
-	reopenPayload := support.RequireJSONResult[lifecycleCommandResult](t, reopen)
+	reopenPayload := requireLifecycleResult(t, reopen)
 	if !reopenPayload.OK || reopenPayload.Command != "reopen" {
 		t.Fatalf("unexpected reopen payload: %#v", reopenPayload)
 	}
-	if reopenPayload.State.Revision != 2 || reopenPayload.Artifacts.ToPlanPath != planRelPath {
+	if reopenPayload.State.CurrentNode != "execution/finalize/fix" || reopenPayload.Facts.Revision != 2 || reopenPayload.Facts.ReopenMode != "finalize-fix" || reopenPayload.Artifacts.ToPlanPath != planRelPath {
 		t.Fatalf("expected await-merge finalize-fix reopen to restore %q as revision 2, got %#v", planRelPath, reopenPayload)
 	}
 
@@ -101,11 +101,11 @@ func TestAwaitMergeReopenNewStepWithBuiltBinary(t *testing.T) {
 	reopen := support.Run(t, workspace.Root, "reopen", "--mode", "new-step")
 	support.RequireSuccess(t, reopen)
 	support.RequireNoStderr(t, reopen)
-	reopenPayload := support.RequireJSONResult[lifecycleCommandResult](t, reopen)
+	reopenPayload := requireLifecycleResult(t, reopen)
 	if !reopenPayload.OK || reopenPayload.Command != "reopen" {
 		t.Fatalf("unexpected reopen payload: %#v", reopenPayload)
 	}
-	if reopenPayload.State.Revision != 2 || reopenPayload.Artifacts.ToPlanPath != planRelPath {
+	if reopenPayload.State.CurrentNode != "execution/finalize/fix" || reopenPayload.Facts.Revision != 2 || reopenPayload.Facts.ReopenMode != "new-step" || reopenPayload.Artifacts.ToPlanPath != planRelPath {
 		t.Fatalf("expected await-merge new-step reopen to restore %q as revision 2, got %#v", planRelPath, reopenPayload)
 	}
 

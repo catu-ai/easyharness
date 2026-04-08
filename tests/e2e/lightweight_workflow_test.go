@@ -70,10 +70,11 @@ func TestLightweightWorkflowWithBuiltBinary(t *testing.T) {
 	archive := support.Run(t, workspace.Root, "archive")
 	support.RequireSuccess(t, archive)
 	support.RequireNoStderr(t, archive)
-	archivePayload := support.RequireJSONResult[lifecycleCommandResult](t, archive)
+	archivePayload := requireLifecycleResult(t, archive)
 	if !archivePayload.OK || archivePayload.Command != "archive" {
 		t.Fatalf("unexpected archive payload: %#v", archivePayload)
 	}
+	assertLifecycleEnvelope(t, archivePayload, "execution/finalize/publish", 1)
 	archivedRelPath := ".local/harness/plans/archived/2026-03-31-lightweight-workflow.md"
 	if archivePayload.Artifacts.ToPlanPath != archivedRelPath {
 		t.Fatalf("expected archived lightweight path %q, got %#v", archivedRelPath, archivePayload)

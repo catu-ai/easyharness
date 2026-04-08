@@ -49,6 +49,29 @@
       ],
       "description": "LifecycleArtifacts lists the relevant plan and local-state paths for a lifecycle command result."
     },
+    "LifecycleFacts": {
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "description": "Revision is the current plan-local revision number."
+        },
+        "reopen_mode": {
+          "type": "string",
+          "description": "ReopenMode is the active reopen mode when a reopen repair path is in effect."
+        },
+        "land_pr_url": {
+          "type": "string",
+          "description": "LandPRURL is the pull request URL recorded for the land phase."
+        },
+        "land_commit": {
+          "type": "string",
+          "description": "LandCommit is the merge commit or landed commit recorded for the land phase."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "LifecycleFacts carries selected lifecycle-specific details that remain useful after the contract converges on the shared v0.2 envelope."
+    },
     "LifecycleResult": {
       "properties": {
         "ok": {
@@ -65,7 +88,11 @@
         },
         "state": {
           "$ref": "#/$defs/LifecycleState",
-          "description": "State carries the command-specific lifecycle status fields currently emitted by these lifecycle commands."
+          "description": "State carries the post-command workflow node in the shared v0.2 envelope."
+        },
+        "facts": {
+          "$ref": "#/$defs/LifecycleFacts",
+          "description": "Facts carries selected high-signal lifecycle details when they help explain the post-command state."
         },
         "artifacts": {
           "$ref": "#/$defs/LifecycleArtifacts",
@@ -107,27 +134,17 @@
     },
     "LifecycleState": {
       "properties": {
-        "plan_status": {
+        "current_node": {
           "type": "string",
-          "description": "PlanStatus is the tracked plan status value used by lifecycle commands."
-        },
-        "lifecycle": {
-          "type": "string",
-          "description": "Lifecycle is the lifecycle phase value used by lifecycle commands."
-        },
-        "revision": {
-          "type": "integer",
-          "description": "Revision is the current plan-local revision number."
+          "description": "CurrentNode is the canonical v0.2 workflow node after the command runs."
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "plan_status",
-        "lifecycle",
-        "revision"
+        "current_node"
       ],
-      "description": "LifecycleState carries the current lifecycle command state shape. These fields remain part of the current public contract even though `status` now centers on `current_node`."
+      "description": "LifecycleState carries the post-command workflow node for lifecycle commands."
     },
     "NextAction": {
       "properties": {

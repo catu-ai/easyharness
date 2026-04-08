@@ -62,7 +62,7 @@ func TestReopenNewStepWithBuiltBinary(t *testing.T) {
 	archive := support.Run(t, workspace.Root, "archive")
 	support.RequireSuccess(t, archive)
 	support.RequireNoStderr(t, archive)
-	archivePayload := support.RequireJSONResult[lifecycleCommandResult](t, archive)
+	archivePayload := requireLifecycleResult(t, archive)
 	if !archivePayload.OK || archivePayload.Command != "archive" {
 		t.Fatalf("unexpected archive payload: %#v", archivePayload)
 	}
@@ -76,11 +76,11 @@ func TestReopenNewStepWithBuiltBinary(t *testing.T) {
 	reopen := support.Run(t, workspace.Root, "reopen", "--mode", "new-step")
 	support.RequireSuccess(t, reopen)
 	support.RequireNoStderr(t, reopen)
-	reopenPayload := support.RequireJSONResult[lifecycleCommandResult](t, reopen)
+	reopenPayload := requireLifecycleResult(t, reopen)
 	if !reopenPayload.OK || reopenPayload.Command != "reopen" {
 		t.Fatalf("unexpected reopen payload: %#v", reopenPayload)
 	}
-	if reopenPayload.State.Revision != 2 || reopenPayload.Artifacts.ToPlanPath != planRelPath {
+	if reopenPayload.State.CurrentNode != "execution/finalize/fix" || reopenPayload.Facts.Revision != 2 || reopenPayload.Facts.ReopenMode != "new-step" || reopenPayload.Artifacts.ToPlanPath != planRelPath {
 		t.Fatalf("expected reopen to restore %q as revision 2, got %#v", planRelPath, reopenPayload)
 	}
 

@@ -23,6 +23,7 @@ type Service struct {
 
 type Result = contracts.LifecycleResult
 type State = contracts.LifecycleState
+type Facts = contracts.LifecycleFacts
 type Artifacts = contracts.LifecycleArtifacts
 type NextAction = contracts.NextAction
 type CommandError = contracts.ErrorDetail
@@ -96,10 +97,9 @@ func (s Service) ExecuteStart() Result {
 		Command: "execute start",
 		Summary: summary,
 		State: State{
-			PlanStatus: "active",
-			Lifecycle:  "executing",
-			Revision:   runstate.CurrentRevision(state),
+			CurrentNode: "execution/step-1/implement",
 		},
+		Facts: &Facts{Revision: runstate.CurrentRevision(state)},
 		Artifacts: &Artifacts{
 			FromPlanPath:    relCurrentPath,
 			LocalStatePath:  statePath,
@@ -218,10 +218,9 @@ func (s Service) Archive() Result {
 		Command: "archive",
 		Summary: "Plan archived and frozen for merge handoff.",
 		State: State{
-			PlanStatus: "archived",
-			Lifecycle:  "awaiting_merge_approval",
-			Revision:   revision,
+			CurrentNode: "execution/finalize/publish",
 		},
+		Facts: &Facts{Revision: revision},
 		Artifacts: &Artifacts{
 			FromPlanPath:    relCurrentPath,
 			ToPlanPath:      relTargetPath,
@@ -354,10 +353,9 @@ func (s Service) Reopen(mode string) Result {
 		Command: "reopen",
 		Summary: "Archived plan reopened for active execution.",
 		State: State{
-			PlanStatus: "active",
-			Lifecycle:  "executing",
-			Revision:   nextState.Revision,
+			CurrentNode: "execution/finalize/fix",
 		},
+		Facts: &Facts{Revision: nextState.Revision, ReopenMode: mode},
 		Artifacts: &Artifacts{
 			FromPlanPath:    relCurrentPath,
 			ToPlanPath:      relTargetPath,
@@ -424,9 +422,12 @@ func (s Service) Land(prURL, commit string) Result {
 				Command: "land",
 				Summary: fmt.Sprintf("Recorded landed commit for the in-progress cleanup of %s.", filepath.Base(currentPath)),
 				State: State{
-					PlanStatus: "archived",
-					Lifecycle:  "awaiting_merge_approval",
+					CurrentNode: "land",
+				},
+				Facts: &Facts{
 					Revision:   runstate.CurrentRevision(state),
+					LandPRURL:  strings.TrimSpace(state.Land.PRURL),
+					LandCommit: strings.TrimSpace(state.Land.Commit),
 				},
 				Artifacts: &Artifacts{
 					FromPlanPath:   relCurrentPath,
@@ -446,9 +447,12 @@ func (s Service) Land(prURL, commit string) Result {
 			Command: "land",
 			Summary: fmt.Sprintf("Land cleanup is already in progress for %s.", filepath.Base(currentPath)),
 			State: State{
-				PlanStatus: "archived",
-				Lifecycle:  "awaiting_merge_approval",
+				CurrentNode: "land",
+			},
+			Facts: &Facts{
 				Revision:   runstate.CurrentRevision(state),
+				LandPRURL:  strings.TrimSpace(state.Land.PRURL),
+				LandCommit: strings.TrimSpace(state.Land.Commit),
 			},
 			Artifacts: &Artifacts{
 				FromPlanPath:   relCurrentPath,
@@ -488,9 +492,12 @@ func (s Service) Land(prURL, commit string) Result {
 		Command: "land",
 		Summary: fmt.Sprintf("Recorded merge confirmation for %s and entered land cleanup.", filepath.Base(currentPath)),
 		State: State{
-			PlanStatus: "archived",
-			Lifecycle:  "awaiting_merge_approval",
+			CurrentNode: "land",
+		},
+		Facts: &Facts{
 			Revision:   runstate.CurrentRevision(state),
+			LandPRURL:  strings.TrimSpace(state.Land.PRURL),
+			LandCommit: strings.TrimSpace(state.Land.Commit),
 		},
 		Artifacts: &Artifacts{
 			FromPlanPath:   relCurrentPath,
@@ -554,8 +561,9 @@ func (s Service) LandComplete() Result {
 		Command: "land complete",
 		Summary: fmt.Sprintf("Recorded post-merge cleanup completion for %s.", filepath.Base(currentPath)),
 		State: State{
-			Revision: runstate.CurrentRevision(state),
+			CurrentNode: "idle",
 		},
+		Facts: &Facts{Revision: runstate.CurrentRevision(state)},
 		Artifacts: &Artifacts{
 			FromPlanPath:    relCurrentPath,
 			LocalStatePath:  statePath,

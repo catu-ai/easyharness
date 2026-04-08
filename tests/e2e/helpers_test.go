@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -27,8 +28,14 @@ type reviewDimension struct {
 }
 
 type executeStartResult struct {
-	OK        bool   `json:"ok"`
-	Command   string `json:"command"`
+	OK      bool   `json:"ok"`
+	Command string `json:"command"`
+	State   struct {
+		CurrentNode string `json:"current_node"`
+	} `json:"state"`
+	Facts struct {
+		Revision int `json:"revision"`
+	} `json:"facts"`
 	Artifacts struct {
 		LocalStatePath string `json:"local_state_path"`
 	} `json:"artifacts"`
@@ -39,10 +46,14 @@ type lifecycleCommandResult struct {
 	Command string `json:"command"`
 	Summary string `json:"summary"`
 	State   struct {
-		PlanStatus string `json:"plan_status"`
-		Lifecycle  string `json:"lifecycle"`
-		Revision   int    `json:"revision"`
+		CurrentNode string `json:"current_node"`
 	} `json:"state"`
+	Facts struct {
+		Revision   int    `json:"revision"`
+		ReopenMode string `json:"reopen_mode"`
+		LandPRURL  string `json:"land_pr_url"`
+		LandCommit string `json:"land_commit"`
+	} `json:"facts"`
 	Artifacts struct {
 		FromPlanPath    string `json:"from_plan_path"`
 		ToPlanPath      string `json:"to_plan_path"`
@@ -216,6 +227,57 @@ func runStatus(t *testing.T, workdir string) statusResult {
 	support.RequireSuccess(t, status)
 	support.RequireNoStderr(t, status)
 	return support.RequireJSONResult[statusResult](t, status)
+}
+
+func requireLifecycleResult(t *testing.T, result support.Result) lifecycleCommandResult {
+	t.Helper()
+
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(result.Stdout), &raw); err != nil {
+		t.Fatalf("expected JSON lifecycle output: %v\n%s", err, result.Stdout)
+	}
+	assertNoLegacyLifecycleFields(t, raw)
+	return support.RequireJSONResult[lifecycleCommandResult](t, result)
+}
+
+func requireExecuteStartResult(t *testing.T, result support.Result) executeStartResult {
+	t.Helper()
+
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(result.Stdout), &raw); err != nil {
+		t.Fatalf("expected JSON execute-start output: %v\n%s", err, result.Stdout)
+	}
+	assertNoLegacyLifecycleFields(t, raw)
+	return support.RequireJSONResult[executeStartResult](t, result)
+}
+
+func assertNoLegacyLifecycleFields(t *testing.T, payload map[string]any) {
+	t.Helper()
+
+	state, ok := payload["state"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected lifecycle payload state object, got %#v", payload)
+	}
+	if _, ok := state["plan_status"]; ok {
+		t.Fatalf("expected lifecycle payload to omit plan_status, got %#v", state)
+	}
+	if _, ok := state["lifecycle"]; ok {
+		t.Fatalf("expected lifecycle payload to omit lifecycle, got %#v", state)
+	}
+	if _, ok := state["revision"]; ok {
+		t.Fatalf("expected lifecycle payload to omit state.revision, got %#v", state)
+	}
+}
+
+func assertLifecycleEnvelope(t *testing.T, payload lifecycleCommandResult, wantNode string, wantRevision int) {
+	t.Helper()
+
+	if payload.State.CurrentNode != wantNode {
+		t.Fatalf("expected lifecycle current node %q, got %#v", wantNode, payload)
+	}
+	if payload.Facts.Revision != wantRevision {
+		t.Fatalf("expected lifecycle revision %d, got %#v", wantRevision, payload)
+	}
 }
 
 func assertNode(t *testing.T, status statusResult, want string) {
@@ -429,7 +491,7 @@ func drivePlanToArchivedPublishNode(t *testing.T, workspace *support.Workspace, 
 	archive := support.Run(t, workspace.Root, "archive")
 	support.RequireSuccess(t, archive)
 	support.RequireNoStderr(t, archive)
-	payload := support.RequireJSONResult[lifecycleCommandResult](t, archive)
+	payload := requireLifecycleResult(t, archive)
 	if !payload.OK || payload.Command != "archive" {
 		t.Fatalf("unexpected archive payload: %#v", payload)
 	}

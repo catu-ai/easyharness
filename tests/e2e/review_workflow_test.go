@@ -49,9 +49,12 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	execute := support.Run(t, workspace.Root, "execute", "start")
 	support.RequireSuccess(t, execute)
 	support.RequireNoStderr(t, execute)
-	executePayload := support.RequireJSONResult[executeStartResult](t, execute)
+	executePayload := requireExecuteStartResult(t, execute)
 	if !executePayload.OK || executePayload.Command != "execute start" {
 		t.Fatalf("unexpected execute-start payload: %#v", executePayload)
+	}
+	if executePayload.State.CurrentNode != "execution/step-1/implement" || executePayload.Facts.Revision != 1 {
+		t.Fatalf("expected execute-start shared envelope, got %#v", executePayload)
 	}
 	support.RequireFileExists(t, executePayload.Artifacts.LocalStatePath)
 

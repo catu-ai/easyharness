@@ -138,10 +138,20 @@ func timelineEventFromLifecycle(result lifecycle.Result) timeline.Event {
 		Command: result.Command,
 		Summary: result.Summary,
 		Details: []timeline.Detail{
-			{Key: "plan_status", Value: result.State.PlanStatus},
-			{Key: "lifecycle", Value: result.State.Lifecycle},
+			{Key: "current_node", Value: result.State.CurrentNode},
 		},
-		Revision: result.State.Revision,
+	}
+	if result.Facts != nil {
+		event.Revision = result.Facts.Revision
+		if result.Facts.ReopenMode != "" {
+			event.Details = append(event.Details, timeline.Detail{Key: "reopen_mode", Value: result.Facts.ReopenMode})
+		}
+		if result.Facts.LandPRURL != "" {
+			event.Details = append(event.Details, timeline.Detail{Key: "land_pr_url", Value: result.Facts.LandPRURL})
+		}
+		if result.Facts.LandCommit != "" {
+			event.Details = append(event.Details, timeline.Detail{Key: "land_commit", Value: result.Facts.LandCommit})
+		}
 	}
 	if result.Artifacts != nil {
 		if result.Artifacts.ToPlanPath != "" {

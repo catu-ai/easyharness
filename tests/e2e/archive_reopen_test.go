@@ -37,6 +37,7 @@ func TestArchiveReopenFinalizeFixWithBuiltBinary(t *testing.T) {
 	support.RequireNoStderr(t, lint)
 
 	archivePayload := drivePlanToArchivedPublishNode(t, workspace, planPath, archiveReopenStepOne, archiveReopenStepTwo)
+	assertLifecycleEnvelope(t, archivePayload, "execution/finalize/publish", 1)
 	if archivePayload.Artifacts.ToPlanPath != "docs/plans/archived/2026-03-23-archive-reopen-finalize-fix.md" {
 		t.Fatalf("expected archived path in archive payload, got %#v", archivePayload)
 	}
@@ -44,11 +45,11 @@ func TestArchiveReopenFinalizeFixWithBuiltBinary(t *testing.T) {
 	reopen := support.Run(t, workspace.Root, "reopen", "--mode", "finalize-fix")
 	support.RequireSuccess(t, reopen)
 	support.RequireNoStderr(t, reopen)
-	reopenPayload := support.RequireJSONResult[lifecycleCommandResult](t, reopen)
+	reopenPayload := requireLifecycleResult(t, reopen)
 	if !reopenPayload.OK || reopenPayload.Command != "reopen" {
 		t.Fatalf("unexpected reopen payload: %#v", reopenPayload)
 	}
-	if reopenPayload.State.Revision != 2 || reopenPayload.Artifacts.ToPlanPath != planRelPath {
+	if reopenPayload.State.CurrentNode != "execution/finalize/fix" || reopenPayload.Facts.Revision != 2 || reopenPayload.Facts.ReopenMode != "finalize-fix" || reopenPayload.Artifacts.ToPlanPath != planRelPath {
 		t.Fatalf("expected finalize-fix reopen to restore %q as revision 2, got %#v", planRelPath, reopenPayload)
 	}
 

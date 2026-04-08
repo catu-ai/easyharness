@@ -438,6 +438,7 @@ func TestExecuteStartCommandReturnsJSON(t *testing.T) {
 	if payload["command"] != "execute start" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
+	assertLifecycleEnvelope(t, payload, "execution/step-1/implement", 1)
 
 	timelineResult := timeline.Service{Workdir: root}.Read()
 	if !timelineResult.OK || len(timelineResult.Events) != 2 {
@@ -886,6 +887,14 @@ func TestArchiveCommandAppendsTimelineEvent(t *testing.T) {
 	if exitCode := app.Run([]string{"archive"}); exitCode != 0 {
 		t.Fatalf("archive failed with %d: %s", exitCode, stderr.String())
 	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON archive output: %v\n%s", err, stdout.String())
+	}
+	if payload["command"] != "archive" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+	assertLifecycleEnvelope(t, payload, "execution/finalize/publish", 1)
 
 	assertLastTimelineEventCommand(t, root, "archive")
 }
@@ -921,6 +930,11 @@ func TestLandCommandReturnsJSON(t *testing.T) {
 	if payload["command"] != "land" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
+	assertLifecycleEnvelope(t, payload, "land", 1)
+	facts := payload["facts"].(map[string]any)
+	if facts["land_pr_url"] != "https://github.com/catu-ai/easyharness/pull/99" {
+		t.Fatalf("expected land_pr_url in facts, got %#v", facts)
+	}
 
 	assertLastTimelineEventCommand(t, root, "land")
 }
@@ -951,6 +965,11 @@ func TestReopenNewStepCommandReturnsJSON(t *testing.T) {
 	}
 	if payload["command"] != "reopen" {
 		t.Fatalf("unexpected payload: %#v", payload)
+	}
+	assertLifecycleEnvelope(t, payload, "execution/finalize/fix", 2)
+	facts := payload["facts"].(map[string]any)
+	if facts["reopen_mode"] != "new-step" {
+		t.Fatalf("expected new-step reopen_mode in facts, got %#v", facts)
 	}
 
 	state, _, err := runstate.LoadState(root, "2026-03-18-landed-plan")
@@ -1009,6 +1028,11 @@ func TestReopenFinalizeFixCommandReturnsJSON(t *testing.T) {
 	}
 	if payload["command"] != "reopen" {
 		t.Fatalf("unexpected payload: %#v", payload)
+	}
+	assertLifecycleEnvelope(t, payload, "execution/finalize/fix", 2)
+	facts := payload["facts"].(map[string]any)
+	if facts["reopen_mode"] != "finalize-fix" {
+		t.Fatalf("expected finalize-fix reopen_mode in facts, got %#v", facts)
 	}
 
 	state, _, err := runstate.LoadState(root, "2026-03-18-landed-plan")
@@ -1234,6 +1258,7 @@ func TestLandCompleteCommandReturnsJSON(t *testing.T) {
 	if payload["command"] != "land complete" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
+	assertLifecycleEnvelope(t, payload, "idle", 1)
 
 	statusResult := status.Service{Workdir: root}.Read()
 	if !statusResult.OK || statusResult.State.CurrentNode != "idle" {
@@ -1409,6 +1434,34 @@ func assertCLIErrorPath(t *testing.T, errors []struct {
 		}
 	}
 	t.Fatalf("expected CLI error path %q, got %#v", path, errors)
+}
+
+func assertLifecycleEnvelope(t *testing.T, payload map[string]any, wantNode string, wantRevision float64) {
+	t.Helper()
+
+	state, ok := payload["state"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected lifecycle payload state object, got %#v", payload)
+	}
+	if state["current_node"] != wantNode {
+		t.Fatalf("expected current_node %q, got %#v", wantNode, state)
+	}
+	if _, ok := state["plan_status"]; ok {
+		t.Fatalf("expected lifecycle payload to drop plan_status, got %#v", state)
+	}
+	if _, ok := state["lifecycle"]; ok {
+		t.Fatalf("expected lifecycle payload to drop lifecycle, got %#v", state)
+	}
+	if _, ok := state["revision"]; ok {
+		t.Fatalf("expected lifecycle payload to drop state.revision, got %#v", state)
+	}
+	facts, ok := payload["facts"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected lifecycle payload facts object, got %#v", payload)
+	}
+	if facts["revision"] != wantRevision {
+		t.Fatalf("expected revision %v in facts, got %#v", wantRevision, facts)
+	}
 }
 
 func writeArchivedPlanForCLI(t *testing.T, root, relPath string) string {

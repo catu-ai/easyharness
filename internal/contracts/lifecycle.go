@@ -13,9 +13,12 @@ type LifecycleResult struct {
 	// Summary is the concise human-readable outcome description.
 	Summary string `json:"summary"`
 
-	// State carries the command-specific lifecycle status fields currently
-	// emitted by these lifecycle commands.
+	// State carries the post-command workflow node in the shared v0.2 envelope.
 	State LifecycleState `json:"state"`
+
+	// Facts carries selected high-signal lifecycle details when they help
+	// explain the post-command state.
+	Facts *LifecycleFacts `json:"facts,omitempty"`
 
 	// Artifacts points to relevant plan and local-state paths for the command.
 	Artifacts *LifecycleArtifacts `json:"artifacts,omitempty"`
@@ -27,18 +30,28 @@ type LifecycleResult struct {
 	Errors []ErrorDetail `json:"errors,omitempty"`
 }
 
-// LifecycleState carries the current lifecycle command state shape. These
-// fields remain part of the current public contract even though `status` now
-// centers on `current_node`.
+// LifecycleState carries the post-command workflow node for lifecycle commands.
 type LifecycleState struct {
-	// PlanStatus is the tracked plan status value used by lifecycle commands.
-	PlanStatus string `json:"plan_status"`
+	// CurrentNode is the canonical v0.2 workflow node after the command runs.
+	CurrentNode string `json:"current_node"`
+}
 
-	// Lifecycle is the lifecycle phase value used by lifecycle commands.
-	Lifecycle string `json:"lifecycle"`
-
+// LifecycleFacts carries selected lifecycle-specific details that remain useful
+// after the contract converges on the shared v0.2 envelope.
+type LifecycleFacts struct {
 	// Revision is the current plan-local revision number.
-	Revision int `json:"revision"`
+	Revision int `json:"revision,omitempty"`
+
+	// ReopenMode is the active reopen mode when a reopen repair path is in
+	// effect.
+	ReopenMode string `json:"reopen_mode,omitempty"`
+
+	// LandPRURL is the pull request URL recorded for the land phase.
+	LandPRURL string `json:"land_pr_url,omitempty"`
+
+	// LandCommit is the merge commit or landed commit recorded for the land
+	// phase.
+	LandCommit string `json:"land_commit,omitempty"`
 }
 
 // LifecycleArtifacts lists the relevant plan and local-state paths for a

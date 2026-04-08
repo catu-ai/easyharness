@@ -61,9 +61,13 @@ func TestLandWorkflowWithBuiltBinary(t *testing.T) {
 	land := support.Run(t, workspace.Root, "land", "--pr", "https://github.com/catu-ai/easyharness/pull/99", "--commit", "abc123")
 	support.RequireSuccess(t, land)
 	support.RequireNoStderr(t, land)
-	landPayload := support.RequireJSONResult[lifecycleCommandResult](t, land)
+	landPayload := requireLifecycleResult(t, land)
 	if !landPayload.OK || landPayload.Command != "land" {
 		t.Fatalf("unexpected land payload: %#v", landPayload)
+	}
+	assertLifecycleEnvelope(t, landPayload, "land", 1)
+	if landPayload.Facts.LandPRURL != "https://github.com/catu-ai/easyharness/pull/99" || landPayload.Facts.LandCommit != "abc123" {
+		t.Fatalf("expected land facts in payload, got %#v", landPayload)
 	}
 
 	inLandStatus := runStatus(t, workspace.Root)
@@ -81,10 +85,11 @@ func TestLandWorkflowWithBuiltBinary(t *testing.T) {
 	landComplete := support.Run(t, workspace.Root, "land", "complete")
 	support.RequireSuccess(t, landComplete)
 	support.RequireNoStderr(t, landComplete)
-	landCompletePayload := support.RequireJSONResult[lifecycleCommandResult](t, landComplete)
+	landCompletePayload := requireLifecycleResult(t, landComplete)
 	if !landCompletePayload.OK || landCompletePayload.Command != "land complete" {
 		t.Fatalf("unexpected land-complete payload: %#v", landCompletePayload)
 	}
+	assertLifecycleEnvelope(t, landCompletePayload, "idle", 1)
 
 	current := support.ReadJSONFile[currentPlan](t, workspace.Path(".local/harness/current-plan.json"))
 	if current.PlanPath != "" || current.LastLandedPlanPath != "docs/plans/archived/2026-03-23-land-workflow.md" || current.LastLandedAt == "" {

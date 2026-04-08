@@ -79,6 +79,12 @@ envelope.
 `state` because it manages repo-owned bootstrap assets rather than the tracked
 plan lifecycle.
 
+The lifecycle commands `harness execute start`, `harness archive`,
+`harness reopen`, `harness land`, and `harness land complete` are not special
+legacy exceptions. They should use the same v0.2 envelope vocabulary as
+`harness status`, centered on `state.current_node` plus concise `facts`,
+transition-relevant `artifacts`, and stable `next_actions`.
+
 ### Help Must Be Actionable
 
 Every command must have complete `--help` text that explains:
@@ -649,6 +655,28 @@ Post-archive merge readiness additionally requires:
 - CI good enough or explicit `not_applied`
 - sync freshness or explicit `not_applied`
 
+### `harness execute start`
+
+Purpose:
+
+- record the execution-start milestone for the current active plan
+
+Contract:
+
+- require the current plan to be active before recording execution start
+- persist the execution-start milestone in plan-local runtime state
+- update `.local/harness/current-plan.json` to point at the active tracked plan
+- return the shared v0.2 envelope with the post-command
+  `state.current_node`, `facts.revision`, transition-relevant `artifacts`, and
+  actionable `next_actions`
+- avoid emitting a lifecycle-specific state sublanguage separate from
+  `current_node`
+
+Recommended next action:
+
+- continue the current tracked step and keep step-local `Execution Notes` and
+  `Review Notes` current as implementation proceeds
+
 ### `harness archive`
 
 Purpose:
@@ -683,6 +711,9 @@ Contract:
   `state.json` pointers to the archived path
 - keep publish, CI, and sync follow-up out of the archive gate; those belong to
   `execution/finalize/publish`
+- return the shared v0.2 envelope with `state.current_node` set to the
+  post-archive handoff node, concise `facts`, transition artifacts, and
+  actionable `next_actions`
 - return next actions that explicitly include the profile-appropriate handoff:
   commit and push the archive move for `standard`, or update the repo-visible
   breadcrumb for `lightweight`
@@ -731,6 +762,9 @@ Contract:
   archived candidate
 - update `.local/harness/current-plan.json` and any existing plan-local
   `state.json` pointers back to the active path
+- return the shared v0.2 envelope with the reopened post-command node,
+  `facts.revision`, `facts.reopen_mode`, transition artifacts, and actionable
+  `next_actions`
 - return next actions that help the next agent resume work
 
 Recommended next action:
@@ -772,6 +806,8 @@ Contract:
 - validate that publish, CI, and sync evidence make the candidate merge-ready
 - record merge confirmation in plan-local runtime state
 - leave archived plan content untouched; this is a local-state milestone only
+- return the shared v0.2 envelope with the `land` post-command node and any
+  relevant `land_pr_url` / `land_commit` facts
 - return next actions that guide post-merge cleanup
 
 ### `harness land complete`
@@ -787,6 +823,8 @@ Contract:
 - rewrite `.local/harness/current-plan.json` so `plan_path` is cleared
 - record `last_landed_plan_path` and `last_landed_at` for worktree handoff
 - leave archived plan content untouched; this is local-state cleanup only
+- return the shared v0.2 envelope with `state.current_node: idle`,
+  `facts.revision`, and the artifact pointers needed for handoff confirmation
 - return next actions that guide the worktree back to idle or on to the next
   slice
 
