@@ -11,8 +11,10 @@ the normative transition matrix.
 
 ## Conventions
 
-- `step-<n>` means the current unfinished step.
+- `step-<n>` means the current unfinished step in the ordinary forward loop.
 - `step-<m>` means the next unfinished step after `step-<n>`.
+- `step-<i>` means an explicitly targeted earlier completed step whose
+  step-closeout review is being rerun intentionally.
 - "Durably complete" means the step `Done` marker is checked and the plan
   satisfies the required step-local closeout notes.
 
@@ -28,17 +30,22 @@ the normative transition matrix.
 | From | To | Driver | Required inputs | Notes |
 | --- | --- | --- | --- | --- |
 | `execution/step-<n>/implement` | `execution/step-<n>/review` | `harness review start` | The command binds the new round to the current step | Review nodes require real review artifacts. |
+| `execution/step-<n>/implement` | `execution/step-<i>/review` | `harness review start` with explicit `step=<i>` | Earlier completed step `<i>` intentionally needs closeout repair | Explicit earlier-step repair re-enters the targeted step's review loop instead of staying on the later frontier. |
 | `execution/step-<n>/implement` | `execution/step-<m>/implement` | Derived from current plan edits | Step `<n>` becomes durably complete, any required step review is clean, and another unfinished step exists | A failed step review must be repaired and rerun before this transition is allowed. |
 | `execution/step-<n>/implement` | `execution/finalize/review` | Derived from current plan edits | Step `<n>` becomes durably complete, any required step review is clean, and no unfinished steps remain | Finalize review stays distinct from step review. |
 | `execution/step-<n>/review` | `execution/step-<n>/implement` | `harness review aggregate` | Latest aggregate is clean | Review is no longer in flight; the controller may continue implementation or mark the step done. |
 | `execution/step-<n>/review` | `execution/step-<n>/implement` | `harness review aggregate` | Latest aggregate has actionable findings or an unrecoverable conservative outcome | The step remains current and must be repaired plus rerun through review before it may advance. |
+| `execution/step-<i>/review` | `execution/step-<i>/implement` | `harness review aggregate` | Earlier-step repair aggregate has actionable findings or an unrecoverable conservative outcome | A non-clean repair keeps the earlier repaired step current and requires another repair pass. |
+| `execution/step-<i>/review` | `execution/step-<m>/implement` or `execution/finalize/...` | `harness review aggregate` | Earlier-step repair aggregate is clean | Once the explicit earlier-step repair is clean, status falls back to the ordinary unfinished-step or finalize resolution for the same candidate. |
 
 ## Finalize Loop
 
 | From | To | Driver | Required inputs | Notes |
 | --- | --- | --- | --- | --- |
+| `execution/finalize/review` | `execution/step-<i>/review` | `harness review start` with explicit `step=<i>` | Earlier completed step `<i>` intentionally needs closeout repair before finalize can be trusted | Explicit earlier-step repair temporarily leaves finalize-scope review and re-enters the targeted step's review loop. |
 | `execution/finalize/review` | `execution/finalize/fix` | `harness review aggregate` | Latest finalize review aggregate has actionable findings or an unrecoverable conservative outcome | Finalize review findings stay distinct from step-local findings. |
 | `execution/finalize/review` | `execution/finalize/archive` | Derived from clean finalize review | Finalize review is satisfied and archive closeout work remains | Archive closeout includes summary refresh and placeholder replacement. |
+| `execution/finalize/fix` | `execution/step-<i>/review` | `harness review start` with explicit `step=<i>` | Earlier completed step `<i>` intentionally needs closeout repair during finalize-scope repair | Explicit earlier-step repair temporarily leaves finalize fix and re-enters the targeted step's review loop. |
 | `execution/finalize/fix` | `execution/finalize/review` | `harness review start` | A new finalize review round is started after repair | Finalize repair must pass a later branch-level review before archive. |
 | `execution/finalize/fix` | `execution/step-<m>/implement` | Derived from current plan edits | Reopen mode is `new-step`, the first new unfinished step has been added, and that new step is now current | Once the first reopened step exists, the special `new-step` requirement is consumed and ordinary step execution resumes. |
 

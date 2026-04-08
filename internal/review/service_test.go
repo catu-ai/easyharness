@@ -12,6 +12,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/review"
 	"github.com/catu-ai/easyharness/internal/runstate"
+	"github.com/catu-ai/easyharness/internal/status"
 )
 
 func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
@@ -56,6 +57,119 @@ func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
 	}
 	if state.ActiveReviewRound.Step == nil || *state.ActiveReviewRound.Step != 1 || state.ActiveReviewRound.Revision != 1 {
 		t.Fatalf("expected inferred step 1 on revision 1, got %#v", state.ActiveReviewRound)
+	}
+}
+
+func TestStartAcceptsExplicitEarlierStepFromLaterExecutionFrontier(t *testing.T) {
+	root := t.TempDir()
+	path := writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	markFirstPlanStepDone(t, path)
+
+	svc := review.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 18, 1, 10, 0, 0, time.UTC)
+		},
+	}
+
+	result := svc.Start(mustJSON(t, review.Spec{
+		Step: intPtr(1),
+		Kind: "delta",
+		Dimensions: []review.Dimension{
+			{Name: "correctness", Instructions: "Repair the earlier step closeout."},
+		},
+	}))
+	if !result.OK {
+		t.Fatalf("expected explicit earlier-step start success, got %#v", result)
+	}
+
+	state, _, err := runstate.LoadState(root, "2026-03-18-review-contract")
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if state == nil || state.ActiveReviewRound == nil || state.ActiveReviewRound.Step == nil || *state.ActiveReviewRound.Step != 1 {
+		t.Fatalf("expected active review state to bind explicit step 1, got %#v", state)
+	}
+
+	var manifest review.Manifest
+	data, err := os.ReadFile(result.Artifacts.ManifestPath)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatalf("parse manifest: %v", err)
+	}
+	if manifest.Step == nil || *manifest.Step != 1 {
+		t.Fatalf("expected manifest to record explicit step 1, got %#v", manifest)
+	}
+	if manifest.ReviewTitle != "Step 1: Replace with first step title" {
+		t.Fatalf("expected explicit earlier-step review title to default to step 1 title, got %#v", manifest)
+	}
+}
+
+func TestStartAcceptsExplicitEarlierStepFromFinalizeContext(t *testing.T) {
+	root := t.TempDir()
+	relPath := "docs/plans/active/2026-03-18-review-contract.md"
+	writeExecutingFinalizePlan(t, root, relPath)
+	if _, err := runstate.SaveState(root, "2026-03-18-review-contract", &runstate.State{
+		ExecutionStartedAt: "2026-03-18T01:00:00Z",
+		PlanPath:           relPath,
+		PlanStem:           "2026-03-18-review-contract",
+		Revision:           1,
+		ActiveReviewRound: &runstate.ReviewRound{
+			RoundID:    "review-001-full",
+			Kind:       "full",
+			Revision:   1,
+			Aggregated: true,
+			Decision:   "changes_requested",
+		},
+	}); err != nil {
+		t.Fatalf("save finalize-fix state: %v", err)
+	}
+	statusResult := status.Service{Workdir: root}.Read()
+	if statusResult.State.CurrentNode != "execution/finalize/fix" {
+		t.Fatalf("expected fixture to resolve the real finalize-fix node before explicit repair, got %#v", statusResult.State)
+	}
+
+	svc := review.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 18, 1, 20, 0, 0, time.UTC)
+		},
+	}
+
+	result := svc.Start(mustJSON(t, review.Spec{
+		Step: intPtr(1),
+		Kind: "full",
+		Dimensions: []review.Dimension{
+			{Name: "correctness", Instructions: "Repair the earlier closeout from finalize scope."},
+		},
+	}))
+	if !result.OK {
+		t.Fatalf("expected explicit earlier-step start success from finalize context, got %#v", result)
+	}
+
+	state, _, err := runstate.LoadState(root, "2026-03-18-review-contract")
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if state == nil || state.ActiveReviewRound == nil || state.ActiveReviewRound.Step == nil || *state.ActiveReviewRound.Step != 1 {
+		t.Fatalf("expected explicit step-bound review round in finalize context, got %#v", state)
+	}
+
+	var manifest review.Manifest
+	data, err := os.ReadFile(result.Artifacts.ManifestPath)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatalf("parse manifest: %v", err)
+	}
+	if manifest.Step == nil || *manifest.Step != 1 {
+		t.Fatalf("expected manifest to stay step-bound in finalize context, got %#v", manifest)
+	}
+	if manifest.ReviewTitle == "Branch candidate before archive" || manifest.ReviewTitle == "Full branch candidate before archive" {
+		t.Fatalf("expected explicit step binding to avoid finalize default title, got %#v", manifest)
 	}
 }
 
@@ -1059,6 +1173,22 @@ func writeReviewPlanFile(t *testing.T, path, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
+}
+
+func markFirstPlanStepDone(t *testing.T, path string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read plan: %v", err)
+	}
+	content := strings.Replace(string(data), "- Done: [ ]", "- Done: [x]", 1)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write updated plan: %v", err)
+	}
+}
+
+func intPtr(value int) *int {
+	return &value
 }
 
 func mustJSON(t *testing.T, value any) []byte {

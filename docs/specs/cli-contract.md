@@ -531,6 +531,12 @@ Review-spec semantics:
 - `step`
   - optional 1-based tracked step number
   - usually omitted
+  - when present, explicitly binds the round to that tracked step's
+    step-closeout review, even if the current execution frontier is already on
+    a later step or in finalize repair
+  - use this path for earlier-step closeout repair when missing or failed
+    closeout evidence needs to be repaired intentionally rather than only
+    surfaced as passive warning debt
   - when omitted, `harness review start` infers the binding from workflow state:
     - during `execution/step-<n>/implement`, the round binds to the current step
     - during `execution/finalize/review` or `execution/finalize/fix`, the round binds to finalize review
@@ -538,6 +544,14 @@ Review-spec semantics:
 Agents should not supply structural workflow tags such as `step_closeout` or
 `pre_archive`. The CLI owns that inference and persists the bound step or
 finalize scope in the round manifest and local state.
+
+Explicit `step` binding intentionally re-enters the targeted step's review
+loop. If the controller is already executing `step-k` or finalize work and
+starts a repair review for earlier `step-i`, status may report
+`execution/step-<i>/review` while the round is in flight and
+`execution/step-<i>/implement` after a non-pass aggregate. This is distinct
+from passive warning debt, where status may keep the later frontier stable
+until the controller explicitly starts a repair review for the earlier step.
 
 Round identifiers should be short and plan-local:
 
@@ -551,6 +565,11 @@ If `review_title` is omitted, the CLI fills one in:
 - step-bound review defaults to the tracked step title
 - finalize `full` review defaults to `Full branch candidate before archive`
 - finalize `delta` review defaults to `Branch candidate before archive`
+
+If an explicit earlier-step repair review aggregates with findings, the
+follow-up work still belongs to the current candidate, but status should pin
+the repaired step as current until that step-closeout debt is resolved by a
+later clean repair review or explicit `NO_STEP_REVIEW_NEEDED` closeout.
 
 Dimension-specific reviewer instructions belong in the input review spec.
 Generic reviewer behavior, such as "inspect the current diff and submit results

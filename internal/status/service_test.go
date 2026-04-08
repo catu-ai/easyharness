@@ -10,6 +10,7 @@ import (
 
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/plan"
+	"github.com/catu-ai/easyharness/internal/review"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/status"
 )
@@ -880,6 +881,55 @@ func TestStatusDoesNotSuggestSecondReviewWhileStepReviewIsInFlight(t *testing.T)
 	}
 	if result.NextAction[1].Command == nil || !strings.Contains(*result.NextAction[1].Command, "harness review aggregate --round review-002-delta") {
 		t.Fatalf("expected aggregate action to remain available, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusShowsExplicitEarlierStepRepairAsInFlightReview(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		content = completeAllSteps(content, true)
+		return appendThirdStep(content)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+		"reopen": map[string]any{
+			"mode":            "new-step",
+			"reopened_at":     "2026-03-18T11:00:00+08:00",
+			"base_step_count": 2,
+		},
+		"active_review_round": map[string]any{
+			"round_id":   "review-004-full",
+			"kind":       "full",
+			"step":       1,
+			"revision":   1,
+			"aggregated": false,
+		},
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-004-full", map[string]any{
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-1/review" {
+		t.Fatalf("expected explicit earlier-step repair to show step 1 review in flight, got %#v", result.State)
+	}
+	if result.Facts == nil || result.Facts.CurrentStep != stepOneTitle || result.Facts.ReviewStatus != "in_progress" {
+		t.Fatalf("expected in-flight review facts for step 1, got %#v", result.Facts)
+	}
+	for _, warning := range result.Warnings {
+		if strings.Contains(warning, stepOneTitle) {
+			t.Fatalf("did not expect passive debt warnings while explicit repair review is active, got %#v", result.Warnings)
+		}
+	}
+	for _, action := range result.NextAction {
+		if action.Command != nil && *action.Command == "harness review start --spec <path>" {
+			t.Fatalf("did not expect a second review-start action while explicit repair review is active, got %#v", result.NextAction)
+		}
+	}
+	if len(result.NextAction) == 0 || result.NextAction[len(result.NextAction)-1].Command == nil || !strings.Contains(*result.NextAction[len(result.NextAction)-1].Command, "harness review aggregate --round review-004-full") {
+		t.Fatalf("expected aggregate action for the explicit repair round, got %#v", result.NextAction)
 	}
 }
 
@@ -2160,6 +2210,134 @@ func TestStatusReopenedNewStepContinuesOnceStepExists(t *testing.T) {
 	}
 }
 
+func TestStatusReopenedNewStepKeepsLaterFrontierWhileEarlierCloseoutDebtExists(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		content = completeAllSteps(content, true)
+		return appendThirdStep(content)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+		"reopen": map[string]any{
+			"mode":            "new-step",
+			"reopened_at":     "2026-03-18T11:00:00+08:00",
+			"base_step_count": 2,
+		},
+	})
+	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"review_title": stepOneTitle,
+		"step":         1,
+		"revision":     1,
+	})
+	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
+		"decision": "changes_requested",
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-3/implement" {
+		t.Fatalf("expected reopened step 3 frontier to stay stable, got %#v", result.State)
+	}
+	if result.Facts == nil || result.Facts.CurrentStep != "Step 3: Follow-up reopened work" {
+		t.Fatalf("expected current frontier facts for step 3, got %#v", result.Facts)
+	}
+	if len(result.Warnings) == 0 || !strings.Contains(strings.Join(result.Warnings, "\n"), stepOneTitle) {
+		t.Fatalf("expected earlier step debt warning while staying on step 3, got %#v", result.Warnings)
+	}
+	if len(result.NextAction) < 2 || !strings.Contains(result.NextAction[0].Description, stepOneTitle) {
+		t.Fatalf("expected repair guidance for the earlier step first, got %#v", result.NextAction)
+	}
+	if result.NextAction[1].Command == nil || *result.NextAction[1].Command != "harness review start --spec <path>" {
+		t.Fatalf("expected explicit step-closeout review guidance to remain available, got %#v", result.NextAction)
+	}
+	foundLaterFrontierAction := false
+	for _, action := range result.NextAction[2:] {
+		if action.Command == nil && strings.Contains(action.Description, "Continue the current step") {
+			foundLaterFrontierAction = true
+			break
+		}
+	}
+	if !foundLaterFrontierAction {
+		t.Fatalf("expected ordinary later-frontier guidance to remain after the earlier-step reminder, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusReentersReviewedStepAfterFailedExplicitEarlierStepRepair(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		content = completeAllSteps(content, true)
+		return appendThirdStep(content)
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+		"reopen": map[string]any{
+			"mode":            "new-step",
+			"reopened_at":     "2026-03-18T11:00:00+08:00",
+			"base_step_count": 2,
+		},
+	})
+
+	svc := review.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 18, 11, 10, 0, 0, time.FixedZone("CST", 8*60*60))
+		},
+	}
+	start := svc.Start(mustJSONBytes(t, review.Spec{
+		Step: reviewIntPtr(1),
+		Kind: "full",
+		Dimensions: []review.Dimension{
+			{Name: "correctness", Instructions: "Repair the earlier step closeout from the later frontier."},
+		},
+	}))
+	if !start.OK {
+		t.Fatalf("expected explicit earlier-step review start, got %#v", start)
+	}
+
+	svc.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 11, 12, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+	submit := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSONBytes(t, review.SubmissionInput{
+		Summary: "The repair still needs work.",
+		Findings: []review.Finding{
+			{
+				Severity: "important",
+				Title:    "Earlier-step contract drift",
+				Details:  "The explicit repair still misses one frontier-stability assertion.",
+			},
+		},
+	}))
+	if !submit.OK {
+		t.Fatalf("expected review submission, got %#v", submit)
+	}
+
+	svc.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 11, 14, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+	aggregate := svc.Aggregate(start.Artifacts.RoundID)
+	if !aggregate.OK || aggregate.Review == nil || aggregate.Review.Decision != "changes_requested" {
+		t.Fatalf("expected failed explicit earlier-step repair aggregate, got %#v", aggregate)
+	}
+
+	result := status.Service{Workdir: root}.Read()
+	if result.State.CurrentNode != "execution/step-1/implement" {
+		t.Fatalf("expected failed explicit earlier-step repair to reenter step 1, got %#v", result.State)
+	}
+	if result.Facts == nil || result.Facts.CurrentStep != stepOneTitle || result.Facts.ReviewStatus != "changes_requested" {
+		t.Fatalf("expected reviewed step facts after failed explicit repair, got %#v", result.Facts)
+	}
+	for _, warning := range result.Warnings {
+		if strings.Contains(warning, stepOneTitle) {
+			t.Fatalf("did not expect passive debt warnings once explicit repair has reentered step 1, got %#v", result.Warnings)
+		}
+	}
+	if len(result.NextAction) < 2 || !strings.Contains(result.NextAction[0].Description, "Address the findings from review-001-full") {
+		t.Fatalf("expected ordinary repair guidance after reentering step 1, got %#v", result.NextAction)
+	}
+	if result.NextAction[1].Command == nil || *result.NextAction[1].Command != "harness review start --spec <path>" {
+		t.Fatalf("expected another explicit step-closeout review to remain available, got %#v", result.NextAction)
+	}
+}
+
 func TestStatusConsumedReopenedNewStepDoesNotForceAnotherStepAfterLaterFinding(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
@@ -2255,6 +2433,19 @@ func writeState(t *testing.T, root, planStem string, payload map[string]any) {
 	if err := os.WriteFile(filepath.Join(dir, "state.json"), data, 0o644); err != nil {
 		t.Fatalf("write state: %v", err)
 	}
+}
+
+func mustJSONBytes(t *testing.T, value any) []byte {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal json: %v", err)
+	}
+	return data
+}
+
+func reviewIntPtr(value int) *int {
+	return &value
 }
 
 func writeReviewManifest(t *testing.T, root, planStem, roundID string, payload map[string]any) {
