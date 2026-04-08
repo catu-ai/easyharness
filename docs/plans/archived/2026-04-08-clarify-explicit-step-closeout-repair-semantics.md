@@ -198,14 +198,18 @@ behavior and does not change production logic.
 
 ## Validation Summary
 
-- Updated focused regression coverage in `internal/review/service_test.go` and
-  `internal/status/service_test.go` to lock explicit earlier-step repair start,
-  passive-debt status behavior, in-flight repair re-entry, failed repair
-  re-entry, and finalize-context handling.
-- Revalidated the final candidate with:
-  `go test ./internal/review ./internal/status`
+- Revalidated the original focused coverage in `internal/review/service_test.go`
+  and `internal/status/service_test.go`, then added end-to-end transition
+  coverage in `tests/e2e/coverage_test.go` and
+  `tests/e2e/explicit_step_repair_test.go` after CI exposed drift between the
+  tracked transition matrix and the canonical test catalog.
+- Revalidated the repaired candidate with:
+  `go test ./tests/e2e/...`
+  and
+  `go test ./...`
 - Re-ran `harness plan lint docs/plans/active/2026-04-08-clarify-explicit-step-closeout-repair-semantics.md`
-  after each repair loop to keep the tracked plan archive-ready.
+  and `harness status` after the reopen-driven finalize-fix loop so the plan
+  returned to archive-ready state on revision 2.
 
 ## Review Summary
 
@@ -227,18 +231,22 @@ behavior and does not change production logic.
 - Finalize review `review-005-full` passed cleanly with one non-blocking follow-up
   about missing clean-pass regression coverage for explicit repair fallback to
   the ordinary frontier; that gap was deferred to issue `#113`.
+- After publish/CI handoff exposed a separate canonical transition-catalog gap,
+  the archived candidate was reopened in `finalize-fix` mode for revision 2,
+  the missing E2E coverage was added, and finalize review `review-006-full`
+  passed cleanly with no blocking or non-blocking findings.
 
 ## Archive Summary
 
-- Archived At: 2026-04-08T21:09:54+08:00
-- Revision: 1
-- PR: NONE
-- Ready: The candidate has a passing full finalize review (`review-005-full`),
-  the tracked steps are complete, focused validation is green, and the only
-  remaining gap is a documented non-blocking follow-up issue.
-- Merge Handoff: Archive the plan, commit the tracked changes plus archive
-  move, push the working branch, open or update the PR, then record publish,
-  CI, and sync evidence until the candidate reaches merge-ready handoff.
+- Archived At: 2026-04-08T21:23:00+08:00
+- Revision: 2
+- PR: `#114` (`https://github.com/catu-ai/easyharness/pull/114`)
+- Ready: The reopened finalize-fix candidate has a passing full finalize review
+  (`review-006-full`), focused and end-to-end validation are green, and the
+  remaining deferred scope is tracked separately in issue `#113`.
+- Merge Handoff: Archive the revision-2 candidate, commit the CI-fix follow-up,
+  push the branch update to PR `#114`, and refresh CI/sync evidence so the
+  candidate can return to merge-ready handoff.
 
 ## Outcome Summary
 
@@ -252,12 +260,14 @@ behavior and does not change production logic.
 - Added focused regression coverage for explicit earlier-step repair start from
   later and finalize contexts, passive-debt reminder behavior, in-flight
   explicit repair re-entry, and failed explicit repair re-entry.
+- Added canonical transition-catalog coverage and a built-binary E2E scenario
+  for explicit earlier-step repair so CI now enforces the same revision-2
+  semantics that the tracked specs describe.
 
 ### Not Delivered
 
-- Focused regression coverage for the clean-pass path where an explicit
-  earlier-step repair returns status to the ordinary later frontier or finalize
-  node was intentionally deferred as non-blocking follow-up work.
+- No additional behavior redesign was attempted beyond the documentation and
+  regression coverage needed to lock the current semantics in place.
 
 ### Follow-Up Issues
 
