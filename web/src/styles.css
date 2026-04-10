@@ -984,6 +984,23 @@ body.is-resizing-workbench .workbench-divider::before {
   cursor: pointer;
 }
 
+.plan-tree-chevron {
+  width: 0.8rem;
+  height: 0.8rem;
+  color: #b8c0c7;
+  transform: rotate(0deg);
+  transition: transform 140ms ease, color 140ms ease;
+}
+
+.plan-tree-chevron.is-expanded {
+  transform: rotate(90deg);
+}
+
+.plan-tree-row:hover .plan-tree-chevron,
+.plan-tree-row.is-active .plan-tree-chevron {
+  color: var(--text-strong);
+}
+
 .plan-tree-text,
 .plan-tree-meta {
   display: block;
@@ -1074,6 +1091,28 @@ body.is-resizing-workbench .workbench-divider::before {
 .plan-reader ul,
 .plan-reader ol {
   padding-left: 1.35rem;
+}
+
+.plan-reader .task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.plan-reader .task-list-item {
+  position: relative;
+  padding-left: 1.7rem;
+  list-style: none;
+}
+
+.plan-reader .task-list-item-checkbox {
+  position: absolute;
+  left: 0;
+  top: 0.18rem;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0;
+  accent-color: #7ec4f3;
+  opacity: 1;
 }
 
 .plan-reader li + li {

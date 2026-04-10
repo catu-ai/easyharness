@@ -529,6 +529,17 @@ assert_has_text() {
   fi
 }
 
+assert_lacks_text() {
+  local label="$1"
+  local unexpected="$2"
+  local snapshot="${output_dir}/${label}.yml"
+  if grep -Fq -- "$unexpected" "$snapshot"; then
+    echo "Snapshot ${snapshot} unexpectedly contained text: ${unexpected}" >&2
+    cat "$snapshot" >&2
+    exit 1
+  fi
+}
+
 link_ref_from_snapshot() {
   local label="$1"
   local snapshot="$2"
@@ -573,11 +584,37 @@ assert_has_text "plan-initial" "Plan UI Smoke"
 assert_has_text "plan-initial" "supplements"
 assert_has_text "plan-initial" "design.md"
 assert_has_text "plan-initial" "In Scope"
+assert_lacks_text "plan-initial" "Package metadata"
+pwcli_retry "$main_session" run-code '
+async (page) => {
+  return await page.evaluate(() => {
+    const reader = document.querySelector(".plan-reader");
+    if (!reader) {
+      throw new Error("missing plan reader");
+    }
+    const checkboxes = Array.from(reader.querySelectorAll("input[type=\"checkbox\"]"));
+    if (checkboxes.length === 0) {
+      throw new Error("expected rendered task-list checkboxes in the plan reader");
+    }
+    if (!checkboxes.every((checkbox) => checkbox instanceof HTMLInputElement && checkbox.disabled)) {
+      throw new Error("expected task-list checkboxes to render as disabled reader controls");
+    }
+    const acceptanceHeading = Array.from(reader.querySelectorAll("h1, h2, h3, h4, h5, h6")).find(
+      (heading) => heading.textContent?.trim() === "Acceptance Criteria",
+    );
+    const acceptanceList = acceptanceHeading?.nextElementSibling;
+    if (!acceptanceList || acceptanceList.textContent?.includes("[x]") || acceptanceList.textContent?.includes("[ ]")) {
+      throw new Error("expected Acceptance Criteria to render without raw markdown checkbox markers");
+    }
+    return { checkboxCount: checkboxes.length };
+  });
+}
+' >/dev/null
 
 log_phase "validating heading navigation and explorer expand/collapse"
-scope_ref="$(interactive_ref_from_snapshot "Scope" "${output_dir}/plan-initial.yml")"
+scope_ref="$(button_ref_from_snapshot "Scope H2" "${output_dir}/plan-initial.yml")"
 if [[ -z "$scope_ref" ]]; then
-  echo "Could not find Scope heading ref." >&2
+  echo "Could not find Scope explorer ref." >&2
   cat "${output_dir}/plan-initial.yml" >&2
   exit 1
 fi
@@ -619,6 +656,10 @@ async (page) => {
     const scopeTop = scope.getBoundingClientRect().top;
     if (Math.abs(scopeTop - containerTop) > 140) {
       throw new Error(`expected Scope heading near top of reading area, got delta ${scopeTop - containerTop}`);
+    }
+    const explorer = document.querySelector(".plan-tree");
+    if (explorer?.textContent?.includes("In Scope")) {
+      throw new Error("expected clicking the Scope label to collapse its child headings in the explorer");
     }
     return {
       scrollTop: scrollContainer.scrollTop,

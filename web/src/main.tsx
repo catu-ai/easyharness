@@ -333,7 +333,6 @@ function App() {
               document={activePlan.document}
               supplements={activePlan.supplements}
               warnings={activePlan.warnings}
-              artifacts={activePlan.artifacts}
             />
           ) : page === "timeline" ? (
             <TimelineWorkspace loading={timelineLoading} error={timelineError} events={activeTimeline.events} />

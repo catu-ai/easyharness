@@ -318,6 +318,19 @@ The Playwright rerun produced fresh screenshots under
 including `plan-scope.png` for heading navigation and
 `plan-archived-notes.png` for archived-current-plan browsing.
 
+After another round of human visual feedback, removed the trailing package
+metadata block from the reader, changed explorer branch labels so title clicks
+fold/unfold the branch instead of requiring precise chevron hits, replaced the
+ASCII expand markers with proper chevrons, and added task-list rendering on
+top of `markdown-it` so plan checklists display as checkboxes. Refreshed the
+visual checklist wording to say "current plan package" and extended the smoke
+flow to assert the metadata panel stays gone, the task-list checkboxes render,
+and the `Scope` explorer label click actually collapses its child headings.
+That first task-list styling pass used a flex layout for each task item, which
+made inline content wrap awkwardly during real reading. Repaired the layout by
+keeping normal text flow inside each list item and absolutely positioning the
+checkbox instead.
+
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: This step is itself the validation and closeout slice;
@@ -363,9 +376,10 @@ than treating the validation step as a substitute for candidate review.
 - Browser validation passed with `scripts/ui-playwright-plan-smoke`, including
   heading navigation against the actual reading-area scroll container,
   recursive supplements tree checks, archived-current-plan browsing,
-  unsupported preview states, and idle empty state.
+  unsupported preview states, idle empty state, hidden package metadata, and
+  rendered task-list checkboxes in the reader.
 - Fresh browser artifacts were captured under
-  `output/playwright/harness-ui-plan-smoke-20493-1775829253619805000-3623/`,
+  `output/playwright/harness-ui-plan-smoke-84406-1775831061142582000-25826/`,
   including `plan-scope.png` and `plan-archived-notes.png` for visual review.
 
 ## Review Summary
@@ -387,22 +401,39 @@ than treating the validation step as a substitute for candidate review.
   `docs/plans/active/supplements/2026-04-10-add-current-plan-browser-page/visual-checklist.yaml`
   still says "active plan package," which is narrower than the repaired
   current-plan behavior during merge handoff.
+- Revision `3` addresses the remaining UX polish feedback from human
+  interactive use: remove the noisy package-metadata panel, let explorer title
+  clicks fold/unfold branch rows, replace the ASCII expand glyphs with real
+  chevrons, and render markdown task lists as checkboxes.
+- An initial `review-005-full` pass began for revision `3`, but before
+  aggregation a fresh human screenshot surfaced one more real issue: the new
+  task-list styling broke inline wrapping inside checklist items.
+- After that layout repair landed, `review-005-full` aggregated with one
+  blocking docs-consistency finding: the public `PlanResult.Artifacts` comment
+  in `internal/contracts/plan_ui.go` still said "active-plan package paths"
+  instead of "current-plan package paths".
+- `review-006-delta` passed clean after the narrow follow-up fixed that public
+  contract wording.
 
 ## Archive Summary
 
-- Archived At: 2026-04-10T22:01:40+08:00
-- Revision: 2
+- Archived At: 2026-04-10T22:29:21+08:00
+- Revision: 3
+- The earlier revision `2` archive candidate was reopened with
+  `harness reopen --mode finalize-fix` because additional Plan-page UX polish
+  still needed repair.
+- Revision `3` is archive-ready and not yet archived.
 - The earlier revision `1` archive candidate was reopened with
   `harness reopen --mode finalize-fix` because merge-handoff behavior still
   needed repair.
 - PR: [#134](https://github.com/catu-ai/easyharness/pull/134)
-- Ready: Revision `2` has a passing finalize review in `review-004-full`,
-  focused validation is green, and the remaining review feedback is one
-  non-blocking docs-consistency note.
-- Merge Handoff: Archive this repaired candidate, refresh publish/CI/sync
-  evidence on PR [#134](https://github.com/catu-ai/easyharness/pull/134), and
-  return to `execution/finalize/await_merge` to wait for explicit human merge
-  approval.
+- Ready: Revision `3` has a clean finalize review after `review-006-delta`,
+  and focused validation is green for the UX polish plus contract-wording
+  follow-up.
+- Merge Handoff: Archive the repaired candidate, refresh publish/CI/sync
+  evidence on PR
+  [#134](https://github.com/catu-ai/easyharness/pull/134), and return to
+  `execution/finalize/await_merge` to wait for explicit human merge approval.
 
 ## Outcome Summary
 
@@ -422,6 +453,15 @@ than treating the validation step as a substitute for candidate review.
 - Corrected heading navigation so explorer clicks scroll the visible reading
   area to the selected section instead of targeting a non-scrolling inner
   element.
+- Removed the trailing package-metadata panel from the Plan reader so the page
+  stays focused on document and supplement content.
+- Updated explorer rows so clicking a branch title toggles fold/unfold without
+  requiring precise chevron hits, and replaced the ASCII expand markers with
+  proper chevron icons.
+- Added task-list rendering on top of `markdown-it` so markdown checkboxes
+  display as disabled reader checkboxes instead of raw `[ ]` and `[x]` text.
+- Corrected the public Plan contract wording so the `PlanResult.Artifacts`
+  comment now matches current-plan behavior during archived merge handoff.
 - Added focused validation for the new resource and browser flow, including
   archived-current-plan coverage, stronger heading-navigation assertions, fresh
   Playwright screenshots, and binary-content rejection ahead of preview

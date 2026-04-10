@@ -60,6 +60,8 @@ const markdownRenderer = new MarkdownIt({
   linkify: true,
 });
 
+addTaskListSupport(markdownRenderer);
+
 function ReviewFindingCard(props: { finding: ReviewFinding; provenance?: string | null }) {
   const { finding, provenance } = props;
   return (
@@ -295,9 +297,8 @@ export function PlanWorkspace(props: {
   document: PlanDocument | null;
   supplements: PlanNode | null;
   warnings: string[];
-  artifacts: Array<[string, unknown]>;
 }) {
-  const { loading, error, summary, document, supplements, warnings, artifacts } = props;
+  const { loading, error, summary, document, supplements, warnings } = props;
   const documentRootId = document ? `document:${document.path}` : "document";
   const [selectedNodeId, setSelectedNodeId] = useState<string>(documentRootId);
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
@@ -374,6 +375,13 @@ export function PlanWorkspace(props: {
     });
   };
 
+  const selectPlanNode = (id: string, opts?: { toggle?: boolean }) => {
+    if (opts?.toggle) {
+      toggleNode(id);
+    }
+    setSelectedNodeId(id);
+  };
+
   const renderHeadingNode = (heading: PlanHeading, depth: number) => {
     const nodeId = planHeadingSelectionId(heading);
     const isExpanded = expandedNodeIds.has(nodeId);
@@ -389,9 +397,9 @@ export function PlanWorkspace(props: {
             aria-label={hasChildren ? `${isExpanded ? "Collapse" : "Expand"} ${heading.label}` : undefined}
             disabled={!hasChildren}
           >
-            {hasChildren ? (isExpanded ? "v" : ">") : ""}
+            {hasChildren ? <TreeChevron expanded={isExpanded} /> : null}
           </button>
-          <button type="button" class="plan-tree-label" onClick={() => setSelectedNodeId(nodeId)}>
+          <button type="button" class="plan-tree-label" onClick={() => selectPlanNode(nodeId, { toggle: hasChildren })}>
             <span class="plan-tree-text">{heading.label}</span>
             <span class="plan-tree-meta">H{heading.level}</span>
           </button>
@@ -417,9 +425,9 @@ export function PlanWorkspace(props: {
             aria-label={hasChildren ? `${isExpanded ? "Collapse" : "Expand"} ${node.label}` : undefined}
             disabled={!hasChildren}
           >
-            {hasChildren ? (isExpanded ? "v" : ">") : ""}
+            {hasChildren ? <TreeChevron expanded={isExpanded} /> : null}
           </button>
-          <button type="button" class="plan-tree-label" onClick={() => setSelectedNodeId(nodeId)}>
+          <button type="button" class="plan-tree-label" onClick={() => selectPlanNode(nodeId, { toggle: hasChildren })}>
             <span class="plan-tree-text">{node.kind === "directory" ? node.label : node.label}</span>
             {node.kind === "file" && previewStatus ? <span class="plan-tree-meta">{previewStatus}</span> : null}
           </button>
@@ -452,9 +460,13 @@ export function PlanWorkspace(props: {
                     aria-label={document.headings.length > 0 ? `${expandedNodeIds.has(documentRootId) ? "Collapse" : "Expand"} ${document.title}` : undefined}
                     disabled={document.headings.length === 0}
                   >
-                    {document.headings.length > 0 ? (expandedNodeIds.has(documentRootId) ? "v" : ">") : ""}
+                    {document.headings.length > 0 ? <TreeChevron expanded={expandedNodeIds.has(documentRootId)} /> : null}
                   </button>
-                  <button type="button" class="plan-tree-label" onClick={() => setSelectedNodeId(documentRootId)}>
+                  <button
+                    type="button"
+                    class="plan-tree-label"
+                    onClick={() => selectPlanNode(documentRootId, { toggle: document.headings.length > 0 })}
+                  >
                     <span class="plan-tree-text">{document.title}</span>
                     <span class="plan-tree-meta">PLAN</span>
                   </button>
@@ -475,9 +487,13 @@ export function PlanWorkspace(props: {
                     aria-label={supplements.children?.length ? `${expandedNodeIds.has(planSupplementSelectionId(supplements)) ? "Collapse" : "Expand"} supplements` : undefined}
                     disabled={!supplements.children?.length}
                   >
-                    {supplements.children?.length ? (expandedNodeIds.has(planSupplementSelectionId(supplements)) ? "v" : ">") : ""}
+                    {supplements.children?.length ? <TreeChevron expanded={expandedNodeIds.has(planSupplementSelectionId(supplements))} /> : null}
                   </button>
-                  <button type="button" class="plan-tree-label" onClick={() => setSelectedNodeId(planSupplementSelectionId(supplements))}>
+                  <button
+                    type="button"
+                    class="plan-tree-label"
+                    onClick={() => selectPlanNode(planSupplementSelectionId(supplements), { toggle: Boolean(supplements.children?.length) })}
+                  >
                     <span class="plan-tree-text">supplements</span>
                     <span class="plan-tree-meta">DIR</span>
                   </button>
@@ -542,23 +558,6 @@ export function PlanWorkspace(props: {
           ) : (
             <EmptyState>{summary}</EmptyState>
           )}
-
-          {artifacts.length > 0 ? (
-            <section class="content-section content-section-secondary">
-              <div class="section-head">
-                <h2>Package metadata</h2>
-                <span class="muted">{artifacts.length}</span>
-              </div>
-              <dl class="kv-list">
-                {artifacts.map(([key, value]) => (
-                  <div key={key}>
-                    <dt>{key}</dt>
-                    <dd>{formatValue(value)}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          ) : null}
         </div>
       ) : (
         <EmptyState>{summary}</EmptyState>
@@ -671,6 +670,93 @@ function findNearestScrollableAncestor(node: HTMLElement | null): HTMLElement | 
     current = current.parentElement;
   }
   return null;
+}
+
+function TreeChevron(props: { expanded: boolean }) {
+  return (
+    <svg class={`plan-tree-chevron${props.expanded ? " is-expanded" : ""}`} viewBox="0 0 12 12" aria-hidden="true">
+      <path d="M4 2.75 7.75 6 4 9.25" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  );
+}
+
+type MarkdownToken = {
+  type: string;
+  attrs?: [string, string][] | null;
+  content: string;
+  children?: MarkdownToken[] | null;
+};
+
+type MarkdownState = {
+  Token: new (type: string, tag: string, nesting: number) => MarkdownToken;
+  tokens: MarkdownToken[];
+};
+
+function addTaskListSupport(renderer: MarkdownIt) {
+  renderer.core.ruler.after("inline", "task-lists", (state) => {
+    const tokenState = state as unknown as MarkdownState;
+    for (let index = 0; index < tokenState.tokens.length; index += 1) {
+      const token = tokenState.tokens[index];
+      if (token.type !== "inline" || tokenState.tokens[index - 1]?.type !== "paragraph_open" || tokenState.tokens[index + 1]?.type !== "paragraph_close") {
+        continue;
+      }
+      const firstChild = token.children?.[0];
+      const match = firstChild?.content.match(/^\[( |x|X)\]\s+/);
+      if (!match) {
+        continue;
+      }
+
+      const checked = match[1].toLowerCase() === "x";
+      addTokenClass(findPreviousToken(tokenState.tokens, index, "list_item_open"), "task-list-item");
+      addTokenClass(findPreviousListToken(tokenState.tokens, index), "task-list");
+
+      if (!firstChild) {
+        continue;
+      }
+      firstChild.content = firstChild.content.slice(match[0].length);
+      if (firstChild.content.length === 0) {
+        token.children?.shift();
+      }
+
+      const checkbox = new tokenState.Token("html_inline", "", 0);
+      checkbox.content = `<input class="task-list-item-checkbox" type="checkbox" disabled${checked ? " checked" : ""}>`;
+      token.children = [checkbox, ...(token.children ?? [])];
+    }
+  });
+}
+
+function findPreviousToken(tokens: MarkdownToken[], startIndex: number, type: string): MarkdownToken | null {
+  for (let index = startIndex - 1; index >= 0; index -= 1) {
+    if (tokens[index].type === type) {
+      return tokens[index];
+    }
+  }
+  return null;
+}
+
+function findPreviousListToken(tokens: MarkdownToken[], startIndex: number): MarkdownToken | null {
+  for (let index = startIndex - 1; index >= 0; index -= 1) {
+    if (tokens[index].type === "bullet_list_open" || tokens[index].type === "ordered_list_open") {
+      return tokens[index];
+    }
+  }
+  return null;
+}
+
+function addTokenClass(token: MarkdownToken | null, className: string) {
+  if (!token) {
+    return;
+  }
+  const attrs = token.attrs ?? [];
+  const classAttr = attrs.find((entry) => entry[0] === "class");
+  if (classAttr) {
+    const classes = new Set(classAttr[1].split(/\s+/).filter(Boolean));
+    classes.add(className);
+    classAttr[1] = Array.from(classes).join(" ");
+  } else {
+    attrs.push(["class", className]);
+  }
+  token.attrs = attrs;
 }
 
 export function TimelineWorkspace(props: {

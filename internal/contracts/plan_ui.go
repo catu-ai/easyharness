@@ -12,7 +12,7 @@ type PlanResult struct {
 	// state.
 	Summary string `json:"summary"`
 
-	// Artifacts points to the active-plan package paths used to build this
+	// Artifacts points to the current-plan package paths used to build this
 	// response.
 	Artifacts *PlanArtifacts `json:"artifacts,omitempty"`
 
