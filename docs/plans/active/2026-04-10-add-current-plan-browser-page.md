@@ -301,6 +301,10 @@ supplement tree check mandatory, and strengthened the heading-navigation
 assertion so it proves the full markdown reader stays mounted while adding a
 retry around the Playwright `run-code` probe. Focused rerun after the repair:
 `go test ./internal/planui ./internal/ui` and `scripts/ui-playwright-plan-smoke`.
+After a second finalize review found that allowlisted extensions could still
+mask binary payloads, moved the binary-content rejection ahead of the richer
+preview allowlist and added a corrupt-`.json` fixture so the contract rejects
+renamed binary supplements explicitly.
 
 #### Review Notes
 

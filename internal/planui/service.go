@@ -430,6 +430,11 @@ func buildFilePreview(path string) (*Preview, string) {
 		preview.Reason = "File preview is unavailable because the file could not be read."
 		return preview, err.Error()
 	}
+	if !looksLikeText(data) {
+		preview.Status = "not_supported"
+		preview.Reason = "Binary or unsupported file content cannot be previewed."
+		return preview, ""
+	}
 
 	if contentType, ok := richPreviewExtensions[extension]; ok {
 		preview.ContentType = contentType
@@ -437,16 +442,10 @@ func buildFilePreview(path string) (*Preview, string) {
 		return preview, ""
 	}
 
-	if looksLikeText(data) {
-		preview.Status = "fallback"
-		preview.ContentType = "text"
-		preview.Content = string(data)
-		preview.Reason = "Rendered as plain text because this extension has no richer preview yet."
-		return preview, ""
-	}
-
-	preview.Status = "not_supported"
-	preview.Reason = "Binary or unsupported file content cannot be previewed."
+	preview.Status = "fallback"
+	preview.ContentType = "text"
+	preview.Content = string(data)
+	preview.Reason = "Rendered as plain text because this extension has no richer preview yet."
 	return preview, ""
 }
 

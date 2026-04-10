@@ -61,6 +61,7 @@ func TestServiceReadLoadsActivePlanPackageAndPreviewStates(t *testing.T) {
 	mustWriteFile(t, filepath.Join(supplementsDir, "design.md"), []byte("# Design\n\nReader notes.\n"))
 	mustWriteFile(t, filepath.Join(supplementsDir, "notes.log"), []byte("line one\nline two\n"))
 	mustWriteFile(t, filepath.Join(supplementsDir, "data.json"), []byte("{\"ok\":true}\n"))
+	mustWriteFile(t, filepath.Join(supplementsDir, "corrupt.json"), []byte{0xff, 0x00, 0x01})
 	mustWriteFile(t, filepath.Join(supplementsDir, "nested", "config.yaml"), []byte("theme: slate\n"))
 	mustWriteFile(t, filepath.Join(supplementsDir, "image.png"), []byte{})
 	mustWriteFile(t, filepath.Join(supplementsDir, "binary.bin"), []byte{0xff, 0x00, 0x01})
@@ -117,6 +118,10 @@ func TestServiceReadLoadsActivePlanPackageAndPreviewStates(t *testing.T) {
 	data := findNode(t, result.Supplements, "docs/plans/active/supplements/2026-04-10-plan-page/data.json")
 	if data.Preview == nil || data.Preview.ContentType != "json" {
 		t.Fatalf("unexpected json preview: %#v", data)
+	}
+	corrupt := findNode(t, result.Supplements, "docs/plans/active/supplements/2026-04-10-plan-page/corrupt.json")
+	if corrupt.Preview == nil || corrupt.Preview.Status != "not_supported" || !strings.Contains(corrupt.Preview.Reason, "Binary or unsupported") {
+		t.Fatalf("unexpected corrupt allowlisted preview: %#v", corrupt)
 	}
 	config := findNode(t, result.Supplements, "docs/plans/active/supplements/2026-04-10-plan-page/nested/config.yaml")
 	if config.Preview == nil || config.Preview.ContentType != "yaml" {
