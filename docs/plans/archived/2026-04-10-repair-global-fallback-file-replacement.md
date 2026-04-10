@@ -220,13 +220,13 @@ symlink targets before the final rename and adds
 
 - Archived At: 2026-04-10T10:23:21+08:00
 - Revision: 1
-- PR: to be created immediately after archive from branch
-  `codex/repair-global-fallback-file-replacement`
-- Ready: finalize review `review-005-full` passed cleanly and the candidate is
-  ready to archive, publish, and wait for merge approval once publish/CI/sync
-  evidence is recorded.
-- Merge Handoff: archive the plan, push the branch, open the PR, record
-  publish/CI/sync evidence, and then wait for merge approval.
+- PR: draft PR `https://github.com/catu-ai/easyharness/pull/132`
+- Ready: publish and sync evidence are recorded, CI evidence is `not_applied`
+  because the branch has no required checks, and the archived candidate is
+  ready to wait for merge approval.
+- Merge Handoff: keep the draft PR open on branch
+  `codex/repair-global-fallback-file-replacement` and wait for explicit human
+  merge approval before switching into `harness-land`.
 
 ## Outcome Summary
 
