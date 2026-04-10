@@ -53,6 +53,13 @@ func TestArchiveMovesPlanAndUpdatesPointers(t *testing.T) {
 	if lint := plan.LintFile(archivedPath); !lint.OK {
 		t.Fatalf("archived plan should lint, got %#v", lint)
 	}
+	archivedBytes, err := os.ReadFile(archivedPath)
+	if err != nil {
+		t.Fatalf("read archived plan: %v", err)
+	}
+	if !strings.Contains(string(archivedBytes), "size: M") {
+		t.Fatalf("expected archived plan to preserve size frontmatter, got:\n%s", archivedBytes)
+	}
 	current, err := runstate.LoadCurrentPlan(root)
 	if err != nil {
 		t.Fatalf("load current-plan: %v", err)

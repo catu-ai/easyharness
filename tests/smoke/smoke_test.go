@@ -459,6 +459,7 @@ func TestPlanTemplateAndLintRoundTrip(t *testing.T) {
 		workspace.Root,
 		"plan", "template",
 		"--title", "Smoke Plan",
+		"--size", "M",
 		"--timestamp", "2026-03-22T00:00:00Z",
 		"--source-type", "issue",
 		"--source-ref", "#6",
@@ -477,6 +478,7 @@ func TestPlanTemplateAndLintRoundTrip(t *testing.T) {
 	support.RequireContains(t, string(data), "created_at: 2026-03-22T00:00:00Z")
 	support.RequireContains(t, string(data), "source_type: issue")
 	support.RequireContains(t, string(data), "source_refs: [\"#6\"]")
+	support.RequireContains(t, string(data), "size: M")
 
 	lint := support.Run(t, workspace.Root, "plan", "lint", planRelPath)
 	support.RequireSuccess(t, lint)

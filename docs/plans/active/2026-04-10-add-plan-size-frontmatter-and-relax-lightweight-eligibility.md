@@ -3,6 +3,7 @@ template_version: 0.2.0
 created_at: "2026-04-10T23:19:20+08:00"
 source_type: direct_request
 source_refs: []
+size: L
 ---
 
 # Add plan size frontmatter and relax lightweight eligibility
@@ -341,6 +342,8 @@ with the schema, template, and lint changes in the final candidate review.
 
 ## Validation Summary
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 - Ran `scripts/sync-bootstrap-assets` after the bootstrap guidance edits so
   `.agents/skills/harness-plan/SKILL.md` and the managed block in `AGENTS.md`
   stayed aligned with `assets/bootstrap/`.
@@ -360,6 +363,8 @@ with the schema, template, and lint changes in the final candidate review.
   `COUNT=0` failures.
 
 ## Review Summary
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - Finalize review `review-001-full` found a blocking tests gap around missing
   negative coverage for invalid size handling and the lack of a durable
@@ -381,6 +386,8 @@ with the schema, template, and lint changes in the final candidate review.
 
 ## Archive Summary
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 - Archived At: 2026-04-11T00:13:20+08:00
 - Revision: 1
 - PR: `#138` (`https://github.com/catu-ai/easyharness/pull/138`)
@@ -396,6 +403,8 @@ with the schema, template, and lint changes in the final candidate review.
 ## Outcome Summary
 
 ### Delivered
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - Added required tracked-plan frontmatter `size` support with the initial
   ladder `XXS`, `XS`, `S`, `M`, `L`, `XL`, and `XXL`.
@@ -414,6 +423,8 @@ with the schema, template, and lint changes in the final candidate review.
 
 ### Not Delivered
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 - This slice did not remove `workflow_profile: lightweight` as a separate
   planning surface.
 - This slice did not add automatic size suggestion or inference to
@@ -421,7 +432,10 @@ with the schema, template, and lint changes in the final candidate review.
 
 ### Follow-Up Issues
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 - #136 Revisit whether lightweight should remain a distinct workflow profile
   after size backfill (`https://github.com/catu-ai/easyharness/issues/136`)
 - #137 Consider suggesting candidate plan sizes from plan structure and the
   backfilled corpus (`https://github.com/catu-ai/easyharness/issues/137`)
+
