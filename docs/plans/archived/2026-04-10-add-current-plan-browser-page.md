@@ -66,31 +66,31 @@ compatibility layers or fallback behavior that preserves older UI assumptions.
 
 ## Acceptance Criteria
 
-- [ ] `harness ui` exposes a new read-only `Plan` page in the page rail.
-- [ ] The page reads only the current active tracked plan package and never
+- [x] `harness ui` exposes a new read-only `Plan` page in the page rail.
+- [x] The page reads only the current active tracked plan package and never
       falls back to archived plans.
-- [ ] When no active plan exists, the page renders a clear empty state that
+- [x] When no active plan exists, the page renders a clear empty state that
       explains there is no current plan to browse.
-- [ ] The left explorer presents a hierarchical, collapsible navigation tree
+- [x] The left explorer presents a hierarchical, collapsible navigation tree
       that includes the main plan heading structure and, when present, a
       `supplements/` folder subtree.
-- [ ] The main plan heading tree defaults to an expanded depth that surfaces
+- [x] The main plan heading tree defaults to an expanded depth that surfaces
       headings through `H3` while still allowing deeper nodes to be expanded
       on demand.
-- [ ] Selecting a plan heading keeps the full markdown document in the reader
+- [x] Selecting a plan heading keeps the full markdown document in the reader
       and navigates to the chosen section instead of replacing the document
       with an isolated fragment.
-- [ ] Selecting a supplement file replaces the reader content with that file's
+- [x] Selecting a supplement file replaces the reader content with that file's
       preview while preserving the workbench shell and explorer selection.
-- [ ] `md`, `txt`, `json`, `yaml`, and `yml` render as supported previews.
-- [ ] Text-readable files outside the richer preview allowlist degrade to
+- [x] `md`, `txt`, `json`, `yaml`, and `yml` render as supported previews.
+- [x] Text-readable files outside the richer preview allowlist degrade to
       plain-text rendering without pretending to provide rich semantics.
-- [ ] Binary files, image files, unsupported formats, and files above the
+- [x] Binary files, image files, unsupported formats, and files above the
       configured preview-size threshold render a clear `not supported` state.
-- [ ] The implementation introduces or updates automated tests that cover the
+- [x] The implementation introduces or updates automated tests that cover the
       read model, active-plan empty state, file support and size-threshold
       gating, and core page interactions.
-- [ ] Before closeout, the page is exercised interactively with Playwright:
+- [x] Before closeout, the page is exercised interactively with Playwright:
       open the page, expand and collapse explorer nodes, click plan headings,
       open supplement files, capture screenshots, and confirm the visual
       hierarchy and reading experience match the accepted direction.
@@ -343,26 +343,74 @@ than treating the validation step as a substitute for candidate review.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- Focused backend and server validation passed with `go test ./internal/planui
+  ./internal/ui` after the preview-contract, archived-pointer, and binary-gate
+  repairs.
+- Frontend checks passed with `pnpm --dir web check` and `pnpm --dir web
+  build`, and the embedded UI assets were rebuilt before browser validation.
+- Browser validation passed with `scripts/ui-playwright-plan-smoke`, including
+  the active-plan reader flow, recursive supplements tree checks, unsupported
+  preview states, and idle empty state.
+- An interactive headed Playwright pass against the live `Plan` page captured
+  screenshots under `output/playwright/manual-plan-review/` for the main
+  document view plus markdown and YAML supplement previews.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-full` requested changes for three real issues: archived
+  current-plan pointers still surfaced a browseable `/api/plan` success, the
+  dedicated Plan smoke script treated nested supplement traversal as optional,
+  and the heading-navigation assertion did not prove the full markdown reader
+  stayed mounted.
+- `review-002-full` requested one additional change after the first repair:
+  allowlisted extensions could still bypass binary rejection and render renamed
+  binary payloads as supported previews.
+- `review-003-full` passed clean after the second repair. The final candidate
+  now has a clean finalize review for `review-003-full` with no blocking or
+  non-blocking findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-04-10T10:42:45+08:00
+- Revision: 1
+- PR: NONE. After archive, push branch `codex/plan-browser-page`, open or
+  update the draft PR, and record the PR URL through publish evidence.
+- Ready: Acceptance criteria are satisfied, the `Plan` page is shipping with a
+  read-only active-plan browser plus supplements explorer, focused validation
+  passed, and finalize review `review-003-full` cleared the repaired candidate.
+- Merge Handoff: Run `harness archive`, commit the tracked archive move plus
+  closeout summaries, push `codex/plan-browser-page`, open or update the draft
+  PR, record publish/CI/sync evidence, and wait for explicit human merge
+  approval once `harness status` reaches `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added a new `Plan` page to the read-only UI rail and workbench shell so the
+  current active tracked plan is browseable without leaving `harness ui`.
+- Added a dedicated `/api/plan` read model and schema that expose the active
+  plan markdown document, heading-based TOC tree, supplements directory tree,
+  and explicit preview states for supported, fallback, and unsupported files.
+- Implemented a VS Code-like explorer for plan headings and supplements while
+  keeping the right pane as one document reader for the main plan and a file
+  previewer for supplements.
+- Added focused validation for the new resource and browser flow, including
+  manual Playwright screenshots, archive-pointer empty-state coverage, stronger
+  smoke assertions, and binary-content rejection ahead of preview allowlisting.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Archived-plan browsing, history switching, or a plan-package picker are still
+  deferred.
+- Explorer expansion memory beyond one browser session is still deferred.
+- Rich preview support for images, CSV, PDF, or other heavier supplement
+  formats is still deferred.
+- Search, filtering, or graphing inside plan content is still deferred.
 
 ### Follow-Up Issues
 
-NONE
+- [#133](https://github.com/catu-ai/easyharness/issues/133) tracks the
+  intentionally deferred plan-browser enhancements, including archived-plan
+  browsing, richer previews, expansion-state persistence, and in-page
+  search/filtering work.
