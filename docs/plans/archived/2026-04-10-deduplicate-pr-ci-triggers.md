@@ -150,26 +150,34 @@ candidate before archive.
 - Manual diff review confirmed the only workflow change is narrowing the
   `push` trigger to the `main` branch while preserving the existing
   `pull_request` trigger and `go test ./...` job body.
+- After reopening revision 2 for remote-sync repair, merged `origin/main`
+  cleanly into `codex/deduplicate-pr-ci-triggers`.
+- Revalidated the refreshed branch with:
+  `go test ./...`
+  and the full suite passed on the merged candidate.
 
 ## Review Summary
 
-- Finalize review `review-001-full` passed with no blocking or non-blocking
-  findings.
-- The reviewer confirmed the candidate keeps the change bounded to workflow
-  trigger scope and found no missing closeout details for the slice.
+- Revision 1 finalize review `review-001-full` passed with no blocking or
+  non-blocking findings.
+- Revision 2 was reopened only for remote-sync repair after publish handoff
+  showed the archived candidate was stale against `origin/main`.
+- Revision 2 finalize review `review-002-full` also passed with no blocking or
+  non-blocking findings after the clean merge from `origin/main` and the full
+  local validation rerun.
 
 ## Archive Summary
 
-- Archived At: 2026-04-10T23:06:09+08:00
-- Revision: 1
-- PR: NONE
-- Ready: The candidate has a clean finalize review and local validation for
-  the trigger-only workflow change; remote publish, CI, and sync handoff still
-  need to be recorded before merge-ready wait state.
-- Merge Handoff: Archive the plan, commit the archive move and summary
-  updates, push `codex/deduplicate-pr-ci-triggers`, open or update a PR, and
-  record publish, CI, and sync evidence until the candidate reaches
+- Archived At: 2026-04-10T23:15:24+08:00
+- Revision: 2
+- PR: https://github.com/catu-ai/easyharness/pull/135
+- Ready: Revision 2 merged `origin/main` cleanly and passed full local
+  validation plus a fresh clean finalize review. After re-archive, fresh
+  post-archive CI and sync evidence can move the candidate back to
   `execution/finalize/await_merge`.
+- Merge Handoff: Re-archive the refreshed candidate, push the updated branch,
+  refresh PR #135, and record fresh publish, CI, and sync evidence until
+  `harness status` returns `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
@@ -179,8 +187,9 @@ candidate before archive.
   `pull_request` continues to validate PRs.
 - Removed the redundant PR double-run path without changing the existing
   `go test ./...` job body.
-- Recorded the implementation, validation, and finalize review outcome in the
-  tracked plan for archive handoff.
+- Reopened the archived candidate only for remote-sync repair, merged
+  `origin/main` without conflicts, and reran validation on the refreshed
+  branch.
 
 ### Not Delivered
 
