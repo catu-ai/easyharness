@@ -364,9 +364,11 @@ pretending implementation has already resumed.
 
 Git commits are workflow guidance, not state transitions.
 
-- A small reviewable commit usually happens before step review starts.
-- A meaningful review-driven repair usually gets another small commit before a
-  fresh step review round starts.
+- `delta` review must anchor to a real git commit.
+- A small reviewable commit should exist before a step-closeout `delta` review
+  starts so that review has a durable starting point.
+- A meaningful review-driven repair that may need later `delta` review should
+  establish another small anchor commit before the fresh review round starts.
 - Archive readiness still requires the archived tracked move to be committed
   and pushed before publish, CI, and merge-approval work can be treated as
   complete.

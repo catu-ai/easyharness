@@ -467,6 +467,8 @@ Contract:
 - validate and persist the supplied review spec as the round manifest
 - normalize each review dimension into a deterministic reviewer slot
 - reserve reviewer output paths
+- precreate one reviewer-owned folder per slot with a `submission.json`
+  skeleton that the reviewer can progressively update during the round
 - initialize a dispatch or audit ledger
 - when `step` is omitted and the inferred binding would be finalize review,
   reject the request if earlier completed steps still lack review-complete
@@ -496,6 +498,7 @@ Canonical input shape:
 ```json
 {
   "kind": "delta",
+  "anchor_sha": "<base-commit-sha>",
   "review_title": "Check the completed step for state-machine mistakes and handoff clarity.",
   "dimensions": [
     {
@@ -531,6 +534,11 @@ Review-spec semantics:
 - `dimensions`
   - required
   - one reviewer slot per normalized dimension
+- `anchor_sha`
+  - optional for `full`
+  - required for `delta`
+  - for `delta`, carries the controller-chosen git commit anchor so the
+    persisted manifest records the review starting point durably
 - `review_title`
   - optional
   - human-readable review title shown back to the controller and reviewers
@@ -601,6 +609,9 @@ Contract:
 
 - accept the reviewer payload via `--input <path>` or stdin
 - validate that the submission matches an expected slot
+- treat top-level `summary` and `findings` as the canonical aggregate fields
+- allow extra top-level reviewer worklog fields in the submission payload and
+  preserve them in the stored submission artifact
 - allow each finding to omit `locations` or provide `locations: []string`
   using lightweight repo-relative anchors in one of these forms:
   - `path/to/file.go`
@@ -636,6 +647,8 @@ Contract:
 - collect reviewer artifacts
 - compute blocking and non-blocking findings
 - stop with an error when expected reviewer slots are missing or invalid
+- ignore preserved extra top-level reviewer worklog fields when computing the
+  decision surface
 - write an aggregate artifact that captures the review decision surface and
   preserves any finding `locations` verbatim
 - update local `state.json` with the aggregate result, including whether the
@@ -657,6 +670,9 @@ Recommended next action:
 The CLI contract should assume this review cadence:
 
 - use `delta` review after a completed plan step or after a narrow follow-up fix
+- anchor `delta` review to a real git commit chosen by the controller; the
+  latest passed-review anchor should be the default start point for a later
+  `delta` review
 - allow a `full` review to satisfy step closeout when a narrower review would
   be misleading for that completed step
 - use `full` review once all planned work appears complete and the branch looks

@@ -32,7 +32,8 @@ func TestStartRemovesRoundArtifactsWhenStateSaveFails(t *testing.T) {
 			return time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
 		},
 	}.Start(mustJSONBytes(t, Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []Dimension{
 			{Name: "correctness", Instructions: "Check rollback behavior."},
 		},
@@ -78,7 +79,8 @@ func TestStartRemovesRoundArtifactsWhenLedgerWriteFails(t *testing.T) {
 			return time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
 		},
 	}.Start(mustJSONBytes(t, Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []Dimension{
 			{Name: "correctness", Instructions: "Check rollback behavior."},
 		},
@@ -106,7 +108,8 @@ func TestAggregateRestoresPreviousAggregateWhenStateSaveFails(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSONBytes(t, Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []Dimension{
 			{Name: "correctness", Instructions: "Check aggregate rollback behavior."},
 		},
@@ -177,7 +180,8 @@ func TestSubmitRestoresSubmissionWhenLedgerWriteFails(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSONBytes(t, Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []Dimension{
 			{Name: "correctness", Instructions: "Check aggregate rollback behavior."},
 		},
@@ -214,8 +218,26 @@ func TestSubmitRestoresSubmissionWhenLedgerWriteFails(t *testing.T) {
 	}
 	assertCommandErrorPath(t, result.Errors, "ledger")
 
-	if _, err := os.Stat(manifest.Dimensions[0].SubmissionPath); !os.IsNotExist(err) {
-		t.Fatalf("expected submission artifact to be removed on rollback, got %v", err)
+	data, err := os.ReadFile(manifest.Dimensions[0].SubmissionPath)
+	if err != nil {
+		t.Fatalf("read restored submission skeleton: %v", err)
+	}
+	var submission Submission
+	if err := json.Unmarshal(data, &submission); err != nil {
+		t.Fatalf("unmarshal restored submission skeleton: %v", err)
+	}
+	if submission.RoundID != start.Artifacts.RoundID || submission.Slot != "correctness" || submission.Dimension != "correctness" {
+		t.Fatalf("expected submission skeleton identity to be restored, got %#v", submission)
+	}
+	if submission.SubmittedAt != "" || submission.Summary != "" {
+		t.Fatalf("expected restored skeleton to remain unsubmitted, got %#v", submission)
+	}
+	if len(submission.Findings) != 0 {
+		t.Fatalf("expected restored skeleton to keep empty findings, got %#v", submission.Findings)
+	}
+	worklog, ok := submission.ExtraFields["worklog"]
+	if !ok || len(worklog) == 0 {
+		t.Fatalf("expected restored skeleton worklog to be preserved, got %#v", submission.ExtraFields)
 	}
 }
 

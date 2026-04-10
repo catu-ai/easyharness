@@ -590,7 +590,7 @@ func TestReviewStartCommandAppendsTimelineEvent(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
 	exitCode := app.Run([]string{"review", "start"})
 	if exitCode != 0 {
 		t.Fatalf("review start command failed with %d: %s", exitCode, stderr.String())
@@ -639,7 +639,7 @@ func TestReviewStartCommandReturnsSchemaValidationErrors(t *testing.T) {
 	stdout.Reset()
 	stderr.Reset()
 	app.Stdin = bytes.NewBufferString(`{
-		"kind":"delta",
+		"kind":"delta","anchor_sha":"anchor-sha",
 		"dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}],
 		"unexpected":true
 	}`)
@@ -684,7 +684,7 @@ func TestReviewSubmitCommandAppendsTimelineEvent(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -719,7 +719,7 @@ func TestReviewSubmitCommandReturnsSchemaValidationErrors(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -768,7 +768,7 @@ func TestReviewAggregateCommandAppendsTimelineEvent(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -809,7 +809,7 @@ func TestReviewSubmitRollsBackWhenTimelineAppendFails(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -829,9 +829,28 @@ func TestReviewSubmitRollsBackWhenTimelineAppendFails(t *testing.T) {
 		t.Fatalf("expected review submit failure when timeline append fails, got %d", exitCode)
 	}
 
-	submissionPath := filepath.Join(root, ".local/harness/plans/2026-03-18-test-plan/reviews/review-001-delta/submissions/correctness.json")
-	if _, err := os.Stat(submissionPath); !os.IsNotExist(err) {
-		t.Fatalf("expected submission rollback after timeline append failure, got err=%v", err)
+	submissionPath := filepath.Join(root, ".local/harness/plans/2026-03-18-test-plan/reviews/review-001-delta/submissions/correctness/submission.json")
+	data, err := os.ReadFile(submissionPath)
+	if err != nil {
+		t.Fatalf("read restored submission skeleton: %v", err)
+	}
+	var submission struct {
+		RoundID     string          `json:"round_id"`
+		Slot        string          `json:"slot"`
+		Dimension   string          `json:"dimension"`
+		SubmittedAt string          `json:"submitted_at"`
+		Summary     string          `json:"summary"`
+		Findings    []any           `json:"findings"`
+		Worklog     json.RawMessage `json:"worklog"`
+	}
+	if err := json.Unmarshal(data, &submission); err != nil {
+		t.Fatalf("unmarshal restored submission skeleton: %v", err)
+	}
+	if submission.RoundID != "review-001-delta" || submission.Slot != "correctness" || submission.Dimension != "correctness" {
+		t.Fatalf("expected submission skeleton identity to be restored, got %#v", submission)
+	}
+	if submission.SubmittedAt != "" || submission.Summary != "" || len(submission.Findings) != 0 || len(submission.Worklog) == 0 {
+		t.Fatalf("expected rollback to restore the starter skeleton, got %#v", submission)
 	}
 	ledgerPath := filepath.Join(root, ".local/harness/plans/2026-03-18-test-plan/reviews/review-001-delta/ledger.json")
 	var ledger struct {

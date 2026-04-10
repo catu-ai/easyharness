@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -100,6 +101,14 @@ func (s Service) Start(specBytes []byte) StartResult {
 			Errors:  issues,
 		}
 	}
+	if issues := validateDeltaAnchor(s.Workdir, spec); len(issues) > 0 {
+		return StartResult{
+			OK:      false,
+			Command: "review start",
+			Summary: "Review spec is invalid.",
+			Errors:  issues,
+		}
+	}
 	inferredStep, revision, reviewTitle, err := inferReviewBinding(s.Workdir, planStem, doc, state, spec)
 	if err != nil {
 		return StartResult{
@@ -142,7 +151,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 	}
 	for _, dimension := range spec.Dimensions {
 		slot := normalizeSlot(dimension.Name)
-		submissionPath := filepath.Join(submissionsDir, slot+".json")
+		submissionPath := filepath.Join(submissionsDir, slot, "submission.json")
 		slots = append(slots, ManifestSlot{
 			Name:           dimension.Name,
 			Slot:           slot,
@@ -156,10 +165,22 @@ func (s Service) Start(specBytes []byte) StartResult {
 			SubmissionPath: submissionPath,
 		})
 	}
+	for _, slot := range slots {
+		if err := writeJSON(slot.SubmissionPath, newSubmissionSkeleton(roundID, slot)); err != nil {
+			_ = os.RemoveAll(roundDir)
+			return StartResult{
+				OK:      false,
+				Command: "review start",
+				Summary: "Unable to create reviewer submission skeletons.",
+				Errors:  []CommandError{{Path: "submission", Message: err.Error()}},
+			}
+		}
+	}
 
 	manifest := Manifest{
 		RoundID:     roundID,
 		Kind:        spec.Kind,
+		AnchorSHA:   strings.TrimSpace(spec.AnchorSHA),
 		Step:        inferredStep,
 		Revision:    revision,
 		ReviewTitle: reviewTitle,
@@ -319,6 +340,7 @@ func (s Service) Submit(roundID, slot string, inputBytes []byte) SubmitResult {
 		SubmittedAt: now,
 		Summary:     strings.TrimSpace(input.Summary),
 		Findings:    input.Findings,
+		ExtraFields: cloneRawFields(input.ExtraFields),
 	}
 	previousSubmission, previousSubmissionExists, err := readFileIfExists(slotDef.SubmissionPath)
 	if err != nil {
@@ -445,10 +467,29 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		}
 	}
 
+	ledger, err := loadLedger(manifest.LedgerPath)
+	if err != nil {
+		return AggregateResult{
+			OK:      false,
+			Command: "review aggregate",
+			Summary: "Unable to load the review ledger.",
+			Errors:  []CommandError{{Path: "ledger", Message: err.Error()}},
+		}
+	}
+	ledgerBySlot := map[string]LedgerSlot{}
+	for _, slot := range ledger.Slots {
+		ledgerBySlot[slot.Slot] = slot
+	}
+
 	blocking := make([]AggregateFinding, 0)
 	nonBlocking := make([]AggregateFinding, 0)
 	missing := make([]string, 0)
 	for _, slotDef := range manifest.Dimensions {
+		ledgerSlot, ok := ledgerBySlot[slotDef.Slot]
+		if !ok || ledgerSlot.Status != "submitted" {
+			missing = append(missing, slotDef.Slot)
+			continue
+		}
 		submission, err := loadSubmission(slotDef.SubmissionPath)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -460,6 +501,14 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 				Command: "review aggregate",
 				Summary: "Unable to load reviewer submissions.",
 				Errors:  []CommandError{{Path: "submission", Message: err.Error()}},
+			}
+		}
+		if issues := validateStoredSubmission(*submission); len(issues) > 0 {
+			return AggregateResult{
+				OK:      false,
+				Command: "review aggregate",
+				Summary: "Reviewer submission artifact is invalid for aggregation.",
+				Errors:  issues,
 			}
 		}
 		for _, finding := range submission.Findings {
@@ -690,6 +739,9 @@ func validateSpec(spec Spec) []CommandError {
 	if !slices.Contains([]string{"delta", "full"}, spec.Kind) {
 		issues = append(issues, CommandError{Path: "spec.kind", Message: "must be delta or full"})
 	}
+	if spec.Kind == "delta" && strings.TrimSpace(spec.AnchorSHA) == "" {
+		issues = append(issues, CommandError{Path: "spec.anchor_sha", Message: "must not be empty for delta review"})
+	}
 	if spec.Step != nil && *spec.Step <= 0 {
 		issues = append(issues, CommandError{Path: "spec.step", Message: "must be a positive 1-based step number"})
 	}
@@ -716,6 +768,42 @@ func validateSpec(spec Spec) []CommandError {
 		seenSlots[slot] = true
 	}
 	return issues
+}
+
+func validateDeltaAnchor(workdir string, spec Spec) []CommandError {
+	if spec.Kind != "delta" {
+		return nil
+	}
+
+	anchor := strings.TrimSpace(spec.AnchorSHA)
+	if anchor == "" {
+		return nil
+	}
+
+	if _, err := os.Stat(filepath.Join(workdir, ".git")); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return []CommandError{{
+			Path:    "spec.anchor_sha",
+			Message: fmt.Sprintf("unable to inspect git metadata: %v", err),
+		}}
+	}
+
+	cmd := exec.Command("git", "-C", workdir, "rev-parse", "--verify", anchor+"^{commit}")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		message := strings.TrimSpace(string(output))
+		if message == "" {
+			message = err.Error()
+		}
+		return []CommandError{{
+			Path:    "spec.anchor_sha",
+			Message: fmt.Sprintf("must resolve to a real git commit for delta review: %s", message),
+		}}
+	}
+
+	return nil
 }
 
 func validateSubmission(input SubmissionInput) []CommandError {
@@ -753,6 +841,27 @@ func validateSubmission(input SubmissionInput) []CommandError {
 	return issues
 }
 
+func validateStoredSubmission(submission Submission) []CommandError {
+	issues := make([]CommandError, 0)
+	if strings.TrimSpace(submission.RoundID) == "" {
+		issues = append(issues, CommandError{Path: "submission.round_id", Message: "must not be empty"})
+	}
+	if strings.TrimSpace(submission.Slot) == "" {
+		issues = append(issues, CommandError{Path: "submission.slot", Message: "must not be empty"})
+	}
+	if strings.TrimSpace(submission.Dimension) == "" {
+		issues = append(issues, CommandError{Path: "submission.dimension", Message: "must not be empty"})
+	}
+	if strings.TrimSpace(submission.SubmittedAt) == "" {
+		issues = append(issues, CommandError{Path: "submission.submitted_at", Message: "must not be empty"})
+	}
+	issues = append(issues, validateSubmission(SubmissionInput{
+		Summary:  submission.Summary,
+		Findings: submission.Findings,
+	})...)
+	return issues
+}
+
 func normalizeSlot(name string) string {
 	slot := strings.ToLower(strings.TrimSpace(name))
 	slot = slotNamePattern.ReplaceAllString(slot, "-")
@@ -768,6 +877,33 @@ func cloneLocations(locations []string, present bool) []string {
 		return []string{}
 	}
 	return append([]string(nil), locations...)
+}
+
+func cloneRawFields(fields map[string]json.RawMessage) map[string]json.RawMessage {
+	if len(fields) == 0 {
+		return nil
+	}
+	cloned := make(map[string]json.RawMessage, len(fields))
+	for key, value := range fields {
+		cloned[key] = append(json.RawMessage(nil), value...)
+	}
+	return cloned
+}
+
+func newSubmissionSkeleton(roundID string, slot ManifestSlot) map[string]any {
+	return map[string]any{
+		"round_id":  roundID,
+		"slot":      slot.Slot,
+		"dimension": slot.Name,
+		"summary":   "",
+		"findings":  []Finding{},
+		"worklog": map[string]any{
+			"full_plan_read":     false,
+			"checked_areas":      []string{},
+			"open_questions":     []string{},
+			"candidate_findings": []string{},
+		},
+	}
 }
 
 func nextRoundID(workdir, planStem, kind string) (string, error) {

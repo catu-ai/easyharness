@@ -212,6 +212,16 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	if testsSlot.Instructions != "Check that aggregate waits for every expected reviewer submission." {
 		t.Fatalf("expected tests instructions in review-start receipt, got %#v", testsSlot)
 	}
+	for _, slot := range startPayload.Artifacts.Slots {
+		support.RequireFileExists(t, slot.SubmissionPath)
+		skeleton := support.ReadJSONFile[reviewSubmission](t, slot.SubmissionPath)
+		if skeleton.RoundID != startPayload.Artifacts.RoundID || skeleton.Slot != slot.Slot || skeleton.Dimension != slot.Name {
+			t.Fatalf("expected review-start skeleton identity for slot %#v, got %#v", slot, skeleton)
+		}
+		if skeleton.SubmittedAt != "" || skeleton.Summary != "" || len(skeleton.Findings) != 0 || len(skeleton.Worklog) == 0 {
+			t.Fatalf("expected review-start skeleton for slot %#v, got %#v", slot, skeleton)
+		}
+	}
 
 	preSubmitLedger := support.ReadJSONFile[reviewLedger](t, startPayload.Artifacts.LedgerPath)
 	assertLedgerStatuses(t, preSubmitLedger, map[string]string{
@@ -262,6 +272,17 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 			"severity": "minor",
 			"title":    "Review path exercised across multiple slots",
 			"details":  "This E2E intentionally records one non-blocking finding so the full aggregate preserves reviewer output while still passing.",
+		},
+	}, map[string]any{
+		"worklog": map[string]any{
+			"full_plan_read":     true,
+			"checked_areas":      []string{"docs/plans/active/2026-03-22-review-workflow.md", "tests/e2e/review_workflow_test.go"},
+			"open_questions":     []string{},
+			"candidate_findings": []string{"Review path exercised across multiple slots"},
+		},
+		"coverage": map[string]any{
+			"review_kind": "full",
+			"anchor_sha":  "pre-archive-anchor",
 		},
 	})
 
@@ -325,6 +346,9 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	}
 	if len(testsSubmission.Findings) != 1 || testsSubmission.Findings[0].Title != "Review path exercised across multiple slots" {
 		t.Fatalf("expected persisted multi-slot finding in tests submission, got %#v", testsSubmission)
+	}
+	if len(testsSubmission.Worklog) == 0 || len(testsSubmission.Coverage) == 0 {
+		t.Fatalf("expected persisted top-level reviewer worklog fields, got %#v", testsSubmission)
 	}
 
 	aggregateArtifact := support.ReadJSONFile[aggregateArtifact](t, aggregatePayload.Artifacts.AggregatePath)

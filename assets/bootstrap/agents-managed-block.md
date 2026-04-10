@@ -87,6 +87,9 @@ Routine review progression is controller-owned once a tracked plan is approved.
 The controller should not stop to ask the human whether ordinary step-closeout
 or finalize review should begin.
 
+For `delta` review, use a real git commit anchor so later agents know the
+default starting point for the reviewed change.
+
 Use `harness status` at routine checkpoints:
 
 - when starting or resuming execution

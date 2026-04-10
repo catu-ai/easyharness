@@ -1,11 +1,5 @@
 # Review Orchestration
 
-Keep exactly one active review round at a time.
-
-Do not start a new review round until the current round has been aggregated and
-its outcome has been addressed, or until the plan has explicitly changed enough
-that the current round should be abandoned.
-
 The controller agent stays in `harness-execute` during review orchestration.
 Only the spawned reviewer subagents should switch to `harness-reviewer`.
 
@@ -22,6 +16,31 @@ the next action, start that review without asking the human for permission.
 - after reopen:
   - narrow follow-up work may use `delta`
   - broad follow-up work should rerun `full`
+
+Treat those as controller heuristics, not rigid gates. Strong agents may
+promote a would-be `delta` review to `full` when a narrow pass would likely
+miss the real risk surface. Common signals include:
+
+- the repair touches multiple contracts or spreads across loosely related files
+- the change summary is no longer a trustworthy boundary for the risk
+- reopen, remote-sync churn, or wider branch drift means a clean reread is safer
+- you want an unbiased broad reread more than reviewer continuity
+
+## Delta Anchors
+
+`delta` review must anchor to a real git commit.
+
+Use the latest passed-review anchor commit as the default starting point for a
+later `delta` review. In practice:
+
+- a completed step normally creates a commit that becomes the next step-closeout
+  `delta` anchor
+- after a later narrow repair passes and more follow-up is still likely, make a
+  fresh anchor commit before the next `delta` review
+
+The anchor is a starting lens, not a hard inspection boundary. Reviewers should
+begin from the anchored change and then deepen inspection when related logic,
+plan intent, or contract meaning warrants it.
 
 ## Routine Start Rules
 
@@ -47,6 +66,7 @@ Use a compact JSON shape like:
 ```json
 {
   "kind": "delta",
+  "anchor_sha": "<base-commit-sha>",
   "review_title": "Step 2: Refactor review metadata",
   "dimensions": [
     {
@@ -67,6 +87,11 @@ Field rules:
   - enum: `delta` or `full`
   - `delta` is for a completed step or narrow follow-up change
   - `full` is for an archive candidate or another broad branch-level pass
+- `anchor_sha`
+  - optional for `full`
+  - required for `delta`
+  - for `delta`, persist the controller-chosen git commit anchor here so the
+    manifest records the durable review starting point
 - `review_title`
   - optional human-readable review title for the controller and reviewers
 - `step`
@@ -105,14 +130,17 @@ round to use the same set.
    harness review start --spec <path>
    ```
 
-2. Spawn multiple reviewer subagents in parallel: one reviewer per returned
-   slot or review dimension.
+2. Spawn or resume reviewer subagents: one reviewer per returned slot or review
+   dimension.
    For a slot's first pass in a tracked step or for one finalize review scope
    in one revision, or whenever reuse is not clearly safe, use clean reviewer
    subagents. Moving to a different tracked step, moving from step review into
    finalize review, or moving to a different revision always starts with fresh
    reviewers. Do not inherit the controller's long chat context into reviewer
    threads. Use only the fixed reviewer prompt template for reviewer spawning.
+   For a narrow same-slot `delta` follow-up after a verified earlier
+   submission, prefer `resume_agent` over a fresh reviewer when the review
+   scope is still materially the same.
 3. Use a fixed reviewer prompt template so model or runtime changes do not
    silently change the reviewer contract.
 4. Keep track of every spawned reviewer agent ID.
@@ -146,11 +174,15 @@ You are the reviewer for one harness review slot.
 Use the harness-reviewer skill and follow it exactly.
 
 Round ID: <round-id>
+Review kind: <delta-or-full>
+Active plan context: <Step N: title | Finalize: title>
 Review title: <review-title>
 Revision: <candidate-revision-or-none>
 Slot: <slot>
 Assigned dimension: <dimension-name>
 Instructions: <dimension-instructions>
+Anchor SHA: <commit-sha-or-none>
+Change summary: <bounded-change-summary>
 ```
 
 Reviewer submissions may include optional finding `locations` arrays using
@@ -179,12 +211,14 @@ You are resuming the same harness review slot you handled earlier.
 Use the harness-reviewer skill and follow it exactly.
 
 New round ID: <new-round-id>
+Review kind: <delta-or-full>
+Active plan context: <Step N: title | Finalize: title>
 Review title: <review-title>
 Revision: <candidate-revision-or-none>
 Slot: <slot>
 Assigned dimension: <dimension-name>
 Instructions: <dimension-instructions>
-Follow-up scope: Verify only the bounded changes since your last submission.
+Anchor SHA: <commit-sha-or-none>
 Change summary since your last submission: <bounded-change-summary>
 ```
 
@@ -204,13 +238,13 @@ Codex reviewer subagents are asynchronous.
 - Use `spawn_agent(..., fork_context=false)` for reviewer slots so the reviewer
   starts from a clean context and sees only the fixed reviewer prompt.
 - After a reviewer is cleanly closed, `resume_agent` may reopen that same
-  reviewer later, but only for a narrow same-slot follow-up where continuity is
-  genuinely helpful.
+  reviewer later. For a narrow same-slot `delta` follow-up with a verified
+  earlier submission, continuity is the default.
 - Do not append extra controller reasoning, artifact tours, or side
   instructions to the fixed reviewer prompt when spawning Codex reviewer
   subagents.
 
-Prefer `resume_agent` only when all of these are true:
+Prefer `resume_agent` by default when all of these are true:
 
 - the earlier reviewer submission for that agent was valid and already verified
   by the controller

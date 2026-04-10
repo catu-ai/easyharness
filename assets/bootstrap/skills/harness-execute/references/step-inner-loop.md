@@ -13,18 +13,19 @@ The inner loop is how you finish one plan step cleanly.
    `Execution Notes` before continuing.
 4. Run focused validation for the slice.
 5. Update the step's `Execution Notes` with a concise summary.
-6. If the slice is green and meaningfully reviewable, make a small commit.
+6. If the slice is green and meaningfully reviewable, make a small commit so a
+   later `delta` review has a real git anchor.
 7. Run `harness status` before step closeout so the next action reflects the
    current step, any active review, and any warning-driven follow-up.
 8. If the slice is ready for review, run step-closeout review now. Use `delta`
-   by default for a completed step, but use `full` when a narrower review would
-   be misleading or the slice needs a broader pass.
+   by default from the latest anchor commit, but use `full` when a narrower
+   review would be misleading or the slice needs a broader pass.
 9. If no step-closeout review is needed, record
    `NO_STEP_REVIEW_NEEDED: <reason>` in `Review Notes` before marking the step
    done.
 10. Fix findings, rerun focused validation, and update `Review Notes`.
-11. Make another small commit when a review-driven fix meaningfully changes the
-   branch.
+11. When a review-driven fix passes and establishes a new stable baseline that
+    later `delta` review may build on, make another small anchor commit.
 12. Mark the step complete only when the step objective, validation, and review
     closeout are genuinely satisfied.
 
