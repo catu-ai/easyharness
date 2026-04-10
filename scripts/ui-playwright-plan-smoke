@@ -25,6 +25,7 @@ harness_bin="${HARNESS_UI_BINARY:-$repo_root/.local/bin/harness}"
 host="${HARNESS_UI_HOST:-127.0.0.1}"
 tmp_dir="$(mktemp -d)"
 active_workdir="$tmp_dir/active-workdir"
+archived_workdir="$tmp_dir/archived-workdir"
 empty_workdir="$tmp_dir/empty-workdir"
 playwright_root="$tmp_dir/playwright"
 session_prefix="${HARNESS_UI_PLAYWRIGHT_SESSION:-harness-ui-plan-smoke-$$-$(date +%s%N)-$RANDOM}"
@@ -135,7 +136,7 @@ if [[ ! -x "$harness_bin" ]]; then
   exit 1
 fi
 
-mkdir -p "$active_workdir" "$empty_workdir" "$playwright_root" "$output_dir"
+mkdir -p "$active_workdir" "$archived_workdir" "$empty_workdir" "$playwright_root" "$output_dir"
 
 log_phase "rebuilding embedded UI assets"
 pnpm --dir "$repo_root/web" build >/dev/null
@@ -188,7 +189,7 @@ Read the current plan package in one dense workbench.
 
 ## Acceptance Criteria
 
-- [ ] The plan page renders the active plan package.
+- [ ] The plan page renders the current plan package.
 - [ ] Supplements preview states are visible in the reader.
 
 ## Deferred Items
@@ -203,7 +204,7 @@ Read the current plan package in one dense workbench.
 
 #### Objective
 
-Serve the active plan package to the UI.
+Serve the current plan package to the UI.
 
 #### Details
 
@@ -296,6 +297,129 @@ state_path.write_text(
 (supplements_root / "image.png").write_bytes(b"")
 (supplements_root / "binary.bin").write_bytes(bytes([255, 0, 1, 2]))
 (supplements_root / "large.txt").write_text("x" * (256 * 1024 + 8), encoding="utf-8")
+PY
+
+log_phase "seeding archived-current-plan fixture"
+python3 - "$archived_workdir" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+plan_rel = "docs/plans/archived/2026-04-10-plan-ui-archived.md"
+plan_stem = "2026-04-10-plan-ui-archived"
+plan_path = root / plan_rel
+supplements_root = root / "docs" / "plans" / "archived" / "supplements" / plan_stem
+state_path = root / ".local" / "harness" / "plans" / plan_stem / "state.json"
+
+plan_path.parent.mkdir(parents=True, exist_ok=True)
+supplements_root.mkdir(parents=True, exist_ok=True)
+state_path.parent.mkdir(parents=True, exist_ok=True)
+(root / ".local" / "harness").mkdir(parents=True, exist_ok=True)
+
+plan_path.write_text(
+    """---
+template_version: 0.2.0
+created_at: "2026-04-10T10:30:00Z"
+source_type: direct_request
+source_refs: []
+---
+
+# Archived Plan UI Smoke
+
+## Goal
+
+Keep the current archived plan readable until the worktree returns to idle.
+
+## Scope
+
+### In Scope
+
+- Browse the archived plan package while merge handoff is still in progress.
+
+### Out of Scope
+
+- Idle fallback browsing.
+
+## Acceptance Criteria
+
+- [x] Archived current plans remain visible in the Plan page.
+
+## Work Breakdown
+
+### Step 1: Preserve plan visibility after archive
+
+- Done: [x]
+
+#### Objective
+
+Keep the archived current plan package readable during merge handoff.
+
+#### Details
+
+Continue rendering the current archived plan package instead of collapsing to
+idle empty state.
+
+#### Expected Files
+
+- `internal/planui/service.go`
+
+#### Validation
+
+- `go test ./internal/planui ./internal/ui`
+
+#### Execution Notes
+
+Archived fixture execution complete.
+
+#### Review Notes
+
+Archived fixture review complete.
+
+## Validation Summary
+
+- Archived plan browsing should stay available while the worktree is not idle.
+
+## Review Summary
+
+- Finalize review already passed for this fixture.
+
+## Archive Summary
+
+- PR: https://example.invalid/archived-fixture
+- Ready: archived fixture for browser validation.
+- Merge Handoff: Fixture only; no real merge handoff.
+
+## Outcome Summary
+
+### Delivered
+
+- Archived plan remains readable.
+
+### Not Delivered
+
+- Idle fallback browsing.
+
+### Follow-Up Issues
+
+- NONE in fixture.
+""",
+    encoding="utf-8",
+)
+
+(root / ".local" / "harness" / "current-plan.json").write_text(json.dumps({"plan_path": plan_rel}), encoding="utf-8")
+state_path.write_text(
+    json.dumps(
+        {
+            "current_node": "execution/finalize/await_merge",
+            "plan_path": plan_rel,
+            "plan_stem": plan_stem,
+            "revision": 1,
+        }
+    ),
+    encoding="utf-8",
+)
+(supplements_root / "notes.txt").write_text("archived still readable\n", encoding="utf-8")
 PY
 
 start_server() {
@@ -465,6 +589,17 @@ assert_has_text "plan-scope" "Scope"
 pwcli_retry "$main_session" run-code '
 async (page) => {
   return await page.evaluate(() => {
+    const findScrollableAncestor = (node) => {
+      let current = node?.parentElement ?? null;
+      while (current) {
+        const style = window.getComputedStyle(current);
+        const overflowY = style.overflowY;
+        const canScroll = ["auto", "scroll", "overlay"].includes(overflowY) && current.scrollHeight > current.clientHeight;
+        if (canScroll) return current;
+        current = current.parentElement;
+      }
+      return null;
+    };
     const reader = document.querySelector(".plan-reader");
     const goal = document.querySelector("#goal");
     const scope = document.querySelector("#scope");
@@ -472,15 +607,21 @@ async (page) => {
     if (!reader || !goal || !scope || !acceptance) {
       throw new Error("missing plan reader or expected heading anchors");
     }
-    if (reader.scrollTop < 10) {
-      throw new Error(`expected plan reader to scroll after selecting Scope, got ${reader.scrollTop}`);
+    const scrollContainer = findScrollableAncestor(scope) || findScrollableAncestor(reader) || reader;
+    if (scrollContainer.scrollTop < 10) {
+      throw new Error(`expected plan reader area to scroll after selecting Scope, got ${scrollContainer.scrollTop}`);
     }
     const readerText = reader.textContent || "";
     if (!readerText.includes("Goal") || !readerText.includes("Acceptance Criteria")) {
       throw new Error("expected full markdown reader content to remain mounted after heading navigation");
     }
+    const containerTop = scrollContainer.getBoundingClientRect().top;
+    const scopeTop = scope.getBoundingClientRect().top;
+    if (Math.abs(scopeTop - containerTop) > 140) {
+      throw new Error(`expected Scope heading near top of reading area, got delta ${scopeTop - containerTop}`);
+    }
     return {
-      scrollTop: reader.scrollTop,
+      scrollTop: scrollContainer.scrollTop,
       headingOrder: [
         goal.getBoundingClientRect().top,
         scope.getBoundingClientRect().top,
@@ -551,6 +692,29 @@ capture_screenshot "$main_session" "plan-large"
 assert_has_text "plan-large" "Preview unavailable"
 assert_has_text "plan-large" "preview limit"
 
+log_phase "validating archived-current-plan behavior"
+stop_server
+archived_session="plan-archived"
+clear_pwcli_socket "$archived_session"
+start_server "$archived_workdir"
+pwcli "$archived_session" open "${base_url}/plan" >/dev/null
+sleep 0.8
+capture_snapshot "$archived_session" "plan-archived"
+capture_screenshot "$archived_session" "plan-archived"
+assert_has_text "plan-archived" "Archived Plan UI Smoke"
+assert_has_text "plan-archived" "docs/plans/archived/2026-04-10-plan-ui-archived.md"
+archived_notes_ref="$(button_ref_from_snapshot "notes.txt" "${output_dir}/plan-archived.yml")"
+if [[ -z "$archived_notes_ref" ]]; then
+  echo "Could not find archived notes.txt ref." >&2
+  cat "${output_dir}/plan-archived.yml" >&2
+  exit 1
+fi
+pwcli "$archived_session" click "$archived_notes_ref" >/dev/null
+sleep 0.4
+capture_snapshot "$archived_session" "plan-archived-notes"
+capture_screenshot "$archived_session" "plan-archived-notes"
+assert_has_text "plan-archived-notes" "archived still readable"
+
 log_phase "validating empty-state behavior in a clean workdir"
 stop_server
 empty_session="plan-empty"
@@ -560,9 +724,10 @@ pwcli "$empty_session" open "${base_url}/plan" >/dev/null
 sleep 0.8
 capture_snapshot "$empty_session" "plan-empty"
 capture_screenshot "$empty_session" "plan-empty"
-assert_has_text "plan-empty" "No current active plan is available to browse in this worktree."
+assert_has_text "plan-empty" "No current plan is available to browse in this worktree."
 
 pwcli_close "$main_session" >/dev/null 2>&1 || true
+pwcli_close "$archived_session" >/dev/null 2>&1 || true
 pwcli_close "$empty_session" >/dev/null 2>&1 || true
 
 log_phase "plan-page Playwright validation passed"

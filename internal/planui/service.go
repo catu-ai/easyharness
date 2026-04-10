@@ -83,9 +83,6 @@ func (s Service) Read() Result {
 		}
 	}
 	relPlanPath = filepath.ToSlash(relPlanPath)
-	if !strings.HasPrefix(relPlanPath, "docs/plans/active/") {
-		return emptyPlanResult()
-	}
 
 	planStem := strings.TrimSuffix(filepath.Base(relPlanPath), filepath.Ext(relPlanPath))
 	state, statePath, stateErr := runstate.LoadState(s.Workdir, planStem)
@@ -143,7 +140,7 @@ func (s Service) Read() Result {
 	return Result{
 		OK:          true,
 		Resource:    "plan",
-		Summary:     fmt.Sprintf("Loaded the active plan package for %s.", filepath.Base(relPlanPath)),
+		Summary:     fmt.Sprintf("Loaded the current plan package for %s.", filepath.Base(relPlanPath)),
 		Artifacts:   artifacts,
 		Document:    document,
 		Supplements: supplements,
@@ -155,7 +152,7 @@ func emptyPlanResult() Result {
 	return Result{
 		OK:       true,
 		Resource: "plan",
-		Summary:  "No current active plan is available to browse in this worktree.",
+		Summary:  "No current plan is available to browse in this worktree.",
 	}
 }
 

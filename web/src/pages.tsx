@@ -351,11 +351,15 @@ export function PlanWorkspace(props: {
     if (selectedHeading) {
       const target = headingElements.find((element) => element.id === selectedHeading.anchor) as HTMLElement | undefined;
       if (target) {
-        root.scrollTop = Math.max(0, target.offsetTop - 18);
+        const scrollContainer = findNearestScrollableAncestor(target) || findNearestScrollableAncestor(root) || root;
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        scrollContainer.scrollTop = Math.max(0, scrollContainer.scrollTop + (targetRect.top - containerRect.top) - 18);
         return;
       }
     }
-    root.scrollTop = 0;
+    const scrollContainer = findNearestScrollableAncestor(root) || root;
+    scrollContainer.scrollTop = 0;
   }, [document, documentHTML, flattenedHeadings, selectedFile, selectedHeading]);
 
   const toggleNode = (id: string) => {
@@ -653,6 +657,20 @@ function findSupplementNodeBySelectionId(root: PlanNode, selectionId: string): P
 
 function normalizePlanText(value: string): string {
   return value.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function findNearestScrollableAncestor(node: HTMLElement | null): HTMLElement | null {
+  let current = node?.parentElement ?? null;
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const overflowY = style.overflowY;
+    const canScroll = (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") && current.scrollHeight > current.clientHeight;
+    if (canScroll) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return null;
 }
 
 export function TimelineWorkspace(props: {

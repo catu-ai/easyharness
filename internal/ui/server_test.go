@@ -175,7 +175,7 @@ func TestNewHandlerServesPlanJSON(t *testing.T) {
 	}
 }
 
-func TestNewHandlerHidesArchivedCurrentPlanFromPlanJSON(t *testing.T) {
+func TestNewHandlerServesArchivedCurrentPlanJSON(t *testing.T) {
 	workdir := t.TempDir()
 	relPlanPath := "docs/plans/archived/2026-04-10-archived-ui-plan.md"
 	path := filepath.Join(workdir, filepath.FromSlash(relPlanPath))
@@ -192,6 +192,13 @@ func TestNewHandlerHidesArchivedCurrentPlanFromPlanJSON(t *testing.T) {
 	if _, err := runstate.SaveCurrentPlan(workdir, relPlanPath); err != nil {
 		t.Fatalf("save current plan: %v", err)
 	}
+	supplementsDir := filepath.Join(workdir, "docs", "plans", "archived", "supplements", "2026-04-10-archived-ui-plan")
+	if err := os.MkdirAll(supplementsDir, 0o755); err != nil {
+		t.Fatalf("mkdir archived supplements: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(supplementsDir, "notes.txt"), []byte("archived plan page\n"), 0o644); err != nil {
+		t.Fatalf("write archived supplement: %v", err)
+	}
 
 	handler, err := NewHandler(workdir)
 	if err != nil {
@@ -207,10 +214,17 @@ func TestNewHandlerHidesArchivedCurrentPlanFromPlanJSON(t *testing.T) {
 	}
 
 	var payload struct {
-		OK        bool   `json:"ok"`
-		Document  any    `json:"document"`
-		Artifacts any    `json:"artifacts"`
-		Summary   string `json:"summary"`
+		OK       bool   `json:"ok"`
+		Summary  string `json:"summary"`
+		Document *struct {
+			Path string `json:"path"`
+		} `json:"document"`
+		Artifacts *struct {
+			PlanPath string `json:"plan_path"`
+		} `json:"artifacts"`
+		Supplements *struct {
+			Label string `json:"label"`
+		} `json:"supplements"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal payload: %v\n%s", err, recorder.Body.String())
@@ -218,13 +232,16 @@ func TestNewHandlerHidesArchivedCurrentPlanFromPlanJSON(t *testing.T) {
 	if !payload.OK {
 		t.Fatalf("expected ok=true, got %#v", payload)
 	}
-	if payload.Document != nil {
-		t.Fatalf("expected archived pointer to return no document, got %#v", payload.Document)
+	if payload.Document == nil || payload.Document.Path != relPlanPath {
+		t.Fatalf("expected archived pointer document, got %#v", payload.Document)
 	}
-	if payload.Artifacts != nil {
-		t.Fatalf("expected archived pointer to return no artifacts, got %#v", payload.Artifacts)
+	if payload.Artifacts == nil || payload.Artifacts.PlanPath != relPlanPath {
+		t.Fatalf("expected archived pointer to return artifacts, got %#v", payload.Artifacts)
 	}
-	if !strings.Contains(payload.Summary, "No current active plan") {
+	if payload.Supplements == nil || payload.Supplements.Label != "2026-04-10-archived-ui-plan" {
+		t.Fatalf("expected archived supplements payload, got %#v", payload.Supplements)
+	}
+	if !strings.Contains(payload.Summary, "Loaded the current plan package") {
 		t.Fatalf("unexpected summary: %q", payload.Summary)
 	}
 }

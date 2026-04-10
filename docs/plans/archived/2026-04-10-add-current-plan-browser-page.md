@@ -9,15 +9,15 @@ source_refs: []
 
 ## Goal
 
-Add a new read-only `Plan` page to `harness ui` so the current active tracked
-plan becomes a first-class browsing surface alongside `Status`, `Timeline`,
-and `Review`. The page should help a human read the active plan package
+Add a new read-only `Plan` page to `harness ui` so the current tracked plan
+becomes a first-class browsing surface alongside `Status`, `Timeline`, and
+`Review`. The page should help a human read the current plan package
 without dropping into the filesystem: browse the main markdown plan by heading
 hierarchy, inspect companion `supplements/<plan-stem>/` content, and keep the
 experience aligned with the existing workbench shell.
 
 This slice should follow the same product boundary as the existing UI pages:
-the Go backend assembles a read-only view model from the active plan package,
+the Go backend assembles a read-only view model from the current plan package,
 and the frontend renders that model. Prefer the clean target design over
 compatibility layers or fallback behavior that preserves older UI assumptions.
 
@@ -25,8 +25,9 @@ compatibility layers or fallback behavior that preserves older UI assumptions.
 
 ### In Scope
 
-- Add a read-only `Plan` resource for `harness ui` that loads only the current
-  active tracked plan package.
+- Add a read-only `Plan` resource for `harness ui` that loads the current
+  tracked plan package for the worktree, including archived merge-handoff
+  states while the worktree is not idle.
 - Add a `Plan` page to the existing page rail and workbench shell.
 - Model the left explorer as a hierarchical, collapsible tree with:
   - the main plan markdown represented by heading-based TOC nodes
@@ -46,15 +47,15 @@ compatibility layers or fallback behavior that preserves older UI assumptions.
 - Treat other text-readable files as plain-text fallback.
 - Treat binary files, image files, unknown unsupported formats, and files above
   the chosen preview size threshold as `not supported`.
-- Keep the page usable when no active plan exists by rendering a clear empty
-  state instead of falling back to archived plans.
+- Keep the page usable when no current plan exists by rendering a clear empty
+  state for truly idle worktrees.
 - Validate the slice with focused automated coverage and an interactive
   Playwright pass that includes real clicks, screenshots, and visual review.
 
 ### Out of Scope
 
-- Browsing archived plans or showing a recent archived-plan fallback when the
-  worktree is idle.
+- Browsing arbitrary archived plans or showing a recent archived-plan fallback
+  when the worktree is idle.
 - Any UI-triggered write, command execution, plan mutation, or supplement
   editing flow.
 - Turning the page into a generic repository file browser outside the active
@@ -67,9 +68,10 @@ compatibility layers or fallback behavior that preserves older UI assumptions.
 ## Acceptance Criteria
 
 - [x] `harness ui` exposes a new read-only `Plan` page in the page rail.
-- [x] The page reads only the current active tracked plan package and never
-      falls back to archived plans.
-- [x] When no active plan exists, the page renders a clear empty state that
+- [x] The page reads the current tracked plan package for the worktree,
+      including archived merge-handoff states, and does not invent a recent
+      archived fallback when the worktree is idle.
+- [x] When no current plan exists, the page renders a clear empty state that
       explains there is no current plan to browse.
 - [x] The left explorer presents a hierarchical, collapsible navigation tree
       that includes the main plan heading structure and, when present, a
@@ -88,7 +90,8 @@ compatibility layers or fallback behavior that preserves older UI assumptions.
 - [x] Binary files, image files, unsupported formats, and files above the
       configured preview-size threshold render a clear `not supported` state.
 - [x] The implementation introduces or updates automated tests that cover the
-      read model, active-plan empty state, file support and size-threshold
+      read model, current-plan and idle-state handling, file support and
+      size-threshold
       gating, and core page interactions.
 - [x] Before closeout, the page is exercised interactively with Playwright:
       open the page, expand and collapse explorer nodes, click plan headings,
@@ -117,7 +120,7 @@ including heading tree extraction, supplement enumeration, and preview gating.
 #### Details
 
 Follow the same read-only pattern as `status`, `timeline`, and `review`: the
-backend should derive the current active plan, load the markdown file plus any
+backend should derive the current tracked plan, load the markdown file plus any
 matching `supplements/<plan-stem>/` directory, and expose a UI-facing payload
 without changing plan lifecycle or write-side contracts. Make the preview
 policy explicit in code and tests so a future agent can grow the supported
@@ -125,7 +128,7 @@ extensions list intentionally rather than by accident.
 
 This step should define the decision rules for:
 
-- active-plan-only loading
+- current-plan loading while non-idle
 - idle empty state
 - heading extraction and stable node identifiers for in-page navigation
 - recursive supplement tree shape
@@ -148,19 +151,20 @@ tests alone.
 
 #### Validation
 
-- The resource loads only the active tracked plan package and returns a stable
-  empty-state payload when the worktree is idle.
+- The resource loads the current tracked plan package, including archived
+  merge-handoff states, and returns a stable empty-state payload only when the
+  worktree is idle.
 - Tests cover heading extraction, supplement enumeration, supported preview
   files, plain-text fallback, unsupported binary/image files, and oversize
   files.
 - A cold reader can tell from the contract that the page is read-only and tied
-  to the current active plan package rather than generic repo browsing.
+  to the current tracked plan package rather than generic repo browsing.
 
 #### Execution Notes
 
 Added a dedicated `internal/planui` read-only service plus `/api/plan` server
-wiring and a public `PlanResult` contract/schema. The backend now loads only
-the active tracked plan package, emits a heading tree for the main markdown
+wiring and a public `PlanResult` contract/schema. The backend now loads the
+current tracked plan package, emits a heading tree for the main markdown
 document, walks matching `supplements/<plan-stem>/` directories recursively,
 and applies explicit preview gating for supported rich preview, plain-text
 fallback, image/binary rejection, and oversize files. Focused validation:
@@ -287,24 +291,32 @@ skill for browser work whenever it is needed during execution or closeout.
 #### Execution Notes
 
 Extended automated validation with new Go coverage, a dedicated
-`scripts/ui-playwright-plan-smoke` browser flow for active-plan browsing and
-empty-state behavior, and an updated shared `scripts/ui-playwright-smoke`
-assertion so the repo's existing review-hidden wording matches the live UI.
-Ran `scripts/ui-playwright-plan-smoke` and `scripts/ui-playwright-smoke`, then
-performed a headed interactive Playwright pass against the current worktree's
-`Plan` page, capturing screenshots under `output/playwright/manual-plan-review/`
-for the main document view plus markdown and YAML supplement previews. After
-finalize review surfaced gaps in the archived-pointer empty state and the
-Plan smoke assertions, tightened `/api/plan` so archived current-plan pointers
-return the same empty-browser state as idle worktrees, made the nested
-supplement tree check mandatory, and strengthened the heading-navigation
-assertion so it proves the full markdown reader stays mounted while adding a
-retry around the Playwright `run-code` probe. Focused rerun after the repair:
-`go test ./internal/planui ./internal/ui` and `scripts/ui-playwright-plan-smoke`.
-After a second finalize review found that allowlisted extensions could still
-mask binary payloads, moved the binary-content rejection ahead of the richer
-preview allowlist and added a corrupt-`.json` fixture so the contract rejects
-renamed binary supplements explicitly.
+`scripts/ui-playwright-plan-smoke` browser flow for plan browsing and idle
+empty-state behavior, and targeted browser assertions that prove the full
+markdown reader stays mounted during heading navigation. Earlier finalize
+repairs already tightened the preview gate ordering so binary content is
+rejected before richer-preview allowlisting and added a corrupt-`.json`
+fixture so renamed binary supplements do not render as supported previews.
+
+After the archive candidate reached `await_merge`, two additional issues
+surfaced during human interactive use: the current archived plan package was
+hidden even while the worktree was still non-idle, and explorer heading clicks
+targeted a non-scrolling inner reader node so the visible reading area did not
+jump. Repaired `/api/plan` to keep the current archived plan package readable
+until the worktree becomes idle, updated the reader navigation to scroll the
+actual nearest scrollable reading container, and expanded the Playwright smoke
+fixture to cover archived-current-plan browsing plus visible heading alignment.
+
+Focused rerun after the repair:
+
+- `pnpm --dir web check`
+- `go test ./internal/planui ./internal/ui`
+- `scripts/ui-playwright-plan-smoke`
+
+The Playwright rerun produced fresh screenshots under
+`output/playwright/harness-ui-plan-smoke-20493-1775829253619805000-3623/`,
+including `plan-scope.png` for heading navigation and
+`plan-archived-notes.png` for archived-current-plan browsing.
 
 #### Review Notes
 
@@ -337,28 +349,29 @@ than treating the validation step as a substitute for candidate review.
     intentional.
 - Risk: The page could become visually noisy if the explorer tries to behave
   like a generic file browser instead of a plan reader.
-  - Mitigation: Keep the product centered on one active plan package, use the
+  - Mitigation: Keep the product centered on one current plan package, use the
     established workbench language, and require screenshot-based visual review
     before closeout.
 
 ## Validation Summary
 
 - Focused backend and server validation passed with `go test ./internal/planui
-  ./internal/ui` after the preview-contract, archived-pointer, and binary-gate
-  repairs.
+  ./internal/ui` after the current-archived-plan and reader-scroll repairs,
+  on top of the earlier preview-contract and binary-gate fixes.
 - Frontend checks passed with `pnpm --dir web check` and `pnpm --dir web
   build`, and the embedded UI assets were rebuilt before browser validation.
 - Browser validation passed with `scripts/ui-playwright-plan-smoke`, including
-  the active-plan reader flow, recursive supplements tree checks, unsupported
-  preview states, and idle empty state.
-- An interactive headed Playwright pass against the live `Plan` page captured
-  screenshots under `output/playwright/manual-plan-review/` for the main
-  document view plus markdown and YAML supplement previews.
+  heading navigation against the actual reading-area scroll container,
+  recursive supplements tree checks, archived-current-plan browsing,
+  unsupported preview states, and idle empty state.
+- Fresh browser artifacts were captured under
+  `output/playwright/harness-ui-plan-smoke-20493-1775829253619805000-3623/`,
+  including `plan-scope.png` and `plan-archived-notes.png` for visual review.
 
 ## Review Summary
 
 - `review-001-full` requested changes for three real issues: archived
-  current-plan pointers still surfaced a browseable `/api/plan` success, the
+  current-plan pointers still surfaced the wrong `/api/plan` behavior, the
   dedicated Plan smoke script treated nested supplement traversal as optional,
   and the heading-navigation assertion did not prove the full markdown reader
   stayed mounted.
@@ -366,38 +379,53 @@ than treating the validation step as a substitute for candidate review.
   allowlisted extensions could still bypass binary rejection and render renamed
   binary payloads as supported previews.
 - `review-003-full` passed clean after the second repair. The final candidate
-  now has a clean finalize review for `review-003-full` with no blocking or
-  non-blocking findings.
+  was then reopened from `await_merge` for one more finalize-fix slice after
+  human interactive testing exposed archived-current-plan visibility and
+  heading-scroll issues.
+- `review-004-full` passed for revision `2` after the reopen repair. It
+  reported one non-blocking docs-consistency finding: the visual checklist in
+  `docs/plans/active/supplements/2026-04-10-add-current-plan-browser-page/visual-checklist.yaml`
+  still says "active plan package," which is narrower than the repaired
+  current-plan behavior during merge handoff.
 
 ## Archive Summary
 
-- Archived At: 2026-04-10T10:42:45+08:00
-- Revision: 1
-- PR: NONE. After archive, push branch `codex/plan-browser-page`, open or
-  update the draft PR, and record the PR URL through publish evidence.
-- Ready: Acceptance criteria are satisfied, the `Plan` page is shipping with a
-  read-only active-plan browser plus supplements explorer, focused validation
-  passed, and finalize review `review-003-full` cleared the repaired candidate.
-- Merge Handoff: Run `harness archive`, commit the tracked archive move plus
-  closeout summaries, push `codex/plan-browser-page`, open or update the draft
-  PR, record publish/CI/sync evidence, and wait for explicit human merge
-  approval once `harness status` reaches `execution/finalize/await_merge`.
+- Archived At: 2026-04-10T22:01:40+08:00
+- Revision: 2
+- The earlier revision `1` archive candidate was reopened with
+  `harness reopen --mode finalize-fix` because merge-handoff behavior still
+  needed repair.
+- PR: [#134](https://github.com/catu-ai/easyharness/pull/134)
+- Ready: Revision `2` has a passing finalize review in `review-004-full`,
+  focused validation is green, and the remaining review feedback is one
+  non-blocking docs-consistency note.
+- Merge Handoff: Archive this repaired candidate, refresh publish/CI/sync
+  evidence on PR [#134](https://github.com/catu-ai/easyharness/pull/134), and
+  return to `execution/finalize/await_merge` to wait for explicit human merge
+  approval.
 
 ## Outcome Summary
 
 ### Delivered
 
 - Added a new `Plan` page to the read-only UI rail and workbench shell so the
-  current active tracked plan is browseable without leaving `harness ui`.
-- Added a dedicated `/api/plan` read model and schema that expose the active
+  current tracked plan is browsable without leaving `harness ui`.
+- Added a dedicated `/api/plan` read model and schema that expose the current
   plan markdown document, heading-based TOC tree, supplements directory tree,
   and explicit preview states for supported, fallback, and unsupported files.
 - Implemented a VS Code-like explorer for plan headings and supplements while
   keeping the right pane as one document reader for the main plan and a file
   previewer for supplements.
+- Corrected the plan-loading boundary so the current archived plan package
+  stays visible during merge handoff while truly idle worktrees still show a
+  clear empty state.
+- Corrected heading navigation so explorer clicks scroll the visible reading
+  area to the selected section instead of targeting a non-scrolling inner
+  element.
 - Added focused validation for the new resource and browser flow, including
-  manual Playwright screenshots, archive-pointer empty-state coverage, stronger
-  smoke assertions, and binary-content rejection ahead of preview allowlisting.
+  archived-current-plan coverage, stronger heading-navigation assertions, fresh
+  Playwright screenshots, and binary-content rejection ahead of preview
+  allowlisting.
 
 ### Not Delivered
 

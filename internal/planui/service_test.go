@@ -22,7 +22,7 @@ func TestServiceReadReturnsIdleEmptyStateWithoutCurrentPlan(t *testing.T) {
 	if result.Supplements != nil {
 		t.Fatalf("expected no supplements for idle worktree, got %#v", result.Supplements)
 	}
-	if !strings.Contains(result.Summary, "No current active plan") {
+	if !strings.Contains(result.Summary, "No current plan") {
 		t.Fatalf("unexpected idle summary: %q", result.Summary)
 	}
 }
@@ -141,7 +141,7 @@ func TestServiceReadLoadsActivePlanPackageAndPreviewStates(t *testing.T) {
 	}
 }
 
-func TestServiceReadHidesArchivedCurrentPlanFromBrowser(t *testing.T) {
+func TestServiceReadLoadsArchivedCurrentPlanPackage(t *testing.T) {
 	workdir := t.TempDir()
 	relPlanPath := "docs/plans/archived/2026-04-10-archived.md"
 	planPath := filepath.Join(workdir, filepath.FromSlash(relPlanPath))
@@ -156,15 +156,26 @@ func TestServiceReadHidesArchivedCurrentPlanFromBrowser(t *testing.T) {
 	if _, err := runstate.SaveCurrentPlan(workdir, relPlanPath); err != nil {
 		t.Fatalf("save current plan: %v", err)
 	}
+	supplementsDir := filepath.Join(workdir, "docs", "plans", "archived", "supplements", "2026-04-10-archived")
+	if err := os.MkdirAll(supplementsDir, 0o755); err != nil {
+		t.Fatalf("mkdir archived supplements: %v", err)
+	}
+	mustWriteFile(t, filepath.Join(supplementsDir, "notes.txt"), []byte("archived context\n"))
 
 	result := Service{Workdir: workdir}.Read()
-	if !result.OK || result.Document != nil {
-		t.Fatalf("expected archived plan to return empty browser state, got %#v", result)
+	if !result.OK || result.Document == nil {
+		t.Fatalf("expected archived plan to remain browseable, got %#v", result)
 	}
-	if result.Artifacts != nil {
-		t.Fatalf("expected archived pointer to suppress plan artifacts, got %#v", result.Artifacts)
+	if result.Document.Path != relPlanPath {
+		t.Fatalf("expected archived document path %q, got %#v", relPlanPath, result.Document)
 	}
-	if !strings.Contains(result.Summary, "No current active plan") {
+	if result.Artifacts == nil || result.Artifacts.PlanPath != relPlanPath {
+		t.Fatalf("expected archived plan artifacts, got %#v", result.Artifacts)
+	}
+	if result.Supplements == nil || result.Supplements.Label != "2026-04-10-archived" {
+		t.Fatalf("expected archived supplements root, got %#v", result.Supplements)
+	}
+	if !strings.Contains(result.Summary, "Loaded the current plan package") {
 		t.Fatalf("unexpected archived summary: %q", result.Summary)
 	}
 }
