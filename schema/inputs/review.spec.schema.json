@@ -32,6 +32,10 @@
           "type": "string",
           "description": "Kind is the review kind, such as delta or full."
         },
+        "anchor_sha": {
+          "type": "string",
+          "description": "AnchorSHA is the controller-chosen git commit anchor for delta review. Delta review expects this to resolve to a real commit."
+        },
         "review_title": {
           "type": "string",
           "description": "ReviewTitle is the human-readable title for finalize or custom review rounds."

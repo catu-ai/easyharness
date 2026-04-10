@@ -51,10 +51,12 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 
 	stepTwoStatus := runStatus(t, workspace.Root)
 	assertNode(t, stepTwoStatus, "execution/step-2/implement")
+	anchorSHA := currentWorkspaceHead(t, workspace.Root)
 
 	failingRepair := startReviewRound(t, workspace, "tmp/explicit-step1-repair-fail.json", map[string]any{
-		"step": 1,
-		"kind": "delta",
+		"step":       1,
+		"kind":       "delta",
+		"anchor_sha": anchorSHA,
 		"dimensions": []map[string]any{
 			{
 				"name":         "correctness",
@@ -77,8 +79,9 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 	assertNode(t, runStatus(t, workspace.Root), "execution/step-1/implement")
 
 	cleanRepair := startReviewRound(t, workspace, "tmp/explicit-step1-repair-pass.json", map[string]any{
-		"step": 1,
-		"kind": "delta",
+		"step":       1,
+		"kind":       "delta",
+		"anchor_sha": anchorSHA,
 		"dimensions": []map[string]any{
 			{
 				"name":         "correctness",
@@ -130,8 +133,9 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 	assertNode(t, runStatus(t, workspace.Root), "execution/finalize/fix")
 
 	finalizeFixRepair := startReviewRound(t, workspace, "tmp/finalize-fix-explicit-step1.json", map[string]any{
-		"step": 1,
-		"kind": "delta",
+		"step":       1,
+		"kind":       "delta",
+		"anchor_sha": anchorSHA,
 		"dimensions": []map[string]any{
 			{
 				"name":         "correctness",

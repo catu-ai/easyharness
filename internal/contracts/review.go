@@ -10,6 +10,10 @@ type ReviewSpec struct {
 	// Kind is the review kind, such as delta or full.
 	Kind string `json:"kind"`
 
+	// AnchorSHA is the controller-chosen git commit anchor for delta review.
+	// Delta review expects this to resolve to a real commit.
+	AnchorSHA string `json:"anchor_sha,omitempty"`
+
 	// ReviewTitle is the human-readable title for finalize or custom review
 	// rounds.
 	ReviewTitle string `json:"review_title,omitempty"`
@@ -37,6 +41,10 @@ type ReviewManifest struct {
 
 	// Kind is the review kind for the round.
 	Kind string `json:"kind"`
+
+	// AnchorSHA is the controller-chosen git commit anchor recorded for delta
+	// review when the round uses one.
+	AnchorSHA string `json:"anchor_sha,omitempty"`
 
 	// Step is the tracked plan step number when the round is step-scoped.
 	Step *int `json:"step,omitempty"`
@@ -127,6 +135,10 @@ type ReviewSubmissionInput struct {
 
 	// Findings lists the review findings for the slot.
 	Findings []ReviewFinding `json:"findings,omitempty" easyharness:"allow_null"`
+
+	// ExtraFields preserves reviewer-owned progressive worklog fields that are
+	// not part of the canonical aggregate contract.
+	ExtraFields map[string]json.RawMessage `json:"-"`
 }
 
 // ReviewSubmission is the command-owned submission artifact for one reviewer
@@ -142,13 +154,17 @@ type ReviewSubmission struct {
 	Dimension string `json:"dimension"`
 
 	// SubmittedAt is the submission timestamp.
-	SubmittedAt string `json:"submitted_at"`
+	SubmittedAt string `json:"submitted_at,omitempty"`
 
 	// Summary is the reviewer's concise overall assessment.
-	Summary string `json:"summary"`
+	Summary string `json:"summary,omitempty"`
 
 	// Findings lists the review findings for the slot.
-	Findings []ReviewFinding `json:"findings"`
+	Findings []ReviewFinding `json:"findings,omitempty"`
+
+	// ExtraFields preserves reviewer-owned progressive worklog fields that are
+	// not part of the canonical aggregate contract.
+	ExtraFields map[string]json.RawMessage `json:"-"`
 }
 
 // ReviewFinding is one review finding in a submission or aggregate.
@@ -350,6 +366,60 @@ func (f *ReviewAggregateFinding) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (s ReviewSubmissionInput) MarshalJSON() ([]byte, error) {
+	payload := reviewSubmissionInputPayload{
+		Summary:  s.Summary,
+		Findings: s.Findings,
+	}
+	return marshalWithExtraFields(payload, s.ExtraFields)
+}
+
+func (s *ReviewSubmissionInput) UnmarshalJSON(data []byte) error {
+	var payload reviewSubmissionInputPayload
+	extraFields, err := unmarshalWithExtraFields(data, &payload, reviewSubmissionInputKnownFields)
+	if err != nil {
+		return err
+	}
+	s.Summary = payload.Summary
+	s.Findings = payload.Findings
+	for key := range reviewSubmissionInputIgnoredExtraFields {
+		delete(extraFields, key)
+	}
+	if len(extraFields) == 0 {
+		extraFields = nil
+	}
+	s.ExtraFields = extraFields
+	return nil
+}
+
+func (s ReviewSubmission) MarshalJSON() ([]byte, error) {
+	payload := reviewSubmissionPayload{
+		RoundID:     s.RoundID,
+		Slot:        s.Slot,
+		Dimension:   s.Dimension,
+		SubmittedAt: s.SubmittedAt,
+		Summary:     s.Summary,
+		Findings:    s.Findings,
+	}
+	return marshalWithExtraFields(payload, s.ExtraFields)
+}
+
+func (s *ReviewSubmission) UnmarshalJSON(data []byte) error {
+	var payload reviewSubmissionPayload
+	extraFields, err := unmarshalWithExtraFields(data, &payload, reviewSubmissionKnownFields)
+	if err != nil {
+		return err
+	}
+	s.RoundID = payload.RoundID
+	s.Slot = payload.Slot
+	s.Dimension = payload.Dimension
+	s.SubmittedAt = payload.SubmittedAt
+	s.Summary = payload.Summary
+	s.Findings = payload.Findings
+	s.ExtraFields = extraFields
+	return nil
+}
+
 // ReviewStartResult is the JSON result returned by `harness review start`.
 type ReviewStartResult struct {
 	// OK reports whether the command succeeded.
@@ -468,4 +538,78 @@ type ReviewAggregateArtifacts struct {
 
 	// LocalStatePath is the plan-local control-plane state path.
 	LocalStatePath string `json:"local_state_path"`
+}
+
+type reviewSubmissionInputPayload struct {
+	Summary  string          `json:"summary"`
+	Findings []ReviewFinding `json:"findings,omitempty"`
+}
+
+type reviewSubmissionPayload struct {
+	RoundID     string          `json:"round_id"`
+	Slot        string          `json:"slot"`
+	Dimension   string          `json:"dimension"`
+	SubmittedAt string          `json:"submitted_at,omitempty"`
+	Summary     string          `json:"summary,omitempty"`
+	Findings    []ReviewFinding `json:"findings,omitempty"`
+}
+
+var reviewSubmissionInputKnownFields = map[string]bool{
+	"summary":  true,
+	"findings": true,
+}
+
+var reviewSubmissionInputIgnoredExtraFields = map[string]bool{
+	"round_id":     true,
+	"slot":         true,
+	"dimension":    true,
+	"submitted_at": true,
+}
+
+var reviewSubmissionKnownFields = map[string]bool{
+	"round_id":     true,
+	"slot":         true,
+	"dimension":    true,
+	"submitted_at": true,
+	"summary":      true,
+	"findings":     true,
+}
+
+func unmarshalWithExtraFields(data []byte, payload any, knownFields map[string]bool) (map[string]json.RawMessage, error) {
+	if err := json.Unmarshal(data, payload); err != nil {
+		return nil, err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	extraFields := make(map[string]json.RawMessage)
+	for key, value := range raw {
+		if knownFields[key] {
+			continue
+		}
+		extraFields[key] = append(json.RawMessage(nil), value...)
+	}
+	if len(extraFields) == 0 {
+		return nil, nil
+	}
+	return extraFields, nil
+}
+
+func marshalWithExtraFields(payload any, extraFields map[string]json.RawMessage) ([]byte, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	if len(extraFields) == 0 {
+		return data, nil
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	for key, value := range extraFields {
+		raw[key] = append(json.RawMessage(nil), value...)
+	}
+	return json.Marshal(raw)
 }

@@ -13,6 +13,10 @@
           "type": "string",
           "description": "Kind is the review kind for the round."
         },
+        "anchor_sha": {
+          "type": "string",
+          "description": "AnchorSHA is the controller-chosen git commit anchor recorded for delta review when the round uses one."
+        },
         "step": {
           "type": "integer",
           "description": "Step is the tracked plan step number when the round is step-scoped."

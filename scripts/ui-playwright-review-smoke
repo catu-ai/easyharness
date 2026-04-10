@@ -162,7 +162,8 @@ review_root = root / ".local" / "harness" / "plans" / plan_stem / "reviews"
 )
 
 review_one = review_root / "review-001-delta"
-sub_one = review_one / "submissions" / "correctness.json"
+sub_one = review_one / "submissions" / "correctness" / "submission.json"
+sub_one.parent.mkdir(parents=True, exist_ok=True)
 (review_one / "manifest.json").write_text(
     json.dumps(
         {
@@ -239,8 +240,10 @@ sub_one.write_text(
 )
 
 review_two = review_root / "review-002-delta"
-sub_two_a = review_two / "submissions" / "correctness.json"
-sub_two_b = review_two / "submissions" / "risk.json"
+sub_two_a = review_two / "submissions" / "correctness" / "submission.json"
+sub_two_b = review_two / "submissions" / "risk" / "submission.json"
+sub_two_a.parent.mkdir(parents=True, exist_ok=True)
+sub_two_b.parent.mkdir(parents=True, exist_ok=True)
 (review_two / "manifest.json").write_text(
     json.dumps(
         {
@@ -318,8 +321,10 @@ sub_two_b.write_text(
 )
 
 review_three = review_root / "review-003-full"
-sub_three_a = review_three / "submissions" / "correctness.json"
-sub_three_b = review_three / "submissions" / "ux.json"
+sub_three_a = review_three / "submissions" / "correctness" / "submission.json"
+sub_three_b = review_three / "submissions" / "ux" / "submission.json"
+sub_three_a.parent.mkdir(parents=True, exist_ok=True)
+sub_three_b.parent.mkdir(parents=True, exist_ok=True)
 (review_three / "manifest.json").write_text(
     json.dumps(
         {
@@ -398,7 +403,8 @@ sub_three_a.write_text(
 )
 
 review_four = review_root / "review-004-full"
-sub_four = review_four / "submissions" / "correctness.json"
+sub_four = review_four / "submissions" / "correctness" / "submission.json"
+sub_four.parent.mkdir(parents=True, exist_ok=True)
 (review_four / "manifest.json").write_text(
     json.dumps(
         {
@@ -458,7 +464,8 @@ sub_four.write_text(
 )
 
 review_six = review_root / "review-006-delta"
-sub_six = review_six / "submissions" / "correctness.json"
+sub_six = review_six / "submissions" / "correctness" / "submission.json"
+sub_six.parent.mkdir(parents=True, exist_ok=True)
 (review_six / "manifest.json").write_text("{not-json", encoding="utf-8")
 (review_six / "ledger.json").write_text(
     json.dumps(
@@ -494,7 +501,8 @@ sub_six.write_text(
 )
 
 review_seven = review_root / "review-007-delta"
-sub_seven = review_seven / "submissions" / "correctness.json"
+sub_seven = review_seven / "submissions" / "correctness" / "submission.json"
+sub_seven.parent.mkdir(parents=True, exist_ok=True)
 (review_seven / "manifest.json").write_text(
     json.dumps(
         {
@@ -556,8 +564,10 @@ sub_seven.write_text(
 (review_seven / "aggregate.json").write_text("{not-json", encoding="utf-8")
 
 review_eight = review_root / "review-008-full"
-sub_eight_correctness = review_eight / "submissions" / "correctness.json"
-sub_eight_risk = review_eight / "submissions" / "risk.json"
+sub_eight_correctness = review_eight / "submissions" / "correctness" / "submission.json"
+sub_eight_risk = review_eight / "submissions" / "risk" / "submission.json"
+sub_eight_correctness.parent.mkdir(parents=True, exist_ok=True)
+sub_eight_risk.parent.mkdir(parents=True, exist_ok=True)
 (review_eight / "manifest.json").write_text(
     json.dumps(
         {
@@ -675,7 +685,8 @@ sub_eight_risk.write_text(
 )
 
 review_nine = review_root / "review-009-delta"
-sub_nine = review_nine / "submissions" / "risk.json"
+sub_nine = review_nine / "submissions" / "risk" / "submission.json"
+sub_nine.parent.mkdir(parents=True, exist_ok=True)
 (review_nine / "manifest.json").write_text(
     json.dumps(
         {

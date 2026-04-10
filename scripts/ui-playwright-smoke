@@ -152,7 +152,7 @@ seed_timeline_handoff_fixture() {
 
   rm -rf "$runtime_workdir/docs/plans/active"
   rm -rf "$runtime_workdir/.local/harness"
-  mkdir -p "$plan_dir/evidence/publish" "$plan_dir/evidence/ci" "$plan_dir/evidence/sync" "$plan_dir/reviews/review-001-full/submissions"
+  mkdir -p "$plan_dir/evidence/publish" "$plan_dir/evidence/ci" "$plan_dir/evidence/sync" "$plan_dir/reviews/review-001-full/submissions/correctness"
 
   cat >"$runtime_workdir/.local/harness/current-plan.json" <<EOF
 {
@@ -276,7 +276,7 @@ EOF
       "name": "correctness",
       "slot": "correctness",
       "instructions": "Verify the archived review candidate is still readable.",
-      "submission_path": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/submissions/correctness.json"
+      "submission_path": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/submissions/correctness/submission.json"
     }
   ]
 }
@@ -293,7 +293,7 @@ EOF
       "slot": "correctness",
       "status": "submitted",
       "submitted_at": "2026-04-01T22:23:00+08:00",
-      "submission_path": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/submissions/correctness.json"
+      "submission_path": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/submissions/correctness/submission.json"
     }
   ]
 }
@@ -312,7 +312,7 @@ EOF
 }
 EOF
 
-  cat >"$plan_dir/reviews/review-001-full/submissions/correctness.json" <<EOF
+  cat >"$plan_dir/reviews/review-001-full/submissions/correctness/submission.json" <<EOF
 {
   "round_id": "review-001-full",
   "slot": "correctness",

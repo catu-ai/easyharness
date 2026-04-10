@@ -64,6 +64,7 @@ func expectedFiles(workdir string) (map[string][]byte, error) {
 		schemaObj := reflector.ReflectFromType(entry.Type)
 		applyComments(schemaObj, comments)
 		applyNullability(schemaObj, collectFieldMetadata(entry))
+		allowAdditionalProperties(schemaObj, entry)
 		schemaObj.Version = jsonschema.Version
 		schemaObj.ID = jsonschema.ID(schemaBaseID + filepath.ToSlash(entry.Path))
 		schemaObj.Title = entry.Title
@@ -637,6 +638,29 @@ func applyNullability(schema *jsonschema.Schema, fields map[string]map[string]fi
 			makeSchemaNullable(prop)
 		}
 	}
+}
+
+func allowAdditionalProperties(schema *jsonschema.Schema, entry contracts.SchemaEntry) {
+	if schema == nil {
+		return
+	}
+	switch entry.Type {
+	case reflect.TypeFor[contracts.ReviewSubmissionInput]():
+		allowDefinitionAdditionalProperties(schema, "ReviewSubmissionInput")
+	case reflect.TypeFor[contracts.ReviewSubmission]():
+		allowDefinitionAdditionalProperties(schema, "ReviewSubmission")
+	}
+}
+
+func allowDefinitionAdditionalProperties(schema *jsonschema.Schema, typeName string) {
+	if schema.Definitions == nil {
+		return
+	}
+	def, ok := schema.Definitions[typeName]
+	if !ok || def == nil {
+		return
+	}
+	def.AdditionalProperties = nil
 }
 
 func makeSchemaNullable(schema *jsonschema.Schema) {

@@ -229,12 +229,14 @@ NONE
 func runBlockingStepReview(t *testing.T, workspace *support.Workspace, stepTitle string, stepNumber int) string {
 	t.Helper()
 
+	anchorSHA := currentWorkspaceHead(t, workspace.Root)
 	aggregatePayload := runSingleSlotReviewWithFindings(
 		t,
 		workspace,
 		fmt.Sprintf("tmp/step-%d-blocking-review-spec.json", stepNumber),
 		map[string]any{
-			"kind": "delta",
+			"kind":       "delta",
+			"anchor_sha": anchorSHA,
 			"dimensions": []map[string]any{
 				{
 					"name":         "correctness",

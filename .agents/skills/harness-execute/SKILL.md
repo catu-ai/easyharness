@@ -34,6 +34,10 @@ Routine review progression is controller-owned. Once the approved plan reaches
 an ordinary step-closeout or finalize-review boundary, the controller should
 start that review flow without asking the human to micromanage it.
 
+For `delta` review, use a real git commit anchor. The detailed controller
+dispatch fields, anchor guidance, and reviewer-resume rules live in
+[review-orchestration.md](references/review-orchestration.md).
+
 If the approved plan is likely to require reviewer subagents and explicit
 authorization has not been obtained yet, ask for that authorization as soon as
 the need becomes foreseeable. Do not wait until reviewer spawning is the only

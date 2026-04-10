@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -157,11 +159,14 @@ type reviewLedger struct {
 }
 
 type reviewSubmission struct {
-	RoundID   string `json:"round_id"`
-	Slot      string `json:"slot"`
-	Dimension string `json:"dimension"`
-	Summary   string `json:"summary"`
-	Findings  []struct {
+	RoundID     string          `json:"round_id"`
+	Slot        string          `json:"slot"`
+	Dimension   string          `json:"dimension"`
+	SubmittedAt string          `json:"submitted_at"`
+	Summary     string          `json:"summary"`
+	Worklog     json.RawMessage `json:"worklog"`
+	Coverage    json.RawMessage `json:"coverage"`
+	Findings    []struct {
 		Severity string `json:"severity"`
 		Title    string `json:"title"`
 		Details  string `json:"details"`
@@ -303,13 +308,19 @@ func assertRawStateJSONOmitsKeys(t *testing.T, path string, keys ...string) {
 	}
 }
 
-func submitReviewSlot(t *testing.T, workspace *support.Workspace, roundID string, slot reviewSlot, summary string, findings []map[string]any) {
+func submitReviewSlot(t *testing.T, workspace *support.Workspace, roundID string, slot reviewSlot, summary string, findings []map[string]any, extras ...map[string]any) {
 	t.Helper()
 
-	submissionPath := workspace.WriteJSON(t, fmt.Sprintf("tmp/%s-%s.json", roundID, slot.Slot), map[string]any{
+	payload := map[string]any{
 		"summary":  summary,
 		"findings": findings,
-	})
+	}
+	if len(extras) > 0 && extras[0] != nil {
+		for key, value := range extras[0] {
+			payload[key] = value
+		}
+	}
+	submissionPath := workspace.WriteJSON(t, fmt.Sprintf("tmp/%s-%s.json", roundID, slot.Slot), payload)
 
 	submit := support.Run(
 		t,
@@ -388,12 +399,35 @@ func aggregateReviewRound(t *testing.T, workspace *support.Workspace, roundID st
 	return payload
 }
 
+func currentWorkspaceHead(t *testing.T, root string) string {
+	t.Helper()
+
+	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
+		if os.IsNotExist(err) {
+			return "anchor-sha"
+		}
+		t.Fatalf("stat .git: %v", err)
+	}
+
+	output, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").CombinedOutput()
+	if err != nil {
+		t.Fatalf("git rev-parse HEAD: %v\n%s", err, output)
+	}
+	head := strings.TrimSpace(string(output))
+	if head == "" {
+		t.Fatalf("git rev-parse HEAD returned an empty commit for %s", root)
+	}
+	return head
+}
+
 func runPassingDeltaReview(t *testing.T, workspace *support.Workspace, stepTitle string, stepNumber int) string {
 	t.Helper()
 
 	target := trackedStepTitle(stepNumber, stepTitle)
+	anchorSHA := currentWorkspaceHead(t, workspace.Root)
 	startPayload := startReviewRound(t, workspace, fmt.Sprintf("tmp/step-%d-review-spec.json", stepNumber), map[string]any{
-		"kind": "delta",
+		"kind":       "delta",
+		"anchor_sha": anchorSHA,
 		"dimensions": []map[string]any{
 			{
 				"name":         "correctness",

@@ -3,6 +3,7 @@ package review_test
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -27,7 +28,8 @@ func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
 	}
 
 	result := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check the state and artifact contract."},
 			{Name: "agent_ux", Instructions: "Check that outputs are agent-friendly."},
@@ -44,6 +46,20 @@ func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
 	}
 	if _, err := os.Stat(result.Artifacts.ManifestPath); err != nil {
 		t.Fatalf("manifest missing: %v", err)
+	}
+	skeletonBytes, err := os.ReadFile(result.Artifacts.Slots[0].SubmissionPath)
+	if err != nil {
+		t.Fatalf("read starter submission skeleton: %v", err)
+	}
+	var skeleton map[string]any
+	if err := json.Unmarshal(skeletonBytes, &skeleton); err != nil {
+		t.Fatalf("parse starter submission skeleton: %v", err)
+	}
+	if _, ok := skeleton["summary"]; !ok {
+		t.Fatalf("expected starter submission skeleton to include summary, got %#v", skeleton)
+	}
+	if _, ok := skeleton["findings"]; !ok {
+		t.Fatalf("expected starter submission skeleton to include findings, got %#v", skeleton)
 	}
 	state, _, err := runstate.LoadState(root, "2026-03-18-review-contract")
 	if err != nil {
@@ -73,8 +89,9 @@ func TestStartAcceptsExplicitEarlierStepFromLaterExecutionFrontier(t *testing.T)
 	}
 
 	result := svc.Start(mustJSON(t, review.Spec{
-		Step: intPtr(1),
-		Kind: "delta",
+		Step:      intPtr(1),
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Repair the earlier step closeout."},
 		},
@@ -252,7 +269,8 @@ func TestStartAcceptsExecutionStartMilestoneWithoutLegacyExecutingLifecycle(t *t
 	}
 
 	result := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -317,7 +335,8 @@ func TestStartUsesMaxExistingCompactReviewSequence(t *testing.T) {
 	}
 
 	result := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -345,12 +364,66 @@ func TestStartRejectsInvalidSpec(t *testing.T) {
 	assertStartError(t, result, "spec.dimensions")
 }
 
+func TestStartPersistsDeltaAnchorSHAInManifest(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+
+	svc := review.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 18, 1, 0, 0, 0, time.UTC)
+		},
+	}
+	result := svc.Start(mustJSON(t, review.Spec{
+		Kind:      "delta",
+		AnchorSHA: "abc123def456",
+		Dimensions: []review.Dimension{
+			{Name: "correctness", Instructions: "Check correctness."},
+		},
+	}))
+	if !result.OK {
+		t.Fatalf("expected start success, got %#v", result)
+	}
+
+	data, err := os.ReadFile(result.Artifacts.ManifestPath)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	var manifest review.Manifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatalf("unmarshal manifest: %v", err)
+	}
+	if manifest.AnchorSHA != "abc123def456" {
+		t.Fatalf("expected manifest anchor sha to persist, got %#v", manifest)
+	}
+}
+
+func TestStartRejectsDeltaAnchorThatIsNotARealGitCommit(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	initGitRepoWithCommit(t, root)
+
+	svc := review.Service{Workdir: root}
+	result := svc.Start(mustJSON(t, review.Spec{
+		Kind:      "delta",
+		AnchorSHA: "not-a-real-commit",
+		Dimensions: []review.Dimension{
+			{Name: "correctness", Instructions: "Check correctness."},
+		},
+	}))
+	if result.OK {
+		t.Fatalf("expected invalid anchor failure, got %#v", result)
+	}
+	assertStartError(t, result, "spec.anchor_sha")
+}
+
 func TestStartRejectsUnknownSchemaProperty(t *testing.T) {
 	root := t.TempDir()
 	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 
 	result := review.Service{Workdir: root}.Start([]byte(`{
 		"kind": "delta",
+		"anchor_sha": "anchor-sha",
 		"dimensions": [
 			{"name": "correctness", "instructions": "Check behavior."}
 		],
@@ -368,7 +441,7 @@ func TestStartRejectsUnknownTopLevelSpecField(t *testing.T) {
 
 	svc := review.Service{Workdir: root}
 	result := svc.Start([]byte(`{
-		"kind":"delta",
+		"kind":"delta","anchor_sha":"anchor-sha",
 		"dimensions":[{"name":"correctness","instructions":"Check correctness."}],
 		"unexpected":true
 	}`))
@@ -417,7 +490,8 @@ func TestSubmitStoresSubmissionAndUpdatesLedger(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -462,7 +536,7 @@ func TestSubmitStoresSubmissionAndUpdatesLedger(t *testing.T) {
 	}
 }
 
-func TestSubmitRejectsUnknownSchemaProperty(t *testing.T) {
+func TestSubmitRejectsUnknownFindingProperty(t *testing.T) {
 	root := t.TempDir()
 	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 
@@ -473,7 +547,8 @@ func TestSubmitRejectsUnknownSchemaProperty(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -484,12 +559,19 @@ func TestSubmitRejectsUnknownSchemaProperty(t *testing.T) {
 
 	result := svc.Submit(start.Artifacts.RoundID, "correctness", []byte(`{
 		"summary": "Looks good.",
-		"unexpected": true
+		"findings": [
+			{
+				"severity": "minor",
+				"title": "Unexpected nested field",
+				"details": "Nested finding payloads should still reject undeclared properties.",
+				"unexpected": true
+			}
+		]
 	}`))
 	if result.OK {
 		t.Fatalf("expected schema validation failure, got %#v", result)
 	}
-	assertSubmitError(t, result, "submission.unexpected")
+	assertSubmitError(t, result, "submission.findings[0].unexpected")
 }
 
 func TestSubmitRejectsUnknownSlot(t *testing.T) {
@@ -503,7 +585,8 @@ func TestSubmitRejectsUnknownSlot(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -532,7 +615,8 @@ func TestSubmitRejectsEmptyLocationString(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -569,7 +653,8 @@ func TestSubmitRejectsNullLocations(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -595,7 +680,7 @@ func TestSubmitRejectsNullLocations(t *testing.T) {
 	assertSubmitError(t, result, "submission.findings[0].locations")
 }
 
-func TestSubmitRejectsUnknownTopLevelField(t *testing.T) {
+func TestSubmitAcceptsAndPreservesExtraTopLevelFields(t *testing.T) {
 	root := t.TempDir()
 	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 
@@ -606,7 +691,8 @@ func TestSubmitRejectsUnknownTopLevelField(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -616,13 +702,50 @@ func TestSubmitRejectsUnknownTopLevelField(t *testing.T) {
 	}
 
 	result := svc.Submit(start.Artifacts.RoundID, "correctness", []byte(`{
+		"round_id":"stale-round",
+		"slot":"stale-slot",
+		"dimension":"stale-dimension",
+		"submitted_at":"2000-01-01T00:00:00Z",
 		"summary":"Found one issue.",
-		"unexpected":true
+		"findings":[],
+		"worklog":{
+			"full_plan_read":true,
+			"checked_areas":["docs/specs/cli-contract.md"],
+			"candidate_findings":["Anchor guidance wording"]
+		},
+		"coverage":{
+			"anchor_sha":"abc123",
+			"review_kind":"delta"
+		}
 	}`))
-	if result.OK {
-		t.Fatalf("expected failure, got %#v", result)
+	if !result.OK {
+		t.Fatalf("expected submit success with extra top-level fields, got %#v", result)
 	}
-	assertSubmitError(t, result, "submission.unexpected")
+	data, err := os.ReadFile(result.Artifacts.SubmissionPath)
+	if err != nil {
+		t.Fatalf("read submission artifact: %v", err)
+	}
+	var submission review.Submission
+	if err := json.Unmarshal(data, &submission); err != nil {
+		t.Fatalf("unmarshal submission artifact: %v", err)
+	}
+	if submission.RoundID != start.Artifacts.RoundID || submission.Slot != "correctness" || submission.Dimension != "correctness" {
+		t.Fatalf("expected controller-owned identity fields to win, got %#v", submission)
+	}
+	if submission.Summary != "Found one issue." || len(submission.Findings) != 0 {
+		t.Fatalf("expected canonical submission fields to persist, got %#v", submission)
+	}
+	worklog, ok := submission.ExtraFields["worklog"]
+	if !ok || !strings.Contains(string(worklog), `"full_plan_read": true`) {
+		t.Fatalf("expected worklog extra field to persist, got %#v", submission.ExtraFields)
+	}
+	coverage, ok := submission.ExtraFields["coverage"]
+	if !ok || !strings.Contains(string(coverage), `"anchor_sha": "abc123"`) {
+		t.Fatalf("expected coverage extra field to persist, got %#v", submission.ExtraFields)
+	}
+	if _, ok := submission.ExtraFields["round_id"]; ok {
+		t.Fatalf("expected controller-owned identity fields to be stripped from extra fields, got %#v", submission.ExtraFields)
+	}
 }
 
 func TestSubmitRejectsWrongFindingSeverityType(t *testing.T) {
@@ -636,7 +759,8 @@ func TestSubmitRejectsWrongFindingSeverityType(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -666,7 +790,8 @@ func TestSubmitRejectsMissingRequiredSummary(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -693,7 +818,8 @@ func TestSubmitPreservesExplicitEmptyLocationsArray(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -744,7 +870,8 @@ func TestSubmitAcceptsFindingWithoutLocations(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -793,7 +920,8 @@ func TestAggregateRejectsMissingSubmission(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -820,7 +948,8 @@ func TestAggregateDeltaPassUpdatesState(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -931,7 +1060,8 @@ func TestStartRejectsWhenReviewMutationLockIsHeld(t *testing.T) {
 		},
 	}
 	result := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -959,7 +1089,8 @@ func TestStartRejectsWhenStateMutationLockIsHeld(t *testing.T) {
 		},
 	}
 	result := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -982,7 +1113,8 @@ func TestAggregateRejectsWhenReviewMutationLockIsHeld(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -1021,7 +1153,8 @@ func TestAggregateRejectsWhenStateMutationLockIsHeld(t *testing.T) {
 		},
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
-		Kind: "delta",
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
 		Dimensions: []review.Dimension{
 			{Name: "correctness", Instructions: "Check correctness."},
 		},
@@ -1266,6 +1399,30 @@ func markAllPlanStepsNoReviewNeeded(t *testing.T, path string) {
 
 func intPtr(value int) *int {
 	return &value
+}
+
+func initGitRepoWithCommit(t *testing.T, root string) string {
+	t.Helper()
+
+	runGit := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
+		}
+		return strings.TrimSpace(string(output))
+	}
+
+	runGit("init")
+	runGit("config", "user.name", "Codex Test")
+	runGit("config", "user.email", "codex@example.com")
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("test repo\n"), 0o644); err != nil {
+		t.Fatalf("write git fixture file: %v", err)
+	}
+	runGit("add", ".")
+	runGit("commit", "-m", "test fixture")
+	return runGit("rev-parse", "HEAD")
 }
 
 func mustJSON(t *testing.T, value any) []byte {

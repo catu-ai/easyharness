@@ -33,7 +33,7 @@ func TestServiceReadReturnsActivePlanRoundsWithConservativeStatuses(t *testing.T
 				"name":            "Correctness",
 				"slot":            "correctness",
 				"instructions":    "Check correctness.",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-delta", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-delta", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -46,7 +46,7 @@ func TestServiceReadReturnsActivePlanRoundsWithConservativeStatuses(t *testing.T
 				"slot":            "correctness",
 				"status":          "submitted",
 				"submitted_at":    "2026-04-02T10:08:00Z",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-delta", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-delta", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -87,7 +87,7 @@ func TestServiceReadReturnsActivePlanRoundsWithConservativeStatuses(t *testing.T
 				"name":            "Risk",
 				"slot":            "risk",
 				"instructions":    "Check risk.",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-002-delta", filepath.Join("submissions", "risk.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-002-delta", filepath.Join("submissions", "risk", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -100,7 +100,7 @@ func TestServiceReadReturnsActivePlanRoundsWithConservativeStatuses(t *testing.T
 				"slot":            "risk",
 				"status":          "submitted",
 				"submitted_at":    "2026-04-02T11:10:00Z",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-002-delta", filepath.Join("submissions", "risk.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-002-delta", filepath.Join("submissions", "risk", "submission.json")),
 			},
 		},
 	}, nil, map[string]map[string]any{
@@ -140,13 +140,13 @@ func TestServiceReadReturnsActivePlanRoundsWithConservativeStatuses(t *testing.T
 				"name":            "Correctness",
 				"slot":            "correctness",
 				"instructions":    "Check the final result.",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-003-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-003-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 			{
 				"name":            "UX",
 				"slot":            "ux",
 				"instructions":    "Check UI clarity.",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-003-full", filepath.Join("submissions", "ux.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-003-full", filepath.Join("submissions", "ux", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -159,13 +159,13 @@ func TestServiceReadReturnsActivePlanRoundsWithConservativeStatuses(t *testing.T
 				"slot":            "correctness",
 				"status":          "submitted",
 				"submitted_at":    "2026-04-02T12:07:00Z",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-003-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-003-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 			{
 				"name":            "UX",
 				"slot":            "ux",
 				"status":          "pending",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-003-full", filepath.Join("submissions", "ux.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-003-full", filepath.Join("submissions", "ux", "submission.json")),
 			},
 		},
 	}, nil, map[string]map[string]any{
@@ -233,7 +233,7 @@ func TestServiceReadReturnsArchivedPlanRounds(t *testing.T) {
 				"name":            "Correctness",
 				"slot":            "correctness",
 				"instructions":    "Check archived candidate correctness.",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -246,7 +246,7 @@ func TestServiceReadReturnsArchivedPlanRounds(t *testing.T) {
 				"slot":            "correctness",
 				"status":          "submitted",
 				"submitted_at":    "2026-04-02T12:07:00Z",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -431,13 +431,13 @@ func TestServiceReadPreservesAggregateFindings(t *testing.T) {
 				"name":            "Correctness",
 				"slot":            "correctness",
 				"instructions":    "Check final behavior.",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 			{
 				"name":            "Risk",
 				"slot":            "risk",
 				"instructions":    "Check for residual workflow risk.",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "risk.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "risk", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -450,14 +450,14 @@ func TestServiceReadPreservesAggregateFindings(t *testing.T) {
 				"slot":            "correctness",
 				"status":          "submitted",
 				"submitted_at":    "2026-04-02T12:07:00Z",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 			{
 				"name":            "Risk",
 				"slot":            "risk",
 				"status":          "submitted",
 				"submitted_at":    "2026-04-02T12:08:00Z",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "risk.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "risk", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -607,7 +607,7 @@ func TestServiceReadKeepsUnknownLedgerStatusConservative(t *testing.T) {
 				"name":            "Correctness",
 				"slot":            "correctness",
 				"instructions":    "Check final behavior.",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -619,7 +619,7 @@ func TestServiceReadKeepsUnknownLedgerStatusConservative(t *testing.T) {
 				"name":            "Correctness",
 				"slot":            "correctness",
 				"status":          "mystery_state",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 		},
 	}, nil, map[string]map[string]any{
@@ -681,7 +681,7 @@ func TestServiceReadKeepsMalformedLedgerRoundsDegradedEvenWithAggregateDecision(
 				"name":            "Correctness",
 				"slot":            "correctness",
 				"instructions":    "Check final behavior.",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 		},
 	}, nil, map[string]any{
@@ -748,7 +748,7 @@ func TestServiceReadKeepsUnreadableAggregateRoundsDegraded(t *testing.T) {
 				"name":            "Correctness",
 				"slot":            "correctness",
 				"instructions":    "Check final behavior.",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -761,7 +761,7 @@ func TestServiceReadKeepsUnreadableAggregateRoundsDegraded(t *testing.T) {
 				"slot":            "correctness",
 				"status":          "submitted",
 				"submitted_at":    "2026-04-02T12:07:00Z",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -832,7 +832,7 @@ func TestServiceReadKeepsSemanticallyBrokenArtifactsConservative(t *testing.T) {
 				"name":            "Correctness",
 				"slot":            "correctness",
 				"instructions":    "Check final behavior.",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -843,7 +843,7 @@ func TestServiceReadKeepsSemanticallyBrokenArtifactsConservative(t *testing.T) {
 				"name":            "Correctness",
 				"slot":            "correctness",
 				"status":          "submitted",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 		},
 	}, map[string]any{
@@ -882,7 +882,7 @@ func TestServiceReadKeepsSemanticallyBrokenArtifactsConservative(t *testing.T) {
 	if len(round.Artifacts) < 4 {
 		t.Fatalf("expected core and submission artifacts, got %#v", round.Artifacts)
 	}
-	if round.Artifacts[0].Status != "invalid" || round.Artifacts[1].Status != "invalid" || round.Artifacts[2].Status != "invalid" || round.Artifacts[3].Status != "invalid" {
+	if round.Artifacts[0].Status != "invalid" || round.Artifacts[1].Status != "invalid" || round.Artifacts[2].Status != "invalid" || round.Artifacts[3].Status != "available" {
 		t.Fatalf("expected semantically incomplete artifacts to be marked invalid, got %#v", round.Artifacts)
 	}
 	if len(round.Warnings) == 0 || !strings.Contains(strings.Join(round.Warnings, " "), "missing required fields") {
@@ -892,8 +892,8 @@ func TestServiceReadKeepsSemanticallyBrokenArtifactsConservative(t *testing.T) {
 		t.Fatalf("expected one reviewer, got %#v", round.Reviewers)
 	}
 	reviewer := round.Reviewers[0]
-	if reviewer.Status != "pending" {
-		t.Fatalf("expected invalid submission artifact to stay conservative, got %#v", reviewer)
+	if reviewer.Status != "submitted" {
+		t.Fatalf("expected ledger-submitted reviewer to stay submitted even when summary stays hidden, got %#v", reviewer)
 	}
 	if reviewer.Summary != "" {
 		t.Fatalf("expected invalid submission summary to stay hidden, got %#v", reviewer)
@@ -919,7 +919,7 @@ func TestServiceReadKeepsMissingLedgerRoundsDegradedEvenWithAggregateDecision(t 
 				"name":            "Correctness",
 				"slot":            "correctness",
 				"instructions":    "Check final behavior.",
-				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness.json")),
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
 			},
 		},
 	}, nil, map[string]any{
@@ -1052,7 +1052,7 @@ func writeReviewRoundFixture(t *testing.T, workdir, planStem, roundID string, ma
 		writeJSONFileFixture(t, filepath.Join(roundDir, "aggregate.json"), aggregate)
 	}
 	for slot, payload := range submissions {
-		writeJSONFileFixture(t, filepath.Join(roundDir, "submissions", slot+".json"), payload)
+		writeJSONFileFixture(t, filepath.Join(roundDir, "submissions", slot, "submission.json"), payload)
 	}
 }
 

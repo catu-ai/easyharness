@@ -57,30 +57,18 @@
           "description": "Summary is the reviewer's concise overall assessment."
         },
         "findings": {
-          "oneOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/ReviewFinding"
-              },
-              "type": "array",
-              "description": "Findings lists the review findings for the slot."
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "items": {
+            "$ref": "#/$defs/ReviewFinding"
+          },
+          "type": "array",
           "description": "Findings lists the review findings for the slot."
         }
       },
-      "additionalProperties": false,
       "type": "object",
       "required": [
         "round_id",
         "slot",
-        "dimension",
-        "submitted_at",
-        "summary",
-        "findings"
+        "dimension"
       ],
       "description": "ReviewSubmission is the command-owned submission artifact for one reviewer slot."
     }

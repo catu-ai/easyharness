@@ -426,7 +426,7 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 		ledgerClaimedSubmitted := false
 		ledgerStatusWarning := ""
 		hasLedgerEntry := false
-		artifactPath := filepath.Join(roundDir, "submissions", slot+".json")
+		artifactPath := filepath.Join(roundDir, "submissions", slot, "submission.json")
 		if path, ok := submissionPathBySlot[slot]; ok && strings.TrimSpace(path) != "" {
 			artifactPath = path
 		}
@@ -465,7 +465,11 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 				reviewer.SubmittedAt = submission.SubmittedAt
 			}
 			if reviewer.Status == "" {
-				reviewer.Status = "submitted"
+				if submissionLooksSubmitted(*submission) {
+					reviewer.Status = "submitted"
+				} else {
+					reviewer.Status = "pending"
+				}
 			}
 		} else if reviewer.Status == "" || ledgerClaimedSubmitted {
 			reviewer.Status = "pending"
@@ -481,7 +485,7 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 		if ledgerClaimedSubmitted && submission == nil {
 			reviewerWarnings = append(reviewerWarnings, "Ledger marks this reviewer as submitted, but the submission artifact is unavailable.")
 		}
-		if hasLedgerEntry && !ledgerClaimedSubmitted && submission != nil {
+		if hasLedgerEntry && !ledgerClaimedSubmitted && submission != nil && submissionLooksSubmitted(*submission) {
 			reviewerWarnings = append(reviewerWarnings, "Submission artifact exists even though the ledger does not mark this reviewer as submitted.")
 		}
 		reviewer.Warnings = dedupeStrings(reviewerWarnings)
@@ -498,6 +502,10 @@ func reviewerDisplayName(reviewer Reviewer) string {
 		return reviewer.Name
 	}
 	return reviewer.Slot
+}
+
+func submissionLooksSubmitted(submission Submission) bool {
+	return strings.TrimSpace(submission.SubmittedAt) != ""
 }
 
 func normalizeSlotStatus(status string) string {
@@ -568,15 +576,22 @@ func discoverSubmissionPaths(submissionsDir string) (map[string]string, []string
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() {
+		name := strings.TrimSpace(entry.Name())
+		if name == "" {
 			continue
 		}
-		name := strings.TrimSpace(entry.Name())
+		if entry.IsDir() {
+			slot := name
+			path := filepath.Join(submissionsDir, slot, "submission.json")
+			if _, err := os.Stat(path); err == nil {
+				paths[slot] = path
+			}
+			continue
+		}
 		if filepath.Ext(name) != ".json" {
 			continue
 		}
-		slot := strings.TrimSuffix(name, ".json")
-		slot = strings.TrimSpace(slot)
+		slot := strings.TrimSpace(strings.TrimSuffix(name, ".json"))
 		if slot == "" {
 			continue
 		}
@@ -760,12 +775,6 @@ func validateSubmissionArtifact(submission *Submission) []string {
 	}
 	if strings.TrimSpace(submission.Dimension) == "" {
 		missing = append(missing, "dimension")
-	}
-	if strings.TrimSpace(submission.SubmittedAt) == "" {
-		missing = append(missing, "submitted_at")
-	}
-	if strings.TrimSpace(submission.Summary) == "" {
-		missing = append(missing, "summary")
 	}
 	return missing
 }
