@@ -342,8 +342,6 @@ with the schema, template, and lint changes in the final candidate review.
 
 ## Validation Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 - Ran `scripts/sync-bootstrap-assets` after the bootstrap guidance edits so
   `.agents/skills/harness-plan/SKILL.md` and the managed block in `AGENTS.md`
   stayed aligned with `assets/bootstrap/`.
@@ -361,10 +359,18 @@ UPDATE_REQUIRED_AFTER_REOPEN
   sizes and migrating four legacy archived plans away from obsolete runtime
   frontmatter and `- Status:` markers, the final sweep completed with
   `COUNT=0` failures.
+- After PR `#138` CI failed on revision 1, reinstalled the repo-local
+  `harness` binary with `scripts/install-dev-harness` so later lifecycle
+  commands used the current Go CLI instead of a stale pre-size build.
+- For revision 2 finalize-fix repair, ran
+  `go test ./internal/lifecycle ./internal/plan` to cover the archive/reopen
+  lifecycle path plus tracked-plan lint expectations after restoring size to
+  the reopened candidate.
+- Ran
+  `go test ./tests/smoke -run TestPlanTemplateAndLintRoundTrip -count=1` to
+  prove the smoke round-trip now passes with explicit `--size M`.
 
 ## Review Summary
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - Finalize review `review-001-full` found a blocking tests gap around missing
   negative coverage for invalid size handling and the lack of a durable
@@ -383,28 +389,33 @@ UPDATE_REQUIRED_AFTER_REOPEN
   block still only implied that gate.
 - Finalize review `review-005-full` passed cleanly with no blocking or
   non-blocking findings after the last tests and docs repairs.
+- Post-archive PR `#138` CI then failed on two missed test surfaces: the
+  archived revision-1 candidate had been created with a stale pre-size
+  `harness` binary and lost `size` in frontmatter, and
+  `tests/smoke/TestPlanTemplateAndLintRoundTrip` still authored a plan without
+  an explicit `--size` flag.
+- Delta finalize review `review-006-delta`, anchored at commit
+  `86bc0f273483d533748464622f2d7a08a6f2104e`, passed cleanly with no blocking
+  or non-blocking findings after the revision-2 reopen repair added the smoke
+  size fix and archive size-preservation regression coverage.
 
 ## Archive Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
-- Archived At: 2026-04-11T00:13:20+08:00
-- Revision: 1
+- Archived At: 2026-04-11T00:30:51+08:00
+- Revision: 2
 - PR: `#138` (`https://github.com/catu-ai/easyharness/pull/138`)
-- Ready: The archived candidate is published to PR `#138`, has a clean full
-  finalize review (`review-005-full`), active-plan lint is green, focused plus
-  broader validation passed, and the remaining deferred scope is handed off to
-  issues `#136` and `#137`.
-- Merge Handoff: Record publish evidence for PR `#138`, wait for the
-  post-archive checks on branch `codex/plan-size-frontmatter`, refresh sync
-  against `origin/main`, and keep the candidate in publish handoff until
-  `harness status` advances to `execution/finalize/await_merge`.
+- Ready: The archived revision-2 candidate repairs the failed revision-1 CI
+  run by restoring the missing archived-plan size frontmatter, fixing the
+  smoke authoring path to pass an explicit size, and carrying a clean delta
+  finalize review (`review-006-delta`) plus focused local validation.
+- Merge Handoff: Push the refreshed branch to PR `#138`, refresh
+  publish/CI/sync evidence for the new head commit, and keep the candidate in
+  publish handoff until `harness status` advances to
+  `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - Added required tracked-plan frontmatter `size` support with the initial
   ladder `XXS`, `XS`, `S`, `M`, `L`, `XL`, and `XXL`.
@@ -420,10 +431,12 @@ UPDATE_REQUIRED_AFTER_REOPEN
 - Backfilled `size` across the tracked plan corpus and migrated four legacy
   archived plans off obsolete runtime frontmatter so the whole tracked plan set
   is lint-clean under the new schema.
+- Reopened the archived candidate after CI failure, restored `size: L` to the
+  revision-2 candidate, fixed the smoke template round-trip to pass an
+  explicit size, and added lifecycle regression coverage that archive
+  preserves size frontmatter.
 
 ### Not Delivered
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - This slice did not remove `workflow_profile: lightweight` as a separate
   planning surface.
@@ -432,10 +445,7 @@ UPDATE_REQUIRED_AFTER_REOPEN
 
 ### Follow-Up Issues
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 - #136 Revisit whether lightweight should remain a distinct workflow profile
   after size backfill (`https://github.com/catu-ai/easyharness/issues/136`)
 - #137 Consider suggesting candidate plan sizes from plan structure and the
   backfilled corpus (`https://github.com/catu-ai/easyharness/issues/137`)
-
