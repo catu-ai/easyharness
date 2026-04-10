@@ -4,6 +4,7 @@ created_at: "2026-03-26T09:53:35+08:00"
 source_type: direct_request
 source_refs:
     - 'issue #45'
+size: L
 ---
 
 # Rename the project and repository to microharness

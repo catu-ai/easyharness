@@ -1,12 +1,9 @@
 ---
-status: archived
-lifecycle: awaiting_merge_approval
-revision: 3
 template_version: 0.1.0
 created_at: "2026-03-17T10:12:01+08:00"
-updated_at: "2026-03-18T22:13:16+08:00"
 source_type: direct_request
 source_refs: []
+size: XXL
 ---
 
 # Superharness v0.1 Foundations
@@ -85,7 +82,7 @@ core workflow.
 
 ### Step 1: Lock the planning and CLI contracts
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -124,7 +121,7 @@ review-round scope ownership, and step-local note placement.
 
 ### Step 2: Implement `harness plan template` and `harness plan lint`
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -187,7 +184,7 @@ follow-up negative tests and lint guards now cover those cases.
 
 ### Step 3: Implement local state and `harness status`
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -241,7 +238,7 @@ archiving instead of pointing back to already-written closeout summaries.
 
 ### Step 4: Implement the review-round contract
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -290,7 +287,7 @@ intended local-state contract.
 
 ### Step 5: Implement archive and reopen
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -342,7 +339,7 @@ plan pointer updates, and a clean active-plan lint result after reopen.
 
 ### Step 6: Address archive and reopen review feedback
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -387,7 +384,7 @@ stale-state cleanup on reopen.
 
 ### Step 7: Simplify review round identifiers
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -428,7 +425,7 @@ compact ID format.
 
 ### Step 8: Make archive review gating revision-aware
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 

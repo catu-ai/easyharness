@@ -4,6 +4,7 @@ created_at: "2026-03-26T00:00:00Z"
 source_type: issue
 source_refs:
     - '#52'
+size: XXS
 ---
 
 # Unify human-facing review title naming

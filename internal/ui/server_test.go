@@ -96,10 +96,7 @@ func TestNewHandlerServesPlanJSON(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
 	}
-	rendered, err := plan.RenderTemplate(plan.TemplateOptions{Title: "UI Plan"})
-	if err != nil {
-		t.Fatalf("render plan: %v", err)
-	}
+	rendered := renderPlanFixture(t, "UI Plan")
 	rendered = strings.Replace(rendered, "Describe the intended outcome in one or two short paragraphs.", "Read the plan.\n", 1)
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
@@ -182,10 +179,7 @@ func TestNewHandlerServesArchivedCurrentPlanJSON(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir archived dir: %v", err)
 	}
-	rendered, err := plan.RenderTemplate(plan.TemplateOptions{Title: "Archived UI Plan"})
-	if err != nil {
-		t.Fatalf("render archived plan: %v", err)
-	}
+	rendered := renderPlanFixture(t, "Archived UI Plan")
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write archived plan: %v", err)
 	}
@@ -253,10 +247,7 @@ func TestNewHandlerServesTimelineJSON(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
 	}
-	rendered, err := plan.RenderTemplate(plan.TemplateOptions{Title: "UI Timeline Plan"})
-	if err != nil {
-		t.Fatalf("render plan: %v", err)
-	}
+	rendered := renderPlanFixture(t, "UI Timeline Plan")
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
@@ -318,10 +309,7 @@ func TestNewHandlerServesReviewJSON(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
 	}
-	rendered, err := plan.RenderTemplate(plan.TemplateOptions{Title: "UI Review Plan"})
-	if err != nil {
-		t.Fatalf("render plan: %v", err)
-	}
+	rendered := renderPlanFixture(t, "UI Review Plan")
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
@@ -425,10 +413,7 @@ func TestNewHandlerServesReviewJSONWithMalformedWorklogWarnings(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
 	}
-	rendered, err := plan.RenderTemplate(plan.TemplateOptions{Title: "UI Review Malformed Worklog"})
-	if err != nil {
-		t.Fatalf("render plan: %v", err)
-	}
+	rendered := renderPlanFixture(t, "UI Review Malformed Worklog")
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
@@ -515,10 +500,7 @@ func TestNewHandlerServesReviewJSONFailureAs503(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
 	}
-	rendered, err := plan.RenderTemplate(plan.TemplateOptions{Title: "UI Review Error"})
-	if err != nil {
-		t.Fatalf("render plan: %v", err)
-	}
+	rendered := renderPlanFixture(t, "UI Review Error")
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
@@ -582,10 +564,7 @@ func TestNewHandlerServesLargeTimelinePayloadWithoutTruncation(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
 	}
-	rendered, err := plan.RenderTemplate(plan.TemplateOptions{Title: "UI Timeline Large Payload"})
-	if err != nil {
-		t.Fatalf("render plan: %v", err)
-	}
+	rendered := renderPlanFixture(t, "UI Timeline Large Payload")
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
@@ -659,10 +638,7 @@ func TestNewHandlerServesResolvedArtifactFileContents(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
 	}
-	rendered, err := plan.RenderTemplate(plan.TemplateOptions{Title: "UI Timeline Artifact Tabs"})
-	if err != nil {
-		t.Fatalf("render plan: %v", err)
-	}
+	rendered := renderPlanFixture(t, "UI Timeline Artifact Tabs")
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
@@ -844,6 +820,15 @@ func TestServerRunPrintsListeningURLWithoutOpeningBrowser(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for server shutdown")
 	}
+}
+
+func renderPlanFixture(t *testing.T, title string) string {
+	t.Helper()
+	rendered, err := plan.RenderTemplate(plan.TemplateOptions{Title: title})
+	if err != nil {
+		t.Fatalf("render plan: %v", err)
+	}
+	return strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
 }
 
 type lockedBuffer struct {

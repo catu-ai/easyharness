@@ -4,6 +4,7 @@ created_at: "2026-03-26T18:21:04+08:00"
 source_type: direct_request
 source_refs:
     - '#50'
+size: XL
 ---
 
 # Simplify review metadata and infer structural closeout context

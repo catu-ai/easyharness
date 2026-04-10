@@ -6,6 +6,7 @@ source_refs:
     - '#2'
     - '#70'
     - https://github.com/catu-ai/easyharness/pull/86
+size: L
 ---
 
 # Build the read-only harness UI shell and live status foundation

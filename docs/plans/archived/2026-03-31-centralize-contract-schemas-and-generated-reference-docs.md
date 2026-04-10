@@ -4,6 +4,7 @@ created_at: "2026-03-31T15:51:27+08:00"
 source_type: issue
 source_refs:
     - https://github.com/catu-ai/easyharness/issues/72
+size: M
 ---
 
 # Centralize contract schemas and generated reference docs

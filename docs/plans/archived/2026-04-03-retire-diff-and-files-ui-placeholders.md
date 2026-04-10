@@ -4,6 +4,7 @@ created_at: "2026-04-03T23:22:00+08:00"
 source_type: issue
 source_refs:
     - '#91'
+size: S
 ---
 
 # Retire the Diff and Files UI placeholders

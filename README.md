@@ -319,18 +319,32 @@ available.
 
 Use `lightweight` only when all of these are true:
 
-- the whole slice is one bounded low-risk maintenance change
-- the edits are limited to README/docs/comments/copy or similarly
-  non-behavioral cleanup
-- no `harness` behavior, normative spec, state rule, persistence behavior,
-  release or CI workflow, or security-sensitive logic changes
+- the human explicitly approves using `workflow_profile: lightweight`
+- the plan is sized `XXS`
+- the whole slice is one bounded low-risk change
+- the edits stay within a narrow surface such as README/docs/comments/copy,
+  a small CI condition adjustment, a tiny helper-script fix, or another
+  similarly small change whose blast radius is easy to explain
+- no schema-meaning changes, core state/review/archive/evidence changes,
+  release-safety changes, or security-sensitive logic changes
 - if the boundary is unclear, default to `standard`
 
-In practice, lightweight is for tiny bounded low-risk changes such as README
-wording, doc clarification, comment cleanup, or similarly narrow non-behavioral
-metadata fixes. If the change touches CLI behavior, runtime state, review or
-archive semantics, release flow, or any normative contract meaning, use the
-standard tracked-plan path instead.
+In practice, lightweight is for explicitly approved `XXS` slices: tiny bounded
+low-risk changes such as README wording, doc clarification, comment cleanup, a
+very small CI condition tweak, or another narrowly scoped fix whose risk is
+easy to explain. Small size alone is not enough. If the change touches
+normative contract meaning, core runtime state, review or archive semantics,
+release safety, or another non-trivial risk surface, use the standard
+tracked-plan path instead.
+
+When drafting a new plan, estimate `size` early. If the initial estimate is
+`XXL`, stop and confirm with the human whether the work should be split first;
+if the split is not obvious, go back through discovery to settle the split
+before execution approval. If the work still proceeds as `XXL`, move obvious
+spillover into `Deferred Items` or follow-up issues instead of letting the
+oversized plan quietly absorb extra scope. `XXL` is allowed for historical
+truth and rare coherent large slices, but it should not be the routine
+starting point for new work.
 
 If an archived candidate becomes invalid before merge, reopen it with
 `harness reopen --mode finalize-fix` for narrow repair or

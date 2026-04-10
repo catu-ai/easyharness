@@ -238,6 +238,7 @@ func writeActivePlanForTimeline(t *testing.T, root, relPath string) string {
 	if err != nil {
 		t.Fatalf("render plan template: %v", err)
 	}
+	rendered = strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}

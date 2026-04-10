@@ -4,6 +4,7 @@ created_at: "2026-04-09T22:19:30+08:00"
 source_type: direct_request
 source_refs:
     - '#89'
+size: XL
 ---
 
 # Delta review anchor and agent protocol

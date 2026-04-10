@@ -3,6 +3,7 @@ template_version: 0.2.0
 created_at: "2026-03-31T13:25:46+08:00"
 source_type: direct_request
 source_refs: []
+size: S
 ---
 
 # Unify bootstrap skill source and drift checks

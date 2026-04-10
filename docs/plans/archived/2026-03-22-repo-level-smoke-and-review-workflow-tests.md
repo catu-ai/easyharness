@@ -4,6 +4,7 @@ created_at: "2026-03-22T00:00:00+08:00"
 source_type: issue
 source_refs:
     - '#6'
+size: L
 ---
 
 # Add repo-level smoke and review workflow tests

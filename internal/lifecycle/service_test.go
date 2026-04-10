@@ -1753,6 +1753,7 @@ func writeLightweightActiveArchiveCandidate(t *testing.T, root, relPath string) 
 	t.Helper()
 	path := filepath.Join(root, relPath)
 	content := strings.Replace(buildActiveArchiveCandidate(t), "source_refs: []", "source_refs: []\nworkflow_profile: lightweight", 1)
+	content = strings.Replace(content, "size: M", "size: XXS", 1)
 	writeFile(t, path, content)
 	return path
 }
@@ -1768,6 +1769,7 @@ func writeArchivedLandedPlan(t *testing.T, root, relPath string) string {
 	if err != nil {
 		t.Fatalf("render template: %v", err)
 	}
+	rendered = strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
 	rendered = strings.ReplaceAll(rendered, "- Done: [ ]", "- Done: [x]")
 	rendered = strings.ReplaceAll(rendered, "- [ ]", "- [x]")
 	rendered = strings.ReplaceAll(rendered, "PENDING_STEP_EXECUTION", "Done.")
@@ -1831,7 +1833,7 @@ func buildAwaitingPlan(t *testing.T, title string) string {
 	if err != nil {
 		t.Fatalf("render template: %v", err)
 	}
-	return rendered
+	return strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
 }
 
 func writeFile(t *testing.T, path, content string) {

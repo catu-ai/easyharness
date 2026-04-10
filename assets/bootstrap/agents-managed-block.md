@@ -42,12 +42,24 @@ requirement to leave a repo-visible breadcrumb such as a PR body note.
 
 Use `lightweight` only when all of these are true:
 
-- the whole slice is one bounded low-risk maintenance change
-- the edits are limited to README/docs/comments/copy or similarly
-  non-behavioral cleanup
-- no `harness` behavior, normative spec, state rule, persistence behavior,
-  release or CI workflow, or security-sensitive logic changes
+- the human explicitly approves using `workflow_profile: lightweight`
+- the plan is sized `XXS`
+- the whole slice is one bounded low-risk change
+- the edits stay within a narrow surface such as README/docs/comments/copy, a
+  small CI condition adjustment, a tiny helper-script fix, or another similarly
+  small change whose blast radius is easy to explain
+- no schema-meaning changes, core state/review/archive/evidence changes,
+  release-safety changes, or security-sensitive logic changes
 - if the boundary is unclear, default to `standard`
+
+When drafting a new plan, estimate `size` early. If the initial estimate is
+`XXL`, stop and confirm with the human whether the work should be split first;
+if the split is unclear, return to discovery to settle a better split before
+execution approval. If the work still proceeds as `XXL`, move obvious spillover
+into `Deferred Items` or follow-up issues instead of letting the oversized plan
+quietly absorb extra scope. `XXL` remains available for truthful historical
+sizing and rare coherent large slices, but it should not be the routine
+starting point for new work.
 
 Use `harness reopen --mode finalize-fix|new-step` when an archived candidate
 is no longer merge-ready because of new feedback, remote changes, or other

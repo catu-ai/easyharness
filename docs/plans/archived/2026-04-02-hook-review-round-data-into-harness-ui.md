@@ -4,6 +4,7 @@ created_at: "2026-04-02T23:12:05+08:00"
 source_type: issue
 source_refs:
     - '#95'
+size: L
 ---
 
 # Hook review round data into the harness UI

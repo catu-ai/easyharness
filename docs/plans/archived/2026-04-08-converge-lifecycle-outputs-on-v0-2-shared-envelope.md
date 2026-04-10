@@ -4,6 +4,7 @@ created_at: "2026-04-08T10:00:00+08:00"
 source_type: issue
 source_refs:
     - https://github.com/catu-ai/easyharness/issues/110
+size: L
 ---
 
 # Converge lifecycle outputs on the v0.2 shared envelope

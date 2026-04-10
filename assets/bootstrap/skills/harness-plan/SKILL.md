@@ -18,13 +18,24 @@ Use this skill to create or update the tracked plan that will drive execution.
 ## Workflow
 
 1. Start from `harness plan template` when creating a new plan.
+   - choose the plan `size` early and keep the estimate explicit in the
+     frontmatter
    - use `harness plan template --lightweight` only for explicitly approved,
-     tiny bounded low-risk work such as README/docs/comments/copy cleanup
+     `XXS` bounded low-risk work such as README/docs/comments/copy cleanup, a
+     very small CI condition tweak, or another tiny fix whose blast radius is
+     easy to explain
    - even in lightweight mode, keep the active plan under `docs/plans/active/`
      and use the field plus archive behavior to distinguish the profile
-   - if the slice touches behavior, normative contract meaning, release flow,
-     or another non-trivial risk surface, stay on the standard tracked-plan
-     path
+   - if the slice touches normative contract meaning, core runtime state,
+     review/archive/evidence semantics, release safety, security-sensitive
+     logic, or another non-trivial risk surface, stay on the standard
+     tracked-plan path
+   - if the initial estimate is `XXL`, stop and confirm with the human whether
+     the work should be split before approval; if the split is unclear, return
+     to discovery to decide how to split it
+   - if a human still approves `XXL`, move obvious spillover into
+     `Deferred Items` or follow-up issues instead of letting the oversized plan
+     quietly absorb extra scope
 2. Name the file with the plan-schema convention:
    `YYYY-MM-DD-clear-topic.md`.
 3. Make the topic meaningful and specific. It should tell a cold reader what is
@@ -34,6 +45,8 @@ Use this skill to create or update the tracked plan that will drive execution.
    - explicit scope and out-of-scope
    - acceptance criteria
    - reviewable work breakdown
+   - a `size` choice that matches the documented ladder and is explainable from
+     the plan itself
 5. Make the plan self-contained. Fold in decisions from discovery or prior
    discussion so another agent can execute from the plan plus repository state
    alone.
@@ -76,9 +89,13 @@ The plan is ready when:
 - the resulting tracked plan would resolve to `plan` until
   `harness execute start` is recorded
 - when the plan is lightweight, a future agent could still explain why
-  lightweight was eligible, know that archive snapshots move to
+  lightweight was eligible, know that lightweight is only for `XXS` work, know
+  that archive snapshots move to
   `.local/harness/plans/archived/<plan-stem>.md`, and know that archive-time
   breadcrumb guidance remains required
+- when the plan is sized `XXL`, the plan or approval handoff makes clear that
+  the human explicitly confirmed not splitting it further yet and that obvious
+  spillover moved into `Deferred Items` or follow-up issues where appropriate
 - if supplements exist, a future agent could tell what was absorbed into formal
   tracked locations before archive so the archived supplements are only backup
   context rather than a hidden dependency

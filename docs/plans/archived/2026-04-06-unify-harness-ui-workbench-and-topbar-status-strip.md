@@ -4,6 +4,7 @@ created_at: "2026-04-06T22:24:18+08:00"
 source_type: issue
 source_refs:
     - '#94'
+size: XL
 ---
 
 # Unify the harness UI workbench model and topbar workflow summary

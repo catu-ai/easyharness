@@ -4,6 +4,7 @@ created_at: "2026-04-09T09:36:00+08:00"
 source_type: direct_request
 source_refs:
     - '#58'
+size: L
 ---
 
 # Shrink `state.json` to control-plane-only runtime state

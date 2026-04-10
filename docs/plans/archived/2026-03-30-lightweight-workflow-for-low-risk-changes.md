@@ -4,6 +4,7 @@ created_at: "2026-03-30T23:57:22+08:00"
 source_type: issue
 source_refs:
     - '#69'
+size: XXL
 ---
 
 # Add a lightweight workflow for low-risk changes

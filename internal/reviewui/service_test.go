@@ -1169,10 +1169,15 @@ func seedArchivedPlan(t *testing.T, workdir, filename, title string) (string, st
 
 func seedLocalArchivedPlan(t *testing.T, workdir, filename, title string) (string, string) {
 	t.Helper()
-	return seedPlan(t, workdir, filepath.Join(".local/harness/plans/archived", filename), title)
+	return seedPlanWithSize(t, workdir, filepath.Join(".local/harness/plans/archived", filename), title, "XXS")
 }
 
 func seedPlan(t *testing.T, workdir, relPlanPath, title string) (string, string) {
+	t.Helper()
+	return seedPlanWithSize(t, workdir, relPlanPath, title, "M")
+}
+
+func seedPlanWithSize(t *testing.T, workdir, relPlanPath, title, size string) (string, string) {
 	t.Helper()
 	path := filepath.Join(workdir, filepath.FromSlash(relPlanPath))
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -1182,6 +1187,7 @@ func seedPlan(t *testing.T, workdir, relPlanPath, title string) (string, string)
 	if err != nil {
 		t.Fatalf("render plan: %v", err)
 	}
+	rendered = strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: "+size, 1)
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}

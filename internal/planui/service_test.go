@@ -34,10 +34,7 @@ func TestServiceReadLoadsActivePlanPackageAndPreviewStates(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
 	}
-	content, err := plan.RenderTemplate(plan.TemplateOptions{Title: "Plan Browser Demo"})
-	if err != nil {
-		t.Fatalf("render plan template: %v", err)
-	}
+	content := renderPlanFixture(t, "Plan Browser Demo")
 	content = strings.Replace(
 		content,
 		"Describe the intended outcome in one or two short paragraphs.",
@@ -148,10 +145,7 @@ func TestServiceReadLoadsArchivedCurrentPlanPackage(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
 		t.Fatalf("mkdir archived dir: %v", err)
 	}
-	content, err := plan.RenderTemplate(plan.TemplateOptions{Title: "Archived"})
-	if err != nil {
-		t.Fatalf("render archived template: %v", err)
-	}
+	content := renderPlanFixture(t, "Archived")
 	mustWriteFile(t, planPath, []byte(content))
 	if _, err := runstate.SaveCurrentPlan(workdir, relPlanPath); err != nil {
 		t.Fatalf("save current plan: %v", err)
@@ -241,4 +235,14 @@ func findHeading(headings []Heading, label string) *Heading {
 		}
 	}
 	return nil
+}
+
+func renderPlanFixture(t *testing.T, title string) string {
+	t.Helper()
+	content, err := plan.RenderTemplate(plan.TemplateOptions{Title: title})
+	if err != nil {
+		t.Fatalf("render plan template: %v", err)
+	}
+	content = strings.Replace(content, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
+	return content
 }

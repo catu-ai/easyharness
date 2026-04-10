@@ -3,6 +3,7 @@ template_version: 0.2.0
 created_at: "2026-03-29T23:59:00+08:00"
 source_type: direct_request
 source_refs: []
+size: XL
 ---
 
 # Rename the project and repository to easyharness

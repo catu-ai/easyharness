@@ -4,6 +4,7 @@ created_at: "2026-03-23T23:10:00+08:00"
 source_type: issue
 source_refs:
     - '#7'
+size: M
 ---
 
 # Reject non-active review aggregate updates

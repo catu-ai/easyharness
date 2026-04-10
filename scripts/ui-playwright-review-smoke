@@ -914,6 +914,16 @@ assert_not_has_text() {
   fi
 }
 
+ensure_plan_size() {
+  local file="$1"
+  local size="$2"
+  if grep -q '^size:' "$file"; then
+    perl -0pi -e 's/^size: .*/size: '"$size"'/m' "$file"
+  else
+    perl -0pi -e 's/source_refs: \[\]/source_refs: []\nsize: '"$size"'/m' "$file"
+  fi
+}
+
 run_empty_review_smoke() {
   local empty_tmp_dir
   local empty_runtime_workdir
@@ -931,6 +941,7 @@ run_empty_review_smoke() {
   mkdir -p "$empty_runtime_workdir" "$empty_session_dir"
 
   "$harness_bin" plan template -title "Review UI Empty" -output "$empty_runtime_workdir/docs/plans/active/2026-04-02-review-ui-empty.md" >/dev/null
+  ensure_plan_size "$empty_runtime_workdir/docs/plans/active/2026-04-02-review-ui-empty.md" "M"
   mkdir -p "$empty_runtime_workdir/.local/harness"
   printf '%s' '{"plan_path":"docs/plans/active/2026-04-02-review-ui-empty.md"}' >"$empty_runtime_workdir/.local/harness/current-plan.json"
 
@@ -1009,6 +1020,7 @@ mkdir -p "$session_dir"
 clear_pwcli_socket "$session_name"
 
 "$harness_bin" plan template -title "Review UI Smoke Fixture" -output "$runtime_workdir/docs/plans/active/2026-04-02-review-ui-smoke.md" >/dev/null
+ensure_plan_size "$runtime_workdir/docs/plans/active/2026-04-02-review-ui-smoke.md" "M"
 
 button_ref_from_snapshot() {
   local label="$1"

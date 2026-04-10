@@ -3,6 +3,7 @@ template_version: 0.2.0
 created_at: "2026-04-08T22:47:47+08:00"
 source_type: direct_request
 source_refs: []
+size: M
 ---
 
 # Gate finalize on earlier-step closeout debt

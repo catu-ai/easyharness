@@ -4,6 +4,7 @@ created_at: "2026-04-01T09:37:52+08:00"
 source_type: direct_request
 source_refs:
     - https://github.com/catu-ai/easyharness/issues/87
+size: M
 ---
 
 # Drive releases from a tracked VERSION file

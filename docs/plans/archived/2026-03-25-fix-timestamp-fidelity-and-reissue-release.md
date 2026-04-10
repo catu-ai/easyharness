@@ -3,6 +3,7 @@ template_version: 0.2.0
 created_at: "2026-03-25T00:05:25+08:00"
 source_type: direct_request
 source_refs: []
+size: M
 ---
 
 # Fix timestamp fidelity for release artifacts and plan templates

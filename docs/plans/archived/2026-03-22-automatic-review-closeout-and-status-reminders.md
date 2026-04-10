@@ -5,6 +5,7 @@ source_type: issue
 source_refs:
     - '#22'
     - '#28'
+size: XL
 ---
 
 # Clarify automatic review closeout and status reminders
