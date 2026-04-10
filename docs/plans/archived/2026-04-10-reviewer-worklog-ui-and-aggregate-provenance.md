@@ -287,8 +287,6 @@ finalize review rather than a separate step-local pass.
 
 ## Validation Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 - Ran the focused contract, backend, and frontend validation path for the
   landed slice:
   `scripts/sync-contract-artifacts`,
@@ -313,10 +311,22 @@ UPDATE_REQUIRED_AFTER_REOPEN
 - The Playwright smoke wrapper still appeared to hang during cleanup after the
   final snapshot set, so the produced browser artifacts were treated as the
   durable UI evidence for this slice.
+- Revision 2 finalize-fix validation rechecked the bounded UI hierarchy repair
+  and degraded-state artifact access path with:
+  `pnpm --dir web check`,
+  `pnpm --dir web build`,
+  `go test ./internal/ui`,
+  and repeated successful
+  `scripts/ui-playwright-review-smoke`
+  runs.
+- The final repaired smoke evidence for revision 2 lives under
+  `output/playwright/ruis-2149-8927/`
+  and
+  `output/playwright/ruis-97786-7201/`,
+  including the restored round-level artifact overlay checks for
+  waiting-for-aggregation and degraded rounds.
 
 ## Review Summary
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - `review-001-full`
   - `changes_requested` after the `tests` reviewer found that the Playwright
@@ -337,27 +347,37 @@ UPDATE_REQUIRED_AFTER_REOPEN
 - `review-005-full`
   - `pass` with no blocking or non-blocking findings across both
     `correctness` and `tests`.
+- `review-006-full`
+  - `changes_requested` after the `correctness` reviewer found that removing
+    the review-page supporting-artifact surface made degraded round artifacts
+    unreachable from the read-only review UI.
+- `review-007-delta`
+  - `changes_requested` after the `tests` reviewer found that the restored
+    `Artifacts` entry existed in the UI but the Playwright smoke never opened
+    or verified the new overlay path.
+- `review-008-delta`
+  - `pass` after the smoke was extended to open the round-level `Artifacts`
+    overlay on waiting-for-aggregation and degraded rounds and verify the
+    representative artifact payloads.
 
 ## Archive Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
-- Archived At: 2026-04-10T09:54:13+08:00
-- Revision: 1
-- PR: NONE. The candidate has not been committed, pushed, or opened as a PR yet.
-- Ready: Acceptance criteria are satisfied, the reviewer-detail worklog UI and
-  aggregate provenance improvements have a clean finalize review, and the
-  focused validation path plus browser evidence cover the intended behavior.
-- Merge Handoff: Archive the plan, commit the review UI changes plus the
-  tracked archive move, push `codex/issue-125-reviewer-worklog-ui`, open a PR,
-  and record publish, CI, and sync evidence until the candidate reaches
-  merge-ready handoff.
+- Archived At: 2026-04-10T22:42:42+08:00
+- Revision: 2
+- PR: [#131](https://github.com/catu-ai/easyharness/pull/131)
+- Ready: Revision 2 keeps the simplified reviewer-detail hierarchy, restores a
+  secondary artifact-inspection path for degraded rounds through the new
+  header-level `Artifacts` overlay, and closes the missing smoke coverage for
+  that path. The acceptance criteria remain satisfied and the latest delta
+  follow-up review passed cleanly.
+- Merge Handoff: Archive the repaired active plan, commit the tracked rearchive
+  move plus any updated embedded UI assets, push the branch, refresh PR #131,
+  and record updated publish, CI, and sync evidence until the candidate
+  returns to merge-ready handoff.
 
 ## Outcome Summary
 
 ### Delivered
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - Extended the read-only review UI contract and service so reviewer detail
   pages receive normalized progressive-worklog fields, round/review context,
@@ -374,10 +394,18 @@ UPDATE_REQUIRED_AFTER_REOPEN
 - Locked the behavior with focused backend/service tests, `/api/review`
   handler coverage, schema sync, rebuilt embedded frontend assets, and the
   updated review Playwright smoke fixtures and assertions.
+- Refined the reviewer-detail reading order so `Assigned task` and
+  `Returned result` lead the page, while `Review process` remains a lighter
+  secondary section with left-anchored collapsible rows.
+- Replaced the removed always-visible supporting pane with a secondary
+  round-level `Artifacts` overlay so degraded rounds still expose manifest,
+  ledger, aggregate, and malformed submission payloads without bloating the
+  main review surface.
+- Extended the Playwright smoke to open and verify the restored `Artifacts`
+  overlay on waiting-for-aggregation and degraded rounds before continuing the
+  rest of the review flow.
 
 ### Not Delivered
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - No heuristic or explicit linking between progressive candidate findings and
   final findings was added beyond simple co-display in the reviewer detail pane.
@@ -388,8 +416,5 @@ UPDATE_REQUIRED_AFTER_REOPEN
 
 ### Follow-Up Issues
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 - #130 Track follow-up review UI work after reviewer worklog detail landing
   (`https://github.com/catu-ai/easyharness/issues/130`)
-
