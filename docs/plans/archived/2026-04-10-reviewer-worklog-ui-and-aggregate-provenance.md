@@ -4,6 +4,7 @@ created_at: "2026-04-10T09:02:00+08:00"
 source_type: issue
 source_refs:
     - '#125'
+size: M
 ---
 
 # Expose reviewer worklog detail and clearer aggregate provenance in the harness UI

@@ -3,6 +3,7 @@ template_version: 0.2.0
 created_at: REPLACE_WITH_RFC3339_TIMESTAMP
 source_type: direct_request
 source_refs: []
+size: REPLACE_WITH_PLAN_SIZE
 ---
 
 # Replace With Plan Title

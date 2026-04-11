@@ -3,6 +3,7 @@ template_version: 0.2.0
 created_at: "2026-03-21T00:00:00+08:00"
 source_type: direct_request
 source_refs: []
+size: XXL
 ---
 
 # Cut over to the v0.2 canonical-node state model

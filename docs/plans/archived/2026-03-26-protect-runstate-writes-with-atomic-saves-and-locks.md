@@ -4,6 +4,7 @@ created_at: "2026-03-26T22:54:50+08:00"
 source_type: issue
 source_refs:
     - '#51'
+size: L
 ---
 
 # Protect runstate writes with atomic saves and state locks

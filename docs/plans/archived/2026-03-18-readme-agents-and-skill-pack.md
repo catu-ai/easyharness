@@ -1,14 +1,11 @@
 ---
-status: archived
-lifecycle: awaiting_merge_approval
-revision: 3
 template_version: 0.1.0
 created_at: "2026-03-18T22:25:00+08:00"
-updated_at: "2026-03-19T23:26:43+08:00"
 source_type: issue
 source_refs:
     - '#5'
     - https://github.com/yzhang1918/superharness/pull/10
+size: L
 ---
 
 # Bootstrap README, AGENTS, and skill pack
@@ -91,7 +88,7 @@ contracts it is trying to establish.
 
 ### Step 1: Define the dogfoodable repository entrypoints
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -135,7 +132,7 @@ binary, and then confirms the repo build is the one the shell will run.
 
 ### Step 2: Add human-facing repository docs
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -174,7 +171,7 @@ reviewer skill boundary is explicit instead of only inferable from
 
 ### Step 3: Add the first repo-local skill pack
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -231,7 +228,7 @@ passed cleanly.
 
 ### Step 4: Dogfood the docs and skills against this repository
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -291,7 +288,7 @@ from this slice.
 
 ### Step 5: Address revision-2 review feedback for distribution-ready skills
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -361,7 +358,7 @@ to `harness review submit` only. That inconsistency was also fixed locally, and
 
 ### Step 6: Address revision-3 review feedback on skill wording and metadata
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 

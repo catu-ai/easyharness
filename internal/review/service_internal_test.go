@@ -251,6 +251,7 @@ func writeExecutingPlanFixture(t *testing.T, root, relPath string) {
 	if err != nil {
 		t.Fatalf("render template: %v", err)
 	}
+	rendered = strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
 
 	path := filepath.Join(root, relPath)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

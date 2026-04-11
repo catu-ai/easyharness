@@ -14,6 +14,45 @@ func RewritePlanPreservingFrontmatter(t *testing.T, path, title, body string) {
 	frontmatter := extractFrontmatter(t, content)
 	rewritten := frontmatter + "\n\n# " + strings.TrimSpace(title) + "\n\n" + strings.TrimSpace(body) + "\n"
 	writePlanFile(t, path, rewritten)
+	EnsurePlanSize(t, path, "M")
+}
+
+func RewritePlanPreservingFrontmatterWithSize(t *testing.T, path, title, body, size string) {
+	t.Helper()
+
+	RewritePlanPreservingFrontmatter(t, path, title, body)
+	EnsurePlanSize(t, path, size)
+}
+
+func EnsurePlanSize(t *testing.T, path, size string) {
+	t.Helper()
+
+	content := readPlanFile(t, path)
+	if strings.Contains(content, "size: "+size) {
+		return
+	}
+	updated := InsertPlanSize(content, size)
+	if updated == content {
+		t.Fatalf("expected to update plan size in %s", path)
+	}
+	writePlanFile(t, path, updated)
+}
+
+func InsertPlanSize(content, size string) string {
+	lines := strings.Split(content, "\n")
+	replaced := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, "size:") {
+			lines[i] = "size: " + size
+			replaced = true
+			break
+		}
+	}
+	if replaced {
+		return strings.Join(lines, "\n")
+	}
+	updated := strings.Replace(content, "source_refs: []", "source_refs: []\nsize: "+size, 1)
+	return updated
 }
 
 func CheckAllAcceptanceCriteria(t *testing.T, path string) {

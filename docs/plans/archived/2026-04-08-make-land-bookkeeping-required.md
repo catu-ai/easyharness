@@ -4,6 +4,7 @@ created_at: "2026-04-08T20:43:52+08:00"
 source_type: issue
 source_refs:
     - https://github.com/catu-ai/easyharness/issues/16
+size: S
 ---
 
 # Make Harness-Land Post-Merge Bookkeeping Required

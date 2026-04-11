@@ -4,6 +4,7 @@ created_at: "2026-03-30T14:03:45+08:00"
 source_type: direct_request
 source_refs:
     - '#42'
+size: XL
 ---
 
 # Add Homebrew tap distribution for tagged releases

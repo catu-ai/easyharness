@@ -3,6 +3,7 @@ template_version: 0.2.0
 created_at: "2026-04-10T09:43:25+08:00"
 source_type: direct_request
 source_refs: []
+size: XL
 ---
 
 # Add a current-plan browser page to harness UI

@@ -3,6 +3,7 @@ template_version: 0.2.0
 created_at: "2026-04-08T20:44:26+08:00"
 source_type: direct_request
 source_refs: []
+size: S
 ---
 
 # Clarify explicit step closeout repair semantics

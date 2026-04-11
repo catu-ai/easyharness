@@ -19,6 +19,7 @@ type TemplateOptions struct {
 	Timestamp       time.Time
 	SourceType      string
 	SourceRefs      []string
+	Size            string
 	WorkflowProfile string
 }
 
@@ -44,9 +45,24 @@ func RenderTemplate(opts TemplateOptions) (string, error) {
 	if opts.SourceRefs == nil {
 		opts.SourceRefs = []string{}
 	}
+	size := opts.Size
 	workflowProfile := normalizeWorkflowProfile(opts.WorkflowProfile)
 	if workflowProfile != WorkflowProfileStandard && workflowProfile != WorkflowProfileLightweight {
 		return "", fmt.Errorf("workflow profile must be %q or %q", WorkflowProfileStandard, WorkflowProfileLightweight)
+	}
+	if workflowProfile == WorkflowProfileLightweight {
+		if size == "" {
+			size = PlanSizeXXS
+		}
+		if size != PlanSizeXXS {
+			return "", fmt.Errorf("lightweight templates must use size %q", PlanSizeXXS)
+		}
+	}
+	if size == "" {
+		size = placeholderPlanSize
+	}
+	if size != placeholderPlanSize && !isSupportedPlanSize(size) {
+		return "", fmt.Errorf("size must be one of %s", strings.Join(supportedPlanSizes, ", "))
 	}
 
 	sourceRefsJSON, err := json.Marshal(opts.SourceRefs)
@@ -61,8 +77,9 @@ func RenderTemplate(opts TemplateOptions) (string, error) {
 	rendered = strings.ReplaceAll(rendered, placeholderTimestamp, timestamp)
 	rendered = strings.Replace(rendered, "source_type: direct_request", "source_type: "+sourceType, 1)
 	rendered = strings.Replace(rendered, "source_refs: []", "source_refs: "+string(sourceRefsJSON), 1)
+	rendered = strings.Replace(rendered, "size: "+placeholderPlanSize, "size: "+size, 1)
 	if workflowProfile == WorkflowProfileLightweight {
-		rendered = strings.Replace(rendered, "source_refs: "+string(sourceRefsJSON), "source_refs: "+string(sourceRefsJSON)+"\nworkflow_profile: lightweight", 1)
+		rendered = strings.Replace(rendered, "size: "+size, "size: "+size+"\nworkflow_profile: lightweight", 1)
 		rendered = strings.Replace(rendered, "### Step 1: Replace with first step title", "### Step 1: Describe the low-risk change", 1)
 		rendered = strings.Replace(rendered, "Describe the concrete outcome for this step.", "Describe the narrow low-risk change to make.", 1)
 		rendered = strings.Replace(rendered, "Describe the step-specific details, tradeoffs, or constraints that do not fit\nin the one-line objective. Write `NONE` if the objective is already enough.", "Explain why this change qualifies for the lightweight path and note any constraints. Write `NONE` if the objective already says enough.", 1)

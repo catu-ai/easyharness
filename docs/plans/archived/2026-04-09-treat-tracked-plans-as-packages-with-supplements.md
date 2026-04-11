@@ -3,6 +3,7 @@ template_version: 0.2.0
 created_at: "2026-04-09T23:13:09+08:00"
 source_type: direct_request
 source_refs: []
+size: L
 ---
 
 # Treat tracked plans as packages with supplements

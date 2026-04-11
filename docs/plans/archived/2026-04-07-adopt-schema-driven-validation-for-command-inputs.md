@@ -4,6 +4,7 @@ created_at: "2026-04-07T23:36:44+08:00"
 source_type: issue
 source_refs:
     - https://github.com/catu-ai/easyharness/issues/75
+size: XL
 ---
 
 # Adopt schema-driven validation for structured JSON command inputs

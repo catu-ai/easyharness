@@ -38,6 +38,7 @@ func TestPlanTemplateWritesOutputFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("unexpected exit code %d, stderr=%s", exitCode, stderr.String())
 	}
+	ensurePlanSizeInFile(t, outputPath, "M")
 
 	data, err := os.ReadFile(outputPath)
 	if err != nil {
@@ -69,6 +70,24 @@ func TestPlanTemplateDateSeedsCurrentLocalTimeOfDay(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "created_at: 2026-03-20T14:15:16+08:00") {
 		t.Fatalf("expected date-seeded template to preserve current local time-of-day, got:\n%s", stdout.String())
+	}
+}
+
+func TestPlanTemplateSizeFlagSeedsExplicitSize(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{
+		"plan", "template",
+		"--title", "Sized Plan",
+		"--size", "XL",
+	})
+	if exitCode != 0 {
+		t.Fatalf("expected explicit size template success, got %d: %s", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "size: XL") {
+		t.Fatalf("expected explicit size in template, got:\n%s", stdout.String())
 	}
 }
 
@@ -162,6 +181,7 @@ func TestPlanLintCommandReturnsJSON(t *testing.T) {
 	}); exitCode != 0 {
 		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
 	}
+	ensurePlanSizeInFile(t, outputPath, "M")
 
 	stdout.Reset()
 	stderr.Reset()
@@ -206,8 +226,33 @@ func TestPlanTemplateLightweightFlagSeedsLocalVariant(t *testing.T) {
 	if !strings.Contains(stdout.String(), "workflow_profile: lightweight") {
 		t.Fatalf("expected workflow_profile in template, got %s", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "size: XXS") {
+		t.Fatalf("expected lightweight template to emit size XXS, got %s", stdout.String())
+	}
 	if strings.Contains(stdout.String(), "### Step 2:") {
 		t.Fatalf("expected lightweight template to collapse to one step, got %s", stdout.String())
+	}
+}
+
+func TestPlanTemplateLightweightRejectsNonXXSSize(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{
+		"plan", "template",
+		"--title", "Bad Lightweight Plan",
+		"--lightweight",
+		"--size", "XS",
+	})
+	if exitCode != 1 {
+		t.Fatalf("expected lightweight/non-XXS mismatch to fail with exit code 1, got %d: %s", exitCode, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), `lightweight templates must use size "XXS"`) {
+		t.Fatalf("expected size mismatch error, got %q", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout on error, got %q", stdout.String())
 	}
 }
 
@@ -1387,6 +1432,7 @@ func writeArchiveReadyPlanForCLI(t *testing.T, root, relPath string) string {
 	if err != nil {
 		t.Fatalf("RenderTemplate: %v", err)
 	}
+	rendered = strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
 	content := rendered
 	content = replaceCLIAll(content, "- Done: [ ]", "- Done: [x]")
 	content = replaceCLIAll(content, "- Status: pending", "- Status: completed")
@@ -1491,6 +1537,7 @@ func writeArchivedPlanForCLI(t *testing.T, root, relPath string) string {
 	if err != nil {
 		t.Fatalf("RenderTemplate: %v", err)
 	}
+	rendered = strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
 	content := rendered
 	content = bytes.NewBufferString(content).String()
 	content = replaceCLI(content, "status: active", "status: archived")
@@ -1523,4 +1570,16 @@ func replaceCLI(content, old, new string) string {
 func replaceCLIAll(content, old, new string) string {
 	tuned := bytes.ReplaceAll([]byte(content), []byte(old), []byte(new))
 	return string(tuned)
+}
+
+func ensurePlanSizeInFile(t *testing.T, path, size string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read plan file: %v", err)
+	}
+	content := strings.Replace(string(data), "size: REPLACE_WITH_PLAN_SIZE", "size: "+size, 1)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write plan file: %v", err)
+	}
 }

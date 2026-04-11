@@ -4,6 +4,7 @@ created_at: "2026-04-01T21:14:00+08:00"
 source_type: direct_request
 source_refs:
     - '#90'
+size: XS
 ---
 
 # Add location strings to review findings

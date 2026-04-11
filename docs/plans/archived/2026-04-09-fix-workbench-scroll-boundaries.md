@@ -3,6 +3,7 @@ template_version: 0.2.0
 created_at: "2026-04-09T21:13:00+08:00"
 source_type: direct_request
 source_refs: []
+size: M
 ---
 
 # Fix harness UI workbench scroll boundaries so panes scroll without moving the whole page

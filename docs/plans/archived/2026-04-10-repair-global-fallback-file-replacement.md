@@ -4,6 +4,7 @@ created_at: "2026-04-10T09:43:51+08:00"
 source_type: direct_request
 source_refs:
     - chat://current-session
+size: M
 ---
 
 # Repair Global Fallback Replacement And Health Checks

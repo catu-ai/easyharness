@@ -53,6 +53,48 @@ func TestLintFileRejectsLegacyRuntimeFrontmatter(t *testing.T) {
 	assertHasError(t, result, "frontmatter.updated_at")
 }
 
+func TestLintFileRejectsMissingSize(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-missing-size-plan.md")
+	content := mustRenderTemplate(t, "Missing Size")
+	content = strings.Replace(content, "size: M\n", "", 1)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected missing size to fail, got %#v", result)
+	}
+	assertHasError(t, result, "frontmatter.size")
+}
+
+func TestLintFileRejectsUnsupportedSize(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-unsupported-size-plan.md")
+	content := mustRenderTemplate(t, "Unsupported Size")
+	content = strings.Replace(content, "size: M", "size: HUGE", 1)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected unsupported size to fail, got %#v", result)
+	}
+	assertHasError(t, result, "frontmatter.size")
+}
+
+func TestLintFileRejectsNonCanonicalSizeSpelling(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-lowercase-size-plan.md")
+	content := mustRenderTemplate(t, "Lowercase Size")
+	content = strings.Replace(content, "size: M", "size: xxs", 1)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected lowercase size to fail, got %#v", result)
+	}
+	assertHasError(t, result, "frontmatter.size")
+}
+
 func TestLintFileRejectsMissingDeferredItemsSection(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-easyharness-cli-and-plan-foundations.md")
@@ -337,6 +379,7 @@ func TestLintFileAcceptsTrackedActiveLightweightPlan(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-lightweight-plan.md")
 	content := mustRenderTemplate(t, "Lightweight Tracked Plan")
+	content = strings.Replace(content, "size: M", "size: XXS", 1)
 	content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: lightweight", 1)
 	writeFile(t, path, content)
 
@@ -350,6 +393,7 @@ func TestLintFileAcceptsArchivedLightweightLocalPlan(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".local/harness/plans/archived/2026-03-17-lightweight-plan.md")
 	content := mustRenderTemplate(t, "Archived Lightweight Plan")
+	content = strings.Replace(content, "size: M", "size: XXS", 1)
 	content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: lightweight", 1)
 	content = strings.Replace(content, "- Done: [ ]", "- Done: [x]", 3)
 	content = strings.ReplaceAll(content, "- [ ]", "- [x]")
@@ -365,10 +409,26 @@ func TestLintFileAcceptsArchivedLightweightLocalPlan(t *testing.T) {
 	}
 }
 
+func TestLintFileRejectsNonXXSLightweightPlan(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-bad-lightweight-plan.md")
+	content := mustRenderTemplate(t, "Bad Lightweight Plan")
+	content = strings.Replace(content, "size: M", "size: XS", 1)
+	content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: lightweight", 1)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected non-XXS lightweight plan to fail, got %#v", result)
+	}
+	assertHasError(t, result, "frontmatter.size")
+}
+
 func TestLintFileRejectsLightweightActivePlanUnderLocalPath(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".local/harness/plans/2026-03-17-lightweight-plan/active/2026-03-17-lightweight-plan.md")
 	content := mustRenderTemplate(t, "Bad Local Active Plan")
+	content = strings.Replace(content, "size: M", "size: XXS", 1)
 	content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: lightweight", 1)
 	writeFile(t, path, content)
 
@@ -418,12 +478,29 @@ func TestLintResultJSONRoundTrip(t *testing.T) {
 	}
 }
 
+func TestTrackedPlanCorpusRemainsLintClean(t *testing.T) {
+	paths, err := filepath.Glob(filepath.Join("..", "..", "docs", "plans", "*", "*.md"))
+	if err != nil {
+		t.Fatalf("glob tracked plans: %v", err)
+	}
+	if len(paths) == 0 {
+		t.Fatal("expected tracked plans in repository")
+	}
+	for _, path := range paths {
+		result := plan.LintFile(path)
+		if !result.OK {
+			t.Fatalf("expected tracked plan %s to lint clean, got %#v", path, result)
+		}
+	}
+}
+
 func mustRenderTemplate(t *testing.T, title string) string {
 	t.Helper()
 	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
 		Title:      title,
 		Timestamp:  time.Date(2026, 3, 17, 14, 0, 0, 0, time.FixedZone("CST", 8*60*60)),
 		SourceType: "direct_request",
+		Size:       "M",
 	})
 	if err != nil {
 		t.Fatalf("render template: %v", err)

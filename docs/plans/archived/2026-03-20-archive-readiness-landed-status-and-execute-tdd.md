@@ -1,13 +1,10 @@
 ---
-status: archived
-lifecycle: awaiting_merge_approval
-revision: 3
 template_version: 0.1.0
 created_at: "2026-03-20T00:00:00+08:00"
-updated_at: "2026-03-20T23:30:31+08:00"
 source_type: issue
 source_refs:
     - '#13'
+size: XL
 ---
 
 # Surface archive blockers, archive handoff, landed status, and execute TDD discipline
@@ -91,7 +88,7 @@ TDD discipline for behavior changes.
 
 ### Step 1: Align archive, land, and execute contracts
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -144,7 +141,7 @@ this slice, then validated by `harness plan lint`, `go test ./internal/plan
 
 ### Step 2: Share archive-readiness evaluation between status and archive
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -195,7 +192,7 @@ both passed.
 
 ### Step 3: Represent landed worktrees as idle local state
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -249,7 +246,7 @@ the direct post-install `harness status` smoke check.
 
 ### Step 4: Differentiate archived handoff from true merge-waiting state
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 

@@ -1,13 +1,10 @@
 ---
-status: archived
-lifecycle: awaiting_merge_approval
-revision: 1
 template_version: 0.1.0
 created_at: "2026-03-19T23:40:00+08:00"
-updated_at: "2026-03-19T23:51:41+08:00"
 source_type: issue
 source_refs:
     - '#9'
+size: S
 ---
 
 # Allocate review round IDs from the max existing sequence
@@ -63,7 +60,7 @@ hardening only the sequence allocator and the tests that define its behavior.
 
 ### Step 1: Harden compact review round sequence discovery
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -104,7 +101,7 @@ this plan's `Review Summary`.
 
 ### Step 2: Lock behavior with sparse-history tests
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 
@@ -142,7 +139,7 @@ coverage in place.
 
 ### Step 3: Clarify mandatory reviewer-subagent orchestration
 
-- Status: completed
+- Done: [x]
 
 #### Objective
 

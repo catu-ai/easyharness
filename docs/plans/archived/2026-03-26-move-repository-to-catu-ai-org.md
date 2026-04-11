@@ -4,6 +4,7 @@ created_at: "2026-03-26T11:27:38+08:00"
 source_type: direct_request
 source_refs:
     - 'issue #44'
+size: XL
 ---
 
 # Move the repository into the catu-ai organization

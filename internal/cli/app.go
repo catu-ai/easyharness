@@ -389,11 +389,12 @@ func (a *App) runPlanTemplate(args []string) int {
 	dateValue := fs.String("date", "", "Seed timestamps using this YYYY-MM-DD date with the current local time-of-day.")
 	timestampValue := fs.String("timestamp", "", "Seed timestamps using this RFC3339 timestamp.")
 	sourceType := fs.String("source-type", "direct_request", "Seed the frontmatter source_type field.")
+	size := fs.String("size", "", "Seed the required frontmatter size field (XXS, XS, S, M, L, XL, or XXL).")
 	fs.Var(&refs, "source-ref", "Seed one source_refs entry. Repeat to add multiple refs.")
 	fs.Usage = func() {
 		fmt.Fprintln(a.Stderr, "Usage: harness plan template [flags]")
 		fmt.Fprintln(a.Stderr)
-		fmt.Fprintln(a.Stderr, "Render the packaged plan template with seeded title, timestamp, and source metadata.")
+		fmt.Fprintln(a.Stderr, "Render the packaged plan template with seeded title, timestamp, source metadata, and size.")
 		fmt.Fprintln(a.Stderr)
 		fs.PrintDefaults()
 	}
@@ -420,6 +421,7 @@ func (a *App) runPlanTemplate(args []string) int {
 		Timestamp:  ts,
 		SourceType: *sourceType,
 		SourceRefs: refs,
+		Size:       *size,
 		WorkflowProfile: func() string {
 			if *lightweight {
 				return plan.WorkflowProfileLightweight

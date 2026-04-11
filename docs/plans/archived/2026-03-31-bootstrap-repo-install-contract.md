@@ -4,6 +4,7 @@ created_at: "2026-03-31T00:08:51+08:00"
 source_type: issue
 source_refs:
     - '#68'
+size: XL
 ---
 
 # Add a repeatable repository install flow for AGENTS delta and skills

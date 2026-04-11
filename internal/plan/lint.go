@@ -63,6 +63,7 @@ type Frontmatter struct {
 	CreatedAt       string   `yaml:"created_at"`
 	SourceType      string   `yaml:"source_type"`
 	SourceRefs      []string `yaml:"source_refs"`
+	Size            string   `yaml:"size"`
 	WorkflowProfile string   `yaml:"workflow_profile,omitempty"`
 }
 
@@ -240,6 +241,7 @@ func validateFrontmatter(ctx *lintContext) []LintIssue {
 		"created_at",
 		"source_type",
 		"source_refs",
+		"size",
 	}
 	for _, key := range requiredKeys {
 		if _, ok := ctx.rawFrontmatter[key]; !ok {
@@ -255,6 +257,11 @@ func validateFrontmatter(ctx *lintContext) []LintIssue {
 	}
 	if strings.TrimSpace(ctx.frontmatter.SourceType) == "" {
 		issues = append(issues, LintIssue{Path: "frontmatter.source_type", Message: "must not be empty"})
+	}
+	if strings.TrimSpace(ctx.frontmatter.Size) == "" {
+		issues = append(issues, LintIssue{Path: "frontmatter.size", Message: "must not be empty"})
+	} else if !isSupportedPlanSize(ctx.frontmatter.Size) {
+		issues = append(issues, LintIssue{Path: "frontmatter.size", Message: fmt.Sprintf("must be one of %s", strings.Join(supportedPlanSizes, ", "))})
 	}
 	for _, legacyKey := range []string{"status", "lifecycle", "revision", "updated_at"} {
 		if _, ok := ctx.rawFrontmatter[legacyKey]; ok {
@@ -272,6 +279,12 @@ func validateFrontmatter(ctx *lintContext) []LintIssue {
 				Message: "must be standard or lightweight when provided",
 			})
 		}
+	}
+	if normalizeWorkflowProfile(ctx.frontmatter.WorkflowProfile) == WorkflowProfileLightweight && ctx.frontmatter.Size != PlanSizeXXS {
+		issues = append(issues, LintIssue{
+			Path:    "frontmatter.size",
+			Message: "lightweight plans must use size XXS",
+		})
 	}
 	supportedVersion, err := templateassets.PlanTemplateVersion()
 	if err != nil {

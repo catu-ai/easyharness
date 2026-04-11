@@ -33,6 +33,7 @@ func TestLightweightWorkflowWithBuiltBinary(t *testing.T) {
 	support.RequireFileExists(t, planPath)
 
 	support.RewritePlanPreservingFrontmatter(t, planPath, lightweightWorkflowTitle, lightweightWorkflowPlanBody())
+	support.EnsurePlanSize(t, planPath, "XXS")
 
 	lint := support.Run(t, workspace.Root, "plan", "lint", planRelPath)
 	support.RequireSuccess(t, lint)

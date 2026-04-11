@@ -4,6 +4,7 @@ created_at: "2026-04-08T22:27:00+08:00"
 source_type: direct_request
 source_refs:
     - chat://current-session
+size: S
 ---
 
 # Add Explicit Global Fallback Control To Dev Wrapper Install

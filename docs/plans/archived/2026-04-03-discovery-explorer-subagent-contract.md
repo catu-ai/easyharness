@@ -4,6 +4,7 @@ created_at: "2026-04-03T23:05:10+08:00"
 source_type: issue
 source_refs:
     - '#88'
+size: S
 ---
 
 # Define the discovery explorer-subagent contract

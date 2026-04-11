@@ -4,6 +4,7 @@ created_at: "2026-04-08T13:50:00Z"
 source_type: issue
 source_refs:
     - https://github.com/catu-ai/easyharness/issues/113
+size: XXS
 ---
 
 # Add clean-pass explicit repair fallback coverage

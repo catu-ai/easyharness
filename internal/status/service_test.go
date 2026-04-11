@@ -58,7 +58,8 @@ func TestStatusPlanNodeForTrackedLightweightPlan(t *testing.T) {
 	root := t.TempDir()
 	relPath := "docs/plans/active/2026-03-18-status-lightweight.md"
 	writePlan(t, root, relPath, func(content string) string {
-		return strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: lightweight", 1)
+		content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: lightweight", 1)
+		return strings.Replace(content, "size: M", "size: XXS", 1)
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -131,6 +132,7 @@ func TestStatusLightweightPublishPromptsForBreadcrumb(t *testing.T) {
 	relPath := ".local/harness/plans/archived/2026-03-18-status-lightweight.md"
 	writePlan(t, root, relPath, func(content string) string {
 		content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: lightweight", 1)
+		content = strings.Replace(content, "size: M", "size: XXS", 1)
 		return completeAllSteps(content, true)
 	})
 	writeCurrentPlan(t, root, relPath)
@@ -168,6 +170,7 @@ func TestStatusLightweightArchivedPlanSurfacesSupplementsDirectory(t *testing.T)
 	relPath := ".local/harness/plans/archived/2026-03-18-status-lightweight.md"
 	writePlan(t, root, relPath, func(content string) string {
 		content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: lightweight", 1)
+		content = strings.Replace(content, "size: M", "size: XXS", 1)
 		return completeAllSteps(content, true)
 	})
 	writeCurrentPlan(t, root, relPath)
@@ -1705,6 +1708,7 @@ func TestStatusLightweightPublishPrioritizesRepairDebtBeforeBreadcrumb(t *testin
 	relPath := ".local/harness/plans/archived/2026-03-18-status-lightweight.md"
 	writePlan(t, root, relPath, func(content string) string {
 		content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: lightweight", 1)
+		content = strings.Replace(content, "size: M", "size: XXS", 1)
 		return completeAllStepsWithoutCloseout(content, true)
 	})
 	writeCurrentPlan(t, root, relPath)
@@ -2689,6 +2693,7 @@ func writePlan(t *testing.T, root, relPath string, mutate func(string) string) s
 	if err != nil {
 		t.Fatalf("RenderTemplate: %v", err)
 	}
+	rendered = strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
 	content := mutate(rendered)
 	path := filepath.Join(root, relPath)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

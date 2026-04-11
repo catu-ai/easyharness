@@ -132,6 +132,7 @@ template_version: 0.2.0
 created_at: 2026-03-17T10:12:01+08:00
 source_type: direct_request
 source_refs: []
+size: M
 ---
 ```
 
@@ -156,6 +157,44 @@ source_refs: []
 - `source_refs`
   - array of external references such as issue IDs or URLs
   - use `[]` when there are none
+- `size`
+  - required t-shirt estimate for the whole planned slice
+  - supported values are `XXS`, `XS`, `S`, `M`, `L`, `XL`, and `XXL`
+  - size describes magnitude, coordination weight, and review load; it does
+    not by itself prove the work is low-risk
+  - `XXS` is the only size that may use `workflow_profile: lightweight`
+  - an initial `XXL` estimate is a planning warning, not a routine default:
+    before execution approval, the controller should stop, confirm the size
+    with the human, and seriously consider returning to discovery to split the
+    slice or move deferred follow-up into issues
+
+### Size Meanings
+
+- `XXS`
+  - the smallest bounded slice the repository still wants to plan
+  - one narrow intent with limited coordination, such as a tiny command tweak,
+    focused CI condition change, very small helper-script fix, narrow wording
+    adjustment, or regression-coverage backfill
+- `XS`
+  - one clearly scoped change that still stays small, but already needs a bit
+    of propagation such as code plus tests, contract plus docs, or one narrow
+    behavior fix across a couple of nearby surfaces
+- `S`
+  - a small coherent subsystem slice with limited blast radius, often touching
+    a few related files or one focused workflow edge
+- `M`
+  - a medium slice that changes one meaningful subsystem or workflow and needs
+    multiple coordinated edits to keep behavior, docs, and tests aligned
+- `L`
+  - a broad but still localizable change that spans several surfaces or
+    packages while remaining one coherent project
+- `XL`
+  - a very broad coordinated slice with obvious regression risk across several
+    surfaces, integrations, or workflow layers
+- `XXL`
+  - an unusually large slice that is still coherent enough to describe as one
+    plan, but should normally prompt an explicit split discussion before the
+    plan is approved
 
 ### Optional Fields
 
@@ -175,14 +214,17 @@ source_refs: []
 
 `workflow_profile: lightweight` is allowed only when every rule below is true:
 
+- the plan carries `size: XXS`
 - the whole slice is one intentionally narrow low-risk change that can be
   planned, implemented, and validated as a single bounded step
-- the expected edits are limited to non-behavioral repository maintenance such
-  as README wording, documentation copy, comments, or similarly narrow
-  explanatory cleanup
-- no `harness` CLI behavior, state resolution rule, review/archive contract,
-  persistence behavior, release or CI automation, security-sensitive logic, or
-  other user-visible product behavior changes
+- the expected edits stay within a low-risk narrow surface such as README or
+  docs wording, comment cleanup, a small CI condition adjustment, a tiny
+  helper-script fix, or another similarly small change whose blast radius is
+  easy to explain
+- the change does not alter schema meaning, core state resolution,
+  review/archive/evidence contracts, release safety, security-sensitive logic,
+  or another risk surface that would make reviewers reasonably want the
+  standard path
 - if the boundary is unclear, the risk is disputed, or the slice stops looking
   obviously lightweight, it must use `standard`
 
@@ -191,12 +233,16 @@ Examples that may use `lightweight`:
 - fixing a broken README link
 - correcting narrow documentation wording
 - cleaning up comments without changing behavior
+- adjusting one narrowly scoped CI condition with easy-to-explain blast radius
+- making a tiny helper or wrapper fix that stays far away from core workflow
+  semantics
 
 Examples that must stay `standard`:
 
+- any change sized above `XXS`
 - any change under `docs/specs/` that changes the product contract
-- any change to Go code, tests that prove new behavior, or release/CI workflow
-  logic
+- any change to core Go/runtime behavior, review/archive logic, or release
+  safety logic
 - any change that needs more than one meaningful implementation step or a
   broader review posture than bounded low-risk maintenance
 
@@ -375,12 +421,16 @@ human steering but does not justify a tracked archived plan artifact.
 The lightweight profile is eligible only when all of these are true:
 
 - the human explicitly approves using the lightweight profile
+- the plan carries `size: XXS`
 - the plan still describes a small bounded slice that one short plan can steer
 - the expected change is limited to low-risk repository surfaces such as:
   - README or docs wording
   - comments or other non-behavioral text cleanup
-  - similarly narrow metadata or wording fixes that do not change product
-    behavior, state transitions, or command semantics
+  - a small CI condition or workflow-glue adjustment whose blast radius is
+    easy to explain
+  - a tiny helper-script or narrowly scoped code fix that does not change
+    schema meaning, state transitions, review/archive/evidence semantics,
+    release safety, or security-sensitive behavior
 - the controller can explain the lightweight choice in one small repo-visible
   breadcrumb such as a PR body note
 - the plan can stay clear and reviewable without depending on supplements as a
@@ -388,8 +438,9 @@ The lightweight profile is eligible only when all of these are true:
 
 The lightweight profile is not eligible when any of these are true:
 
+- the plan is sized above `XXS`
 - the change affects CLI, runtime, release, review, archive, evidence, or
-  state-machine behavior
+  state-machine behavior in a way that is not obviously tiny and low-risk
 - the change modifies normative product contracts, schema meaning, or command
   semantics
 - the change spans multiple risk areas or would make a reviewer reasonably ask

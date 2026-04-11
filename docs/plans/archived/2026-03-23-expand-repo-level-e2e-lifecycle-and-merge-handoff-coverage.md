@@ -5,6 +5,7 @@ source_type: issue
 source_refs:
     - '#6'
     - '#33'
+size: XXL
 ---
 
 # Expand repo-level E2E lifecycle and merge handoff coverage

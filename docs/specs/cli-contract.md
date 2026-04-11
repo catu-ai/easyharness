@@ -327,16 +327,23 @@ Contract:
 - print the rendered template to stdout by default
 - optionally support writing directly to a target path
 - support a lightweight authoring mode such as `--lightweight`
-- support enough parameters to seed title, date, and source metadata
+- support enough parameters to seed title, date, source metadata, and the
+  required `size` field
 - when only a date is provided, preserve the current local time-of-day on that
   date instead of silently forcing `created_at` to local midnight
 - seed `template_version` from the packaged asset so generated plans record the
   schema/template version they started from
 - avoid introducing a second handwritten template source of truth inside code
+- when the caller does not provide a size, keep the required `size` field
+  explicit in the rendered template rather than silently defaulting it behind
+  the author's back
 - in lightweight mode, seed `workflow_profile: lightweight`, a shorter
   single-step low-risk authoring shape, and guidance that the active plan
   still lives under `docs/plans/active/` while the archive goes to the local
   lightweight archive path
+- lightweight authoring must only be available for `size: XXS`; command UX may
+  enforce that either by requiring an explicit `XXS` size or by rendering the
+  lightweight template with explicit `size: XXS`
 - in standard mode, preserve current behavior when `workflow_profile` is
   omitted
 

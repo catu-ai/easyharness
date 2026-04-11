@@ -4,6 +4,7 @@ created_at: "2026-04-01T21:14:39+08:00"
 source_type: issue
 source_refs:
     - '#93'
+size: XL
 ---
 
 # Hook real timeline data into the harness UI with a command-owned event index
