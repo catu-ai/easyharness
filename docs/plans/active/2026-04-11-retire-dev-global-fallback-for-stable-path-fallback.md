@@ -116,7 +116,7 @@ review boundary is the integrated Step 2 candidate.
 
 ### Step 2: Rebaseline docs and smoke coverage
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -173,7 +173,8 @@ the smoke suite did not exercise the separate branch that skips other managed
 wrappers already on `PATH`. The repair resolves wrapper candidates to their
 real paths before self/managed-wrapper checks and adds focused smoke coverage
 for both the symlink-alias path and the separate managed-wrapper-skip branch.
-Fresh delta review is still pending for the repair.
+`review-002-delta` then passed cleanly with no remaining correctness or test
+findings for the repair.
 
 ## Validation Strategy
 
