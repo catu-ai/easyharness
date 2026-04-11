@@ -8,8 +8,10 @@ review explorer containment repair for
 
 ## Browser Evidence
 
-- Explorer row screenshot: `output/playwright/review-explorer-row-220.png`
-- Header metadata screenshot: `output/playwright/review-header-meta.png`
+- Explorer row screenshot:
+  `docs/plans/active/supplements/2026-04-11-stabilize-review-ui-layout/review-explorer-row-220.png`
+- Header metadata screenshot:
+  `docs/plans/active/supplements/2026-04-11-stabilize-review-ui-layout/review-header-meta.png`
 
 Both screenshots were refreshed after commit `ef1b89a` using the rebuilt
 embedded `harness ui` binary with `harness-ui:explorer-width:review=220` in

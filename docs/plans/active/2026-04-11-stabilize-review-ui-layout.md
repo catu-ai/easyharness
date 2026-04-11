@@ -121,7 +121,9 @@ ellipsis-prone metadata cell and a fixed visible status cell. Follow-up delta
 review `review-002-delta` then exposed that the saved explorer evidence path
 was still carrying an older screenshot and that the longer `submitted` copy was
 using too much space; the repair compacted the metadata label to `a/b` and
-refreshed `output/playwright/review-explorer-row-220.png` from the rebuilt UI.
+refreshed the tracked supplement screenshot
+`docs/plans/active/supplements/2026-04-11-stabilize-review-ui-layout/review-explorer-row-220.png`
+from the rebuilt UI.
 Delta review `review-003-delta` then caught one more real containment gap: the
 row's outer button still had `scrollWidth > clientWidth` because
 `.explorer-item-main` lacked an explicit `minmax(0, 1fr)` grid track. The
@@ -179,8 +181,10 @@ inside the same UI slice rather than a contract or state transition that could
 be proved first with a narrow failing unit test. After `review-001-full`
 requested stronger evidence for populated review data, the repair loop used the
 current worktree's real review round to capture browser evidence at the minimum
-review explorer width in `output/playwright/review-explorer-row-220.png` and
-`output/playwright/review-header-meta.png`.
+review explorer width in
+`docs/plans/active/supplements/2026-04-11-stabilize-review-ui-layout/review-explorer-row-220.png`
+and
+`docs/plans/active/supplements/2026-04-11-stabilize-review-ui-layout/review-header-meta.png`.
 
 #### Review Notes
 
