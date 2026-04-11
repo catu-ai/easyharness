@@ -459,3 +459,41 @@ func TestInitRefreshesVersionMarkersAcrossVersionChanges(t *testing.T) {
 		t.Fatalf("expected refreshed skill metadata version, got:\n%s", skillData)
 	}
 }
+
+func TestInitUsesStableDevVersionMarkerAcrossCommitChanges(t *testing.T) {
+	root := t.TempDir()
+
+	first := testService(root)
+	first.Version = versioninfo.Info{Mode: "dev", Commit: "abc123"}
+	if result := first.Init(Options{}); !result.OK {
+		t.Fatalf("initial dev init failed: %#v", result)
+	}
+
+	second := testService(root)
+	second.Version = versioninfo.Info{Mode: "dev", Commit: "def456"}
+	result := second.Init(Options{})
+	if !result.OK {
+		t.Fatalf("repeat dev init failed: %#v", result)
+	}
+	for _, action := range result.Actions {
+		if action.Kind != ActionNoop {
+			t.Fatalf("expected stable dev marker to avoid churn, got %#v", result.Actions)
+		}
+	}
+
+	agentsData, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("read AGENTS.md after dev init: %v", err)
+	}
+	if !strings.Contains(string(agentsData), `<!-- easyharness:begin version="dev" -->`) {
+		t.Fatalf("expected stable dev instructions marker, got:\n%s", agentsData)
+	}
+
+	skillData, err := os.ReadFile(filepath.Join(root, ".agents/skills/harness-discovery/SKILL.md"))
+	if err != nil {
+		t.Fatalf("read skill after dev init: %v", err)
+	}
+	if !strings.Contains(string(skillData), "easyharness-version: dev") {
+		t.Fatalf("expected stable dev skill marker, got:\n%s", skillData)
+	}
+}

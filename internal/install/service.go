@@ -284,8 +284,8 @@ func (s Service) planInstructionsInstall(targetFile, skillsDir string) ([]planne
 	managedBlock := renderManagedBlock(lineEnding, skillsDisplay, s.versionTag())
 	beginMatches := instructionsManagedBlockBeginPattern.FindAllStringIndex(existing, -1)
 	endMatches := instructionsManagedBlockEndPattern.FindAllStringIndex(existing, -1)
-	if len(beginMatches) != len(endMatches) || len(beginMatches) > 1 {
-		return nil, []CommandError{{Path: pathLabel(s.Workdir, targetFile), Message: "expected zero or one easyharness managed block; found an ambiguous marker layout"}}
+	if err := validateManagedBlockLayout(beginMatches, endMatches); err != nil {
+		return nil, []CommandError{{Path: pathLabel(s.Workdir, targetFile), Message: err.Error()}}
 	}
 
 	var next string
@@ -350,8 +350,8 @@ func (s Service) planInstructionsUninstall(targetFile string) ([]plannedWrite, [
 	existing := string(data)
 	beginMatches := instructionsManagedBlockBeginPattern.FindAllStringIndex(existing, -1)
 	endMatches := instructionsManagedBlockEndPattern.FindAllStringIndex(existing, -1)
-	if len(beginMatches) != len(endMatches) || len(beginMatches) > 1 {
-		return nil, []CommandError{{Path: pathLabel(s.Workdir, targetFile), Message: "expected zero or one easyharness managed block; found an ambiguous marker layout"}}
+	if err := validateManagedBlockLayout(beginMatches, endMatches); err != nil {
+		return nil, []CommandError{{Path: pathLabel(s.Workdir, targetFile), Message: err.Error()}}
 	}
 	if len(beginMatches) == 0 {
 		return []plannedWrite{{
@@ -852,6 +852,16 @@ func pruneEmptyParents(dir, stop string) {
 		}
 		dir = filepath.Dir(cleanDir)
 	}
+}
+
+func validateManagedBlockLayout(beginMatches, endMatches [][]int) error {
+	if len(beginMatches) != len(endMatches) || len(beginMatches) > 1 {
+		return fmt.Errorf("expected zero or one easyharness managed block; found an ambiguous marker layout")
+	}
+	if len(beginMatches) == 1 && beginMatches[0][0] >= endMatches[0][0] {
+		return fmt.Errorf("expected zero or one easyharness managed block; found an ambiguous marker layout")
+	}
+	return nil
 }
 
 func splitFrontmatter(content string) (string, string, error) {

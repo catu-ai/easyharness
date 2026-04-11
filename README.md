@@ -204,6 +204,19 @@ either refresh the known managed assets in place or report a no-op when the
 repository is already current. User-owned instruction content outside the
 managed block is preserved.
 
+Use the noun-first resource commands when you need finer control than the
+default repo bootstrap:
+
+```bash
+harness skills install --scope user
+harness instructions install --scope user
+harness skills install --agent claude --dir .claude/skills
+harness instructions install --agent claude --file CLAUDE.md --dir .claude/skills
+```
+
+Those flags are mainly for non-default targets and future agent adapters. The
+default Codex repo flow is still `harness init`.
+
 Upgrade a Homebrew install with:
 
 ```bash

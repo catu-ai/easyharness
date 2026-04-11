@@ -334,7 +334,7 @@ func (a *App) runInit(args []string) int {
 		Agent:            *agent,
 		SkillsDir:        *skillsDir,
 		InstructionsFile: *instructionsFile,
-		DryRun: *dryRun,
+		DryRun:           *dryRun,
 	})
 	return a.writeJSONResult(result)
 }
@@ -445,7 +445,11 @@ func (a *App) runInstructionsCommand(name string, args []string, installOp bool)
 	dir := fs.String("dir", "", "Override the paired skills directory used when rendering the managed block.")
 	dryRun := fs.Bool("dry-run", false, "Show the planned changes without writing files.")
 	fs.Usage = func() {
-		fmt.Fprintf(a.Stderr, "Usage: %s [--scope <repo|user>] [--agent <name>] [--file <path>] [--dir <path>] [--dry-run]\n", name)
+		if installOp {
+			fmt.Fprintf(a.Stderr, "Usage: %s [--scope <repo|user>] [--agent <name>] [--file <path>] [--dir <path>] [--dry-run]\n", name)
+		} else {
+			fmt.Fprintf(a.Stderr, "Usage: %s [--scope <repo|user>] [--agent <name>] [--file <path>] [--dry-run]\n", name)
+		}
 		fmt.Fprintln(a.Stderr)
 		if installOp {
 			fmt.Fprintln(a.Stderr, "Install or refresh the easyharness-managed bootstrap block in the target instructions file.")
@@ -453,7 +457,18 @@ func (a *App) runInstructionsCommand(name string, args []string, installOp bool)
 			fmt.Fprintln(a.Stderr, "Remove the easyharness-managed bootstrap block from the target instructions file.")
 		}
 		fmt.Fprintln(a.Stderr)
-		fs.PrintDefaults()
+		fmt.Fprintf(a.Stderr, "  -agent string\n")
+		fmt.Fprintln(a.Stderr, "        Agent profile name used for default targets. Defaults to codex.")
+		fmt.Fprintf(a.Stderr, "  -dry-run\n")
+		fmt.Fprintln(a.Stderr, "        Show the planned changes without writing files.")
+		fmt.Fprintf(a.Stderr, "  -file string\n")
+		fmt.Fprintln(a.Stderr, "        Override the instructions target file.")
+		if installOp {
+			fmt.Fprintf(a.Stderr, "  -dir string\n")
+			fmt.Fprintln(a.Stderr, "        Override the paired skills directory used when rendering the managed block.")
+		}
+		fmt.Fprintf(a.Stderr, "  -scope string\n")
+		fmt.Fprintf(a.Stderr, "        Instructions scope: %s or %s. (default %q)\n", install.ScopeRepo, install.ScopeUser, install.ScopeRepo)
 	}
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {

@@ -623,6 +623,33 @@ func TestSkillsAndInstructionsInstallSupportExplicitOverrideTargetsViaCLI(t *tes
 	support.RequireFileMissing(t, workspace.Path("AGENTS.md"))
 }
 
+func TestInstructionsInstallRejectsOutOfOrderManagedMarkersViaCLI(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	agentsPath := workspace.Path("AGENTS.md")
+	content := strings.Join([]string{
+		"# AGENTS.md",
+		"",
+		"<!-- easyharness:end -->",
+		"",
+		"out of order",
+		"",
+		"<!-- easyharness:begin -->",
+		"",
+	}, "\n")
+	if err := os.WriteFile(agentsPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write malformed AGENTS.md: %v", err)
+	}
+
+	result := support.Run(t, workspace.Root, "instructions", "install")
+	support.RequireExitCode(t, result, 1)
+	support.RequireNoStderr(t, result)
+
+	payload := support.RequireJSONResult[bootstrapResult](t, result)
+	if payload.OK {
+		t.Fatalf("expected malformed marker failure, got %#v", payload)
+	}
+}
+
 func TestSupportRunUsesBuiltBinaryInsteadOfPATH(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 	poisonDir := workspace.Path("tmp/poison-bin")
