@@ -65,30 +65,30 @@ state-model redesign.
 
 ## Acceptance Criteria
 
-- [ ] `tests/resilience/` exists and `go test ./tests/resilience -count=1`
+- [x] `tests/resilience/` exists and `go test ./tests/resilience -count=1`
       passes with deterministic repository-level cases that directly satisfy the
       failure-path intent of `#37`.
-- [ ] The resilience suite covers malformed or corrupted
+- [x] The resilience suite covers malformed or corrupted
       `.local/harness/current-plan.json`, missing or malformed review/evidence
       artifacts, and at least one archive or reopen rollback-family safety
       case where the command must fail conservatively without leaving the
       worktree in a misleading state.
-- [ ] The new resilience assertions prove safe failure behavior, not only that
+- [x] The new resilience assertions prove safe failure behavior, not only that
       a command returns non-zero; the tests pin summaries, warnings, pointer or
       artifact preservation, and any required rollback outcomes that define the
       contract.
-- [ ] `go test ./tests/e2e -count=1` passes with at least one deterministic
+- [x] `go test ./tests/e2e -count=1` passes with at least one deterministic
       integration-style scenario that exercises realistic overlapping command
       patterns around archive, reopen, evidence submission, and status for the
       same plan, satisfying the broader contract requested by `#56`.
-- [ ] The concurrency-focused assertions prove CLI-level runstate coherence:
+- [x] The concurrency-focused assertions prove CLI-level runstate coherence:
       overlapping commands either serialize or fail clearly, status stays
       conservative, and no stale or cross-revision evidence is mistaken for the
       current archived candidate during the tested interleavings.
-- [ ] Any minimal production or helper changes introduced for testability stay
+- [x] Any minimal production or helper changes introduced for testability stay
       behavior-preserving and are covered by the new repo-level scenarios plus
       any focused package-level regression tests needed for the touched code.
-- [ ] The resulting tracked docs or closeout notes make it defensible to close
+- [x] The resulting tracked docs or closeout notes make it defensible to close
       `#37` and `#56` without a hidden "more resilience/concurrency coverage
       later" bucket; if anything material remains, it is moved into an explicit
       follow-up issue before archive.
@@ -105,7 +105,7 @@ state-model redesign.
 
 ### Step 1: Define the repo-level gap targets and fixture strategy
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -156,11 +156,13 @@ instead of remaining an ambiguous deferred bucket.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Fixture strategy, helper scope, and coverage-note
+updates are tightly coupled to the implemented resilience and concurrency
+scenarios, so a separate Step 1 delta review would be misleading duplication.
 
 ### Step 2: Add deterministic resilience coverage for malformed local state
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -208,11 +210,13 @@ the current plan pointer and on-disk plan paths must recover cleanly.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: The resilience suite is part of the same integrated
+repo-level closure slice as Step 1 and Step 3, so branch-level finalize review
+is the trustworthy review surface.
 
 ### Step 3: Add deterministic integration-style concurrency coverage for runstate-dense workflows
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -266,7 +270,9 @@ state lock is held.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: The deterministic concurrency scenario depends on the
+same fixture strategy and documentation closeout as the resilience suite, so
+branch-level finalize review is the trustworthy review surface.
 
 ## Validation Strategy
 
