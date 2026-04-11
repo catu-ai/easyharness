@@ -1,8 +1,9 @@
 ---
 template_version: 0.2.0
-created_at: 2026-04-11T10:56:23+08:00
+created_at: "2026-04-11T10:56:23+08:00"
 source_type: direct_request
-source_refs: ["chat://current-session"]
+source_refs:
+    - chat://current-session
 size: XS
 ---
 
@@ -51,14 +52,14 @@ module caches used by that installer smoke group.
 
 ## Acceptance Criteria
 
-- [ ] Installer smoke helpers provide a shared `GOCACHE` and `GOMODCACHE`
+- [x] Installer smoke helpers provide a shared `GOCACHE` and `GOMODCACHE`
       across `install_dev_harness_test.go` while keeping per-test fixture and
       environment isolation for non-cache state.
-- [ ] The cache-sharing policy remains local to installer smoke support and
+- [x] The cache-sharing policy remains local to installer smoke support and
       does not silently change execution environments for unrelated smoke
       tests.
-- [ ] Installer-focused smoke coverage still passes with the new helper model.
-- [ ] A fresh `go test ./tests/smoke -count=1` run shows a meaningful runtime
+- [x] Installer-focused smoke coverage still passes with the new helper model.
+- [x] A fresh `go test ./tests/smoke -count=1` run shows a meaningful runtime
       reduction relative to the discovery baseline, with the before/after
       evidence recorded in execution notes before archive.
 
@@ -183,25 +184,60 @@ for this tiny branch candidate.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- Discovery baseline:
+  - `go test ./tests/smoke -count=1 -json`
+  - package runtime was about `222.556s`
+- Focused installer subset after the helper change:
+  - `/usr/bin/time -p go test ./tests/smoke -run TestInstallDevHarness -count=1`
+  - completed in about `42.51s` real time
+- Full smoke package after the helper change:
+  - `/usr/bin/time -p go test ./tests/smoke -count=1`
+  - completed in about `69.96s` real time
+- Net result:
+  - full `tests/smoke` runtime dropped from about `222.6s` to `70.0s`
+  - installer cache reuse stayed confined to `tests/smoke/install_dev_harness_test.go`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Finalize review round `review-001-full` ran as a `full` pre-archive review.
+- Reviewer slots:
+  - `correctness`
+  - `tests`
+  - `docs-consistency`
+- Aggregate result:
+  - `harness review aggregate --round review-001-full`
+  - decision `pass`
+  - `0` blocking findings
+  - `0` non-blocking findings
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-04-11T11:08:21+08:00
+- Revision: 1
+- PR: Not created yet in the active-plan phase; after archive, push branch
+  `codex/share-installer-smoke-go-build-caches` and open or update the PR.
+- Ready: Finalize review passed and archive blockers are resolved; archive and
+  publish handoff work remain before the candidate can wait for merge approval.
+- Merge Handoff: Archive the plan, push the branch, open the PR, record
+  publish/CI/sync evidence, and confirm `execution/finalize/await_merge` before
+  waiting for merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Installer smoke now reuses package-level Go build and module caches inside
+  `tests/smoke/install_dev_harness_test.go`.
+- Installer tests still keep per-test `HOME`, temp repository fixtures,
+  install paths, and other non-cache state isolated.
+- The tracked plan now records focused and full-suite timing evidence showing
+  the smoke runtime reduction.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No broader smoke-package cache-sharing policy was introduced.
+- No installer runtime behavior, wrapper dispatch, or fallback semantics were
+  changed.
 
 ### Follow-Up Issues
 
