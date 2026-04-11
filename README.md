@@ -193,15 +193,15 @@ First-run repository bootstrap after installing the binary:
 
 ```bash
 cd /path/to/your-repo
-harness install --dry-run
-harness install
+harness init --dry-run
+harness init
 ```
 
-`harness install` writes the minimum harness-managed repository contract for a
+`harness init` writes the minimum harness-managed repository bootstrap for a
 repo: a managed block inside `AGENTS.md` plus the repo-local skill pack under
 `.agents/skills/`. The command is safe to rerun after upgrades. Repeated runs
 either refresh the known managed assets in place or report a no-op when the
-repository is already current. User-owned `AGENTS.md` content outside the
+repository is already current. User-owned instruction content outside the
 managed block is preserved.
 
 Upgrade a Homebrew install with:
@@ -243,7 +243,11 @@ for that tag.
 
 - `harness plan template`
 - `harness plan lint`
-- `harness install`
+- `harness init`
+- `harness skills install`
+- `harness skills uninstall`
+- `harness instructions install`
+- `harness instructions uninstall`
 - `harness execute start`
 - `harness evidence submit`
 - `harness status`
@@ -351,7 +355,7 @@ If an archived candidate becomes invalid before merge, reopen it with
 `harness reopen --mode new-step` when the change deserves a new unfinished
 step. Reopen moves the markdown plan and any matching `supplements/` directory
 back to the active root together. If a repository has not been bootstrapped
-yet, run `harness install` first so the managed `AGENTS.md` block and
+yet, run `harness init` first so the managed `AGENTS.md` block and
 repo-local skills exist before the workflow starts.
 
 High-level guidance lives in [AGENTS.md](./AGENTS.md). The durable contracts

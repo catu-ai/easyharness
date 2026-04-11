@@ -271,8 +271,14 @@ func TestRootHelpMentionsVersionFlag(t *testing.T) {
 	if !strings.Contains(stderr.String(), "--version       Print concise debug information for the running harness binary") {
 		t.Fatalf("expected root help to mention --version, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "install         Install or refresh the harness-managed repository bootstrap") {
-		t.Fatalf("expected root help to mention install, got %q", stderr.String())
+	if !strings.Contains(stderr.String(), "init            Install or refresh the managed bootstrap resources for the current repository") {
+		t.Fatalf("expected root help to mention init, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "skills          Manage easyharness skill packages") {
+		t.Fatalf("expected root help to mention skills, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "instructions    Manage easyharness instruction files and managed blocks") {
+		t.Fatalf("expected root help to mention instructions, got %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "ui              Start the local read-only harness UI workbench") {
 		t.Fatalf("expected root help to mention ui, got %q", stderr.String())
@@ -310,23 +316,23 @@ func TestUIRejectsPositionalArguments(t *testing.T) {
 	}
 }
 
-func TestInstallCommandReturnsJSON(t *testing.T) {
+func TestInitCommandReturnsJSON(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 	root := t.TempDir()
 	app.Getwd = func() (string, error) { return root, nil }
 
-	exitCode := app.Run([]string{"install", "--dry-run"})
+	exitCode := app.Run([]string{"init", "--dry-run"})
 	if exitCode != 0 {
-		t.Fatalf("install dry-run failed with %d: %s", exitCode, stderr.String())
+		t.Fatalf("init dry-run failed with %d: %s", exitCode, stderr.String())
 	}
 
 	var payload map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("expected JSON install output: %v\n%s", err, stdout.String())
+		t.Fatalf("expected JSON init output: %v\n%s", err, stdout.String())
 	}
-	if payload["command"] != "install" {
+	if payload["command"] != "init" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
 	if payload["mode"] != "dry_run" {
@@ -334,23 +340,23 @@ func TestInstallCommandReturnsJSON(t *testing.T) {
 	}
 }
 
-func TestInstallCommandWritesManagedAssets(t *testing.T) {
+func TestInstructionsInstallCommandWritesManagedAssets(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 	root := t.TempDir()
 	app.Getwd = func() (string, error) { return root, nil }
 
-	exitCode := app.Run([]string{"install", "--scope", "agents"})
+	exitCode := app.Run([]string{"instructions", "install"})
 	if exitCode != 0 {
-		t.Fatalf("install command failed with %d: %s", exitCode, stderr.String())
+		t.Fatalf("instructions install failed with %d: %s", exitCode, stderr.String())
 	}
 
 	var payload map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("expected JSON install output: %v\n%s", err, stdout.String())
+		t.Fatalf("expected JSON instructions output: %v\n%s", err, stdout.String())
 	}
-	if payload["command"] != "install" {
+	if payload["command"] != "instructions install" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
 	if _, err := os.Stat(filepath.Join(root, "AGENTS.md")); err != nil {
@@ -358,44 +364,44 @@ func TestInstallCommandWritesManagedAssets(t *testing.T) {
 	}
 }
 
-func TestInstallCommandRejectsInvalidScope(t *testing.T) {
+func TestSkillsCommandRejectsInvalidScope(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 	root := t.TempDir()
 	app.Getwd = func() (string, error) { return root, nil }
 
-	exitCode := app.Run([]string{"install", "--scope", "bogus"})
+	exitCode := app.Run([]string{"skills", "install", "--scope", "bogus"})
 	if exitCode != 1 {
 		t.Fatalf("expected invalid scope exit code 1, got %d", exitCode)
 	}
 
 	var payload map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("expected JSON install output: %v\n%s", err, stdout.String())
+		t.Fatalf("expected JSON skills output: %v\n%s", err, stdout.String())
 	}
-	if payload["command"] != "install" {
+	if payload["command"] != "skills install" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
 	if ok, _ := payload["ok"].(bool); ok {
-		t.Fatalf("expected install failure, got %#v", payload)
+		t.Fatalf("expected skills failure, got %#v", payload)
 	}
 }
 
-func TestInstallHelpExitsZero(t *testing.T) {
+func TestSkillsHelpExitsZero(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 
-	exitCode := app.Run([]string{"install", "--help"})
+	exitCode := app.Run([]string{"skills", "--help"})
 	if exitCode != 0 {
 		t.Fatalf("expected help exit code 0, got %d", exitCode)
 	}
-	if !strings.Contains(stderr.String(), "Usage: harness install") {
-		t.Fatalf("expected install help text, got %q", stderr.String())
+	if !strings.Contains(stderr.String(), "Usage: harness skills") {
+		t.Fatalf("expected skills help text, got %q", stderr.String())
 	}
 	if stdout.Len() != 0 {
-		t.Fatalf("expected no stdout for install help, got %q", stdout.String())
+		t.Fatalf("expected no stdout for skills help, got %q", stdout.String())
 	}
 }
 

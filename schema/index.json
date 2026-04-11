@@ -153,6 +153,16 @@
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewSubmissionInput"
     },
     {
+      "key": "commands.bootstrap.result",
+      "group": "command_results",
+      "surface": "public",
+      "title": "Bootstrap command result",
+      "description": "JSON output shared by bootstrap resource commands such as `harness init`, `harness skills install`, and `harness instructions uninstall`.",
+      "path": "schema/commands/bootstrap.result.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/bootstrap.result.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.BootstrapResult"
+    },
+    {
       "key": "commands.evidence.submit.result",
       "group": "command_results",
       "surface": "public",
@@ -161,16 +171,6 @@
       "path": "schema/commands/evidence.submit.result.schema.json",
       "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/evidence.submit.result.schema.json",
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.EvidenceSubmitResult"
-    },
-    {
-      "key": "commands.install.result",
-      "group": "command_results",
-      "surface": "public",
-      "title": "Install command result",
-      "description": "JSON output for `harness install`.",
-      "path": "schema/commands/install.result.schema.json",
-      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/install.result.schema.json",
-      "go_type": "github.com/catu-ai/easyharness/internal/contracts.InstallResult"
     },
     {
       "key": "commands.lifecycle.result",

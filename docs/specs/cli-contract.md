@@ -19,13 +19,21 @@ command outputs and inputs lives in the checked-in schema registry at
 contract module under `internal/contracts` and explained at
 [Contract Registry](./contract.md).
 
+Bootstrap resource semantics, ownership rules, and support boundaries live in
+[Bootstrap Install](./bootstrap-install.md). This CLI contract references that
+spec instead of duplicating the bootstrap details here.
+
 ## Command Surface
 
 The current command surface is:
 
 - `harness plan template`
 - `harness plan lint`
-- `harness install`
+- `harness init`
+- `harness skills install`
+- `harness skills uninstall`
+- `harness instructions install`
+- `harness instructions uninstall`
 - `harness execute start`
 - `harness evidence submit`
 - `harness status`
@@ -75,9 +83,9 @@ identity/debug probe rather than a workflow-state command.
 read-only workbench server rather than returning a workflow-state JSON
 envelope.
 
-`harness install` is a JSON-first bootstrap command, but it may omit workflow
-`state` because it manages repo-owned bootstrap assets rather than the tracked
-plan lifecycle.
+The bootstrap commands described in [Bootstrap Install](./bootstrap-install.md)
+are JSON-first, but they may omit workflow `state` because they manage
+bootstrap assets rather than the tracked plan lifecycle.
 
 The lifecycle commands `harness execute start`, `harness archive`,
 `harness reopen`, `harness land`, and `harness land complete` are not special
@@ -244,41 +252,28 @@ before the candidate is treated as ready to wait for merge approval.
 
 ## Command Contracts
 
-### `harness install`
+### Bootstrap Commands
 
 Purpose:
 
-- install or refresh the harness-managed bootstrap assets for the current
-  repository
+- bootstrap or refresh repo/user instructions and skill packages without
+  mutating tracked plan lifecycle state
 
 Contract:
 
-- default to direct-write behavior for the current repository
-- support `--dry-run` to preview the intended file actions without writing
-- support one command-level scope selector with values `agents`, `skills`, and
-  `all`, defaulting to `all`
-- manage `AGENTS.md` through one stable managed block delimited by explicit
-  markers instead of rewriting the whole file
-- insert the managed block when `AGENTS.md` exists without it, replace exactly
-  one valid existing managed block on rerun, and fail with a clear error when
-  marker layout is duplicated or otherwise ambiguous
-- treat the installed skill pack under `.agents/skills/` as CLI-managed files:
-  create or refresh known packaged files without deleting unrelated user-added
-  files in that tree
-- package the bootstrap assets with the harness release so the command works
-  without network access
-- in this repository, treat `assets/bootstrap/` as the canonical hand-edited
-  source for those packaged assets; any dogfood copies under `.agents/skills/`
-  or the root `AGENTS.md` managed block should be derived from that source
-  rather than maintained as a second handwritten contract
-- return a JSON envelope that reports `mode`, `scope`, and per-file actions;
-  workflow `state` may be omitted because the command does not mutate tracked
-  plan lifecycle state
+- `harness init` is the quick-start repo bootstrap entrypoint
+- `harness skills ...` and `harness instructions ...` provide the granular
+  resource commands
+- bootstrap resource semantics, ownership/version rules, and support boundaries
+  are defined in [Bootstrap Install](./bootstrap-install.md)
+- bootstrap commands share a JSON result envelope documented by the checked-in
+  contract registry and may omit workflow `state`
 
 Recommended next action:
 
-- run without `--dry-run` to apply the previewed bootstrap changes
-- open `AGENTS.md` and `.agents/skills/` to review the installed contract
+- rerun without `--dry-run` to apply a previewed bootstrap change
+- open the target instructions file or skills directory to review the installed
+  contract
 
 ### `harness ui`
 

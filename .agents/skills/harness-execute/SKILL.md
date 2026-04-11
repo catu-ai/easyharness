@@ -1,6 +1,9 @@
 ---
 name: harness-execute
 description: Use when a tracked harness plan has been approved and the controller agent should drive implementation, review, archive closeout, publish/CI/sync evidence work, and merge-readiness follow-up until the archived candidate is genuinely ready to wait for merge approval. This is the main controller skill for day-to-day execution after approval.
+metadata:
+    easyharness-managed: "true"
+    easyharness-version: dev
 ---
 
 # Harness Execute

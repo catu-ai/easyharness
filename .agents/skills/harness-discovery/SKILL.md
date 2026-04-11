@@ -1,6 +1,9 @@
 ---
 name: harness-discovery
 description: Run interactive, Socratic pre-implementation discovery for medium/large or ambiguous work in a harness-driven repository by clarifying goals, constraints, tradeoffs, and workflow direction before planning or execution. Use this whenever the next move is unclear, the user needs help choosing an approach, or archived work may need to reopen.
+metadata:
+    easyharness-managed: "true"
+    easyharness-version: dev
 ---
 
 # Harness Discovery

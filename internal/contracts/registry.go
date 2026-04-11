@@ -55,13 +55,13 @@ func SchemaRegistry() []SchemaEntry {
 			Type:        reflect.TypeFor[StatusResult](),
 		},
 		{
-			Key:         "commands.install.result",
+			Key:         "commands.bootstrap.result",
 			Group:       "command_results",
-			Path:        "schema/commands/install.result.schema.json",
-			Title:       "Install command result",
-			Description: "JSON output for `harness install`.",
+			Path:        "schema/commands/bootstrap.result.schema.json",
+			Title:       "Bootstrap command result",
+			Description: "JSON output shared by bootstrap resource commands such as `harness init`, `harness skills install`, and `harness instructions uninstall`.",
 			Shape:       "output",
-			Type:        reflect.TypeFor[InstallResult](),
+			Type:        reflect.TypeFor[BootstrapResult](),
 		},
 		{
 			Key:         "commands.lifecycle.result",

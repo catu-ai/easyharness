@@ -1,6 +1,9 @@
 ---
 name: harness-land
 description: Use when a tracked harness plan is already archived and the human has explicitly approved merge, so the agent should merge the PR and complete the required post-merge bookkeeping.
+metadata:
+    easyharness-managed: "true"
+    easyharness-version: dev
 ---
 
 # Harness Land

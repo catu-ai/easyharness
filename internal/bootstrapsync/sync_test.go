@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	bootstrapassets "github.com/catu-ai/easyharness/assets/bootstrap"
+	"github.com/catu-ai/easyharness/internal/install"
 )
 
 func TestSyncRefreshesManagedOutputsFromBootstrapAssets(t *testing.T) {
@@ -32,7 +32,16 @@ func TestSyncRefreshesManagedOutputsFromBootstrapAssets(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
 		t.Fatalf("mkdir skill dir: %v", err)
 	}
-	if err := os.WriteFile(skillPath, []byte("stale skill"), 0o644); err != nil {
+	staleSkill := strings.Join([]string{
+		"---",
+		"name: harness-discovery",
+		"description: Run interactive, Socratic pre-implementation discovery for medium/large or ambiguous work in a harness-driven repository by clarifying goals, constraints, tradeoffs, and workflow direction before planning or execution. Use this whenever the next move is unclear, the user needs help choosing an approach, or archived work may need to reopen.",
+		"---",
+		"",
+		"# Stale",
+		"",
+	}, "\n")
+	if err := os.WriteFile(skillPath, []byte(staleSkill), 0o644); err != nil {
 		t.Fatalf("write stale skill: %v", err)
 	}
 
@@ -51,21 +60,16 @@ func TestSyncRefreshesManagedOutputsFromBootstrapAssets(t *testing.T) {
 	if strings.Contains(rendered, "stale managed content") {
 		t.Fatalf("expected managed block refresh, got:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, bootstrapassets.AgentsManagedBlock()) {
-		t.Fatalf("expected AGENTS managed block to match bootstrap asset, got:\n%s", rendered)
+	if !strings.Contains(rendered, `<!-- easyharness:begin version="dev" -->`) {
+		t.Fatalf("expected versioned managed block marker, got:\n%s", rendered)
 	}
 
 	skillData, err := os.ReadFile(skillPath)
 	if err != nil {
 		t.Fatalf("read skill: %v", err)
 	}
-	files, err := bootstrapassets.SkillFiles()
-	if err != nil {
-		t.Fatalf("load skill files: %v", err)
-	}
-	expected := files["harness-discovery/SKILL.md"]
-	if string(skillData) != expected {
-		t.Fatalf("expected synced skill content, got:\n%s", skillData)
+	if !strings.Contains(string(skillData), "easyharness-managed: \"true\"") {
+		t.Fatalf("expected managed skill metadata, got:\n%s", skillData)
 	}
 }
 
@@ -79,7 +83,16 @@ func TestCheckReportsDriftWhenManagedOutputsAreStale(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
 		t.Fatalf("mkdir skill dir: %v", err)
 	}
-	if err := os.WriteFile(skillPath, []byte("stale"), 0o644); err != nil {
+	staleSkill := strings.Join([]string{
+		"---",
+		"name: harness-reviewer",
+		"description: Use when acting as a dedicated reviewer subagent for one assigned harness review slot in an existing review round and you need to inspect the change, write structured findings, and submit them through `harness review submit`. This skill is only for reviewer subagents, not for the controller agent.",
+		"---",
+		"",
+		"# Stale",
+		"",
+	}, "\n")
+	if err := os.WriteFile(skillPath, []byte(staleSkill), 0o644); err != nil {
 		t.Fatalf("write stale skill: %v", err)
 	}
 
@@ -96,7 +109,7 @@ func TestCheckReportsDriftWhenManagedOutputsAreStale(t *testing.T) {
 	}
 }
 
-func TestCheckReportsOrphanedManagedSkillFiles(t *testing.T) {
+func TestCheckReportsStaleManagedSkillPackages(t *testing.T) {
 	root := t.TempDir()
 
 	if _, err := Sync(root); err != nil {
@@ -107,7 +120,19 @@ func TestCheckReportsOrphanedManagedSkillFiles(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(orphanPath), 0o755); err != nil {
 		t.Fatalf("mkdir orphan dir: %v", err)
 	}
-	if err := os.WriteFile(orphanPath, []byte("orphan"), 0o644); err != nil {
+	orphanBody := strings.Join([]string{
+		"---",
+		"name: orphan",
+		"description: stale easyharness-managed skill.",
+		"metadata:",
+		"  easyharness-managed: \"true\"",
+		"  easyharness-version: dev",
+		"---",
+		"",
+		"# Orphan",
+		"",
+	}, "\n")
+	if err := os.WriteFile(orphanPath, []byte(orphanBody), 0o644); err != nil {
 		t.Fatalf("write orphan skill: %v", err)
 	}
 
@@ -122,7 +147,7 @@ func TestCheckReportsOrphanedManagedSkillFiles(t *testing.T) {
 
 	found := false
 	for _, action := range driftErr.Actions {
-		if action.Path == ".agents/skills/orphan/SKILL.md" && action.Kind == actionDelete {
+		if action.Path == ".agents/skills/orphan/SKILL.md" && action.Kind == install.ActionDelete {
 			found = true
 			break
 		}
@@ -132,7 +157,7 @@ func TestCheckReportsOrphanedManagedSkillFiles(t *testing.T) {
 	}
 }
 
-func TestSyncRemovesOrphanedManagedSkillFiles(t *testing.T) {
+func TestSyncRemovesStaleManagedSkillPackages(t *testing.T) {
 	root := t.TempDir()
 
 	if _, err := Sync(root); err != nil {
@@ -143,7 +168,19 @@ func TestSyncRemovesOrphanedManagedSkillFiles(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(orphanPath), 0o755); err != nil {
 		t.Fatalf("mkdir orphan dir: %v", err)
 	}
-	if err := os.WriteFile(orphanPath, []byte("orphan"), 0o644); err != nil {
+	orphanBody := strings.Join([]string{
+		"---",
+		"name: orphan",
+		"description: stale easyharness-managed skill.",
+		"metadata:",
+		"  easyharness-managed: \"true\"",
+		"  easyharness-version: dev",
+		"---",
+		"",
+		"# Orphan",
+		"",
+	}, "\n")
+	if err := os.WriteFile(orphanPath, []byte(orphanBody), 0o644); err != nil {
 		t.Fatalf("write orphan skill: %v", err)
 	}
 
@@ -157,7 +194,7 @@ func TestSyncRemovesOrphanedManagedSkillFiles(t *testing.T) {
 
 	found := false
 	for _, action := range result.Actions {
-		if action.Path == ".agents/skills/orphan/SKILL.md" && action.Kind == actionDelete {
+		if action.Path == ".agents/skills/orphan/SKILL.md" && action.Kind == install.ActionDelete {
 			found = true
 			break
 		}

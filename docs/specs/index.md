@@ -9,8 +9,12 @@
 - [Plan Schema](./plan-schema.md): shared plan contract for tracked `standard`
   and `lightweight` plans, their markdown-led package layout, and local state
   expectations.
+- [Bootstrap Install](./bootstrap-install.md): normative bootstrap resource
+  model for `harness init`, `harness skills ...`, and
+  `harness instructions ...`, including ownership, version markers, and
+  support boundaries.
 - [CLI Contract](./cli-contract.md): agent-facing command surface and JSON
-  contract, including repository bootstrap through `harness install`.
+  contract, including how the bootstrap commands fit into the overall CLI.
 - [Contract Registry](./contract.md): normative guide to the checked-in JSON
   Schema registry, its ownership model, the public-vs-runtime boundary, and
   what is intentionally not rendered as duplicated markdown.

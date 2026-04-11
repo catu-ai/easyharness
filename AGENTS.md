@@ -48,8 +48,8 @@ If you change Go CLI code, rerun the installer before relying on the direct
 
 ## Bootstrap Asset Editing
 
-This repository dogsfoods the same bootstrap assets that `harness install`
-packages for other repositories.
+This repository dogsfoods the same bootstrap assets that `harness init` and
+the bootstrap resource commands package for other repositories.
 
 - Edit `assets/bootstrap/` when changing the harness-managed skill pack or the
   managed `AGENTS.md` block content.
@@ -61,10 +61,10 @@ packages for other repositories.
   managed markers below.
 
 The block below is the same harness-managed repository contract that
-`harness install --scope agents` would install into another repository.
+`harness instructions install` would install into another repository.
 Keep easyharness-specific guidance outside the managed markers.
 
-<!-- easyharness:begin -->
+<!-- easyharness:begin version="dev" -->
 ## Harness Working Agreement
 
 1. Humans steer. Agents execute.
@@ -86,7 +86,7 @@ The default harness split in this repository is:
 - `.local/harness/plans/archived/`: archived lightweight plan snapshots
 - `.local/harness/`: disposable runtime state, review artifacts, evidence artifacts, and trajectory
 - `docs/specs/`: normative harness contracts
-- `.agents/skills/`: repo-local harness workflow skills
+- `.agents/skills`: repo-local harness workflow skills
 
 If a tracked plan conflicts with a repo-local skill, the tracked plan wins.
 

@@ -1,6 +1,9 @@
 ---
 name: harness-plan
 description: Create or update a tracked harness plan for medium/large work once the direction is clear enough to execute. Use this when work needs a self-contained plan that a future agent can complete from the repository alone, without relying on discovery chat or hidden session memory.
+metadata:
+    easyharness-managed: "true"
+    easyharness-version: dev
 ---
 
 # Harness Plan

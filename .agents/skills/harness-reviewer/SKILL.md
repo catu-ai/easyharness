@@ -1,6 +1,9 @@
 ---
 name: harness-reviewer
 description: Use when acting as a dedicated reviewer subagent for one assigned harness review slot in an existing review round and you need to inspect the change, write structured findings, and submit them through `harness review submit`. This skill is only for reviewer subagents, not for the controller agent.
+metadata:
+    easyharness-managed: "true"
+    easyharness-version: dev
 ---
 
 # Harness Reviewer

@@ -69,8 +69,12 @@ func (a *App) Run(args []string) int {
 		return a.runReopen(args[1:])
 	case "status":
 		return a.runStatus(args[1:])
-	case "install":
-		return a.runInstall(args[1:])
+	case "init":
+		return a.runInit(args[1:])
+	case "skills":
+		return a.runSkills(args[1:])
+	case "instructions":
+		return a.runInstructions(args[1:])
 	case "ui":
 		return a.runUI(args[1:])
 	case "-h", "--help", "help":
@@ -297,15 +301,17 @@ func (a *App) runLandEntry(args []string) int {
 	return a.writeJSONResult(result)
 }
 
-func (a *App) runInstall(args []string) int {
-	fs := flag.NewFlagSet("harness install", flag.ContinueOnError)
+func (a *App) runInit(args []string) int {
+	fs := flag.NewFlagSet("harness init", flag.ContinueOnError)
 	fs.SetOutput(a.Stderr)
-	scope := fs.String("scope", install.ScopeAll, "Install scope: agents, skills, or all.")
+	agent := fs.String("agent", "", "Agent profile name used for default targets. Defaults to codex.")
+	skillsDir := fs.String("dir", "", "Override the skills target directory.")
+	instructionsFile := fs.String("file", "", "Override the instructions target file.")
 	dryRun := fs.Bool("dry-run", false, "Show the planned repository changes without writing files.")
 	fs.Usage = func() {
-		fmt.Fprintln(a.Stderr, "Usage: harness install [--scope <agents|skills|all>] [--dry-run]")
+		fmt.Fprintln(a.Stderr, "Usage: harness init [--agent <name>] [--dir <path>] [--file <path>] [--dry-run]")
 		fmt.Fprintln(a.Stderr)
-		fmt.Fprintln(a.Stderr, "Install or refresh the harness-managed repository bootstrap for the current repo.")
+		fmt.Fprintln(a.Stderr, "Install or refresh the managed bootstrap instructions and skill pack for the current repository.")
 		fmt.Fprintln(a.Stderr)
 		fs.PrintDefaults()
 	}
@@ -324,11 +330,152 @@ func (a *App) runInstall(args []string) int {
 		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
 		return 1
 	}
-	result := install.Service{Workdir: workdir}.Install(install.Options{
-		Scope:  *scope,
+	result := install.Service{Workdir: workdir}.Init(install.Options{
+		Agent:            *agent,
+		SkillsDir:        *skillsDir,
+		InstructionsFile: *instructionsFile,
 		DryRun: *dryRun,
 	})
 	return a.writeJSONResult(result)
+}
+
+func (a *App) runSkills(args []string) int {
+	if len(args) == 0 {
+		a.printSkillsUsage()
+		return 2
+	}
+	switch args[0] {
+	case "install":
+		return a.runSkillsInstall(args[1:])
+	case "uninstall":
+		return a.runSkillsUninstall(args[1:])
+	case "-h", "--help", "help":
+		a.printSkillsUsage()
+		return 0
+	default:
+		fmt.Fprintf(a.Stderr, "unknown skills subcommand %q\n\n", args[0])
+		a.printSkillsUsage()
+		return 2
+	}
+}
+
+func (a *App) runInstructions(args []string) int {
+	if len(args) == 0 {
+		a.printInstructionsUsage()
+		return 2
+	}
+	switch args[0] {
+	case "install":
+		return a.runInstructionsInstall(args[1:])
+	case "uninstall":
+		return a.runInstructionsUninstall(args[1:])
+	case "-h", "--help", "help":
+		a.printInstructionsUsage()
+		return 0
+	default:
+		fmt.Fprintf(a.Stderr, "unknown instructions subcommand %q\n\n", args[0])
+		a.printInstructionsUsage()
+		return 2
+	}
+}
+
+func (a *App) runSkillsInstall(args []string) int {
+	return a.runSkillsCommand("harness skills install", args, true)
+}
+
+func (a *App) runSkillsUninstall(args []string) int {
+	return a.runSkillsCommand("harness skills uninstall", args, false)
+}
+
+func (a *App) runSkillsCommand(name string, args []string, installOp bool) int {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	scope := fs.String("scope", install.ScopeRepo, "Skills scope: repo or user.")
+	agent := fs.String("agent", "", "Agent profile name used for default targets. Defaults to codex.")
+	dir := fs.String("dir", "", "Override the skills target directory.")
+	dryRun := fs.Bool("dry-run", false, "Show the planned changes without writing files.")
+	fs.Usage = func() {
+		fmt.Fprintf(a.Stderr, "Usage: %s [--scope <repo|user>] [--agent <name>] [--dir <path>] [--dry-run]\n", name)
+		fmt.Fprintln(a.Stderr)
+		if installOp {
+			fmt.Fprintln(a.Stderr, "Install or refresh the managed bootstrap skill pack.")
+		} else {
+			fmt.Fprintln(a.Stderr, "Remove easyharness-managed skill packages from the resolved target directory.")
+		}
+		fmt.Fprintln(a.Stderr)
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	service := install.Service{Workdir: workdir}
+	opts := install.Options{Scope: *scope, Agent: *agent, SkillsDir: *dir, DryRun: *dryRun}
+	if installOp {
+		return a.writeJSONResult(service.InstallSkills(opts))
+	}
+	return a.writeJSONResult(service.UninstallSkills(opts))
+}
+
+func (a *App) runInstructionsInstall(args []string) int {
+	return a.runInstructionsCommand("harness instructions install", args, true)
+}
+
+func (a *App) runInstructionsUninstall(args []string) int {
+	return a.runInstructionsCommand("harness instructions uninstall", args, false)
+}
+
+func (a *App) runInstructionsCommand(name string, args []string, installOp bool) int {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	scope := fs.String("scope", install.ScopeRepo, "Instructions scope: repo or user.")
+	agent := fs.String("agent", "", "Agent profile name used for default targets. Defaults to codex.")
+	file := fs.String("file", "", "Override the instructions target file.")
+	dir := fs.String("dir", "", "Override the paired skills directory used when rendering the managed block.")
+	dryRun := fs.Bool("dry-run", false, "Show the planned changes without writing files.")
+	fs.Usage = func() {
+		fmt.Fprintf(a.Stderr, "Usage: %s [--scope <repo|user>] [--agent <name>] [--file <path>] [--dir <path>] [--dry-run]\n", name)
+		fmt.Fprintln(a.Stderr)
+		if installOp {
+			fmt.Fprintln(a.Stderr, "Install or refresh the easyharness-managed bootstrap block in the target instructions file.")
+		} else {
+			fmt.Fprintln(a.Stderr, "Remove the easyharness-managed bootstrap block from the target instructions file.")
+		}
+		fmt.Fprintln(a.Stderr)
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	service := install.Service{Workdir: workdir}
+	opts := install.Options{Scope: *scope, Agent: *agent, SkillsDir: *dir, InstructionsFile: *file, DryRun: *dryRun}
+	if installOp {
+		return a.writeJSONResult(service.InstallInstructions(opts))
+	}
+	return a.writeJSONResult(service.UninstallInstructions(opts))
 }
 
 func (a *App) runUI(args []string) int {
@@ -809,7 +956,9 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "  archive         Freeze the current active plan")
 	fmt.Fprintln(a.Stderr, "  reopen          Restore the current archived plan")
 	fmt.Fprintln(a.Stderr, "  status          Summarize the current plan and local execution state")
-	fmt.Fprintln(a.Stderr, "  install         Install or refresh the harness-managed repository bootstrap")
+	fmt.Fprintln(a.Stderr, "  init            Install or refresh the managed bootstrap resources for the current repository")
+	fmt.Fprintln(a.Stderr, "  skills          Manage easyharness skill packages")
+	fmt.Fprintln(a.Stderr, "  instructions    Manage easyharness instruction files and managed blocks")
 	fmt.Fprintln(a.Stderr, "  ui              Start the local read-only harness UI workbench")
 }
 
@@ -842,6 +991,22 @@ func (a *App) printEvidenceUsage() {
 	fmt.Fprintln(a.Stderr)
 	fmt.Fprintln(a.Stderr, "Subcommands:")
 	fmt.Fprintln(a.Stderr, "  submit     Record append-only CI, publish, or sync evidence")
+}
+
+func (a *App) printSkillsUsage() {
+	fmt.Fprintln(a.Stderr, "Usage: harness skills <subcommand> [flags]")
+	fmt.Fprintln(a.Stderr)
+	fmt.Fprintln(a.Stderr, "Subcommands:")
+	fmt.Fprintln(a.Stderr, "  install    Install or refresh easyharness-managed skill packages")
+	fmt.Fprintln(a.Stderr, "  uninstall  Remove easyharness-managed skill packages")
+}
+
+func (a *App) printInstructionsUsage() {
+	fmt.Fprintln(a.Stderr, "Usage: harness instructions <subcommand> [flags]")
+	fmt.Fprintln(a.Stderr)
+	fmt.Fprintln(a.Stderr, "Subcommands:")
+	fmt.Fprintln(a.Stderr, "  install    Install or refresh the easyharness-managed bootstrap block")
+	fmt.Fprintln(a.Stderr, "  uninstall  Remove the easyharness-managed bootstrap block")
 }
 
 func (a *App) printLandUsage() {

@@ -1,36 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/install.result.schema.json",
-  "$ref": "#/$defs/InstallResult",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/bootstrap.result.schema.json",
+  "$ref": "#/$defs/BootstrapResult",
   "$defs": {
-    "ErrorDetail": {
+    "BootstrapAction": {
       "properties": {
         "path": {
           "type": "string",
-          "description": "Path identifies the field, section, or artifact path associated with the error."
-        },
-        "message": {
-          "type": "string",
-          "description": "Message is the human-readable explanation of the problem."
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "path",
-        "message"
-      ],
-      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
-    },
-    "InstallAction": {
-      "properties": {
-        "path": {
-          "type": "string",
-          "description": "Path is the repository-relative file path touched by the action."
+          "description": "Path is the file or directory path touched by the action."
         },
         "kind": {
           "type": "string",
-          "description": "Kind is the coarse action kind such as create, update, or noop."
+          "description": "Kind is the coarse action kind such as create, update, delete, or noop."
         },
         "details": {
           "type": "string",
@@ -44,9 +25,9 @@
         "kind",
         "details"
       ],
-      "description": "InstallAction describes one file-level change planned or applied by `harness install`."
+      "description": "BootstrapAction describes one path-level change planned or applied by a bootstrap resource command."
     },
-    "InstallResult": {
+    "BootstrapResult": {
       "properties": {
         "ok": {
           "type": "boolean",
@@ -64,24 +45,36 @@
           "type": "string",
           "description": "Mode indicates whether the command applied changes or only planned them."
         },
+        "resource": {
+          "type": "string",
+          "description": "Resource identifies the managed bootstrap surface."
+        },
+        "operation": {
+          "type": "string",
+          "description": "Operation identifies the resource action such as install or uninstall."
+        },
         "scope": {
           "type": "string",
-          "description": "Scope is the resolved install scope."
+          "description": "Scope is the resolved resource scope such as repo or user."
+        },
+        "agent": {
+          "type": "string",
+          "description": "Agent is the resolved agent profile name used for defaults."
         },
         "actions": {
           "oneOf": [
             {
               "items": {
-                "$ref": "#/$defs/InstallAction"
+                "$ref": "#/$defs/BootstrapAction"
               },
               "type": "array",
-              "description": "Actions lists the planned or executed file-level install actions."
+              "description": "Actions lists the planned or executed path-level actions."
             },
             {
               "type": "null"
             }
           ],
-          "description": "Actions lists the planned or executed file-level install actions."
+          "description": "Actions lists the planned or executed path-level actions."
         },
         "next_actions": {
           "oneOf": [
@@ -103,7 +96,7 @@
             "$ref": "#/$defs/ErrorDetail"
           },
           "type": "array",
-          "description": "Errors lists hard failures that prevented install preparation or writes."
+          "description": "Errors lists hard failures that prevented planning or writes."
         }
       },
       "additionalProperties": false,
@@ -113,11 +106,33 @@
         "command",
         "summary",
         "mode",
+        "resource",
+        "operation",
         "scope",
+        "agent",
         "actions",
         "next_actions"
       ],
-      "description": "InstallResult is the JSON result returned by `harness install`."
+      "description": "BootstrapResult is the JSON result returned by bootstrap resource commands such as `harness init`, `harness skills install`, or `harness instructions uninstall`."
+    },
+    "ErrorDetail": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path identifies the field, section, or artifact path associated with the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message is the human-readable explanation of the problem."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "message"
+      ],
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
     },
     "NextAction": {
       "properties": {
@@ -147,6 +162,6 @@
       "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
     }
   },
-  "title": "Install command result",
-  "description": "JSON output for `harness install`."
+  "title": "Bootstrap command result",
+  "description": "JSON output shared by bootstrap resource commands such as `harness init`, `harness skills install`, and `harness instructions uninstall`."
 }
