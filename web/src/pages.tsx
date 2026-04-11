@@ -21,11 +21,11 @@ import {
   reviewRoundAriaLabel,
   reviewRoundCompactMeta,
   reviewRoundCompactStatusLabel,
+  reviewRoundExplorerMetaLabel,
   reviewRoundListLabel,
   reviewRawSubmissionText,
   reviewRoundStatusLabel,
   reviewRoundStatusTone,
-  reviewRoundSubtitle,
   reviewRoundTitle,
   sortTimelineEvents,
   timelineEventSubtitle,
@@ -1119,9 +1119,7 @@ export function ReviewWorkspace(props: {
                 title={reviewRoundTitle(round)}
                 subtitle={
                   <div class="review-explorer-subtitle">
-                    <span class="review-explorer-meta">
-                      {reviewRoundSubtitle(round)} · {reviewCountLabel(round.submitted_slots)}/{reviewCountLabel(round.total_slots)} submitted
-                    </span>
+                    <span class="review-explorer-meta">{reviewRoundExplorerMetaLabel(round)}</span>
                     <span class={`review-round-status-text is-${reviewRoundStatusTone(round)}`}>{reviewRoundCompactStatusLabel(round)}</span>
                   </div>
                 }

@@ -50,8 +50,8 @@ repository-visible form.
 
 ## Acceptance Criteria
 
-- [x] Review explorer rows render the title on the first line and
-      `Step x · a/b submitted · STATUS` style metadata on the second line.
+- [x] Review explorer rows render the title on the first line and compact
+      `Step x · a/b · STATUS` style metadata on the second line.
 - [x] The review explorer no longer renders the extra per-row status dot, and
       narrow explorer widths do not force the title and status to compete on
       the same line.
@@ -103,7 +103,9 @@ colored trailing edge and a textual status label, so remove it in this slice.
 #### Execution Notes
 
 Updated the review explorer row rendering to use the title on line one and a
-wrapped metadata row on line two: `Step x · a/b submitted · STATUS`. Expanded
+wrapped metadata row on line two. The final compact form is
+`Step x · a/b · STATUS`-style metadata so the narrowest explorer width still
+keeps the status visible. Expanded
 `ExplorerItem` to accept richer subtitle/meta children so the review page could
 render the new inline structure without special-casing the base component.
 Removed the extra review status dot and retuned the compact status styling to
@@ -115,7 +117,11 @@ targeted static validation plus browser inspection of the live shell.
 Finalize review `review-001-full` then found that the second metadata line was
 still not width-constrained enough at the 220px minimum explorer width, so the
 repair tightened the subtitle container into a real two-column row with an
-ellipsis-prone metadata cell and a fixed visible status cell.
+ellipsis-prone metadata cell and a fixed visible status cell. Follow-up delta
+review `review-002-delta` then exposed that the saved explorer evidence path
+was still carrying an older screenshot and that the longer `submitted` copy was
+using too much space; the repair compacted the metadata label to `a/b` and
+refreshed `output/playwright/review-explorer-row-220.png` from the rebuilt UI.
 
 #### Review Notes
 
