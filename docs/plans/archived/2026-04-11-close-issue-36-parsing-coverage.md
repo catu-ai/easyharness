@@ -57,20 +57,20 @@ available from a first fuzzing pass.
 
 ## Acceptance Criteria
 
-- [ ] `internal/plan` has new package-level fuzz or property-style coverage for
+- [x] `internal/plan` has new package-level fuzz or property-style coverage for
       parsing-heavy plan inputs, and the targeted surfaces do not panic when
       fed arbitrary data plus seeded canonical plan examples.
-- [ ] Canonical valid-plan seeds assert at least one stable plan invariant such
+- [x] Canonical valid-plan seeds assert at least one stable plan invariant such
       as: lint success and document loading stay aligned, current-step
       detection remains deterministic, or archive-readiness helpers stay
       coherent after successful parsing.
-- [ ] `internal/inputschema` has new fuzz or property-style coverage for path
+- [x] `internal/inputschema` has new fuzz or property-style coverage for path
       rendering and validation-error normalization, including nested-array
       paths, quoted-property extraction, and parent-issue pruning behavior.
-- [ ] Any touched `internal/evidence` regression coverage stays narrowly tied
+- [x] Any touched `internal/evidence` regression coverage stays narrowly tied
       to schema-decoding behavior and does not expand into resilience-style
       malformed-artifact recovery.
-- [ ] The slice documents, through plan execution notes and closeout, that
+- [x] The slice documents, through plan execution notes and closeout, that
       review artifact readers and historical evidence-record readers were
       evaluated but were not required additions for closing `#36`.
 
@@ -224,25 +224,68 @@ step materially advances `#36` while staying bounded away from `reviewui`,
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- Added `internal/plan/fuzz_test.go` with canonical active, archived, and
+  archived lightweight plan seeds; a tracked-plan corpus lint/load agreement
+  property; and a bounded fuzz target covering arbitrary plan-file inputs.
+- Added `internal/inputschema/fuzz_test.go` with helper-level path
+  normalization properties plus a schema-backed fuzz target for `Validate`.
+- Validation runs:
+  - `go test ./internal/plan`
+  - `go test -run=^$ -fuzz=FuzzLintFileAndLoadFileAgreement -fuzztime=2s ./internal/plan`
+  - `go test ./internal/inputschema`
+  - `go test -run=^$ -fuzz=FuzzValidateNormalizesIssuePaths -fuzztime=2s ./internal/inputschema`
+  - `go test ./internal/plan ./internal/inputschema ./internal/evidence`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-delta`
+  - passed with one non-blocking correctness finding about one-way lint/load
+    agreement in the initial fuzz target
+  - repaired by requiring exact canonical seeds in the fuzz baseline to
+    continue linting and loading cleanly
+- `review-002-delta`
+  - passed clean with no findings on the `internal/inputschema` coverage and
+    bounded issue-closure rationale
+- `review-003-full`
+  - passed clean with no findings across correctness, tests, and docs
+    consistency for the full candidate
+- The final candidate is archive-ready after the clean full review and green
+  validation runs.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-04-11T21:55:34+08:00
+- Revision: 1
+- PR: NONE. The candidate has not been pushed or opened as a PR yet.
+- Ready: The branch is archive-ready locally after the clean finalize review
+  and focused parsing-coverage validation runs.
+- Merge Handoff: Archive the plan, commit the archive move, push
+  `codex/close-issue-36-parsing-coverage`, open or update the PR, and record
+  publish, CI, and sync evidence before treating the candidate as waiting for
+  merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added focused parsing-heavy fuzz/property coverage in `internal/plan` that
+  exercises plan-file parsing across canonical seeds, tracked-plan corpus
+  inputs, and bounded arbitrary plan content.
+- Added focused parsing-heavy fuzz/property coverage in `internal/inputschema`
+  for JSON-pointer rendering, quoted-property extraction, parent-issue
+  pruning, and schema-backed validation-error normalization.
+- Documented and validated the bounded closure rationale for `#36`: keep
+  `internal/evidence` at the command-boundary consumer level and rely on the
+  repository's existing deterministic malformed-artifact tests in
+  `internal/reviewui` rather than widening this slice into resilience work.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No new fuzz target was added for `internal/reviewui` artifact recovery.
+- No new fuzz target was added for historical evidence-record loading in
+  `internal/evidence`.
+- No deterministic resilience coverage, repo-level lifecycle E2E expansion, or
+  `tests/support/` work was added in this slice.
 
 ### Follow-Up Issues
 
