@@ -430,6 +430,54 @@ func TestInstructionsInstallRefreshesExistingManagedBlockAndThenNoops(t *testing
 	}
 }
 
+func TestInitSupportsExplicitOverrideTargetsViaCLI(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+
+	result := support.Run(t, workspace.Root, "init", "--agent", "claude", "--dir", ".claude/skills", "--file", "CLAUDE.md")
+	support.RequireSuccess(t, result)
+	support.RequireNoStderr(t, result)
+
+	payload := support.RequireJSONResult[bootstrapResult](t, result)
+	if !payload.OK || payload.Command != "init" || payload.Resource != "bootstrap" {
+		t.Fatalf("unexpected init override payload: %#v", payload)
+	}
+	support.RequireFileExists(t, workspace.Path("CLAUDE.md"))
+	support.RequireFileExists(t, workspace.Path(".claude/skills/harness-discovery/SKILL.md"))
+}
+
+func TestSkillsAndInstructionsInstallSupportUserScopeViaCLI(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	codexHome := workspace.Path("tmp/codex-home")
+
+	skillsResult := support.RunWithOptions(t, support.RunOptions{
+		Workdir: workspace.Root,
+		Args:    []string{"skills", "install", "--scope", "user"},
+		Env:     []string{"CODEX_HOME=" + codexHome},
+	})
+	support.RequireSuccess(t, skillsResult)
+	support.RequireNoStderr(t, skillsResult)
+
+	skillsPayload := support.RequireJSONResult[bootstrapResult](t, skillsResult)
+	if !skillsPayload.OK || skillsPayload.Command != "skills install" || skillsPayload.Scope != "user" {
+		t.Fatalf("unexpected user-scope skills payload: %#v", skillsPayload)
+	}
+	support.RequireFileExists(t, filepath.Join(codexHome, "skills/harness-discovery/SKILL.md"))
+
+	instructionsResult := support.RunWithOptions(t, support.RunOptions{
+		Workdir: workspace.Root,
+		Args:    []string{"instructions", "install", "--scope", "user"},
+		Env:     []string{"CODEX_HOME=" + codexHome},
+	})
+	support.RequireSuccess(t, instructionsResult)
+	support.RequireNoStderr(t, instructionsResult)
+
+	instructionsPayload := support.RequireJSONResult[bootstrapResult](t, instructionsResult)
+	if !instructionsPayload.OK || instructionsPayload.Command != "instructions install" || instructionsPayload.Scope != "user" {
+		t.Fatalf("unexpected user-scope instructions payload: %#v", instructionsPayload)
+	}
+	support.RequireFileExists(t, filepath.Join(codexHome, "AGENTS.md"))
+}
+
 func TestSupportRunUsesBuiltBinaryInsteadOfPATH(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 	poisonDir := workspace.Path("tmp/poison-bin")
