@@ -1118,16 +1118,9 @@ export function ReviewWorkspace(props: {
                 ariaLabel={reviewRoundAriaLabel(round)}
                 title={reviewRoundTitle(round)}
                 subtitle={
-                  <div class="review-explorer-meta">
-                    <span>{reviewRoundSubtitle(round)}</span>
-                    <span class="review-explorer-meta-separator" aria-hidden="true">
-                      ·
-                    </span>
-                    <span>
-                      {reviewCountLabel(round.submitted_slots)}/{reviewCountLabel(round.total_slots)} submitted
-                    </span>
-                    <span class="review-explorer-meta-separator" aria-hidden="true">
-                      ·
+                  <div class="review-explorer-subtitle">
+                    <span class="review-explorer-meta">
+                      {reviewRoundSubtitle(round)} · {reviewCountLabel(round.submitted_slots)}/{reviewCountLabel(round.total_slots)} submitted
                     </span>
                     <span class={`review-round-status-text is-${reviewRoundStatusTone(round)}`}>{reviewRoundCompactStatusLabel(round)}</span>
                   </div>

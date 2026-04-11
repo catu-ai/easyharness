@@ -112,6 +112,10 @@ this step because the bug was a visual layout regression in an existing
 read-only UI flow without a focused populated-review fixture that could first
 express the failure as an automated red test; instead, the slice relied on
 targeted static validation plus browser inspection of the live shell.
+Finalize review `review-001-full` then found that the second metadata line was
+still not width-constrained enough at the 220px minimum explorer width, so the
+repair tightened the subtitle container into a real two-column row with an
+ellipsis-prone metadata cell and a fixed visible status cell.
 
 #### Review Notes
 
@@ -157,7 +161,11 @@ Rebuilt the embedded UI assets under `internal/ui/static/*` so the shipped Go
 binary sees the updated frontend. This stayed in the same non-TDD validation
 path as Step 1 because the change was a presentation-only hierarchy adjustment
 inside the same UI slice rather than a contract or state transition that could
-be proved first with a narrow failing unit test.
+be proved first with a narrow failing unit test. After `review-001-full`
+requested stronger evidence for populated review data, the repair loop used the
+current worktree's real review round to capture browser evidence at the minimum
+review explorer width in `output/playwright/review-explorer-row-220.png` and
+`output/playwright/review-header-meta.png`.
 
 #### Review Notes
 
@@ -170,9 +178,9 @@ does not benefit from a synthetic intermediate review boundary.
 - Run `pnpm --dir web build` to refresh and validate the embedded static UI
   assets.
 - Use `git diff --check` to catch formatting or whitespace mistakes.
-- Open the local `harness ui` review route in a browser to sanity-check the
-  page shell, while noting that this worktree does not currently have populated
-  review data to render the exact screenshot state.
+- Open the local `harness ui` review route in a browser and capture saved
+  screenshots against the populated review data now present in this worktree,
+  specifically at the 220px explorer-width setting for the review page.
 
 ## Risks
 

@@ -370,6 +370,7 @@ code {
 }
 
 .explorer-item-subtitle {
+  min-width: 0;
   color: var(--text-muted);
   font-size: 0.63rem;
   line-height: 1.35;
@@ -777,15 +778,20 @@ body.is-resizing-workbench .workbench-divider::before {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.review-explorer-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.12rem 0.28rem;
+.review-explorer-subtitle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.35rem;
   min-width: 0;
+  width: 100%;
 }
 
-.review-explorer-meta-separator {
-  color: rgba(255, 255, 255, 0.22);
+.review-explorer-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .review-round-status-text {
@@ -794,6 +800,8 @@ body.is-resizing-workbench .workbench-divider::before {
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  justify-self: end;
+  white-space: nowrap;
 }
 
 .review-round-status-text.is-good {
