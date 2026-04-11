@@ -348,7 +348,9 @@ code {
 
 .explorer-item-main {
   min-width: 0;
+  width: 100%;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.16rem;
 }
 
@@ -357,9 +359,12 @@ code {
   align-items: center;
   justify-content: space-between;
   gap: 0.55rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .explorer-item-title {
+  flex: 1 1 auto;
   min-width: 0;
   color: var(--text-strong);
   font-size: 0.74rem;
@@ -785,6 +790,7 @@ body.is-resizing-workbench .workbench-divider::before {
   gap: 0.35rem;
   min-width: 0;
   width: 100%;
+  max-width: 100%;
 }
 
 .review-explorer-meta {

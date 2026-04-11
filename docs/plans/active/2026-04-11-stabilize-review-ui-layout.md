@@ -122,6 +122,12 @@ review `review-002-delta` then exposed that the saved explorer evidence path
 was still carrying an older screenshot and that the longer `submitted` copy was
 using too much space; the repair compacted the metadata label to `a/b` and
 refreshed `output/playwright/review-explorer-row-220.png` from the rebuilt UI.
+Delta review `review-003-delta` then caught one more real containment gap: the
+row's outer button still had `scrollWidth > clientWidth` because
+`.explorer-item-main` lacked an explicit `minmax(0, 1fr)` grid track. The
+repair added that track plus `max-width: 100%` constraints so a true 220px
+measurement now shows the button, main column, row, and subtitle all fully
+contained while the long title text alone truncates by ellipsis.
 
 #### Review Notes
 
@@ -187,6 +193,9 @@ does not benefit from a synthetic intermediate review boundary.
 - Open the local `harness ui` review route in a browser and capture saved
   screenshots against the populated review data now present in this worktree,
   specifically at the 220px explorer-width setting for the review page.
+- Use browser-side DOM measurements at the 220px explorer width to confirm the
+  review row container itself is contained (`clientWidth == scrollWidth`) even
+  when the title text still needs ellipsis.
 
 ## Risks
 
