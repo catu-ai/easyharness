@@ -122,7 +122,14 @@ introducing new runtime behavior; focused validation passed with
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` requested changes because no automated test anchored the
+live repository `VERSION` bump to the tag output path. Repaired that gap by
+adding `TestRepositoryVersionFileResolvesMatchingReleaseTag` in
+`tests/smoke/release_version_file_test.go`, which reads the tracked root
+`VERSION` file and asserts `scripts/read-release-version --tag` returns the
+matching `v*` tag for the live repository state. Focused repair validation
+passed with `scripts/read-release-version --tag` and
+`go test ./tests/smoke -run 'TestRepositoryVersionFileUsesUnprefixedReleaseVersion|TestRepositoryVersionFileResolvesMatchingReleaseTag|TestReadReleaseVersionOutputsVersionAndTag|TestReadReleaseVersionRejectsPrefixedVersionFile|TestReadReleaseVersionRejectsMissingVersionFile|TestReadReleaseVersionRejectsEmptyVersionFile|TestReadReleaseVersionRejectsVersionThatCannotFormGitTag' -count=1`. A fresh delta review is still required before Step 1 can close.
 
 ### Step 2: Validate the release bump and prepare merge-ready handoff
 
