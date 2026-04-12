@@ -750,7 +750,7 @@ Purpose:
 Contract:
 
 - require the current plan to be active
-- require `--by=human`
+- require `--by human`
 - treat this command as a trust-based workflow acknowledgment rather than a
   strong identity check; harness records the approval boundary but does not
   authenticate the actor

@@ -75,7 +75,7 @@ Use this skill to create or update the tracked plan that will drive execution.
    - the original task request does not count as approval for the newly
      written plan
    - once the human approves the plan, record that boundary explicitly with
-     `harness plan approve --by=human`
+     `harness plan approve --by human`
    - if the approved execution loop is likely to require reviewer subagents,
      ask for explicit subagent authorization in the same approval exchange so
      execution does not stall later at review time
@@ -91,7 +91,7 @@ The plan is ready when:
 
 - lint passes
 - the resulting tracked plan would resolve to `plan` until
-  `harness plan approve --by=human` and then `harness execute start` are
+  `harness plan approve --by human` and then `harness execute start` are
   recorded
 - when the plan is lightweight, a future agent could still explain why
   lightweight was eligible, know that lightweight is only for `XXS` work, know

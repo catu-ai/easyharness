@@ -195,9 +195,7 @@ Reviewer subagents should submit through:
 harness review submit --round <round-id> --slot <slot> --by <reviewer-name> --input <path>
 ```
 
-The controller must not submit reviewer results on a reviewer's behalf. The
-`--by` value is a lightweight role cue and provenance hint, not a strong
-identity check.
+The controller must not submit reviewer results on a reviewer's behalf.
 
 Reviewer submissions may include optional finding `locations` arrays using
 lightweight repo-relative anchors such as `path/to/file.go`,

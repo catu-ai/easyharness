@@ -165,8 +165,8 @@ approved_at: 2026-03-17T10:30:00+08:00
   - supported values are `XXS`, `XS`, `S`, `M`, `L`, `XL`, and `XXL`
   - size describes magnitude, coordination weight, and review load; it does
     not by itself prove the work is low-risk
-  - size and `workflow_profile` are separate decisions; small sizes such as
-    `XXS` or `XS` may still use the ordinary `standard` workflow
+  - size and `workflow_profile` are separate decisions; `XXS` may still use
+    the ordinary `standard` workflow
   - `XXS` is the only size that may use `workflow_profile: lightweight`
   - an initial `XXL` estimate is a planning warning, not a routine default:
     before execution approval, the controller should stop, confirm the size
@@ -206,7 +206,7 @@ approved_at: 2026-03-17T10:30:00+08:00
 - `approved_at`
   - optional RFC3339 timestamp with offset
   - records when an active tracked plan was explicitly approved through the
-    harness workflow, for example via `harness plan approve --by=human`
+    harness workflow, for example via `harness plan approve --by human`
   - historical plans that predate the explicit approval command may omit this
     field without backfill
   - when present, it marks approval of the tracked markdown plan package,

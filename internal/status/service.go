@@ -656,7 +656,7 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 		if !planApproved {
 			return []NextAction{
 				{Command: nil, Description: "Ask the human to approve the tracked plan before execution begins."},
-				{Command: strPtr("harness plan approve --by=human"), Description: "After the human approves in chat, record that approval boundary on the tracked plan."},
+				{Command: strPtr("harness plan approve --by human"), Description: "After the human approves in chat, record that approval boundary on the tracked plan."},
 				{Command: nil, Description: "If scope changed before approval, update the tracked plan first."},
 			}
 		}

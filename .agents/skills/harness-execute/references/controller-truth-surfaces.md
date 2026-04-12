@@ -5,9 +5,6 @@ self-check for the controller, not a second reviewer protocol.
 
 ## Pre-Review
 
-- approval truth
-  - verify the plan is actually approved before starting execution-sensitive
-    work; the original task request is not enough for a newly written plan
 - scope truth
   - decide whether this round is really `delta` or `full`, and say why a
     narrower or broader pass would be less trustworthy
@@ -27,7 +24,7 @@ self-check for the controller, not a second reviewer protocol.
 
 - reviewer identity truth
   - verify each submission came from a bounded reviewer slot using
-    `harness review submit --by=...`, not from the controller thread standing
+    `harness review submit --by <reviewer-name>`, not from the controller thread standing
     in as its own reviewer
 - submission truth
   - verify every expected slot submitted a real result rather than a missing,

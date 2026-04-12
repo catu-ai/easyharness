@@ -52,7 +52,7 @@ func (s Service) ExecuteStart() Result {
 	if !doc.ExplicitlyApproved() && !doc.ExecutionStarted(state) {
 		return errorResult("execute start", "Current plan is waiting for recorded human approval.", []CommandError{{
 			Path:    "frontmatter.approved_at",
-			Message: "record plan approval with `harness plan approve --by=human` after the human approves execution",
+			Message: "record plan approval with `harness plan approve --by human` after the human approves execution",
 		}})
 	}
 
@@ -148,7 +148,7 @@ func (s Service) PlanApprove(by string) Result {
 	if normalizedBy != "human" {
 		return errorResult("plan approve", "Plan approval must be recorded as a human decision.", []CommandError{{
 			Path:    "by",
-			Message: "expected `--by=human`",
+			Message: "expected `--by human`",
 		}})
 	}
 

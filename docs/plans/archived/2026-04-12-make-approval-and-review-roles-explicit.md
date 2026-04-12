@@ -24,7 +24,7 @@ system assumes agents will not fabricate human approval, but the command
 surface should make the required steps much harder to miss.
 
 The main product change is a new explicit approval step in the plan lifecycle:
-`harness plan approve --by=human`. Approval becomes a durable tracked plan
+`harness plan approve --by human`. Approval becomes a durable tracked plan
 fact through `approved_at` frontmatter, while `harness execute start` remains a
 separate execution milestone and refuses to proceed until approval is recorded.
 Review submission should gain a similar lightweight role cue through a `--by`
@@ -35,7 +35,7 @@ work without turning harness into an identity-verification system.
 
 ### In Scope
 
-- Add a new `harness plan approve --by=human` command to make human approval an
+- Add a new `harness plan approve --by human` command to make human approval an
   explicit workflow transition before execution starts.
 - Extend the tracked plan contract to carry a durable `approved_at` frontmatter
   field for plans approved through the new workflow.
@@ -62,7 +62,7 @@ work without turning harness into an identity-verification system.
 
 ## Acceptance Criteria
 
-- [x] `harness plan approve --by=human` exists, records approval on the tracked
+- [x] `harness plan approve --by human` exists, records approval on the tracked
       active plan, and updates workflow/status output so approval is no longer
       an implicit step.
 - [x] New tracked plans may carry `approved_at` in frontmatter after approval,
@@ -71,7 +71,7 @@ work without turning harness into an identity-verification system.
 - [x] `harness execute start` fails with a clear message when approval has not
       been recorded, and succeeds normally once approval exists.
 - [x] `harness status` and related lifecycle guidance explicitly tell agents to
-      seek Human approval and run `harness plan approve --by=human` before
+      seek Human approval and run `harness plan approve --by human` before
       execution when the plan is ready but not yet approved.
 - [x] `harness review submit` accepts a `--by` role cue, persists it, and the
       reviewer skill plus review docs teach reviewer subagents to use it.
@@ -83,7 +83,7 @@ work without turning harness into an identity-verification system.
 
 - Strong actor identity enforcement for controller versus reviewer submissions.
 - Any future richer approval provenance beyond the tracked `approved_at`
-  timestamp and the trust-based `--by=human` command shape.
+  timestamp and the trust-based `--by human` command shape.
 - Non-Codex-specific integration hooks for external approval tools.
 
 ## Work Breakdown
@@ -104,8 +104,8 @@ how the harness works: the managed `AGENTS.md` block, `harness-plan`,
 `harness-execute`, `harness-reviewer`, and the CLI/spec docs. The contract
 should say plainly that a direct request to do work does not by itself approve
 the newly written plan; approval becomes explicit through `harness plan approve
---by=human`. It should also say that reviewer-role separation is prompted by
-`harness review submit --by=...`, but harness still relies on trust rather than
+--by human`. It should also say that reviewer-role separation is prompted by
+`harness review submit --by <reviewer-name>`, but harness still relies on trust rather than
 hard identity verification in this slice.
 
 The size versus workflow-profile clarification belongs here too: approval and
@@ -138,7 +138,7 @@ Updated the bootstrap-managed AGENTS block, `harness-plan`,
 `harness-execute`, `harness-reviewer`, and the execute-controller references
 to make the approval boundary explicit. The contract now states that writing a
 plan or receiving the original task request does not approve execution, that
-agents must record approval with `harness plan approve --by=human` before
+agents must record approval with `harness plan approve --by human` before
 `harness execute start`, and that reviewer subagents should submit through
 `harness review submit --by <reviewer-name>`.
 
@@ -163,7 +163,7 @@ recorded approval before execution can start.
 
 #### Details
 
-This step should add `harness plan approve --by=human` to the CLI, teach the
+This step should add `harness plan approve --by human` to the CLI, teach the
 plan document/frontmatter model about `approved_at`, and update lifecycle
 services so `execute start` refuses unapproved plans with a clear error. The
 status and next-action surfaces should point agents toward approval when the
@@ -197,7 +197,7 @@ approval now.”
 
 #### Execution Notes
 
-Added `harness plan approve --by=human` to the CLI and lifecycle service,
+Added `harness plan approve --by human` to the CLI and lifecycle service,
 persisting approval as tracked-plan frontmatter `approved_at`. The lifecycle
 service now renders and validates the updated plan file, keeps approval
 idempotent, and rejects approval attempts after execution has already started.
@@ -205,7 +205,7 @@ idempotent, and rejects approval attempts after execution has already started.
 `harness execute start` now refuses unapproved active plans while still
 tolerating already-executing legacy state that predates explicit approval.
 `harness status` now distinguishes between unapproved plans, which prompt the
-controller to ask the human and run `harness plan approve --by=human`, and
+controller to ask the human and run `harness plan approve --by human`, and
 approved plans that are ready for `harness execute start`.
 
 #### Review Notes
@@ -264,6 +264,17 @@ Updated the CLI help, contract schemas, generated schema index, bootstrap
 outputs, and focused unit/e2e/smoke tests so the approval gate and reviewer
 role cue are enforced consistently.
 
+Follow-up PR review comments then tightened the published wording:
+
+- command examples now consistently use `--by human` and
+  `--by <reviewer-name>` rather than mixing flag styles
+- the managed agreement now states only that `XXS` may still choose the
+  ordinary standard workflow, without pulling `XS` into the same sentence
+- the reviewer-orchestration reference no longer adds the extra “not a strong
+  identity check” reminder inside the reviewer submission prompt
+- the controller pre-review checklist no longer includes an out-of-place
+  approval check
+
 The repo-local dogfood material was resynced with `scripts/sync-bootstrap-assets`
 and `scripts/sync-contract-artifacts`, and the full `go test ./...` suite
 passed after the contract updates.
@@ -313,6 +324,9 @@ step-closeout round would have duplicated the final reviewer pass.
   - `scripts/install-dev-harness`
 - Passed full repository validation with:
   - `go test ./...`
+- After PR wording follow-up, reran targeted validation with:
+  - `harness plan lint docs/plans/active/2026-04-12-make-approval-and-review-roles-explicit.md`
+  - `go test ./internal/status ./tests/smoke`
 
 ## Review Summary
 
@@ -327,20 +341,29 @@ step-closeout round would have duplicated the final reviewer pass.
     provenance in `submission.by`
 - `review-002-full` passed cleanly with reviewer subagent follow-up confirming
   the fixes and contract alignment.
+- PR review comments then requested wording cleanup around `--by` examples,
+  `XXS` versus `lightweight`, the pre-review checklist, and reviewer prompt
+  tone.
+- `review-003-full` passed cleanly after the wording follow-up confirmed those
+  contract surfaces stayed aligned.
 
 ## Archive Summary
 
-- Archived At: 2026-04-12T13:42:10+08:00
-- Revision: 1
+- Archived At: 2026-04-12T14:02:34+08:00
+- Revision: 2
 - PR: https://github.com/catu-ai/easyharness/pull/150
-- Ready: Candidate validated, reviewed, and ready for archive plus publish/CI/sync evidence before waiting for merge approval.
-- Merge Handoff: After archive, commit and push the tracked plan move, record publish/CI/sync evidence on PR #150, and then wait for explicit human merge approval.
+- Ready: Candidate revalidated after PR comment wording follow-up and ready for
+  archive plus fresh publish/CI/sync evidence before waiting for merge
+  approval.
+- Merge Handoff: After archive, commit and push the reopened finalize-fix
+  updates, refresh publish/CI/sync evidence on PR #150 for revision 2, and
+  then wait for explicit human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-- Added explicit plan approval via `harness plan approve --by=human`.
+- Added explicit plan approval via `harness plan approve --by human`.
 - Persisted approval in tracked plan frontmatter as `approved_at`.
 - Gated `harness execute start` on recorded approval while preserving legacy
   already-executing tolerance.
@@ -348,6 +371,10 @@ step-closeout round would have duplicated the final reviewer pass.
   submission artifacts.
 - Updated status guidance, managed prompts, specs, generated schemas, and
   regression coverage to teach and enforce the new workflow.
+- Followed up on PR comments by standardizing `--by` examples to space
+  separation, tightening the `XXS` / `lightweight` wording, removing the
+  pre-review approval checklist item, and simplifying the reviewer
+  orchestration note.
 
 ### Not Delivered
 

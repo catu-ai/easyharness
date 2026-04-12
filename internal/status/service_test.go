@@ -36,7 +36,7 @@ func TestStatusPlanNodeForActivePlan(t *testing.T) {
 	if len(result.NextAction) < 2 || result.NextAction[0].Command != nil {
 		t.Fatalf("expected human-approval guidance first, got %#v", result.NextAction)
 	}
-	if result.NextAction[1].Command == nil || *result.NextAction[1].Command != "harness plan approve --by=human" {
+	if result.NextAction[1].Command == nil || *result.NextAction[1].Command != "harness plan approve --by human" {
 		t.Fatalf("expected explicit approval guidance, got %#v", result.NextAction)
 	}
 
