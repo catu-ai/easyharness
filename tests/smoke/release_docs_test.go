@@ -49,8 +49,8 @@ func TestReleaseDocsPresentStableOnboardingSurface(t *testing.T) {
 	}
 	releasing := string(releasingData)
 	normalizedReleasing := strings.Join(strings.Fields(releasing), " ")
-	support.RequireContains(t, normalizedReleasing, "`0.2.0`")
-	support.RequireContains(t, normalizedReleasing, "`v0.2.0`")
+	support.RequireContains(t, normalizedReleasing, "`0.2.1`")
+	support.RequireContains(t, normalizedReleasing, "`v0.2.1`")
 	support.RequireContains(t, normalizedReleasing, "including prerelease tags")
 	support.RequireContains(t, normalizedReleasing, "default Homebrew formula `easyharness`")
 	if strings.Contains(strings.ToLower(releasing), "first public alpha") {

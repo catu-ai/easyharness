@@ -80,7 +80,7 @@ func TestBuildReleaseProducesStableArchiveAndVersionedBinary(t *testing.T) {
 		t.Skipf("host platform %s is outside the supported release target set", hostPlatform)
 	}
 
-	version := "v0.2.0"
+	version := "v0.2.1"
 	expectedCommit := gitHeadCommit(t, support.RepoRoot(t))
 	expectedArchiveTime := gitCommitTimestampUTC(t, support.RepoRoot(t), expectedCommit)
 
@@ -109,7 +109,7 @@ func TestBuildReleaseHelpUsesStableExampleVersion(t *testing.T) {
 		t.Fatalf("build-release --help: %v\n%s", err, output)
 	}
 
-	if !strings.Contains(string(output), "for example v0.2.0") {
+	if !strings.Contains(string(output), "for example v0.2.1") {
 		t.Fatalf("expected stable example version in build-release help, got:\n%s", output)
 	}
 }

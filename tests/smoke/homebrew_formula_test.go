@@ -190,7 +190,7 @@ func TestReleaseWorkflowWiresHomebrewTapPublishing(t *testing.T) {
 	}
 	workflow := string(workflowData)
 
-	support.RequireContains(t, workflow, `description: Release tag to build, for example v0.2.0`)
+	support.RequireContains(t, workflow, `description: Release tag to build, for example v0.2.1`)
 	support.RequireContains(t, workflow, `EASYHARNESS_HOMEBREW_TAP_TOKEN: ${{ secrets.EASYHARNESS_HOMEBREW_TAP_TOKEN }}`)
 	support.RequireContains(t, workflow, `EASYHARNESS_HOMEBREW_TAP_BRANCH: main`)
 	support.RequireContains(t, workflow, `path: dist/release-source`)
