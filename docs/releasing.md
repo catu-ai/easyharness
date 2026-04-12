@@ -11,7 +11,7 @@ install as `catu-ai/tap/easyharness`.
 
 ## Release Checklist
 
-1. Decide the next release version, such as `0.2.0`, and update the
+1. Decide the next release version, such as `0.0.0`, and update the
    root `VERSION` file in a dedicated release PR.
 2. Make sure `main` is up to date and run `go test ./...` in the release PR
    before merge.
@@ -19,7 +19,7 @@ install as `catu-ai/tap/easyharness`.
    `scripts/build-release --version "v$(cat VERSION)"`.
 4. Merge the release PR to `main`.
 5. Confirm the `Tag Release From VERSION` workflow created the matching git
-   tag, for example `v0.2.0`, and then dispatched the `Release`
+   tag, for example `v0.0.0`, and then dispatched the `Release`
    workflow for that tag.
 6. Confirm the `Release` workflow uploaded the release archives and
    `SHA256SUMS` file.
@@ -33,7 +33,7 @@ install as `catu-ai/tap/easyharness`.
 
 `VERSION` intentionally stores the bare release version without the leading
 `v`. The auto-tag workflow adds that prefix when it creates the git tag, so
-`VERSION=0.2.0` maps to the release tag `v0.2.0`.
+`VERSION=0.0.0` maps to the release tag `v0.0.0`.
 
 Release PR separation is a team convention rather than a repository-enforced
 rule. The expected path is that a release PR contains the `VERSION` bump and

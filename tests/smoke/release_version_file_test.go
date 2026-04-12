@@ -32,6 +32,36 @@ func TestRepositoryVersionFileUsesUnprefixedReleaseVersion(t *testing.T) {
 	}
 }
 
+func TestRepositoryVersionFileResolvesMatchingReleaseTag(t *testing.T) {
+	repoRoot := support.RepoRoot(t)
+
+	versionData, err := os.ReadFile(filepath.Join(repoRoot, "VERSION"))
+	if err != nil {
+		t.Fatalf("read repository VERSION file: %v", err)
+	}
+	version := strings.TrimSpace(string(versionData))
+	if version == "" {
+		t.Fatalf("expected repository VERSION file to contain a release version")
+	}
+
+	result := runCommand(
+		t,
+		repoRoot,
+		envWithOverrides(t, nil),
+		"/bin/bash",
+		filepath.Join(repoRoot, "scripts", "read-release-version"),
+		"--tag",
+	)
+	if result.ExitCode != 0 {
+		t.Fatalf("read-release-version --tag failed with exit %d\nstdout:\n%s\nstderr:\n%s", result.ExitCode, result.Stdout, result.Stderr)
+	}
+
+	want := "v" + version
+	if got := strings.TrimSpace(result.Stdout); got != want {
+		t.Fatalf("expected repository VERSION file to resolve to tag %q, got %q", want, got)
+	}
+}
+
 func TestReadReleaseVersionOutputsVersionAndTag(t *testing.T) {
 	repoRoot := support.RepoRoot(t)
 	versionFile := filepath.Join(t.TempDir(), "VERSION")

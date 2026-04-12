@@ -8,7 +8,7 @@ Usage: scripts/build-release --version <version> [--output-dir <path>] [--platfo
 Build versioned release archives and SHA256 checksums for easyharness.
 
 Options:
-  --version <version>     Required release identifier (for example v0.2.0).
+  --version <version>     Required release identifier (for example v0.0.0).
   --output-dir <path>     Output directory under repo-owned dist/ or .local/
                           subdirectories after resolving symlinks. Defaults to
                           dist/release.

@@ -842,7 +842,7 @@ case "${1:-}" in
     printf 'stable fallback harness help\n'
     ;;
   --version)
-    printf 'version: 0.2.0\n'
+    printf 'version: 0.0.0\n'
     printf 'mode: release\n'
     printf 'commit: stable-test-commit\n'
     printf 'path: %s\n' "$0"

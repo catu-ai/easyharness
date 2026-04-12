@@ -154,7 +154,7 @@ cd easyharness_<version>_<goos>_<goarch>
 
 Maintainers cut releases from a dedicated release PR that updates the root
 `VERSION` file plus any related release docs. `VERSION` stores the unprefixed
-release version such as `0.2.0`; after that PR merges to `main`, automation
+release version such as `0.0.0`; after that PR merges to `main`, automation
 creates the matching `v*` tag and dispatches the `Release` workflow, which
 publishes the release assets for that tag and updates the Homebrew formula when
 the tap token is configured.
