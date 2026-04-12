@@ -1,0 +1,4 @@
+interface:
+  display_name: "Issue Triage"
+  short_description: "Triage easyharness GitHub issues"
+  default_prompt: "Use $issue-triage to review and classify this easyharness GitHub issue."

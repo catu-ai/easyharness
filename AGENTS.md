@@ -71,10 +71,19 @@ the bootstrap resource commands package for other repositories.
   managed `AGENTS.md` block content.
 - Treat `.agents/skills/` in this repository as tracked materialized output from
   `assets/bootstrap/`, not as a hand-edited source tree.
+- In this repository, `harness-*` skills are the easyharness-managed skill
+  pack and belong in `assets/bootstrap/`.
+- Other skill names are repo-owned local development skills. Keep them
+  user-owned under `.agents/skills/` unless the repository explicitly decides
+  to promote them into the distributed easyharness-managed pack later.
 - After editing `assets/bootstrap/`, run `scripts/sync-bootstrap-assets` to
   refresh `.agents/skills/` and the managed block in this root `AGENTS.md`.
 - Keep easyharness-specific guidance in this root `AGENTS.md` outside the
   managed markers below.
+
+When triaging this repository's GitHub issues, use the repo-local
+`issue-triage` skill. `docs/issue-triage.md` is only a thin discovery note;
+the self-contained triage contract lives in the skill package.
 
 The block below is the same harness-managed repository contract that
 `harness instructions install` would install into another repository.
