@@ -148,6 +148,8 @@ func (a *App) runPlan(args []string) int {
 		return a.runPlanTemplate(args[1:])
 	case "lint":
 		return a.runPlanLint(args[1:])
+	case "approve":
+		return a.runPlanApprove(args[1:])
 	case "-h", "--help", "help":
 		a.printPlanUsage()
 		return 0
@@ -645,6 +647,43 @@ func (a *App) runPlanLint(args []string) int {
 	return 1
 }
 
+func (a *App) runPlanApprove(args []string) int {
+	fs := flag.NewFlagSet("harness plan approve", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	by := fs.String("by", "", "Approval source. Use human after the human explicitly approves execution.")
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness plan approve --by human")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Record the explicit human approval boundary for the current active plan before execution starts.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 || strings.TrimSpace(*by) == "" {
+		fs.Usage()
+		return 2
+	}
+
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	recordedAt := a.Now().Format(time.RFC3339)
+	beforeStatus := readStatusSnapshot(workdir)
+	result := lifecycle.Service{
+		Workdir: workdir,
+		Now:     a.Now,
+		AfterMutation: lifecycleTimelineHook(workdir, beforeStatus, recordedAt, map[string]any{
+			"by": strings.TrimSpace(*by),
+		}),
+	}.PlanApprove(*by)
+	return a.writeJSONResult(result)
+}
+
 func (a *App) runStatus(args []string) int {
 	fs := flag.NewFlagSet("harness status", flag.ContinueOnError)
 	fs.SetOutput(a.Stderr)
@@ -729,9 +768,10 @@ func (a *App) runReviewSubmit(args []string) int {
 	fs.SetOutput(a.Stderr)
 	roundID := fs.String("round", "", "Review round ID.")
 	slot := fs.String("slot", "", "Reviewer slot name.")
+	by := fs.String("by", "", "Reviewer identity label for this submission.")
 	inputPath := fs.String("input", "", "Read the reviewer submission JSON from this path. Defaults to stdin.")
 	fs.Usage = func() {
-		fmt.Fprintln(a.Stderr, "Usage: harness review submit --round <round-id> --slot <slot> [--input <path>]")
+		fmt.Fprintln(a.Stderr, "Usage: harness review submit --round <round-id> --slot <slot> --by <reviewer-name> [--input <path>]")
 		fmt.Fprintln(a.Stderr)
 		fmt.Fprintln(a.Stderr, "Record one reviewer submission for the selected review round and slot.")
 	}
@@ -741,7 +781,7 @@ func (a *App) runReviewSubmit(args []string) int {
 		}
 		return 2
 	}
-	if fs.NArg() != 0 || strings.TrimSpace(*roundID) == "" || strings.TrimSpace(*slot) == "" {
+	if fs.NArg() != 0 || strings.TrimSpace(*roundID) == "" || strings.TrimSpace(*slot) == "" || strings.TrimSpace(*by) == "" {
 		fs.Usage()
 		return 2
 	}
@@ -758,10 +798,13 @@ func (a *App) runReviewSubmit(args []string) int {
 	recordedAt := a.Now().Format(time.RFC3339)
 	beforeStatus := readUnlockedStatusSnapshot(workdir)
 	result := review.Service{
-		Workdir:     workdir,
-		Now:         a.Now,
-		AfterSubmit: reviewSubmitTimelineHook(workdir, beforeStatus, recordedAt, inputBytes),
-	}.Submit(*roundID, *slot, inputBytes)
+		Workdir: workdir,
+		Now:     a.Now,
+		AfterSubmit: reviewSubmitTimelineHook(workdir, beforeStatus, recordedAt, map[string]any{
+			"by":    strings.TrimSpace(*by),
+			"input": json.RawMessage(inputBytes),
+		}),
+	}.Submit(*roundID, *slot, *by, inputBytes)
 	return a.writeJSONResult(result)
 }
 
@@ -961,6 +1004,7 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "Commands:")
 	fmt.Fprintln(a.Stderr, "  plan template   Render the packaged plan template")
 	fmt.Fprintln(a.Stderr, "  plan lint       Validate a tracked plan")
+	fmt.Fprintln(a.Stderr, "  plan approve    Record explicit human approval for the current plan")
 	fmt.Fprintln(a.Stderr, "  execute start   Record the execution-start milestone")
 	fmt.Fprintln(a.Stderr, "  evidence submit Record append-only CI, publish, or sync evidence")
 	fmt.Fprintln(a.Stderr, "  review start    Create a deterministic review round")
@@ -983,6 +1027,7 @@ func (a *App) printPlanUsage() {
 	fmt.Fprintln(a.Stderr, "Subcommands:")
 	fmt.Fprintln(a.Stderr, "  template   Render the packaged plan template")
 	fmt.Fprintln(a.Stderr, "  lint       Validate a tracked plan")
+	fmt.Fprintln(a.Stderr, "  approve    Record explicit human approval for the current plan")
 }
 
 func (a *App) printReviewUsage() {

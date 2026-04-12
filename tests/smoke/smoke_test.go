@@ -57,6 +57,7 @@ func TestHelpShowsTopLevelUsage(t *testing.T) {
 	support.RequireContains(t, result.CombinedOutput(), "--version       Print concise debug information for the running harness binary")
 	support.RequireContains(t, result.CombinedOutput(), "plan template   Render the packaged plan template")
 	support.RequireContains(t, result.CombinedOutput(), "plan lint       Validate a tracked plan")
+	support.RequireContains(t, result.CombinedOutput(), "plan approve    Record explicit human approval for the current plan")
 	support.RequireContains(t, result.CombinedOutput(), "execute start   Record the execution-start milestone")
 	support.RequireContains(t, result.CombinedOutput(), "evidence submit Record append-only CI, publish, or sync evidence")
 	support.RequireContains(t, result.CombinedOutput(), "review start    Create a deterministic review round")

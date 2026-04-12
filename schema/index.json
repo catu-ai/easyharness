@@ -177,7 +177,7 @@
       "group": "command_results",
       "surface": "public",
       "title": "Lifecycle command result",
-      "description": "Shared JSON output shape for lifecycle commands such as `harness execute start`, `harness archive`, `harness reopen`, `harness land`, and `harness land complete`.",
+      "description": "Shared JSON output shape for lifecycle commands such as `harness plan approve`, `harness execute start`, `harness archive`, `harness reopen`, `harness land`, and `harness land complete`.",
       "path": "schema/commands/lifecycle.result.schema.json",
       "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/lifecycle.result.schema.json",
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.LifecycleResult"

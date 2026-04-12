@@ -38,6 +38,26 @@ func EnsurePlanSize(t *testing.T, path, size string) {
 	writePlanFile(t, path, updated)
 }
 
+func ApprovePlan(t *testing.T, path, approvedAt string) {
+	t.Helper()
+
+	content := readPlanFile(t, path)
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, "approved_at:") {
+			lines[i] = "approved_at: " + approvedAt
+			writePlanFile(t, path, strings.Join(lines, "\n"))
+			return
+		}
+		if strings.HasPrefix(line, "created_at:") {
+			lines = append(lines[:i+1], append([]string{"approved_at: " + approvedAt}, lines[i+1:]...)...)
+			writePlanFile(t, path, strings.Join(lines, "\n"))
+			return
+		}
+	}
+	t.Fatalf("created_at frontmatter line not found in %s", path)
+}
+
 func InsertPlanSize(content, size string) string {
 	lines := strings.Split(content, "\n")
 	replaced := false

@@ -96,7 +96,7 @@ func reviewStartTimelineHook(workdir string, before *status.Result, recordedAt s
 	}
 }
 
-func reviewSubmitTimelineHook(workdir string, before *status.Result, recordedAt string, input []byte) func(reviewSubmitResult) error {
+func reviewSubmitTimelineHook(workdir string, before *status.Result, recordedAt string, input any) func(reviewSubmitResult) error {
 	return func(result reviewSubmitResult) error {
 		return appendTimelineEvent(
 			workdir,

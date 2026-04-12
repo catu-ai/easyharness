@@ -72,9 +72,13 @@ Use this skill to create or update the tracked plan that will drive execution.
    - lightweight plans are still tracked active plans, so lint the tracked
      file before execution starts
 9. Present the plan for approval before execution starts.
-   If the approved execution loop is likely to require reviewer subagents,
-   ask for explicit subagent authorization in the same approval exchange so
-   execution does not stall later at review time.
+   - the original task request does not count as approval for the newly
+     written plan
+   - once the human approves the plan, record that boundary explicitly with
+     `harness plan approve --by human`
+   - if the approved execution loop is likely to require reviewer subagents,
+     ask for explicit subagent authorization in the same approval exchange so
+     execution does not stall later at review time
 
 ## Commands
 
@@ -87,7 +91,8 @@ The plan is ready when:
 
 - lint passes
 - the resulting tracked plan would resolve to `plan` until
-  `harness execute start` is recorded
+  `harness plan approve --by human` and then `harness execute start` are
+  recorded
 - when the plan is lightweight, a future agent could still explain why
   lightweight was eligible, know that lightweight is only for `XXS` work, know
   that archive snapshots move to
@@ -107,6 +112,8 @@ The plan is ready when:
 ## Do Not
 
 - Do not start `harness-execute` before the plan is approved.
+- Do not treat the original user request as implicit approval for a newly
+  written tracked plan.
 - Do not duplicate full CLI enums or placeholder rules from the specs when a
   command or spec already defines them.
 - Do not let deferred work float without being named clearly in the plan.

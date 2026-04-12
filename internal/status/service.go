@@ -159,6 +159,7 @@ func (s Service) read(acquireLock bool) Result {
 
 	reviewCtx, reviewWarnings := loadReviewContext(s.Workdir, planStem, doc, state)
 	result.Warnings = append(result.Warnings, reviewWarnings...)
+	planApproved := doc.ExplicitlyApproved()
 	if reviewCtx != nil && isStructuralReviewTrigger(reviewCtx.Trigger) && strings.TrimSpace(reviewCtx.RoundID) != "" {
 		result.Artifacts.ReviewRoundID = reviewCtx.RoundID
 	}
@@ -233,8 +234,8 @@ func (s Service) read(acquireLock bool) Result {
 	}
 	missingStepReminder, reminderWarnings := loadMissingStepCloseoutReminder(s.Workdir, planStem, doc, reviewCtx, result.State.CurrentNode)
 	result.Warnings = append(result.Warnings, reminderWarnings...)
-	result.Summary = buildSummary(result.State.CurrentNode, facts, reviewCtx, blockers, missingStepReminder, currentPlan)
-	result.NextAction = buildNextActions(result.State.CurrentNode, facts, reviewCtx, blockers)
+	result.Summary = buildSummary(result.State.CurrentNode, facts, reviewCtx, blockers, missingStepReminder, currentPlan, planApproved)
+	result.NextAction = buildNextActions(result.State.CurrentNode, facts, reviewCtx, blockers, planApproved)
 	if missingStepReminder != nil {
 		result.Warnings = append(result.Warnings, buildMissingStepCloseoutWarnings(result.State.CurrentNode, missingStepReminder)...)
 		result.NextAction = prependMissingStepCloseoutActions(result.State.CurrentNode, result.NextAction, facts, reviewCtx, missingStepReminder)
@@ -520,7 +521,7 @@ func archivedCandidateReadyForMerge(evidenceCtx *evidenceContext) bool {
 	return true
 }
 
-func buildSummary(node string, facts *Facts, reviewCtx *reviewContext, blockers []StatusError, reminder *missingStepCloseoutReminder, currentPlan *runstate.CurrentPlan) string {
+func buildSummary(node string, facts *Facts, reviewCtx *reviewContext, blockers []StatusError, reminder *missingStepCloseoutReminder, currentPlan *runstate.CurrentPlan, planApproved bool) string {
 	if strings.HasPrefix(node, "execution/finalize/") && reminder != nil && reminder.hasDebt() && !pendingReopenedNewStep(node, facts) {
 		return buildMissingStepCloseoutSummary(node, reviewCtx, reminder)
 	}
@@ -532,7 +533,10 @@ func buildSummary(node string, facts *Facts, reviewCtx *reviewContext, blockers 
 		}
 		return "No current plan is active in this worktree."
 	case "plan":
-		return "Current plan exists, but execution has not started yet."
+		if planApproved {
+			return "Current plan is approved and ready for execution to start."
+		}
+		return "Current plan exists, but execution is still waiting for explicit human approval."
 	case "execution/finalize/review":
 		if reviewCtx != nil && reviewCtx.InFlight {
 			return "Plan is in finalize review and waiting for the active review round to be aggregated."
@@ -642,16 +646,23 @@ func buildMissingStepCloseoutSummary(node string, reviewCtx *reviewContext, remi
 	}
 }
 
-func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, blockers []StatusError) []NextAction {
+func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, blockers []StatusError, planApproved bool) []NextAction {
 	switch node {
 	case "idle":
 		return []NextAction{
 			{Command: nil, Description: "Start discovery or create a new tracked plan when the next slice is ready."},
 		}
 	case "plan":
+		if !planApproved {
+			return []NextAction{
+				{Command: nil, Description: "Ask the human to approve the tracked plan before execution begins."},
+				{Command: strPtr("harness plan approve --by human"), Description: "After the human approves in chat, record that approval boundary on the tracked plan."},
+				{Command: nil, Description: "If scope changed before approval, update the tracked plan first."},
+			}
+		}
 		return []NextAction{
-			{Command: strPtr("harness execute start"), Description: "Start execution once the plan is approved for implementation."},
-			{Command: nil, Description: "If scope changed before implementation begins, update the tracked plan first."},
+			{Command: strPtr("harness execute start"), Description: "Start execution now that the tracked plan is approved for implementation."},
+			{Command: nil, Description: "If scope changed after approval but before implementation begins, update the tracked plan and refresh approval before executing."},
 		}
 	case "execution/finalize/review":
 		if reviewCtx != nil && reviewCtx.InFlight {

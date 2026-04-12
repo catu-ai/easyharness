@@ -61,6 +61,7 @@ var (
 type Frontmatter struct {
 	TemplateVersion string   `yaml:"template_version"`
 	CreatedAt       string   `yaml:"created_at"`
+	ApprovedAt      string   `yaml:"approved_at,omitempty"`
 	SourceType      string   `yaml:"source_type"`
 	SourceRefs      []string `yaml:"source_refs"`
 	Size            string   `yaml:"size"`
@@ -254,6 +255,13 @@ func validateFrontmatter(ctx *lintContext) []LintIssue {
 	}
 	if strings.TrimSpace(ctx.frontmatter.CreatedAt) == "" {
 		issues = append(issues, LintIssue{Path: "frontmatter.created_at", Message: "must not be empty"})
+	}
+	if _, ok := ctx.rawFrontmatter["approved_at"]; ok {
+		if strings.TrimSpace(ctx.frontmatter.ApprovedAt) == "" {
+			issues = append(issues, LintIssue{Path: "frontmatter.approved_at", Message: "must not be empty when provided"})
+		} else if _, err := time.Parse(time.RFC3339, ctx.frontmatter.ApprovedAt); err != nil {
+			issues = append(issues, LintIssue{Path: "frontmatter.approved_at", Message: "must be RFC3339"})
+		}
 	}
 	if strings.TrimSpace(ctx.frontmatter.SourceType) == "" {
 		issues = append(issues, LintIssue{Path: "frontmatter.source_type", Message: "must not be empty"})

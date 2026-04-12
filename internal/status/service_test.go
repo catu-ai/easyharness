@@ -33,8 +33,11 @@ func TestStatusPlanNodeForActivePlan(t *testing.T) {
 	if result.State.CurrentNode != "plan" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
-	if result.NextAction[0].Command == nil || *result.NextAction[0].Command != "harness execute start" {
-		t.Fatalf("expected execute-start guidance, got %#v", result.NextAction)
+	if len(result.NextAction) < 2 || result.NextAction[0].Command != nil {
+		t.Fatalf("expected human-approval guidance first, got %#v", result.NextAction)
+	}
+	if result.NextAction[1].Command == nil || *result.NextAction[1].Command != "harness plan approve --by human" {
+		t.Fatalf("expected explicit approval guidance, got %#v", result.NextAction)
 	}
 
 	state, _, err := runstate.LoadState(root, "2026-03-18-status-plan")
@@ -51,6 +54,24 @@ func TestStatusPlanNodeForActivePlan(t *testing.T) {
 	}
 	if got := doc.DerivedLifecycle(nil); got != "awaiting_plan_approval" {
 		t.Fatalf("expected lifecycle to derive from the plan alone, got %q", got)
+	}
+}
+
+func TestStatusPlanNodeForApprovedActivePlan(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return approvePlanContent(content, "2026-03-18T10:05:00+08:00")
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if !result.OK {
+		t.Fatalf("expected OK status result, got %#v", result)
+	}
+	if result.State.CurrentNode != "plan" {
+		t.Fatalf("unexpected node: %#v", result.State)
+	}
+	if result.NextAction[0].Command == nil || *result.NextAction[0].Command != "harness execute start" {
+		t.Fatalf("expected execute-start guidance for approved plan, got %#v", result.NextAction)
 	}
 }
 
@@ -2462,7 +2483,7 @@ func TestStatusReentersReviewedStepAfterFailedExplicitEarlierStepRepair(t *testi
 	svc.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 11, 12, 0, 0, time.FixedZone("CST", 8*60*60))
 	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSONBytes(t, review.SubmissionInput{
+	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSONBytes(t, review.SubmissionInput{
 		Summary: "The repair still needs work.",
 		Findings: []review.Finding{
 			{
@@ -2539,7 +2560,7 @@ func TestStatusReturnsToLaterFrontierAfterCleanExplicitEarlierStepRepair(t *test
 	svc.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 11, 22, 0, 0, time.FixedZone("CST", 8*60*60))
 	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSONBytes(t, review.SubmissionInput{
+	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSONBytes(t, review.SubmissionInput{
 		Summary:  "The earlier-step repair is now clean.",
 		Findings: nil,
 	}))
@@ -2609,7 +2630,7 @@ func TestStatusReturnsToFinalizeReviewAfterCleanExplicitEarlierStepRepair(t *tes
 	svc.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 11, 32, 0, 0, time.FixedZone("CST", 8*60*60))
 	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSONBytes(t, review.SubmissionInput{
+	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSONBytes(t, review.SubmissionInput{
 		Summary:  "The finalize-context earlier-step repair is clean.",
 		Findings: nil,
 	}))
@@ -2703,6 +2724,21 @@ func writePlan(t *testing.T, root, relPath string, mutate func(string) string) s
 		t.Fatalf("write plan: %v", err)
 	}
 	return path
+}
+
+func approvePlanContent(content, approvedAt string) string {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, "approved_at:") {
+			lines[i] = "approved_at: " + approvedAt
+			return strings.Join(lines, "\n")
+		}
+		if strings.HasPrefix(line, "created_at:") {
+			lines = append(lines[:i+1], append([]string{"approved_at: " + approvedAt}, lines[i+1:]...)...)
+			return strings.Join(lines, "\n")
+		}
+	}
+	return content
 }
 
 func writeCurrentPlan(t *testing.T, root, relPath string) {

@@ -328,6 +328,7 @@ func submitReviewSlot(t *testing.T, workspace *support.Workspace, roundID string
 		"review", "submit",
 		"--round", roundID,
 		"--slot", slot.Slot,
+		"--by", "reviewer-"+slot.Slot,
 		"--input", submissionPath,
 	)
 	support.RequireSuccess(t, submit)
@@ -518,6 +519,7 @@ func runPassingDeltaReviewAndComplete(t *testing.T, workspace *support.Workspace
 func drivePlanToArchivedPublishNode(t *testing.T, workspace *support.Workspace, planPath string, stepTitles ...string) lifecycleCommandResult {
 	t.Helper()
 
+	support.ApprovePlan(t, planPath, "2026-03-22T00:05:00Z")
 	execute := support.Run(t, workspace.Root, "execute", "start")
 	support.RequireSuccess(t, execute)
 	support.RequireNoStderr(t, execute)

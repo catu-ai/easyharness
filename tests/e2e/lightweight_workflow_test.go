@@ -41,6 +41,7 @@ func TestLightweightWorkflowWithBuiltBinary(t *testing.T) {
 
 	preExecuteStatus := runStatus(t, workspace.Root)
 	assertNode(t, preExecuteStatus, "plan")
+	support.ApprovePlan(t, planPath, "2026-03-31T00:05:00Z")
 
 	execute := support.Run(t, workspace.Root, "execute", "start")
 	support.RequireSuccess(t, execute)

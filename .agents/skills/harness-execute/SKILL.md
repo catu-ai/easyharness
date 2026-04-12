@@ -25,6 +25,11 @@ including review orchestration. Do not switch the controller into
 `harness-reviewer`; that skill is only for spawned reviewer subagents assigned
 to specific review slots.
 
+`harness-execute` starts only after plan approval is explicit. If the current
+plan is still waiting for approval, stop at the plan boundary, get human
+approval, and record it with `harness plan approve --by human` before trying
+`harness execute start`.
+
 Run `harness status` at controller checkpoints, not just once per session:
 
 - at start or resume
@@ -74,6 +79,8 @@ when it is genuinely impractical, and record the reason in the step's
    `plan_path`.
    Active work uses a tracked plan even when the profile is lightweight; only
    archived lightweight snapshots move into `.local/`.
+   If status still resolves to `plan`, do not start execution until approval is
+   explicit and `harness plan approve --by human` has been recorded.
 3. Identify the active or next plan step.
 4. Use the status output to answer four questions:
    - which tracked plan is current
@@ -89,7 +96,7 @@ when it is genuinely impractical, and record the reason in the step's
 
 - `plan`
   - wait for approval or update the plan if scope changed before
-    `harness execute start`
+    `harness plan approve --by human` and `harness execute start`
 - `execution/step-<n>/implement`
   - continue the current step, fix review findings, or mark the step done once
     the slice is genuinely complete
@@ -138,6 +145,8 @@ Execute is done when:
 
 - Do not ask the human to micromanage routine execution once the plan is
   approved.
+- Do not start execution from the raw task request alone; the newly written
+  tracked plan still needs explicit approval.
 - Do not ask the human whether routine step-closeout or finalize review should
   start once `harness status` and the tracked plan make the next review action
   clear.
@@ -145,6 +154,9 @@ Execute is done when:
   authorization is missing; request it explicitly as soon as you know it will
   be required, and if you still reach the reviewer boundary without approval,
   pause only long enough to ask and then resume once the answer arrives.
+- Do not submit reviewer results from the controller thread or impersonate a
+  reviewer slot yourself. Reviewer submissions belong to bounded reviewer
+  subagents using `harness review submit --by <reviewer-name>`.
 - Do not bypass node or review gates just because the next action feels obvious.
 - Do not skip TDD for behavior changes without documenting why the usual
   Red/Green/Refactor loop was not practical.

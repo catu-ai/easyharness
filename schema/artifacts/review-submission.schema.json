@@ -48,6 +48,10 @@
           "type": "string",
           "description": "Dimension is the human-readable review dimension label."
         },
+        "by": {
+          "type": "string",
+          "description": "By is the reviewer-provided identity label for the submitted slot."
+        },
         "submitted_at": {
           "type": "string",
           "description": "SubmittedAt is the submission timestamp."

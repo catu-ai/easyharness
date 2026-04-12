@@ -1,6 +1,10 @@
 package plan
 
-import "github.com/catu-ai/easyharness/internal/runstate"
+import (
+	"strings"
+
+	"github.com/catu-ai/easyharness/internal/runstate"
+)
 
 func (d *Document) DerivedPlanStatus() string {
 	switch d.PathKind {
@@ -22,6 +26,17 @@ func (d *Document) WorkflowProfile() string {
 
 func (d *Document) UsesLightweightProfile() bool {
 	return d.WorkflowProfile() == WorkflowProfileLightweight
+}
+
+func (d *Document) ApprovedAt() string {
+	if d == nil {
+		return ""
+	}
+	return strings.TrimSpace(d.Frontmatter.ApprovedAt)
+}
+
+func (d *Document) ExplicitlyApproved() bool {
+	return d.ApprovedAt() != ""
 }
 
 func (d *Document) ExecutionStarted(state *runstate.State) bool {

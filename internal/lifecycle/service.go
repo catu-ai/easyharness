@@ -49,6 +49,12 @@ func (s Service) ExecuteStart() Result {
 			Message: fmt.Sprintf("execute start requires an active plan, got status=%q", doc.DerivedPlanStatus()),
 		}})
 	}
+	if !doc.ExplicitlyApproved() && !doc.ExecutionStarted(state) {
+		return errorResult("execute start", "Current plan is waiting for recorded human approval.", []CommandError{{
+			Path:    "frontmatter.approved_at",
+			Message: "record plan approval with `harness plan approve --by human` after the human approves execution",
+		}})
+	}
 
 	if state == nil {
 		state = &runstate.State{Revision: 1}
@@ -113,6 +119,98 @@ func (s Service) ExecuteStart() Result {
 			issues = append(issues, CommandError{Path: "state", Message: fmt.Sprintf("rollback current-plan pointer: %v", restoreErr)})
 		}
 		return issues
+	})
+}
+
+func (s Service) PlanApprove(by string) Result {
+	now := s.now()
+	currentPath, doc, editable, _, relCurrentPath, state, statePath, release, errResult := s.loadCurrentPlan()
+	if errResult != nil {
+		errResult.Command = "plan approve"
+		return *errResult
+	}
+	defer release()
+
+	if doc.DerivedPlanStatus() != "active" {
+		return errorResult("plan approve", "Current plan is not active.", []CommandError{{
+			Path:    "plan.status",
+			Message: fmt.Sprintf("plan approve requires an active plan, got status=%q", doc.DerivedPlanStatus()),
+		}})
+	}
+	if doc.ExecutionStarted(state) {
+		return errorResult("plan approve", "Execution has already started for the current active plan.", []CommandError{{
+			Path:    "state.execution_started_at",
+			Message: "plan approval must be recorded before `harness execute start`",
+		}})
+	}
+
+	normalizedBy := strings.ToLower(strings.TrimSpace(by))
+	if normalizedBy != "human" {
+		return errorResult("plan approve", "Plan approval must be recorded as a human decision.", []CommandError{{
+			Path:    "by",
+			Message: "expected `--by human`",
+		}})
+	}
+
+	alreadyApproved := doc.ExplicitlyApproved()
+	originalContent, err := os.ReadFile(currentPath)
+	if err != nil {
+		return errorResult("plan approve", "Unable to snapshot the tracked plan before recording approval.", []CommandError{{
+			Path:    "plan",
+			Message: err.Error(),
+		}})
+	}
+	editable.Frontmatter.ApprovedAt = now.Format(time.RFC3339)
+	content, err := renderEditablePlan(editable.Frontmatter, editable.Body)
+	if err != nil {
+		return errorResult("plan approve", "Unable to render the tracked plan with approval metadata.", []CommandError{{
+			Path:    "frontmatter",
+			Message: err.Error(),
+		}})
+	}
+	if err := os.WriteFile(currentPath, []byte(content), 0o644); err != nil {
+		return errorResult("plan approve", "Unable to persist the tracked plan approval.", []CommandError{{
+			Path:    "plan",
+			Message: err.Error(),
+		}})
+	}
+	if lint := plan.LintFile(currentPath); !lint.OK {
+		_ = os.WriteFile(currentPath, originalContent, 0o644)
+		return errorResult("plan approve", "Updated tracked plan did not pass validation.", lintErrorsToCommandErrors(lint.Errors))
+	}
+
+	summary := "Recorded human approval for the current active plan."
+	if alreadyApproved {
+		summary = "Refreshed recorded human approval for the current active plan."
+	}
+
+	var facts *Facts
+	if revision := runstate.CurrentRevision(state); revision > 0 {
+		facts = &Facts{Revision: revision}
+	}
+
+	result := Result{
+		OK:      true,
+		Command: "plan approve",
+		Summary: summary,
+		State: State{
+			CurrentNode: "plan",
+		},
+		Facts: facts,
+		Artifacts: &Artifacts{
+			FromPlanPath:   relCurrentPath,
+			LocalStatePath: statePath,
+		},
+		NextAction: []NextAction{
+			{Command: strPtr("harness execute start"), Description: "Start execution once implementation is ready to begin on the approved tracked plan."},
+			{Command: nil, Description: "If scope changes after approval but before implementation begins, update the tracked plan and refresh the approval boundary before executing."},
+		},
+	}
+	return s.finalizeMutation(result, func() []CommandError {
+		if err := os.WriteFile(currentPath, originalContent, 0o644); err != nil {
+			return []CommandError{{Path: "plan", Message: fmt.Sprintf("rollback tracked plan approval: %v", err)}}
+		}
+		return nil
 	})
 }
 

@@ -25,7 +25,7 @@ you do not stop after the first one or two findings.
 Submit exactly one structured payload with:
 
 ```bash
-harness review submit --round <round-id> --slot <slot> --input <path>
+harness review submit --round <round-id> --slot <slot> --by <reviewer-name> --input <path>
 ```
 
 Use this payload shape:
@@ -63,6 +63,8 @@ Rules:
 
 - `summary` is required
 - `findings` may be empty when the slot finds no issues
+- `--by` is required and should name the reviewer thread that owns the slot
+  submission
 - extra top-level fields such as `worklog` are allowed and remain in the stored
   submission artifact, but aggregate still only uses canonical `summary` and
   `findings`
@@ -120,6 +122,8 @@ deferral stale.
    progressive submission artifact to keep coverage and hypotheses visible
    while you continue checking the slot.
 9. Submit the same `submission.json` with `harness review submit`.
+   Include `--by <reviewer-name>` using a short stable name for your reviewer
+   thread, such as `reviewer-correctness` or another clear slot-owned label.
 10. Report the submission receipt back to the controller agent.
 11. Stop once the receipt is reported. The controller agent is responsible for
     closing reviewer subagents after verifying the successful submission.

@@ -29,9 +29,15 @@ For medium or large work:
 
 1. Discovery
 2. Plan
-3. Execute
+3. Plan approval
+4. Execute
 4. Archive / publish / await merge approval
 5. Land
+
+Plan approval is explicit. Writing a plan or hearing the original task request
+does not by itself approve execution. After the plan is shown and the human
+approves it, the agent should record that boundary with
+`harness plan approve --by human` before `harness execute start`.
 
 For approved low-risk work that explicitly uses `workflow_profile:
 lightweight`, keep the same workflow shape but store the active plan under
@@ -51,6 +57,10 @@ Use `lightweight` only when all of these are true:
 - no schema-meaning changes, core state/review/archive/evidence changes,
   release-safety changes, or security-sensitive logic changes
 - if the boundary is unclear, default to `standard`
+
+`size` and `workflow_profile` are separate decisions. `XXS` is the only size
+eligible for `lightweight`, and `XXS` may still use the ordinary `standard`
+workflow when that is the approved path.
 
 When drafting a new plan, estimate `size` early. If the initial estimate is
 `XXL`, stop and confirm with the human whether the work should be split first;
@@ -94,6 +104,11 @@ belongs to spawned `harness-reviewer` subagents, and the repo-local review
 skills must be followed strictly. The shared rules in `Harness Subagent Use`
 still apply here; review-specific docs add reviewer-slot orchestration,
 aggregation, and same-slot resume rules on top of that shared baseline.
+
+The controller must not submit reviewer results on a reviewer's behalf. Each
+reviewer submission should be recorded through
+`harness review submit --by <reviewer-name>`
+from the bounded reviewer thread that owns that slot.
 
 Routine review progression is controller-owned once a tracked plan is approved.
 The controller should not stop to ask the human whether ordinary step-closeout

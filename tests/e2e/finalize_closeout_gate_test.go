@@ -32,6 +32,7 @@ func TestFinalizeReviewStartAndArchiveRejectEarlierCloseoutDebtWithBuiltBinary(t
 	lint := support.Run(t, workspace.Root, "plan", "lint", planRelPath)
 	support.RequireSuccess(t, lint)
 	support.RequireNoStderr(t, lint)
+	support.ApprovePlan(t, planPath, "2026-04-08T00:05:00Z")
 
 	execute := support.Run(t, workspace.Root, "execute", "start")
 	support.RequireSuccess(t, execute)
@@ -92,11 +93,11 @@ func TestFinalizeReviewStartAndArchiveRejectEarlierCloseoutDebtWithBuiltBinary(t
 		"plan_stem":            planStem,
 		"revision":             1,
 		"active_review_round": map[string]any{
-			"round_id":    "review-001-full",
-			"kind":        "full",
-			"revision":    1,
-			"aggregated":  true,
-			"decision":    "pass",
+			"round_id":   "review-001-full",
+			"kind":       "full",
+			"revision":   1,
+			"aggregated": true,
+			"decision":   "pass",
 		},
 	})
 	support.RequireFileExists(t, statePath)

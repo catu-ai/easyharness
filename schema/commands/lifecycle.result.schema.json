@@ -138,7 +138,7 @@
         "state",
         "next_actions"
       ],
-      "description": "LifecycleResult is the JSON result shape currently shared by `harness execute start`, `harness archive`, `harness reopen`, `harness land`, and `harness land complete`."
+      "description": "LifecycleResult is the JSON result shape currently shared by `harness plan approve`, `harness execute start`, `harness archive`, `harness reopen`, `harness land`, and `harness land complete`."
     },
     "LifecycleState": {
       "properties": {
@@ -183,5 +183,5 @@
     }
   },
   "title": "Lifecycle command result",
-  "description": "Shared JSON output shape for lifecycle commands such as `harness execute start`, `harness archive`, `harness reopen`, `harness land`, and `harness land complete`."
+  "description": "Shared JSON output shape for lifecycle commands such as `harness plan approve`, `harness execute start`, `harness archive`, `harness reopen`, `harness land`, and `harness land complete`."
 }

@@ -80,6 +80,8 @@ Rules:
 
 - approval covers the markdown plan and its matching supplements directory as
   one plan package
+- explicit approval for a newly written plan should be recorded durably in the
+  tracked plan frontmatter rather than inferred only from chat context
 - bulky but durable execution detail that should survive context compaction may
   live in supplements, such as spec drafts, formulas, design notes, or other
   structured reasoning that is too large or awkward for the main markdown
@@ -133,6 +135,7 @@ created_at: 2026-03-17T10:12:01+08:00
 source_type: direct_request
 source_refs: []
 size: M
+approved_at: 2026-03-17T10:30:00+08:00
 ---
 ```
 
@@ -162,6 +165,8 @@ size: M
   - supported values are `XXS`, `XS`, `S`, `M`, `L`, `XL`, and `XXL`
   - size describes magnitude, coordination weight, and review load; it does
     not by itself prove the work is low-risk
+  - size and `workflow_profile` are separate decisions; `XXS` may still use
+    the ordinary `standard` workflow
   - `XXS` is the only size that may use `workflow_profile: lightweight`
   - an initial `XXL` estimate is a planning warning, not a routine default:
     before execution approval, the controller should stop, confirm the size
@@ -198,6 +203,14 @@ size: M
 
 ### Optional Fields
 
+- `approved_at`
+  - optional RFC3339 timestamp with offset
+  - records when an active tracked plan was explicitly approved through the
+    harness workflow, for example via `harness plan approve --by human`
+  - historical plans that predate the explicit approval command may omit this
+    field without backfill
+  - when present, it marks approval of the tracked markdown plan package,
+    including any matching `supplements/<plan-stem>/` directory
 - `workflow_profile`
   - optional explicit workflow selector
   - supported value is `lightweight`

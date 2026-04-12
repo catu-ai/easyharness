@@ -1,8 +1,8 @@
 package contracts
 
 // LifecycleResult is the JSON result shape currently shared by
-// `harness execute start`, `harness archive`, `harness reopen`, `harness land`,
-// and `harness land complete`.
+// `harness plan approve`, `harness execute start`, `harness archive`,
+// `harness reopen`, `harness land`, and `harness land complete`.
 type LifecycleResult struct {
 	// OK reports whether the command succeeded.
 	OK bool `json:"ok"`

@@ -45,6 +45,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	assertNode(t, preExecuteStatus, "plan")
 	stillPlannedStatus := runStatus(t, workspace.Root)
 	assertNode(t, stillPlannedStatus, "plan")
+	support.ApprovePlan(t, planPath, "2026-03-22T00:05:00Z")
 
 	execute := support.Run(t, workspace.Root, "execute", "start")
 	support.RequireSuccess(t, execute)

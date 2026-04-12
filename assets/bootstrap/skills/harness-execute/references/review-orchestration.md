@@ -189,6 +189,14 @@ Anchor SHA: <commit-sha-or-none>
 Change summary: <bounded-change-summary>
 ```
 
+Reviewer subagents should submit through:
+
+```bash
+harness review submit --round <round-id> --slot <slot> --by <reviewer-name> --input <path>
+```
+
+The controller must not submit reviewer results on a reviewer's behalf.
+
 Reviewer submissions may include optional finding `locations` arrays using
 lightweight repo-relative anchors such as `path/to/file.go`,
 `path/to/file.go#L123`, or `path/to/file.go#L1-L3`.

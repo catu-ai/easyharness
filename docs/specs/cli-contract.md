@@ -612,11 +612,14 @@ controller agent.
 
 Contract:
 
+- require `--by <reviewer-name>` as a lightweight reviewer-role cue
 - accept the reviewer payload via `--input <path>` or stdin
 - validate that the submission matches an expected slot
 - treat top-level `summary` and `findings` as the canonical aggregate fields
 - allow extra top-level reviewer worklog fields in the submission payload and
   preserve them in the stored submission artifact
+- preserve the `--by` value in the stored submission artifact as review
+  provenance
 - allow each finding to omit `locations` or provide `locations: []string`
   using lightweight repo-relative anchors in one of these forms:
   - `path/to/file.go`
@@ -637,6 +640,11 @@ Recommended next action:
   only when the slot instructions still materially match; immediate closeout
   is the safe default
 - on validation failure, fix the reviewer artifact and resubmit
+
+The main controller agent should not use this command to stand in as its own
+reviewer. In Codex, reviewer submission still belongs in a bounded reviewer
+subagent thread, with `--by` acting as a role cue rather than a strong
+identity assertion.
 
 ### `harness review aggregate`
 
@@ -715,6 +723,10 @@ Purpose:
 Contract:
 
 - require the current plan to be active before recording execution start
+- require explicit plan approval to already be recorded before execution can
+  start
+- reject the command with a clear error when the current active plan still
+  lacks recorded approval
 - persist the execution-start milestone in plan-local runtime state
 - update `.local/harness/current-plan.json` to point at the active tracked plan
 - return the shared v0.2 envelope with the post-command
@@ -727,6 +739,32 @@ Recommended next action:
 
 - continue the current tracked step and keep step-local `Execution Notes` and
   `Review Notes` current as implementation proceeds
+
+### `harness plan approve`
+
+Purpose:
+
+- record explicit human approval for the current active tracked plan before
+  execution starts
+
+Contract:
+
+- require the current plan to be active
+- require `--by human`
+- treat this command as a trust-based workflow acknowledgment rather than a
+  strong identity check; harness records the approval boundary but does not
+  authenticate the actor
+- persist approval durably in the tracked plan frontmatter as `approved_at`
+- keep approval separate from `harness execute start`; approval records the
+  human steering boundary, while execution start records the later execution
+  milestone
+- return a concise result that steers the agent toward `harness execute start`
+  after approval is recorded
+
+Recommended next action:
+
+- start execution with `harness execute start` once the approved plan is ready
+  for implementation
 
 ### `harness archive`
 

@@ -35,6 +35,7 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 	lint := support.Run(t, workspace.Root, "plan", "lint", planRelPath)
 	support.RequireSuccess(t, lint)
 	support.RequireNoStderr(t, lint)
+	support.ApprovePlan(t, planPath, "2026-04-08T00:05:00Z")
 
 	execute := support.Run(t, workspace.Root, "execute", "start")
 	support.RequireSuccess(t, execute)

@@ -503,7 +503,7 @@ func TestSubmitStoresSubmissionAndUpdatesLedger(t *testing.T) {
 	svc.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 1, 5, 0, 0, time.UTC)
 	}
-	result := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSON(t, review.SubmissionInput{
+	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, review.SubmissionInput{
 		Summary: "Found a targeted issue.",
 		Findings: []review.Finding{
 			{
@@ -527,6 +527,9 @@ func TestSubmitStoresSubmissionAndUpdatesLedger(t *testing.T) {
 	}
 	if err := json.Unmarshal(data, &submission); err != nil {
 		t.Fatalf("unmarshal submission: %v", err)
+	}
+	if submission.By != "reviewer-correctness" {
+		t.Fatalf("expected persisted reviewer identity, got %#v", submission)
 	}
 	if len(submission.Findings) != 1 || len(submission.Findings[0].Locations) != 2 {
 		t.Fatalf("expected persisted locations, got %#v", submission.Findings)
@@ -564,7 +567,7 @@ func TestSubmitDoesNotRequireStateMutationLock(t *testing.T) {
 	}
 	defer release()
 
-	result := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSON(t, review.SubmissionInput{
+	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, review.SubmissionInput{
 		Summary: "Looks good.",
 	}))
 	if !result.OK {
@@ -593,7 +596,7 @@ func TestSubmitRejectsUnknownFindingProperty(t *testing.T) {
 		t.Fatalf("start failed: %#v", start)
 	}
 
-	result := svc.Submit(start.Artifacts.RoundID, "correctness", []byte(`{
+	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", []byte(`{
 		"summary": "Looks good.",
 		"findings": [
 			{
@@ -631,7 +634,7 @@ func TestSubmitRejectsUnknownSlot(t *testing.T) {
 		t.Fatalf("start failed: %#v", start)
 	}
 
-	result := svc.Submit(start.Artifacts.RoundID, "missing", mustJSON(t, review.SubmissionInput{
+	result := svc.Submit(start.Artifacts.RoundID, "missing", "reviewer-missing", mustJSON(t, review.SubmissionInput{
 		Summary: "Looks good.",
 	}))
 	if result.OK {
@@ -661,7 +664,7 @@ func TestSubmitRejectsEmptyLocationString(t *testing.T) {
 		t.Fatalf("start failed: %#v", start)
 	}
 
-	result := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSON(t, review.SubmissionInput{
+	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, review.SubmissionInput{
 		Summary: "Found one issue.",
 		Findings: []review.Finding{
 			{
@@ -699,7 +702,7 @@ func TestSubmitRejectsNullLocations(t *testing.T) {
 		t.Fatalf("start failed: %#v", start)
 	}
 
-	result := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSON(t, map[string]any{
+	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, map[string]any{
 		"summary": "Found one issue.",
 		"findings": []any{
 			map[string]any{
@@ -737,7 +740,7 @@ func TestSubmitAcceptsAndPreservesExtraTopLevelFields(t *testing.T) {
 		t.Fatalf("start failed: %#v", start)
 	}
 
-	result := svc.Submit(start.Artifacts.RoundID, "correctness", []byte(`{
+	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", []byte(`{
 		"round_id":"stale-round",
 		"slot":"stale-slot",
 		"dimension":"stale-dimension",
@@ -805,7 +808,7 @@ func TestSubmitRejectsWrongFindingSeverityType(t *testing.T) {
 		t.Fatalf("start failed: %#v", start)
 	}
 
-	result := svc.Submit(start.Artifacts.RoundID, "correctness", []byte(`{
+	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", []byte(`{
 		"summary":"Found one issue.",
 		"findings":[{"severity":1,"title":"Wrong type","details":"Severity must be a string."}]
 	}`))
@@ -836,7 +839,7 @@ func TestSubmitRejectsMissingRequiredSummary(t *testing.T) {
 		t.Fatalf("start failed: %#v", start)
 	}
 
-	result := svc.Submit(start.Artifacts.RoundID, "correctness", []byte(`{"findings":[]}`))
+	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", []byte(`{"findings":[]}`))
 	if result.OK {
 		t.Fatalf("expected failure, got %#v", result)
 	}
@@ -864,7 +867,7 @@ func TestSubmitPreservesExplicitEmptyLocationsArray(t *testing.T) {
 		t.Fatalf("start failed: %#v", start)
 	}
 
-	result := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSON(t, map[string]any{
+	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, map[string]any{
 		"summary": "Found one issue.",
 		"findings": []any{
 			map[string]any{
@@ -916,7 +919,7 @@ func TestSubmitAcceptsFindingWithoutLocations(t *testing.T) {
 		t.Fatalf("start failed: %#v", start)
 	}
 
-	result := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSON(t, review.SubmissionInput{
+	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, review.SubmissionInput{
 		Summary: "Found one issue.",
 		Findings: []review.Finding{
 			{
@@ -993,7 +996,7 @@ func TestAggregateDeltaPassUpdatesState(t *testing.T) {
 	if !start.OK {
 		t.Fatalf("start failed: %#v", start)
 	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSON(t, review.SubmissionInput{
+	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, review.SubmissionInput{
 		Summary: "Looks good.",
 	}))
 	if !submit.OK {
@@ -1019,6 +1022,47 @@ func TestAggregateDeltaPassUpdatesState(t *testing.T) {
 	}
 }
 
+func TestAggregateAcceptsLegacySubmissionWithoutBy(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+
+	svc := review.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 18, 2, 5, 0, 0, time.UTC)
+		},
+	}
+	start := svc.Start(mustJSON(t, review.Spec{
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
+		Dimensions: []review.Dimension{
+			{Name: "correctness", Instructions: "Check aggregate compatibility."},
+		},
+	}))
+	if !start.OK {
+		t.Fatalf("expected start success, got %#v", start)
+	}
+	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, review.SubmissionInput{
+		Summary: "Looks good.",
+	}))
+	if !submit.OK {
+		t.Fatalf("expected submit success, got %#v", submit)
+	}
+	data, err := os.ReadFile(submit.Artifacts.SubmissionPath)
+	if err != nil {
+		t.Fatalf("read submission: %v", err)
+	}
+	legacy := strings.Replace(string(data), "\"by\": \"reviewer-correctness\",\n", "", 1)
+	if err := os.WriteFile(submit.Artifacts.SubmissionPath, []byte(legacy), 0o644); err != nil {
+		t.Fatalf("rewrite legacy submission: %v", err)
+	}
+
+	result := svc.Aggregate(start.Artifacts.RoundID)
+	if !result.OK {
+		t.Fatalf("expected aggregate to tolerate legacy missing by, got %#v", result)
+	}
+}
+
 func TestAggregateRejectsNonActiveRound(t *testing.T) {
 	root := t.TempDir()
 	writeArchiveReadyFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
@@ -1038,7 +1082,7 @@ func TestAggregateRejectsNonActiveRound(t *testing.T) {
 	if !stale.OK {
 		t.Fatalf("stale round start failed: %#v", stale)
 	}
-	submit := svc.Submit(stale.Artifacts.RoundID, "correctness", mustJSON(t, review.SubmissionInput{
+	submit := svc.Submit(stale.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, review.SubmissionInput{
 		Summary: "Looks good.",
 	}))
 	if !submit.OK {
@@ -1188,7 +1232,7 @@ func TestAggregateRejectsWhenReviewMutationLockIsHeld(t *testing.T) {
 	if !start.OK {
 		t.Fatalf("start failed: %#v", start)
 	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSON(t, review.SubmissionInput{
+	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, review.SubmissionInput{
 		Summary: "Looks good.",
 	}))
 	if !submit.OK {
@@ -1228,7 +1272,7 @@ func TestAggregateRejectsWhenStateMutationLockIsHeld(t *testing.T) {
 	if !start.OK {
 		t.Fatalf("start failed: %#v", start)
 	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSON(t, review.SubmissionInput{
+	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, review.SubmissionInput{
 		Summary: "Looks good.",
 	}))
 	if !submit.OK {
@@ -1272,7 +1316,7 @@ func TestAggregatePrefersReviewMutationLockWhenBothLocksAreHeld(t *testing.T) {
 	if !start.OK {
 		t.Fatalf("start failed: %#v", start)
 	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSON(t, review.SubmissionInput{
+	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, review.SubmissionInput{
 		Summary: "Looks good.",
 	}))
 	if !submit.OK {
@@ -1312,7 +1356,7 @@ func TestAggregateFullWithBlockingFindings(t *testing.T) {
 	if !start.OK {
 		t.Fatalf("start failed: %#v", start)
 	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSON(t, review.SubmissionInput{
+	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, review.SubmissionInput{
 		Summary: "Found a blocker.",
 		Findings: []review.Finding{
 			{
@@ -1371,7 +1415,7 @@ func TestAggregatePreservesExplicitEmptyLocationsArray(t *testing.T) {
 	if !start.OK {
 		t.Fatalf("start failed: %#v", start)
 	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSON(t, map[string]any{
+	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSON(t, map[string]any{
 		"summary": "Found one issue.",
 		"findings": []any{
 			map[string]any{

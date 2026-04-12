@@ -121,7 +121,7 @@ func TestAggregateRestoresPreviousAggregateWhenStateSaveFails(t *testing.T) {
 	svc.Now = func() time.Time {
 		return time.Date(2026, 4, 1, 10, 1, 0, 0, time.UTC)
 	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSONBytes(t, SubmissionInput{
+	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSONBytes(t, SubmissionInput{
 		Summary: "Looks good.",
 	}))
 	if !submit.OK {
@@ -210,7 +210,7 @@ func TestSubmitRestoresSubmissionWhenLedgerWriteFails(t *testing.T) {
 	svc.Now = func() time.Time {
 		return time.Date(2026, 4, 1, 10, 1, 0, 0, time.UTC)
 	}
-	result := svc.Submit(start.Artifacts.RoundID, "correctness", mustJSONBytes(t, SubmissionInput{
+	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSONBytes(t, SubmissionInput{
 		Summary: "Looks good.",
 	}))
 	if result.OK {

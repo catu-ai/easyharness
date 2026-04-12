@@ -240,6 +240,66 @@ func TestExecuteStartPersistsMilestoneAndPointer(t *testing.T) {
 	}
 }
 
+func TestPlanApproveRecordsAndRefreshesApprovedAt(t *testing.T) {
+	root := t.TempDir()
+	activeRelPath := "docs/plans/active/2026-03-18-plan-approve.md"
+	planPath := filepath.Join(root, activeRelPath)
+	writeFile(t, planPath, stripApprovedAt(buildAwaitingPlan(t, "Plan Approve Refresh")))
+
+	svc := lifecycle.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 18, 1, 0, 0, 0, time.UTC)
+		},
+	}
+	first := svc.PlanApprove("human")
+	if !first.OK {
+		t.Fatalf("expected first plan approve success, got %#v", first)
+	}
+	firstDoc, err := plan.LoadFile(planPath)
+	if err != nil {
+		t.Fatalf("load plan after first approval: %v", err)
+	}
+	if firstDoc.Frontmatter.ApprovedAt != "2026-03-18T01:00:00Z" {
+		t.Fatalf("expected first approved_at timestamp, got %#v", firstDoc.Frontmatter)
+	}
+
+	svc.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 1, 10, 0, 0, time.UTC)
+	}
+	second := svc.PlanApprove("human")
+	if !second.OK {
+		t.Fatalf("expected second plan approve success, got %#v", second)
+	}
+	if !strings.Contains(second.Summary, "Refreshed") {
+		t.Fatalf("expected refreshed approval summary, got %#v", second)
+	}
+	secondDoc, err := plan.LoadFile(planPath)
+	if err != nil {
+		t.Fatalf("load plan after second approval: %v", err)
+	}
+	if secondDoc.Frontmatter.ApprovedAt != "2026-03-18T01:10:00Z" {
+		t.Fatalf("expected refreshed approved_at timestamp, got %#v", secondDoc.Frontmatter)
+	}
+}
+
+func TestExecuteStartRejectsUnapprovedPlan(t *testing.T) {
+	root := t.TempDir()
+	activeRelPath := "docs/plans/active/2026-03-18-execute-start-unapproved.md"
+	writeFile(t, filepath.Join(root, activeRelPath), stripApprovedAt(buildAwaitingPlan(t, "Execute Start Unapproved")))
+
+	result := lifecycle.Service{Workdir: root}.ExecuteStart()
+	if result.OK {
+		t.Fatalf("expected execute start to reject unapproved plan, got %#v", result)
+	}
+	if result.Summary != "Current plan is waiting for recorded human approval." {
+		t.Fatalf("unexpected summary: %#v", result)
+	}
+	if len(result.Errors) == 0 || result.Errors[0].Path != "frontmatter.approved_at" {
+		t.Fatalf("expected approval error path, got %#v", result.Errors)
+	}
+}
+
 func TestExecuteStartBackfillsLegacyExecutingPlan(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-execute-start-legacy.md"
@@ -1525,7 +1585,7 @@ func TestLandReadsEvidenceArtifactsWhenStateIsSparse(t *testing.T) {
 		t.Fatalf("save current plan: %v", err)
 	}
 	if _, err := runstate.SaveState(root, "2026-03-18-landed-plan", &runstate.State{
-		Revision:       3,
+		Revision: 3,
 	}); err != nil {
 		t.Fatalf("save legacy state: %v", err)
 	}
@@ -1840,7 +1900,20 @@ func buildAwaitingPlan(t *testing.T, title string) string {
 	if err != nil {
 		t.Fatalf("render template: %v", err)
 	}
-	return strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
+	rendered = strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
+	return strings.Replace(rendered, "created_at: 2026-03-18T02:00:00Z", "created_at: 2026-03-18T02:00:00Z\napproved_at: 2026-03-18T02:05:00Z", 1)
+}
+
+func stripApprovedAt(content string) string {
+	lines := strings.Split(content, "\n")
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.HasPrefix(line, "approved_at:") {
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+	return strings.Join(filtered, "\n")
 }
 
 func writeFile(t *testing.T, path, content string) {

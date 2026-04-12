@@ -270,7 +270,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 	})
 }
 
-func (s Service) Submit(roundID, slot string, inputBytes []byte) SubmitResult {
+func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) SubmitResult {
 	lockedPlanPath, release, err := s.acquireReviewMutationLock()
 	if err == nil {
 		defer release()
@@ -311,6 +311,14 @@ func (s Service) Submit(roundID, slot string, inputBytes []byte) SubmitResult {
 			Errors:  []CommandError{{Path: "slot", Message: fmt.Sprintf("unknown slot %q for review round %q", slot, roundID)}},
 		}
 	}
+	if strings.TrimSpace(reviewerName) == "" {
+		return SubmitResult{
+			OK:      false,
+			Command: "review submit",
+			Summary: "Reviewer identity is required.",
+			Errors:  []CommandError{{Path: "by", Message: "review submit requires a non-empty reviewer identity label"}},
+		}
+	}
 
 	var input SubmissionInput
 	if issues := inputschema.DecodeAndValidate("inputs.review.submission", "submission", inputBytes, &input); len(issues) > 0 {
@@ -335,6 +343,7 @@ func (s Service) Submit(roundID, slot string, inputBytes []byte) SubmitResult {
 		RoundID:     roundID,
 		Slot:        slotDef.Slot,
 		Dimension:   slotDef.Name,
+		By:          strings.TrimSpace(reviewerName),
 		SubmittedAt: now,
 		Summary:     strings.TrimSpace(input.Summary),
 		Findings:    input.Findings,

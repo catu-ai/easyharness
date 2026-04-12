@@ -153,6 +153,9 @@ type ReviewSubmission struct {
 	// Dimension is the human-readable review dimension label.
 	Dimension string `json:"dimension"`
 
+	// By is the reviewer-provided identity label for the submitted slot.
+	By string `json:"by,omitempty"`
+
 	// SubmittedAt is the submission timestamp.
 	SubmittedAt string `json:"submitted_at,omitempty"`
 
@@ -397,6 +400,7 @@ func (s ReviewSubmission) MarshalJSON() ([]byte, error) {
 		RoundID:     s.RoundID,
 		Slot:        s.Slot,
 		Dimension:   s.Dimension,
+		By:          s.By,
 		SubmittedAt: s.SubmittedAt,
 		Summary:     s.Summary,
 		Findings:    s.Findings,
@@ -413,6 +417,7 @@ func (s *ReviewSubmission) UnmarshalJSON(data []byte) error {
 	s.RoundID = payload.RoundID
 	s.Slot = payload.Slot
 	s.Dimension = payload.Dimension
+	s.By = payload.By
 	s.SubmittedAt = payload.SubmittedAt
 	s.Summary = payload.Summary
 	s.Findings = payload.Findings
@@ -549,6 +554,7 @@ type reviewSubmissionPayload struct {
 	RoundID     string          `json:"round_id"`
 	Slot        string          `json:"slot"`
 	Dimension   string          `json:"dimension"`
+	By          string          `json:"by,omitempty"`
 	SubmittedAt string          `json:"submitted_at,omitempty"`
 	Summary     string          `json:"summary,omitempty"`
 	Findings    []ReviewFinding `json:"findings,omitempty"`
@@ -563,6 +569,7 @@ var reviewSubmissionInputIgnoredExtraFields = map[string]bool{
 	"round_id":     true,
 	"slot":         true,
 	"dimension":    true,
+	"by":           true,
 	"submitted_at": true,
 }
 
@@ -570,6 +577,7 @@ var reviewSubmissionKnownFields = map[string]bool{
 	"round_id":     true,
 	"slot":         true,
 	"dimension":    true,
+	"by":           true,
 	"submitted_at": true,
 	"summary":      true,
 	"findings":     true,

@@ -181,6 +181,7 @@ func TestPlanLintCommandReturnsJSON(t *testing.T) {
 	}); exitCode != 0 {
 		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
 	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
 	ensurePlanSizeInFile(t, outputPath, "M")
 
 	stdout.Reset()
@@ -437,6 +438,7 @@ func TestStatusCommandReturnsJSON(t *testing.T) {
 	}); exitCode != 0 {
 		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
 	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
 
 	stdout.Reset()
 	stderr.Reset()
@@ -473,6 +475,7 @@ func TestExecuteStartCommandReturnsJSON(t *testing.T) {
 	}); exitCode != 0 {
 		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
 	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
 
 	stdout.Reset()
 	stderr.Reset()
@@ -514,6 +517,7 @@ func TestExecuteStartRollsBackWhenTimelineAppendFails(t *testing.T) {
 	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Generated Plan", "--output", outputPath}); exitCode != 0 {
 		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
 	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
 	if err := os.MkdirAll(filepath.Join(root, ".local/harness/plans/2026-03-18-test-plan/events.jsonl"), 0o755); err != nil {
 		t.Fatalf("seed broken event index path: %v", err)
 	}
@@ -631,6 +635,7 @@ func TestReviewStartCommandAppendsTimelineEvent(t *testing.T) {
 	}); exitCode != 0 {
 		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
 	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
 
 	stdout.Reset()
 	stderr.Reset()
@@ -683,6 +688,7 @@ func TestReviewStartCommandReturnsSchemaValidationErrors(t *testing.T) {
 	}); exitCode != 0 {
 		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
 	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -729,6 +735,7 @@ func TestReviewSubmitCommandAppendsTimelineEvent(t *testing.T) {
 	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Review Submit Plan", "--output", outputPath}); exitCode != 0 {
 		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
 	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -743,7 +750,7 @@ func TestReviewSubmitCommandAppendsTimelineEvent(t *testing.T) {
 	stdout.Reset()
 	stderr.Reset()
 	app.Stdin = bytes.NewBufferString(`{"summary":"Looks good","findings":[]}`)
-	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness"}); exitCode != 0 {
+	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness", "--by", "reviewer-correctness"}); exitCode != 0 {
 		t.Fatalf("review submit failed with %d: %s", exitCode, stderr.String())
 	}
 
@@ -764,6 +771,7 @@ func TestReviewSubmitCommandDoesNotFailWhenStateMutationLockIsHeld(t *testing.T)
 	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Review Submit Lock Plan", "--output", outputPath}); exitCode != 0 {
 		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
 	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -784,7 +792,7 @@ func TestReviewSubmitCommandDoesNotFailWhenStateMutationLockIsHeld(t *testing.T)
 	stdout.Reset()
 	stderr.Reset()
 	app.Stdin = bytes.NewBufferString(`{"summary":"Looks good","findings":[]}`)
-	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness"}); exitCode != 0 {
+	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness", "--by", "reviewer-correctness"}); exitCode != 0 {
 		t.Fatalf("expected review submit success while state lock is held, got %d: %s", exitCode, stderr.String())
 	}
 }
@@ -803,6 +811,7 @@ func TestReviewSubmitCommandReturnsSchemaValidationErrors(t *testing.T) {
 	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Review Submit Plan", "--output", outputPath}); exitCode != 0 {
 		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
 	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -817,7 +826,7 @@ func TestReviewSubmitCommandReturnsSchemaValidationErrors(t *testing.T) {
 	stdout.Reset()
 	stderr.Reset()
 	app.Stdin = bytes.NewBufferString(`{"findings":[]}`)
-	exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness"})
+	exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness", "--by", "reviewer-correctness"})
 	if exitCode != 1 {
 		t.Fatalf("expected schema validation failure, got %d: %s", exitCode, stderr.String())
 	}
@@ -852,6 +861,7 @@ func TestReviewAggregateCommandAppendsTimelineEvent(t *testing.T) {
 	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Review Aggregate Plan", "--output", outputPath}); exitCode != 0 {
 		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
 	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -866,7 +876,7 @@ func TestReviewAggregateCommandAppendsTimelineEvent(t *testing.T) {
 	stdout.Reset()
 	stderr.Reset()
 	app.Stdin = bytes.NewBufferString(`{"summary":"Looks good","findings":[]}`)
-	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness"}); exitCode != 0 {
+	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness", "--by", "reviewer-correctness"}); exitCode != 0 {
 		t.Fatalf("review submit failed with %d: %s", exitCode, stderr.String())
 	}
 
@@ -893,6 +903,7 @@ func TestReviewSubmitRollsBackWhenTimelineAppendFails(t *testing.T) {
 	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Review Submit Rollback Plan", "--output", outputPath}); exitCode != 0 {
 		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
 	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -915,7 +926,7 @@ func TestReviewSubmitRollsBackWhenTimelineAppendFails(t *testing.T) {
 	stdout.Reset()
 	stderr.Reset()
 	app.Stdin = bytes.NewBufferString(`{"summary":"Looks good","findings":[]}`)
-	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness"}); exitCode != 1 {
+	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness", "--by", "reviewer-correctness"}); exitCode != 1 {
 		t.Fatalf("expected review submit failure when timeline append fails, got %d", exitCode)
 	}
 
@@ -1627,4 +1638,30 @@ func ensurePlanSizeInFile(t *testing.T, path, size string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write plan file: %v", err)
 	}
+}
+
+func approvePlanInFile(t *testing.T, path, approvedAt string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read plan file: %v", err)
+	}
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, "approved_at:") {
+			lines[i] = "approved_at: " + approvedAt
+			if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+				t.Fatalf("write approved plan file: %v", err)
+			}
+			return
+		}
+		if strings.HasPrefix(line, "created_at:") {
+			lines = append(lines[:i+1], append([]string{"approved_at: " + approvedAt}, lines[i+1:]...)...)
+			if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+				t.Fatalf("write approved plan file: %v", err)
+			}
+			return
+		}
+	}
+	t.Fatalf("created_at frontmatter line not found in %s", path)
 }
