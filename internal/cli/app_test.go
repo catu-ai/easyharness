@@ -97,7 +97,7 @@ func TestVersionFlagPrintsHumanReadableDebugInfo(t *testing.T) {
 	app := cli.New(stdout, stderr)
 	app.Version = func() version.Info {
 		return version.Info{
-			Version: "v0.2.0",
+			Version: "v0.0.0",
 			Commit:  "abc123",
 			Mode:    "dev",
 			Path:    "/tmp/harness",
@@ -123,7 +123,7 @@ func TestVersionFlagPrintsHumanReadableDebugInfo(t *testing.T) {
 	if !strings.Contains(stdout.String(), "path: /tmp/harness") {
 		t.Fatalf("expected dev path in version output, got %q", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "version: v0.2.0") {
+	if !strings.Contains(stdout.String(), "version: v0.0.0") {
 		t.Fatalf("expected version in version output, got %q", stdout.String())
 	}
 }
