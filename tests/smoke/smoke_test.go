@@ -18,7 +18,7 @@ type statusResult struct {
 	State   struct {
 		CurrentNode string `json:"current_node"`
 	} `json:"state"`
-	Warnings []string `json:"warnings"`
+	Warnings   []string `json:"warnings"`
 	NextAction []struct {
 		Command     *string `json:"command"`
 		Description string  `json:"description"`
@@ -163,25 +163,8 @@ func TestStatusIdleReportsNonBlockingBootstrapReminderWhenManagedAssetsAreStale(
 	support.RequireSuccess(t, initResult)
 	support.RequireNoStderr(t, initResult)
 
-	agentsPath := workspace.Path("AGENTS.md")
-	agentsData, err := os.ReadFile(agentsPath)
-	if err != nil {
-		t.Fatalf("read AGENTS.md: %v", err)
-	}
-	staleAgents := strings.Replace(string(agentsData), `<!-- easyharness:begin version="`, `<!-- easyharness:begin version="stale-`, 1)
-	if err := os.WriteFile(agentsPath, []byte(staleAgents), 0o644); err != nil {
-		t.Fatalf("write stale AGENTS.md: %v", err)
-	}
-
-	skillPath := workspace.Path(".agents/skills/harness-discovery/SKILL.md")
-	skillData, err := os.ReadFile(skillPath)
-	if err != nil {
-		t.Fatalf("read managed skill: %v", err)
-	}
-	staleSkill := strings.Replace(string(skillData), "easyharness-version:", "easyharness-version: stale-", 1)
-	if err := os.WriteFile(skillPath, []byte(staleSkill), 0o644); err != nil {
-		t.Fatalf("write stale managed skill: %v", err)
-	}
+	staleManagedInstructionsAtPath(t, workspace.Path("AGENTS.md"))
+	staleManagedSkillAtPath(t, workspace.Path(".agents/skills/harness-discovery/SKILL.md"))
 
 	result := support.Run(t, workspace.Root, "status")
 	support.RequireSuccess(t, result)
@@ -196,6 +179,44 @@ func TestStatusIdleReportsNonBlockingBootstrapReminderWhenManagedAssetsAreStale(
 	}
 	if len(payload.NextAction) == 0 || payload.NextAction[0].Command == nil || *payload.NextAction[0].Command != "harness init --dry-run" {
 		t.Fatalf("expected optional refresh command first, got %#v", payload.NextAction)
+	}
+}
+
+func TestStatusIdleReportsReminderWhenOnlyManagedInstructionsAreStale(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+
+	initResult := support.Run(t, workspace.Root, "init")
+	support.RequireSuccess(t, initResult)
+	support.RequireNoStderr(t, initResult)
+
+	staleManagedInstructionsAtPath(t, workspace.Path("AGENTS.md"))
+
+	result := support.Run(t, workspace.Root, "status")
+	support.RequireSuccess(t, result)
+	support.RequireNoStderr(t, result)
+
+	payload := support.RequireJSONResult[statusResult](t, result)
+	if len(payload.Warnings) == 0 || !strings.Contains(strings.Join(payload.Warnings, "\n"), "AGENTS.md managed block") {
+		t.Fatalf("expected stale instructions reminder, got %#v", payload.Warnings)
+	}
+}
+
+func TestStatusIdleReportsReminderWhenOnlyManagedSkillsAreStale(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+
+	initResult := support.Run(t, workspace.Root, "init")
+	support.RequireSuccess(t, initResult)
+	support.RequireNoStderr(t, initResult)
+
+	staleManagedSkillAtPath(t, workspace.Path(".agents/skills/harness-discovery/SKILL.md"))
+
+	result := support.Run(t, workspace.Root, "status")
+	support.RequireSuccess(t, result)
+	support.RequireNoStderr(t, result)
+
+	payload := support.RequireJSONResult[statusResult](t, result)
+	if len(payload.Warnings) == 0 || !strings.Contains(strings.Join(payload.Warnings, "\n"), "managed skill package") {
+		t.Fatalf("expected stale managed-skill reminder, got %#v", payload.Warnings)
 	}
 }
 
@@ -217,6 +238,30 @@ func TestPlanTemplatePrintsToStdoutByDefault(t *testing.T) {
 	support.RequireContains(t, result.Stdout, "created_at: 2026-03-22T00:00:00Z")
 	support.RequireContains(t, result.Stdout, "source_type: issue")
 	support.RequireContains(t, result.Stdout, "source_refs: [\"#6\"]")
+}
+
+func staleManagedInstructionsAtPath(t *testing.T, agentsPath string) {
+	t.Helper()
+	agentsData, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	staleAgents := strings.Replace(string(agentsData), `<!-- easyharness:begin version="`, `<!-- easyharness:begin version="stale-`, 1)
+	if err := os.WriteFile(agentsPath, []byte(staleAgents), 0o644); err != nil {
+		t.Fatalf("write stale AGENTS.md: %v", err)
+	}
+}
+
+func staleManagedSkillAtPath(t *testing.T, skillPath string) {
+	t.Helper()
+	skillData, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("read managed skill: %v", err)
+	}
+	staleSkill := strings.Replace(string(skillData), "easyharness-version:", "easyharness-version: stale-", 1)
+	if err := os.WriteFile(skillPath, []byte(staleSkill), 0o644); err != nil {
+		t.Fatalf("write stale managed skill: %v", err)
+	}
 }
 
 func TestInitBootstrapsFreshRepository(t *testing.T) {
