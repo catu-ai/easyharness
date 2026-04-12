@@ -73,7 +73,7 @@ than bypassing the documented workflow with a manual tag push.
 
 ### Step 1: Separate real release state from generic release examples
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -129,11 +129,11 @@ adding `TestRepositoryVersionFileResolvesMatchingReleaseTag` in
 `VERSION` file and asserts `scripts/read-release-version --tag` returns the
 matching `v*` tag for the live repository state. Focused repair validation
 passed with `scripts/read-release-version --tag` and
-`go test ./tests/smoke -run 'TestRepositoryVersionFileUsesUnprefixedReleaseVersion|TestRepositoryVersionFileResolvesMatchingReleaseTag|TestReadReleaseVersionOutputsVersionAndTag|TestReadReleaseVersionRejectsPrefixedVersionFile|TestReadReleaseVersionRejectsMissingVersionFile|TestReadReleaseVersionRejectsEmptyVersionFile|TestReadReleaseVersionRejectsVersionThatCannotFormGitTag' -count=1`. A fresh delta review is still required before Step 1 can close.
+`go test ./tests/smoke -run 'TestRepositoryVersionFileUsesUnprefixedReleaseVersion|TestRepositoryVersionFileResolvesMatchingReleaseTag|TestReadReleaseVersionOutputsVersionAndTag|TestReadReleaseVersionRejectsPrefixedVersionFile|TestReadReleaseVersionRejectsMissingVersionFile|TestReadReleaseVersionRejectsEmptyVersionFile|TestReadReleaseVersionRejectsVersionThatCannotFormGitTag' -count=1`, and follow-up `review-002-delta` then passed with no remaining findings.
 
 ### Step 2: Validate the release bump and prepare merge-ready handoff
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -164,11 +164,23 @@ note about the remaining publish action.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Confirmed the real release path still resolves through the existing tooling
+with `scripts/read-release-version --tag` returning `v0.2.1`, while the
+generic example surfaces now stay decoupled on `0.0.0` / `v0.0.0`. Focused
+validation passed across the release-facing and repair surfaces with
+`go test ./internal/cli -count=1`,
+`go test ./tests/smoke -run 'TestReleaseDocsPresentStableOnboardingSurface|TestBuildReleaseProducesStableArchiveAndVersionedBinary|TestBuildReleaseHelpUsesStableExampleVersion|TestReleaseWorkflowWiresHomebrewTapPublishing|TestInstallDevHarness|TestInstallDevHarnessPrefersStablePathBinary|TestInstallDevHarnessPrefersStablePathBinaryWhenRepoBinaryMissing|TestInstallDevHarnessRepairsManagedWrapper|TestInstallDevHarnessRepairsLegacyManagedWrapper|TestInstallDevHarnessLeavesForeignHarnessAlone' -count=1`,
+and the focused `release_version_file` subset used during the repair follow-up.
+Prepared the merge handoff path by creating branch `codex/release-0-2-1`,
+confirming `gh auth status` is ready, and keeping the candidate on two small
+reviewable commits for the later archive/publish steps.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 2 did not introduce a new behavior-changing slice
+separate from the already reviewed Step 1 work; it consolidated focused
+validation and merge-handoff readiness so the next meaningful review boundary
+is finalize review for the whole candidate.
 
 ## Validation Strategy
 
