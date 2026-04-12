@@ -55,13 +55,13 @@ than bypassing the documented workflow with a manual tag push.
 
 ## Acceptance Criteria
 
-- [ ] `VERSION` is `0.2.1`, while non-essential release docs/examples/help text
+- [x] `VERSION` is `0.2.1`, while non-essential release docs/examples/help text
       no longer need to hard-code the current live release number just to
       explain the workflow.
-- [ ] Focused validation for the changed release/version surfaces passes,
+- [x] Focused validation for the changed release/version surfaces passes,
       including proving that `scripts/read-release-version --tag` resolves the
       new `v0.2.1` tag correctly.
-- [ ] The resulting change is scoped as a dedicated release update that is
+- [x] The resulting change is scoped as a dedicated release update that is
       ready to move through the repository's normal release PR and merge flow.
 
 ## Deferred Items
@@ -208,26 +208,73 @@ is finalize review for the whole candidate.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- Confirmed the live repository release path with:
+  - `scripts/read-release-version --tag` -> `v0.2.1`
+- Passed focused release-surface validation with:
+  - `go test ./internal/cli -count=1`
+  - `go test ./tests/smoke -run 'TestReleaseDocsPresentStableOnboardingSurface|TestBuildReleaseProducesStableArchiveAndVersionedBinary|TestBuildReleaseHelpUsesStableExampleVersion|TestReleaseWorkflowWiresHomebrewTapPublishing|TestInstallDevHarness|TestInstallDevHarnessPrefersStablePathBinary|TestInstallDevHarnessPrefersStablePathBinaryWhenRepoBinaryMissing|TestInstallDevHarnessRepairsManagedWrapper|TestInstallDevHarnessRepairsLegacyManagedWrapper|TestInstallDevHarnessLeavesForeignHarnessAlone' -count=1`
+- Passed focused repair coverage for the live VERSION helper path with:
+  - `go test ./tests/smoke -run 'TestRepositoryVersionFileUsesUnprefixedReleaseVersion|TestRepositoryVersionFileResolvesMatchingReleaseTag|TestReadReleaseVersionOutputsVersionAndTag|TestReadReleaseVersionRejectsPrefixedVersionFile|TestReadReleaseVersionRejectsMissingVersionFile|TestReadReleaseVersionRejectsEmptyVersionFile|TestReadReleaseVersionRejectsVersionThatCannotFormGitTag' -count=1`
+- Re-linted the tracked plan after step closeout with:
+  - `harness plan lint docs/plans/active/2026-04-12-prepare-0-2-1-release-bump.md`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-delta` requested changes.
+  - Finding: no automated test anchored the live repository `VERSION` bump to
+    the `scripts/read-release-version --tag` output path.
+- Addressed the blocking finding by:
+  - adding `TestRepositoryVersionFileResolvesMatchingReleaseTag` in
+    `tests/smoke/release_version_file_test.go`
+  - rerunning focused release-version validation and confirming the live repo
+    helper path still resolves to `v0.2.1`
+- `review-002-delta` passed cleanly after the repair with no remaining
+  findings.
+- `review-003-full` passed cleanly for finalize review with no findings across
+  correctness, tests, or docs consistency.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-04-12T14:37:07+08:00
+- Revision: 1
+- PR: not opened yet; create or update the dedicated release PR from
+  `codex/release-0-2-1` immediately after archive.
+- Ready: The candidate bumps the tracked release entry point to `0.2.1`,
+  replaces non-essential release examples with stable pseudo versions
+  `0.0.0` / `v0.0.0`, adds live repository `VERSION -> tag` smoke coverage,
+  keeps schema/template versions untouched, and passed finalize full review
+  `review-003-full`.
+- Merge Handoff: After archive, push `codex/release-0-2-1`, open the dedicated
+  release PR, record publish/CI/sync evidence for revision 1, and wait for
+  merge approval once status reaches `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Bumped the root `VERSION` file from `0.2.0` to `0.2.1`.
+- Decoupled non-essential release examples from the live release line by
+  changing README, release docs, workflow/help text, and generic fixtures to
+  use `0.0.0` / `v0.0.0`.
+- Left real semantic version markers such as `template_version` unchanged so
+  schema/template meaning stays explicit.
+- Added live repository coverage in
+  `tests/smoke/release_version_file_test.go` that reads the tracked root
+  `VERSION` file and asserts the matching `v*` tag output.
+- Recorded step-level execution and review closeout in the tracked plan and
+  brought the candidate through passing step and finalize review.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No changelog, release notes, or announcement packaging for `0.2.1` was added
+  in this slice.
+- No release automation redesign or broader release-policy change was attempted
+  beyond the scoped version bump and example de-coupling.
+- No post-release automation that bumps `VERSION` forward again was added in
+  this slice.
 
 ### Follow-Up Issues
 
-NONE
+- No new follow-up issue was opened in this slice. Deferred work remains future
+  release packaging/announcement material for `0.2.1` and any later decision
+  to automate the post-release `VERSION` bump for the next iteration.
