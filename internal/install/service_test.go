@@ -95,6 +95,118 @@ func TestInitRefreshesManagedBlockWithoutTouchingUserContent(t *testing.T) {
 	}
 }
 
+func TestInspectRepoBootstrapDriftIgnoresAbsentManagedAssets(t *testing.T) {
+	root := t.TempDir()
+
+	drift, err := testService(root).InspectRepoBootstrapDrift("codex")
+	if err != nil {
+		t.Fatalf("InspectRepoBootstrapDrift: %v", err)
+	}
+	if drift.ManagedAssetsPresent {
+		t.Fatalf("expected absent repo bootstrap assets to stay untracked, got %#v", drift)
+	}
+	if drift.Stale() {
+		t.Fatalf("expected absent repo bootstrap assets to avoid stale drift, got %#v", drift)
+	}
+}
+
+func TestInspectRepoBootstrapDriftReportsManagedAssetsAsFreshAfterInit(t *testing.T) {
+	root := t.TempDir()
+	svc := testService(root)
+	if result := svc.Init(Options{}); !result.OK {
+		t.Fatalf("init failed: %#v", result)
+	}
+
+	drift, err := svc.InspectRepoBootstrapDrift("codex")
+	if err != nil {
+		t.Fatalf("InspectRepoBootstrapDrift: %v", err)
+	}
+	if !drift.ManagedAssetsPresent {
+		t.Fatalf("expected init-installed assets to count as managed, got %#v", drift)
+	}
+	if drift.Stale() {
+		t.Fatalf("expected init-installed assets to be fresh, got %#v", drift)
+	}
+}
+
+func TestInspectRepoBootstrapDriftReportsStaleManagedInstructionsAndSkills(t *testing.T) {
+	root := t.TempDir()
+	svc := testService(root)
+	if result := svc.Init(Options{}); !result.OK {
+		t.Fatalf("init failed: %#v", result)
+	}
+
+	agentsPath := filepath.Join(root, "AGENTS.md")
+	agentsData, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	staleAgents := strings.Replace(string(agentsData), `<!-- easyharness:begin version="`, `<!-- easyharness:begin version="stale-`, 1)
+	if err := os.WriteFile(agentsPath, []byte(staleAgents), 0o644); err != nil {
+		t.Fatalf("write stale AGENTS.md: %v", err)
+	}
+
+	skillPath := filepath.Join(root, ".agents/skills/harness-discovery/SKILL.md")
+	skillData, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("read skill: %v", err)
+	}
+	staleSkill := strings.Replace(string(skillData), "easyharness-version:", "easyharness-version: stale-", 1)
+	if err := os.WriteFile(skillPath, []byte(staleSkill), 0o644); err != nil {
+		t.Fatalf("write stale skill: %v", err)
+	}
+
+	drift, err := svc.InspectRepoBootstrapDrift("codex")
+	if err != nil {
+		t.Fatalf("InspectRepoBootstrapDrift: %v", err)
+	}
+	if !drift.ManagedAssetsPresent {
+		t.Fatalf("expected stale managed assets to still count as present, got %#v", drift)
+	}
+	if !drift.InstructionsStale {
+		t.Fatalf("expected stale managed block to be reported, got %#v", drift)
+	}
+	if len(drift.StaleManagedSkillPackages) != 1 || drift.StaleManagedSkillPackages[0] != "harness-discovery" {
+		t.Fatalf("expected stale harness-discovery package, got %#v", drift)
+	}
+}
+
+func TestInspectRepoBootstrapDriftReportsUnexpectedManagedSkillPackages(t *testing.T) {
+	root := t.TempDir()
+	svc := testService(root)
+	if result := svc.InstallSkills(Options{}); !result.OK {
+		t.Fatalf("install skills failed: %#v", result)
+	}
+
+	extraRoot := filepath.Join(root, ".agents/skills/custom-managed")
+	if err := os.MkdirAll(extraRoot, 0o755); err != nil {
+		t.Fatalf("mkdir extra managed skill: %v", err)
+	}
+	extraBody := strings.Join([]string{
+		"---",
+		"name: custom-managed",
+		"description: Unexpected managed skill for drift detection.",
+		"metadata:",
+		"  easyharness-managed: \"true\"",
+		"  easyharness-version: v9.9.9",
+		"---",
+		"",
+		"# Custom",
+		"",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(extraRoot, "SKILL.md"), []byte(extraBody), 0o644); err != nil {
+		t.Fatalf("write extra managed skill: %v", err)
+	}
+
+	drift, err := svc.InspectRepoBootstrapDrift("codex")
+	if err != nil {
+		t.Fatalf("InspectRepoBootstrapDrift: %v", err)
+	}
+	if len(drift.ExtraManagedSkillPackages) != 1 || drift.ExtraManagedSkillPackages[0] != "custom-managed" {
+		t.Fatalf("expected unexpected managed skill package to surface, got %#v", drift)
+	}
+}
+
 func TestInstallSkillsRejectsNonManagedConflicts(t *testing.T) {
 	root := t.TempDir()
 	conflictPath := filepath.Join(root, ".agents/skills/harness-discovery/SKILL.md")

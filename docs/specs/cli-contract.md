@@ -193,6 +193,10 @@ For `harness status` specifically:
   current step, starting routine review, or aggregating the active round
 - use `warnings` for recoverable ambiguity or workflow-discipline reminders
   that should not by themselves change `state.current_node`
+- when the worktree is `idle`, `warnings` plus an optional `next_action` may
+  also carry a non-blocking agent reminder that the default repo bootstrap
+  assets are stale relative to the running binary; this reminder must not alter
+  workflow state or block later execution
 - avoid heuristic warnings for "the current slice may now be reviewable"; keep
   that kind of prompt in ordinary `next_actions`
 

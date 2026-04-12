@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/catu-ai/easyharness/internal/evidence"
+	"github.com/catu-ai/easyharness/internal/install"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/review"
 	"github.com/catu-ai/easyharness/internal/runstate"
@@ -2271,6 +2272,108 @@ func TestStatusIdleNodeAfterLand(t *testing.T) {
 	}
 	if result.Artifacts == nil || result.Artifacts.LastLandedPlanPath != "docs/plans/archived/2026-03-18-status-plan.md" {
 		t.Fatalf("unexpected artifacts: %#v", result.Artifacts)
+	}
+}
+
+func TestStatusIdleSurfacesNonBlockingBootstrapReminderWhenManagedAssetsAreStale(t *testing.T) {
+	root := t.TempDir()
+	svc := install.Service{Workdir: root}
+	if result := svc.Init(install.Options{}); !result.OK {
+		t.Fatalf("init failed: %#v", result)
+	}
+
+	agentsPath := filepath.Join(root, "AGENTS.md")
+	agentsData, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	staleAgents := strings.Replace(string(agentsData), `<!-- easyharness:begin version="`, `<!-- easyharness:begin version="stale-`, 1)
+	if err := os.WriteFile(agentsPath, []byte(staleAgents), 0o644); err != nil {
+		t.Fatalf("write stale AGENTS.md: %v", err)
+	}
+
+	skillPath := filepath.Join(root, ".agents/skills/harness-discovery/SKILL.md")
+	skillData, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("read skill: %v", err)
+	}
+	staleSkill := strings.Replace(string(skillData), "easyharness-version:", "easyharness-version: stale-", 1)
+	if err := os.WriteFile(skillPath, []byte(staleSkill), 0o644); err != nil {
+		t.Fatalf("write stale skill: %v", err)
+	}
+
+	result := status.Service{Workdir: root}.Read()
+	if !result.OK {
+		t.Fatalf("expected idle result, got %#v", result)
+	}
+	if result.State.CurrentNode != "idle" {
+		t.Fatalf("expected idle node, got %#v", result.State)
+	}
+	if len(result.Warnings) == 0 {
+		t.Fatalf("expected idle bootstrap reminder warning, got %#v", result)
+	}
+	if !strings.Contains(strings.Join(result.Warnings, "\n"), "non-blocking reminder") {
+		t.Fatalf("expected non-blocking reminder wording, got %#v", result.Warnings)
+	}
+	if len(result.NextAction) == 0 || result.NextAction[0].Command == nil || *result.NextAction[0].Command != "harness init --dry-run" {
+		t.Fatalf("expected optional bootstrap refresh guidance first, got %#v", result.NextAction)
+	}
+	if !strings.Contains(result.NextAction[0].Description, "Optionally inspect") {
+		t.Fatalf("expected optional reminder phrasing, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusIdleSkipsBootstrapReminderWhenManagedAssetsAreFresh(t *testing.T) {
+	root := t.TempDir()
+	svc := install.Service{Workdir: root}
+	if result := svc.Init(install.Options{}); !result.OK {
+		t.Fatalf("init failed: %#v", result)
+	}
+
+	result := status.Service{Workdir: root}.Read()
+	if !result.OK {
+		t.Fatalf("expected idle result, got %#v", result)
+	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("expected fresh idle bootstrap state to stay quiet, got %#v", result.Warnings)
+	}
+	if len(result.NextAction) == 0 || result.NextAction[0].Command != nil {
+		t.Fatalf("expected ordinary idle guidance first, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusActivePlanDoesNotSurfaceIdleBootstrapReminder(t *testing.T) {
+	root := t.TempDir()
+	svc := install.Service{Workdir: root}
+	if result := svc.Init(install.Options{}); !result.OK {
+		t.Fatalf("init failed: %#v", result)
+	}
+
+	agentsPath := filepath.Join(root, "AGENTS.md")
+	agentsData, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	staleAgents := strings.Replace(string(agentsData), `<!-- easyharness:begin version="`, `<!-- easyharness:begin version="stale-`, 1)
+	if err := os.WriteFile(agentsPath, []byte(staleAgents), 0o644); err != nil {
+		t.Fatalf("write stale AGENTS.md: %v", err)
+	}
+
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return content
+	})
+
+	result := status.Service{Workdir: root}.Read()
+	if !result.OK {
+		t.Fatalf("expected plan result, got %#v", result)
+	}
+	if result.State.CurrentNode != "plan" {
+		t.Fatalf("expected plan node, got %#v", result.State)
+	}
+	for _, warning := range result.Warnings {
+		if strings.Contains(warning, "bootstrap assets for Codex") {
+			t.Fatalf("did not expect idle-only bootstrap reminder during active work, got %#v", result.Warnings)
+		}
 	}
 }
 

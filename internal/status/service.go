@@ -10,6 +10,7 @@ import (
 
 	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/evidence"
+	"github.com/catu-ai/easyharness/internal/install"
 	"github.com/catu-ai/easyharness/internal/lifecycle"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
@@ -76,7 +77,7 @@ func (s Service) read(acquireLock bool) Result {
 	planPath, err := plan.DetectCurrentPath(s.Workdir)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoCurrentPlan) {
-			return idleResult(currentPlan)
+			return idleResult(s.Workdir, currentPlan)
 		}
 		return Result{
 			OK:      false,
@@ -951,7 +952,7 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 	return actions
 }
 
-func idleResult(currentPlan *runstate.CurrentPlan) Result {
+func idleResult(workdir string, currentPlan *runstate.CurrentPlan) Result {
 	result := Result{
 		OK:      true,
 		Command: "status",
@@ -968,10 +969,51 @@ func idleResult(currentPlan *runstate.CurrentPlan) Result {
 			LastLandedPlanPath: currentPlan.LastLandedPlanPath,
 			LastLandedAt:       currentPlan.LastLandedAt,
 		}
+	} else {
+		result.Summary = "No current plan is active in this worktree."
+	}
+
+	drift, err := install.Service{Workdir: workdir}.InspectRepoBootstrapDrift("codex")
+	if err != nil {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("Unable to inspect the default repo bootstrap assets for the idle reminder: %v", err))
 		return result
 	}
-	result.Summary = "No current plan is active in this worktree."
+	if drift.Stale() {
+		result.Warnings = append(result.Warnings, buildIdleBootstrapDriftWarning(drift))
+		command := "harness init --dry-run"
+		action := NextAction{
+			Command:     &command,
+			Description: "Optionally inspect the default repo bootstrap refresh with harness init --dry-run, then rerun harness init if you and the human want to update AGENTS.md and the managed skills.",
+		}
+		result.NextAction = append([]NextAction{action}, result.NextAction...)
+	}
+
 	return result
+}
+
+func buildIdleBootstrapDriftWarning(drift install.RepoBootstrapDrift) string {
+	affected := make([]string, 0, 3)
+	if drift.InstructionsStale {
+		affected = append(affected, "the AGENTS.md managed block")
+	}
+	if staleCount := len(drift.StaleManagedSkillPackages); staleCount > 0 {
+		if staleCount == 1 {
+			affected = append(affected, "1 managed skill package")
+		} else {
+			affected = append(affected, fmt.Sprintf("%d managed skill packages", staleCount))
+		}
+	}
+	if extraCount := len(drift.ExtraManagedSkillPackages); extraCount > 0 {
+		if extraCount == 1 {
+			affected = append(affected, "1 stale managed skill package that is no longer in the packaged bootstrap set")
+		} else {
+			affected = append(affected, fmt.Sprintf("%d stale managed skill packages that are no longer in the packaged bootstrap set", extraCount))
+		}
+	}
+	if len(affected) == 0 {
+		return "The default repo bootstrap assets appear stale relative to the running easyharness binary. This is a non-blocking reminder for the agent and does not affect later execution."
+	}
+	return fmt.Sprintf("The default repo bootstrap assets for Codex are stale relative to the running easyharness binary (%s). This is a non-blocking reminder for the agent and does not affect later execution.", strings.Join(affected, ", "))
 }
 
 func currentStepIndex(doc *plan.Document) int {

@@ -18,6 +18,7 @@ type statusResult struct {
 	State   struct {
 		CurrentNode string `json:"current_node"`
 	} `json:"state"`
+	Warnings []string `json:"warnings"`
 	NextAction []struct {
 		Command     *string `json:"command"`
 		Description string  `json:"description"`
@@ -149,6 +150,52 @@ func TestStatusReportsIdleWorkspace(t *testing.T) {
 	}
 	if payload.NextAction[0].Description != "Start discovery or create a new tracked plan when the next slice is ready." {
 		t.Fatalf("expected idle handoff guidance, got %#v", payload)
+	}
+	if len(payload.Warnings) != 0 {
+		t.Fatalf("expected clean idle workspace to avoid warnings, got %#v", payload.Warnings)
+	}
+}
+
+func TestStatusIdleReportsNonBlockingBootstrapReminderWhenManagedAssetsAreStale(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+
+	initResult := support.Run(t, workspace.Root, "init")
+	support.RequireSuccess(t, initResult)
+	support.RequireNoStderr(t, initResult)
+
+	agentsPath := workspace.Path("AGENTS.md")
+	agentsData, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	staleAgents := strings.Replace(string(agentsData), `<!-- easyharness:begin version="`, `<!-- easyharness:begin version="stale-`, 1)
+	if err := os.WriteFile(agentsPath, []byte(staleAgents), 0o644); err != nil {
+		t.Fatalf("write stale AGENTS.md: %v", err)
+	}
+
+	skillPath := workspace.Path(".agents/skills/harness-discovery/SKILL.md")
+	skillData, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("read managed skill: %v", err)
+	}
+	staleSkill := strings.Replace(string(skillData), "easyharness-version:", "easyharness-version: stale-", 1)
+	if err := os.WriteFile(skillPath, []byte(staleSkill), 0o644); err != nil {
+		t.Fatalf("write stale managed skill: %v", err)
+	}
+
+	result := support.Run(t, workspace.Root, "status")
+	support.RequireSuccess(t, result)
+	support.RequireNoStderr(t, result)
+
+	payload := support.RequireJSONResult[statusResult](t, result)
+	if payload.State.CurrentNode != "idle" {
+		t.Fatalf("expected idle state, got %#v", payload)
+	}
+	if len(payload.Warnings) == 0 || !strings.Contains(strings.Join(payload.Warnings, "\n"), "non-blocking reminder") {
+		t.Fatalf("expected non-blocking bootstrap reminder, got %#v", payload.Warnings)
+	}
+	if len(payload.NextAction) == 0 || payload.NextAction[0].Command == nil || *payload.NextAction[0].Command != "harness init --dry-run" {
+		t.Fatalf("expected optional refresh command first, got %#v", payload.NextAction)
 	}
 }
 

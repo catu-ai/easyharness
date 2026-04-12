@@ -58,6 +58,9 @@ Contract:
 - use the same underlying install logic as the resource commands
 - support `--dry-run`
 - support `--agent`, `--dir`, and `--file` overrides for non-default layouts
+- allow other commands such as `harness status` to reuse the same managed-asset
+  comparison logic for non-blocking reminders about stale default repo
+  bootstrap assets
 
 ### `harness skills install|uninstall`
 
