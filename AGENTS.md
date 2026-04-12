@@ -28,6 +28,22 @@ If a change would normally invite a compatibility bridge, stop and choose the
 cleaner end-state unless the requested scope explicitly includes compatibility
 or migration work.
 
+## Trust-Based Core Development
+
+When working on `easyharness` itself, treat the agent as a trusted collaborator
+rather than an adversary to police.
+
+- trust agents by default
+- reduce agent cognitive load when designing prompts, commands, plans, and
+  workflow surfaces
+- prefer clearer workflow cues over pseudo-verification or anti-fraud ceremony
+- do not propose heavier provenance, receipt, or identity mechanics for core
+  workflow when they mainly create the appearance of verification without a
+  real external trust surface
+- if stronger trust guarantees are ever needed, treat that as explicit
+  human-directed integration work rather than silently hardening the core
+  harness by default
+
 ## Development Prerequisite
 
 Before using repo-local skills that call `harness`, make sure the command is

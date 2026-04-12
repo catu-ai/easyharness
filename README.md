@@ -68,9 +68,16 @@ continue the work intentionally.
 
 The product should keep evolving in the same direction:
 
+- trust agents as collaborators by default
 - reduce agent cognitive load
+- prefer workflow clarity over pseudo-verification
 - improve execution quality and legibility
 - help humans steer the work without micromanaging it
+
+When developing `easyharness` core itself, keep the system honest about that
+trust boundary. Prefer lighter workflow cues that help agents stay on track
+over anti-cheating or pseudo-verification mechanics that add ceremony without
+creating a real trust surface.
 
 ## How Humans Steer
 
@@ -162,6 +169,11 @@ the tap token is configured.
 ## For Contributors
 
 This repository is developed primarily through agents.
+
+When changing `easyharness` itself, keep the framework trust-based and
+agent-first. New prompts, commands, or workflow surfaces should make the agent
+easier to guide and less likely to drift, not turn the core harness into an
+identity-verification system or a pile of extra ceremony.
 
 Repo-specific operating guidance lives in [AGENTS.md](./AGENTS.md). Detailed
 local development and maintainer setup lives in
