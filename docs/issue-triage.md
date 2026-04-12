@@ -9,7 +9,7 @@ or a large label taxonomy.
 - Keep the default GitHub type labels as the main issue-kind surface:
   `bug`, `enhancement`, `documentation`, and `question` when it fits.
 - Use at most one `state/*` label on an open issue.
-- Use concrete version milestones such as `v0.2.2` only when the issue is
+- Use concrete version milestones such as `v0.x.y` only when the issue is
   truly accepted into that release scope.
 - Treat any applied `state/*` label or concrete milestone as "triaged".
 - Close issues that are not planned instead of leaving them open with a
@@ -20,9 +20,10 @@ or a large label taxonomy.
 The labels and milestones themselves live as GitHub repository metadata, not as
 files that GitHub automatically reads from `.github/`.
 
-For this slice, the tracked source of truth for the label system is this
-document plus the repo-local `issue-triage` skill. The repository does not yet
-ship a `.github`-backed label-sync workflow or a file such as
+This document is the tracked source of truth for the triage system. The
+repo-local `issue-triage` skill exists to help agents apply this policy, not
+to define a second policy surface. The repository does not yet ship a
+`.github`-backed label-sync workflow or a file such as
 `.github/labels.yml` that automatically manages label state. If the team later
 wants file-backed label automation, treat that as a follow-up workflow change
 rather than assuming `.github/` already enforces the current labels.
@@ -48,7 +49,7 @@ than keeping both.
 
 Use milestones for real version intent, not vague release buckets.
 
-- Good: `v0.2.2`, `v0.2.3`, `v0.3.0`
+- Good: `v0.x.y`, `v0.y.z`, `v1.x.y`
 - Avoid using milestones as a generic backlog bin.
 
 A milestone means "this issue belongs to the intended scope of that version"
@@ -93,9 +94,9 @@ example or a sharper acceptance target.
 ```
 
 ```text
-Triaged into milestone v0.2.2. This belongs in the next patch release because
-it improves an already-shipped maintainer workflow without widening scope into
-larger release-policy work.
+Triaged into milestone v0.x.y. This belongs in the next concrete release scope
+because it improves an already-shipped maintainer workflow without widening
+scope into broader release-policy work.
 ```
 
 ## Sweep Guidance
