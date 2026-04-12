@@ -113,11 +113,12 @@ managed `AGENTS.md` block content. Treat `.agents/skills/` in this repository
 as tracked materialized output from `assets/bootstrap/`, not as a hand-edited
 source tree.
 
-One intentional exception exists: `.agents/skills/issue-triage/` is a
-repo-owned local skill for this repository's GitHub backlog. Keep it outside
-`assets/bootstrap/`, do not add `easyharness-managed` metadata to it, and do
-not use bootstrap sync as its source of truth unless the repository later
-decides to ship it as part of the managed pack.
+In this repository, `harness-*` skills are the easyharness-managed skill pack
+and belong in `assets/bootstrap/`. Other skill names are repo-owned local
+development skills. Keep those user-owned under `.agents/skills/`, do not add
+`easyharness-managed` metadata to them, and do not use bootstrap sync as their
+source of truth unless the repository later decides to ship them as part of the
+managed pack.
 
 After editing `assets/bootstrap/`, refresh the generated outputs with:
 

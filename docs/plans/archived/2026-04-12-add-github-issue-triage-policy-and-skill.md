@@ -154,6 +154,13 @@ as generated output" rule. Also added a short `docs/releasing.md` note that
 issue milestones express version scope but do not replace the separate
 release-policy work in `#87`.
 
+Revision 2 reopen follow-up tightened that ownership wording after PR review:
+the docs now state the general rule that `harness-*` skills are the
+easyharness-managed distributed pack, while other names are repo-owned local
+development skills. `docs/issue-triage.md` also now says explicitly that the
+current label system is a tracked convention plus live GitHub metadata, not an
+already-automated `.github` label-sync setup.
+
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: The policy doc, repo-only skill, and live GitHub
@@ -325,6 +332,12 @@ controller will use one full finalize review instead of isolated step review.
   `state/needs-info`, and `state/deferred` labels exist, milestone `v0.2.2`
   exists, every open issue now carries either a triage label or a milestone,
   and each triaged issue received a rationale comment.
+- Revision 2 reopen validation confirmed the ownership wording now matches the
+  intended rule: `harness-*` skills are the easyharness-managed distributed
+  pack, while other names remain repo-owned local development skills.
+- Revision 2 also confirmed the docs now state clearly that the current label
+  system is tracked by repository docs plus live GitHub metadata rather than an
+  existing `.github` label-sync automation path.
 
 ## Review Summary
 
@@ -334,22 +347,30 @@ controller will use one full finalize review instead of isolated step review.
 - Reviewer slot `agent_ux` found the new skill discoverable from `AGENTS.md`
   and `docs/development.md`, with the rationale-comment rule and repo-only
   ownership boundary spelled out clearly.
+- Reopen delta review `review-002-delta` also passed with no findings.
+- Reviewer slot `docs-consistency` confirmed the revised ownership wording and
+  the `.github` boundary text stay consistent across `AGENTS.md`,
+  `docs/development.md`, and `docs/issue-triage.md`.
 
 ## Archive Summary
 
-- Archived At: 2026-04-12T18:45:19+08:00
-- Revision: 1
+- Archived At: 2026-04-12T19:38:40+08:00
+- Revision: 2
 - PR: https://github.com/catu-ai/easyharness/pull/160
 - Ready: The candidate adds a dedicated GitHub issue triage policy, introduces
   the repo-only `issue-triage` skill plus rationale-comment guidance, and
   backfills the live open-issue backlog with the new state labels and
-  milestone semantics. Finalize review `review-001-full` passed cleanly and
-  PR #160 is open on `codex/issue-triage-policy-and-skill`; after the refreshed
-  archived-summary head receives publish/CI/sync evidence, the candidate is
-  ready to wait for merge approval.
-- Merge Handoff: Push the archived-summary follow-up to PR #160, record
+  milestone semantics. Revision 2 tightened the skill-ownership wording and
+  clarified that the current label system is a tracked convention plus live
+  GitHub metadata rather than an existing `.github` automation layer. Finalize
+  review `review-001-full` and reopen delta review `review-002-delta` both
+  passed cleanly. After the refreshed candidate is pushed to PR #160 and the
+  publish/CI/sync facts are refreshed for the new head, it is ready to wait for
+  merge approval.
+- Merge Handoff: Push the revision-2 repair to PR #160, refresh
   publish/CI/sync evidence for the latest head commit, and then wait for
-  explicit merge approval once status reaches `execution/finalize/await_merge`.
+  explicit merge approval once status returns to
+  `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
@@ -368,6 +389,13 @@ controller will use one full finalize review instead of isolated step review.
   issue with the new triage system.
 - Left a short rationale comment on each triaged issue and cleaned up the one
   accidental duplicate comment created during the backfill retry.
+- Followed up on PR feedback by rewriting the ownership rule in general form:
+  `harness-*` names identify the easyharness-managed distributed pack, while
+  other skill names stay repo-owned local development skills unless promoted
+  later.
+- Clarified in `docs/issue-triage.md` that the current label system is tracked
+  in repository docs plus live GitHub metadata rather than an already-shipped
+  `.github` label-sync contract.
 
 ### Not Delivered
 

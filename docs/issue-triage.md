@@ -15,6 +15,18 @@ or a large label taxonomy.
 - Close issues that are not planned instead of leaving them open with a
   negative state label.
 
+## Tracked Convention vs GitHub Metadata
+
+The labels and milestones themselves live as GitHub repository metadata, not as
+files that GitHub automatically reads from `.github/`.
+
+For this slice, the tracked source of truth for the label system is this
+document plus the repo-local `issue-triage` skill. The repository does not yet
+ship a `.github`-backed label-sync workflow or a file such as
+`.github/labels.yml` that automatically manages label state. If the team later
+wants file-backed label automation, treat that as a follow-up workflow change
+rather than assuming `.github/` already enforces the current labels.
+
 ## Triage States
 
 Use these labels for reviewed issues that are still open but not yet tied to a
