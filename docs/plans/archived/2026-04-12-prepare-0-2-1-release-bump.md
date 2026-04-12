@@ -237,16 +237,17 @@ is finalize review for the whole candidate.
 
 - Archived At: 2026-04-12T14:37:07+08:00
 - Revision: 1
-- PR: not opened yet; create or update the dedicated release PR from
-  `codex/release-0-2-1` immediately after archive.
+- PR: https://github.com/catu-ai/easyharness/pull/152
 - Ready: The candidate bumps the tracked release entry point to `0.2.1`,
   replaces non-essential release examples with stable pseudo versions
   `0.0.0` / `v0.0.0`, adds live repository `VERSION -> tag` smoke coverage,
   keeps schema/template versions untouched, and passed finalize full review
-  `review-003-full`.
-- Merge Handoff: After archive, push `codex/release-0-2-1`, open the dedicated
-  release PR, record publish/CI/sync evidence for revision 1, and wait for
-  merge approval once status reaches `execution/finalize/await_merge`.
+  `review-003-full`. PR #152 is open on `codex/release-0-2-1`; after the
+  refreshed archive-summary head receives fresh publish/CI/sync evidence, the
+  candidate is ready to wait for merge approval.
+- Merge Handoff: Push this refreshed archived summary to PR #152, record
+  publish/CI/sync evidence for the latest head commit, and then wait for
+  explicit merge approval once status reaches `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
