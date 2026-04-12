@@ -3,7 +3,7 @@ template_version: 0.2.0
 created_at: "2026-04-12T13:31:37+08:00"
 source_type: direct_request
 source_refs:
-  - chat://current-session
+    - chat://current-session
 size: M
 ---
 
@@ -195,26 +195,62 @@ review would be redundant for this M-sized integrated slice.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `go test ./internal/install ./internal/status -count=1` passed after the
+  shared detector and idle-only status reminder landed.
+- `go test ./internal/status ./tests/smoke -run 'TestStatusIdleSurfaces|TestStatusIdleSkips|TestStatusActive|TestStatusReportsIdleWorkspace|TestStatusIdleReports' -count=1`
+  passed after adding isolated stale-surface and active-execution
+  non-regression coverage.
+- Reviewer follow-up validation in `review-003-full` reported passing focused
+  `go test` slices for `./internal/install`, `./internal/status`, and
+  `./tests/smoke`.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-full` found 1 blocking and 1 non-blocking coverage finding in
+  the `tests` slot; the blocking gap was missing isolated stale-surface
+  coverage, and the non-blocking note asked for broader active-path
+  non-regression.
+- `review-002-delta` reran the `tests` slot against the coverage repair and
+  passed cleanly.
+- `review-003-full` reran `correctness`, `tests`, and `agent_ux`; the full
+  candidate passed with 0 findings after the repair.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-04-12T14:01:21+08:00
+- Revision: 1
+- PR: Not opened yet; this candidate is still branch-local and needs publish
+  handoff after archive.
+- Ready: The candidate has a clean finalize review (`review-003-full`) after
+  one blocking review round and a narrow repair follow-up.
+- Merge Handoff: Archive the plan, commit the tracked archive move plus summary
+  updates, push `codex/idle-bootstrap-drift-status`, record publish/CI/sync
+  evidence, and wait for merge approval once `harness status` reaches
+  `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added a shared install-layer detector for stale default repo bootstrap assets
+  that reuses the same managed block and managed skill rules as `harness init`.
+- Taught `harness status` to surface an idle-only, non-blocking reminder plus
+  optional `harness init --dry-run` guidance when the default repo `AGENTS.md`
+  block or managed skills are stale.
+- Added focused install/status unit coverage and smoke coverage for absent,
+  fresh, combined-stale, instructions-only stale, skills-only stale, and
+  active-path non-regression scenarios.
+- Updated the bootstrap and CLI specs so the idle reminder contract is
+  documented as optional, agent-facing, and non-blocking.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No support was added for detecting drift in custom bootstrap override paths
+  installed with explicit `--dir` or `--file` values.
 
 ### Follow-Up Issues
 
-NONE
+Deferred roadmap items remain intentionally out of scope for this slice:
+status inspection for explicit override bootstrap targets and richer bootstrap
+inspection or repair commands beyond the idle reminder and ordinary `init`
+refresh flow.
