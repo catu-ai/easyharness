@@ -76,8 +76,9 @@ explicit verbose or debug mode.
 Commands that primarily render content, such as `harness plan template`, may
 default to markdown or plain text instead of the JSON envelope.
 
-`harness --version` is also a plain-text exception because it is a binary
-identity/debug probe rather than a workflow-state command.
+`harness --version` is a JSON-first exception: it returns machine-readable
+binary identity data, but it does not use the shared workflow-state envelope
+because it is a binary probe rather than a workflow-state command.
 
 `harness ui` is another plain-text exception because it starts a local
 read-only workbench server rather than returning a workflow-state JSON
@@ -937,15 +938,19 @@ Contract:
 
 Purpose:
 
-- print concise debug information for the running harness binary
+- print JSON build information for the running harness binary
 
 Contract:
 
 - remain a root-level flag rather than a workflow subcommand
-- print plain text rather than the shared JSON envelope
-- report the running binary's build commit
-- report whether the binary is running in `dev` or `release` mode
-- print the resolved binary path only in `dev` mode
+- return JSON rather than the shared workflow-state envelope
+- report the running binary's build commit and execution mode
+- report the release-facing identity subset by default:
+  `version`, `mode`, `commit`, with optional `go_version` and `build_time`
+  when available from the binary metadata
+- allow dev binaries to expose additional debug-oriented fields such as
+  `modified` and the resolved executable `path`
+- omit unavailable metadata rather than fabricating placeholders
 
 ## Review Runtime Boundary
 

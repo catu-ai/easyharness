@@ -93,7 +93,7 @@ func (a *App) runVersion(args []string) int {
 	fs.Usage = func() {
 		fmt.Fprintln(a.Stderr, "Usage: harness --version")
 		fmt.Fprintln(a.Stderr)
-		fmt.Fprintln(a.Stderr, "Print concise debug information for the running harness binary.")
+		fmt.Fprintln(a.Stderr, "Print JSON build information for the running harness binary.")
 	}
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -108,8 +108,9 @@ func (a *App) runVersion(args []string) int {
 	if a.Version == nil {
 		a.Version = versioninfo.Current
 	}
-	_, err := io.WriteString(a.Stdout, a.Version().String())
-	if err != nil {
+	encoder := json.NewEncoder(a.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(a.Version()); err != nil {
 		fmt.Fprintf(a.Stderr, "write version output: %v\n", err)
 		return 1
 	}
@@ -999,7 +1000,7 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "Usage: harness <command> [subcommand] [flags]")
 	fmt.Fprintln(a.Stderr)
 	fmt.Fprintln(a.Stderr, "Flags:")
-	fmt.Fprintln(a.Stderr, "  --version       Print concise debug information for the running harness binary")
+	fmt.Fprintln(a.Stderr, "  --version       Print JSON build information for the running harness binary")
 	fmt.Fprintln(a.Stderr)
 	fmt.Fprintln(a.Stderr, "Commands:")
 	fmt.Fprintln(a.Stderr, "  plan template   Render the packaged plan template")

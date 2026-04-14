@@ -91,16 +91,20 @@ func TestPlanTemplateSizeFlagSeedsExplicitSize(t *testing.T) {
 	}
 }
 
-func TestVersionFlagPrintsHumanReadableDebugInfo(t *testing.T) {
+func TestVersionFlagPrintsJSONBuildInfo(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
+	modified := true
 	app.Version = func() version.Info {
 		return version.Info{
-			Version: "v0.0.0",
-			Commit:  "abc123",
-			Mode:    "dev",
-			Path:    "/tmp/harness",
+			Version:   "v0.0.0",
+			Mode:      "dev",
+			Commit:    "abc123",
+			GoVersion: "go1.25.0",
+			BuildTime: "2026-04-14T12:34:56Z",
+			Modified:  &modified,
+			Path:      "/tmp/harness",
 		}
 	}
 
@@ -111,24 +115,28 @@ func TestVersionFlagPrintsHumanReadableDebugInfo(t *testing.T) {
 	if stderr.Len() != 0 {
 		t.Fatalf("expected no stderr for version output, got %q", stderr.String())
 	}
-	if strings.Contains(stdout.String(), "{") {
-		t.Fatalf("expected non-JSON version output, got %q", stdout.String())
+	var payload version.Info
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON version output: %v\n%s", err, stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "mode: dev") {
-		t.Fatalf("expected mode in version output, got %q", stdout.String())
+	if payload.Mode != "dev" {
+		t.Fatalf("expected mode in version output, got %#v", payload)
 	}
-	if !strings.Contains(stdout.String(), "commit: abc123") {
-		t.Fatalf("expected commit in version output, got %q", stdout.String())
+	if payload.Commit != "abc123" {
+		t.Fatalf("expected commit in version output, got %#v", payload)
 	}
-	if !strings.Contains(stdout.String(), "path: /tmp/harness") {
-		t.Fatalf("expected dev path in version output, got %q", stdout.String())
+	if payload.Path != "/tmp/harness" {
+		t.Fatalf("expected dev path in version output, got %#v", payload)
 	}
-	if !strings.Contains(stdout.String(), "version: v0.0.0") {
-		t.Fatalf("expected version in version output, got %q", stdout.String())
+	if payload.Version != "v0.0.0" {
+		t.Fatalf("expected version in version output, got %#v", payload)
+	}
+	if payload.Modified == nil || !*payload.Modified {
+		t.Fatalf("expected modified=true in version output, got %#v", payload)
 	}
 }
 
-func TestVersionFlagOmitsPathOutsideDevMode(t *testing.T) {
+func TestVersionFlagOmitsDevOnlyFieldsOutsideDevMode(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
@@ -143,8 +151,15 @@ func TestVersionFlagOmitsPathOutsideDevMode(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected version exit code 0, got %d: %s", exitCode, stderr.String())
 	}
-	if strings.Contains(stdout.String(), "path:") {
-		t.Fatalf("expected release version output to omit path, got %q", stdout.String())
+	var payload version.Info
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON version output: %v\n%s", err, stdout.String())
+	}
+	if payload.Path != "" {
+		t.Fatalf("expected release version output to omit path, got %#v", payload)
+	}
+	if payload.Modified != nil {
+		t.Fatalf("expected release version output to omit modified, got %#v", payload)
 	}
 }
 
@@ -269,7 +284,7 @@ func TestRootHelpMentionsVersionFlag(t *testing.T) {
 	if !strings.Contains(stderr.String(), "Usage: harness <command> [subcommand] [flags]") {
 		t.Fatalf("expected root help usage, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "--version       Print concise debug information for the running harness binary") {
+	if !strings.Contains(stderr.String(), "--version       Print JSON build information for the running harness binary") {
 		t.Fatalf("expected root help to mention --version, got %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "init            Install or refresh the managed bootstrap resources for the current repository") {

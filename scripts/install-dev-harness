@@ -242,7 +242,7 @@ release_harness_candidate() {
 
   version_output="$("${path}" --version 2>/dev/null || true)"
   [[ -n "${version_output}" ]] || return 1
-  grep -Fq 'mode: release' <<< "${version_output}"
+  grep -Eq '"mode"[[:space:]]*:[[:space:]]*"release"' <<< "${version_output}"
 }
 
 find_stable_harness_on_path() {

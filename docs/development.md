@@ -55,6 +55,9 @@ harness --help
 harness --version
 ```
 
+`harness --version` returns JSON build metadata. In a dev install it may
+include extra debug-oriented fields such as the resolved binary `path`.
+
 After changing Go CLI code, rerun `scripts/install-dev-harness` so the direct
 `harness` command stays in sync with the working tree.
 

@@ -62,8 +62,10 @@ func TestRenderHomebrewFormulaFromChecksums(t *testing.T) {
 	support.RequireContains(t, formula, `url "https://github.com/catu-ai/easyharness/releases/download/v0.1.0-alpha.5/easyharness_v0.1.0-alpha.5_linux_amd64.zip"`)
 	support.RequireContains(t, formula, `sha256 "4444444444444444444444444444444444444444444444444444444444444444"`)
 	support.RequireContains(t, formula, `bin.install Dir["**/harness"].fetch(0) => "harness"`)
-	support.RequireContains(t, formula, `assert_match "version: v#{version}", output`)
-	support.RequireContains(t, formula, `assert_match "mode: release", output`)
+	support.RequireContains(t, formula, `require "json"`)
+	support.RequireContains(t, formula, `parsed = JSON.parse(output)`)
+	support.RequireContains(t, formula, `assert_equal "v#{version}", parsed["version"]`)
+	support.RequireContains(t, formula, `assert_equal "release", parsed["mode"]`)
 }
 
 func TestRenderHomebrewFormulaFailsWhenChecksumIsMissing(t *testing.T) {
@@ -360,8 +362,12 @@ func requireInstalledHarnessVersion(t *testing.T, repoRoot string, env []string,
 	if err != nil {
 		t.Fatalf("run installed harness --version: %v\n%s", err, versionOutput)
 	}
-	support.RequireContains(t, string(versionOutput), "version: "+tag)
-	support.RequireContains(t, string(versionOutput), "mode: release")
+	if got := requireVersionField(t, string(versionOutput), "version"); got != tag {
+		t.Fatalf("expected installed harness version %q, got %q\noutput:\n%s", tag, got, versionOutput)
+	}
+	if got := requireVersionField(t, string(versionOutput), "mode"); got != "release" {
+		t.Fatalf("expected installed harness mode release, got %q\noutput:\n%s", got, versionOutput)
+	}
 }
 
 func resolvePreviousHomebrewReleaseTag(t *testing.T, repoRoot string, env []string, repo, tag string) string {

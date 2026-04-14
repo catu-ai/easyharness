@@ -143,8 +143,10 @@ The root CLI currently ships:
 - `harness land --pr <url> [--commit <sha>]`
 - `harness land complete`
 
-The root CLI also exposes `harness --version` as a plain-text binary identity
-probe.
+The root CLI also exposes `harness --version` as a JSON-first binary identity
+probe. Release binaries keep that payload concise for consumers, while dev
+binaries may expose extra debug-oriented fields such as the resolved binary
+path.
 
 ## Releases
 
@@ -169,6 +171,10 @@ cd easyharness_<version>_<goos>_<goarch>
 ./harness --version
 ./harness --help
 ```
+
+`./harness --version` now returns JSON. For release binaries, expect the core
+identity fields such as `version`, `mode`, and `commit`, with optional extra
+metadata such as `go_version` or `build_time` when the binary can report them.
 
 Maintainers cut releases from a dedicated release PR that updates the root
 `VERSION` file plus any related release docs. `VERSION` stores the unprefixed

@@ -736,7 +736,7 @@ func verifyArchiveContents(t *testing.T, workspace *support.Workspace, archivePa
 		if got := requireVersionField(t, output, "commit"); got != expectedCommit {
 			t.Fatalf("expected packaged commit %q, got %q\noutput:\n%s", expectedCommit, got, output)
 		}
-		if strings.Contains(output, "path: ") {
+		if strings.Contains(output, `"path"`) {
 			t.Fatalf("expected packaged release output to omit path, got %q", output)
 		}
 

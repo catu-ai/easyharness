@@ -1,6 +1,8 @@
 package smoke_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,7 +57,7 @@ func TestHelpShowsTopLevelUsage(t *testing.T) {
 	result := support.Run(t, workspace.Root, "--help")
 	support.RequireSuccess(t, result)
 	support.RequireContains(t, result.CombinedOutput(), "Usage: harness <command> [subcommand] [flags]")
-	support.RequireContains(t, result.CombinedOutput(), "--version       Print concise debug information for the running harness binary")
+	support.RequireContains(t, result.CombinedOutput(), "--version       Print JSON build information for the running harness binary")
 	support.RequireContains(t, result.CombinedOutput(), "plan template   Render the packaged plan template")
 	support.RequireContains(t, result.CombinedOutput(), "plan lint       Validate a tracked plan")
 	support.RequireContains(t, result.CombinedOutput(), "plan approve    Record explicit human approval for the current plan")
@@ -102,7 +104,7 @@ func TestLandCompleteHelpShowsRequiredBookkeepingContract(t *testing.T) {
 	support.RequireContains(t, result.CombinedOutput(), "Record that required post-merge bookkeeping is complete and restore idle worktree state.")
 }
 
-func TestVersionPrintsHumanReadableBuildInfo(t *testing.T) {
+func TestVersionPrintsJSONBuildInfo(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 
 	result := support.Run(t, workspace.Root, "--version")
@@ -115,11 +117,8 @@ func TestVersionPrintsHumanReadableBuildInfo(t *testing.T) {
 	if commit := requireVersionField(t, result.Stdout, "commit"); commit != expectedCommit {
 		t.Fatalf("expected release version commit %q, got %q\noutput:\n%s", expectedCommit, commit, result.Stdout)
 	}
-	if strings.Contains(result.Stdout, "path: ") {
+	if strings.Contains(result.Stdout, `"path"`) {
 		t.Fatalf("expected release build version output to omit path, got %q", result.Stdout)
-	}
-	if strings.HasPrefix(strings.TrimSpace(result.Stdout), "{") {
-		t.Fatalf("expected plain-text version output, got %q", result.Stdout)
 	}
 }
 
@@ -825,19 +824,25 @@ func TestPlanTemplateAndLintRoundTrip(t *testing.T) {
 func requireVersionField(t *testing.T, output, field string) string {
 	t.Helper()
 
-	prefix := field + ": "
-	for _, line := range strings.Split(output, "\n") {
-		if strings.HasPrefix(line, prefix) {
-			value := strings.TrimSpace(strings.TrimPrefix(line, prefix))
-			if value == "" {
-				t.Fatalf("expected version field %q to be non-empty\noutput:\n%s", field, output)
-			}
-			return value
-		}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		t.Fatalf("expected JSON version output: %v\noutput:\n%s", err, output)
 	}
-
-	t.Fatalf("expected version field %q in output:\n%s", field, output)
-	return ""
+	value, ok := payload[field]
+	if !ok {
+		t.Fatalf("expected version field %q in output:\n%s", field, output)
+	}
+	switch typed := value.(type) {
+	case string:
+		if typed == "" {
+			t.Fatalf("expected version field %q to be non-empty\noutput:\n%s", field, output)
+		}
+		return typed
+	case bool:
+		return fmt.Sprintf("%t", typed)
+	default:
+		return fmt.Sprint(typed)
+	}
 }
 
 func gitHeadCommit(t *testing.T, repoRoot string) string {

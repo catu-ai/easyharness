@@ -465,7 +465,7 @@ func TestInstallDevHarnessVersionReportsStableModeAndPathOutsideWorktree(t *test
 
 	repoRoot := copyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
-	stableDir, stablePath := newFakeStableHarness(t)
+	stableDir, _ := newFakeStableHarness(t)
 
 	result := runCommand(
 		t,
@@ -505,11 +505,8 @@ func TestInstallDevHarnessVersionReportsStableModeAndPathOutsideWorktree(t *test
 	if commit := requireVersionField(t, versionResult.Stdout, "commit"); commit != "stable-test-commit" {
 		t.Fatalf("expected stable fallback commit %q, got %q\noutput:\n%s", "stable-test-commit", commit, versionResult.Stdout)
 	}
-	if path := requireVersionField(t, versionResult.Stdout, "path"); path != stablePath {
-		t.Fatalf("expected stable fallback path %q, got %q\noutput:\n%s", stablePath, path, versionResult.Stdout)
-	}
-	if strings.HasPrefix(strings.TrimSpace(versionResult.Stdout), "{") {
-		t.Fatalf("expected plain-text version output, got %q", versionResult.Stdout)
+	if strings.Contains(versionResult.Stdout, `"path"`) {
+		t.Fatalf("expected stable release fallback to omit path, got %q", versionResult.Stdout)
 	}
 }
 
@@ -842,10 +839,7 @@ case "${1:-}" in
     printf 'stable fallback harness help\n'
     ;;
   --version)
-    printf 'version: 0.0.0\n'
-    printf 'mode: release\n'
-    printf 'commit: stable-test-commit\n'
-    printf 'path: %s\n' "$0"
+    printf '{"version":"0.0.0","mode":"release","commit":"stable-test-commit"}\n'
     ;;
   *)
     printf 'stable fallback harness\n'
@@ -890,10 +884,7 @@ case "${1:-}" in
     printf 'unexpected dev binary\n'
     ;;
   --version)
-    printf 'version: dev-test\n'
-    printf 'mode: dev\n'
-    printf 'commit: dev-test-commit\n'
-    printf 'path: %s\n' "$0"
+    printf '{"version":"dev-test","mode":"dev","commit":"dev-test-commit","path":"%s"}\n' "$0"
     ;;
   *)
     printf 'unexpected dev binary\n'

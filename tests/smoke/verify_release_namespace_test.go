@@ -204,8 +204,12 @@ func TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run downloaded harness --version: %v\n%s", err, versionOutput)
 	}
-	support.RequireContains(t, string(versionOutput), "version: "+tag)
-	support.RequireContains(t, string(versionOutput), "mode: release")
+	if got := requireVersionField(t, string(versionOutput), "version"); got != tag {
+		t.Fatalf("expected downloaded harness version %q, got %q\noutput:\n%s", tag, got, versionOutput)
+	}
+	if got := requireVersionField(t, string(versionOutput), "mode"); got != "release" {
+		t.Fatalf("expected downloaded harness mode release, got %q\noutput:\n%s", got, versionOutput)
+	}
 }
 
 func expectedReleaseAssets(tag string) []string {
