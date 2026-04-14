@@ -3,6 +3,9 @@ import { useEffect, useState } from "preact/hooks";
 
 type Tone = "good" | "danger" | "warning" | "muted";
 
+const WORKBENCH_EXPLORER_WIDTH_STORAGE_KEY = "harness-ui:workbench-explorer-width";
+const DEFAULT_WORKBENCH_EXPLORER_WIDTH = 304;
+
 export function RailIcon(props: { page: "status" | "plan" | "timeline" | "review" }) {
   switch (props.page) {
     case "status":
@@ -105,8 +108,6 @@ export function WorkbenchFrame(props: {
   pageTitle: string;
   detailLabel: string;
   loading?: boolean;
-  storageKey: string;
-  defaultExplorerWidth?: number;
   explorerContent: ComponentChildren;
   children: ComponentChildren;
 }) {
@@ -117,31 +118,28 @@ export function WorkbenchFrame(props: {
     pageTitle,
     detailLabel,
     loading,
-    storageKey,
-    defaultExplorerWidth = 288,
     explorerContent,
     children,
   } = props;
-  const widthStorageKey = `harness-ui:explorer-width:${storageKey}`;
   const minExplorerWidth = 220;
   const maxExplorerWidth = 420;
   const clampExplorerWidth = (nextWidth: number) => Math.min(maxExplorerWidth, Math.max(minExplorerWidth, nextWidth));
   const readStoredExplorerWidth = () => {
     if (typeof window === "undefined") {
-      return defaultExplorerWidth;
+      return DEFAULT_WORKBENCH_EXPLORER_WIDTH;
     }
     try {
-      const stored = window.localStorage.getItem(widthStorageKey);
+      const stored = window.localStorage.getItem(WORKBENCH_EXPLORER_WIDTH_STORAGE_KEY);
       if (!stored) {
-        return defaultExplorerWidth;
+        return DEFAULT_WORKBENCH_EXPLORER_WIDTH;
       }
       const parsed = Number.parseInt(stored, 10);
       if (Number.isNaN(parsed)) {
-        return defaultExplorerWidth;
+        return DEFAULT_WORKBENCH_EXPLORER_WIDTH;
       }
       return clampExplorerWidth(parsed);
     } catch {
-      return defaultExplorerWidth;
+      return DEFAULT_WORKBENCH_EXPLORER_WIDTH;
     }
   };
   const [explorerWidth, setExplorerWidth] = useState(() => {
@@ -151,11 +149,11 @@ export function WorkbenchFrame(props: {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(widthStorageKey, String(explorerWidth));
+      window.localStorage.setItem(WORKBENCH_EXPLORER_WIDTH_STORAGE_KEY, String(explorerWidth));
     } catch {
       // Storage-denied environments should still render and resize normally.
     }
-  }, [explorerWidth, widthStorageKey]);
+  }, [explorerWidth]);
 
   useEffect(() => {
     if (!dragState) return;

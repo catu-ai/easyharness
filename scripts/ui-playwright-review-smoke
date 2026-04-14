@@ -1130,7 +1130,7 @@ async (page) => {
   await divider.focus();
   await page.keyboard.press("ArrowLeft");
   const after = await frame.evaluate((node) => getComputedStyle(node).gridTemplateColumns);
-  const stored = await page.evaluate(() => window.localStorage.getItem("harness-ui:explorer-width:review"));
+  const stored = await page.evaluate(() => window.localStorage.getItem("harness-ui:workbench-explorer-width"));
   if (before === after) {
     throw new Error(`review splitter width did not change: ${before}`);
   }

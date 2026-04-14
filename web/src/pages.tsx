@@ -423,8 +423,6 @@ export function StatusWorkspace(props: {
       pageTitle="Status"
       detailLabel={activeSectionLabel}
       loading={loading}
-      storageKey="status"
-      defaultExplorerWidth={288}
       explorerContent={
         <ExplorerList ariaLabel="Status sections">
           {sections.map((item) => (
@@ -605,8 +603,6 @@ export function PlanWorkspace(props: {
       pageTitle="Plan"
       detailLabel={detailLabel}
       loading={loading}
-      storageKey="plan"
-      defaultExplorerWidth={320}
       explorerContent={
         document || supplements ? (
           <div class="plan-tree" aria-label="Plan package explorer">
@@ -973,8 +969,6 @@ export function TimelineWorkspace(props: {
       pageTitle="Timeline"
       detailLabel={selectedEvent ? timelineEventTitle(selectedEvent) : "Events"}
       loading={loading}
-      storageKey="timeline"
-      defaultExplorerWidth={304}
       explorerContent={
         <ExplorerList ariaLabel="Timeline events">
           {sortedEvents.length > 0 ? (
@@ -1105,8 +1099,6 @@ export function ReviewWorkspace(props: {
       pageTitle="Review"
       detailLabel={selectedRound ? reviewRoundTitle(selectedRound) : "Rounds"}
       loading={loading}
-      storageKey="review"
-      defaultExplorerWidth={304}
       explorerContent={
         <ExplorerList ariaLabel="Review rounds">
           {rounds.length > 0 ? (
