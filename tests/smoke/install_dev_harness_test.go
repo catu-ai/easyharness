@@ -499,8 +499,13 @@ func TestInstallDevHarnessVersionReportsDevModeAndPathInsideWorktree(t *testing.
 	if mode := requireVersionField(t, versionResult.Stdout, "mode"); mode != "dev" {
 		t.Fatalf("expected dev mode from repo-local worktree binary, got %q\noutput:\n%s", mode, versionResult.Stdout)
 	}
-	if version := requireVersionField(t, versionResult.Stdout, "version"); version != "v0.2.1-dev" {
-		t.Fatalf("expected dev version %q, got %q\noutput:\n%s", "v0.2.1-dev", version, versionResult.Stdout)
+	versionSeedBytes, err := os.ReadFile(filepath.Join(repoRoot, "VERSION"))
+	if err != nil {
+		t.Fatalf("read VERSION: %v", err)
+	}
+	expectedVersion := "v" + strings.TrimSpace(string(versionSeedBytes)) + "-dev"
+	if version := requireVersionField(t, versionResult.Stdout, "version"); version != expectedVersion {
+		t.Fatalf("expected dev version %q, got %q\noutput:\n%s", expectedVersion, version, versionResult.Stdout)
 	}
 	expectedPath := filepath.Join(repoRoot, ".local", "bin", "harness")
 	if resolvedPath, err := filepath.EvalSymlinks(expectedPath); err == nil {
