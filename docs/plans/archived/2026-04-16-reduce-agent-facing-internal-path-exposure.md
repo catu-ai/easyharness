@@ -347,7 +347,7 @@ that agents no longer need to know.
 
 - Archived At: 2026-04-16T11:13:17+08:00
 - Revision: 1
-- PR: Pending post-archive publish step
+- PR: https://github.com/catu-ai/easyharness/pull/178
 - Ready: The candidate now narrows agent-facing path exposure across
   `harness status`, review command outputs, plan/review/timeline read models,
   timeline artifact refs and raw payloads, evidence-submit output, the schema
@@ -355,11 +355,10 @@ that agents no longer need to know.
   also closed the remaining legacy leaks in raw timeline JSON, reviewer plan
   discovery, and historical evidence labels such as `publish_record`,
   `ci_record`, and `sync_record`. Finalize full review `review-018-full`
-  passed cleanly, so the branch is ready for archive and post-archive publish
-  handoff work.
-- Merge Handoff: Archive this candidate, then push the branch, create or update
-  the PR, submit publish/CI/sync evidence for the archived head, and wait for
-  explicit merge approval once `harness status` reaches
+  passed cleanly, and the archived candidate now has PR #178 ready for the
+  remaining publish/CI/sync evidence refresh.
+- Merge Handoff: Refresh publish/CI/sync evidence for the archived head on
+  PR #178, then wait for explicit merge approval once `harness status` reaches
   `execution/finalize/await_merge`.
 
 ## Outcome Summary
