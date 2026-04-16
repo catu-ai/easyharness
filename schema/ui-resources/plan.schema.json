@@ -31,10 +31,6 @@
         "supplements_path": {
           "type": "string",
           "description": "SupplementsPath is the current plan's companion supplements directory when one exists."
-        },
-        "local_state_path": {
-          "type": "string",
-          "description": "LocalStatePath is the plan-local control-plane state path when one exists."
         }
       },
       "additionalProperties": false,

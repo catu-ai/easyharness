@@ -17,6 +17,7 @@ const (
 func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 	planRelPath := "docs/plans/active/2026-03-22-review-workflow.md"
+	planStem := "2026-03-22-review-workflow"
 	planPath := workspace.Path(planRelPath)
 
 	template := support.Run(
@@ -177,8 +178,11 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	if len(startPayload.Artifacts.Slots) != 2 {
 		t.Fatalf("expected two review slots for finalize review, got %#v", startPayload)
 	}
-	support.RequireFileExists(t, startPayload.Artifacts.ManifestPath)
-	support.RequireFileExists(t, startPayload.Artifacts.LedgerPath)
+	manifestPath := reviewRoundArtifactPath(workspace.Root, planStem, startPayload.Artifacts.RoundID, "manifest.json")
+	ledgerPath := reviewRoundArtifactPath(workspace.Root, planStem, startPayload.Artifacts.RoundID, "ledger.json")
+	aggregatePath := reviewRoundArtifactPath(workspace.Root, planStem, startPayload.Artifacts.RoundID, "aggregate.json")
+	support.RequireFileExists(t, manifestPath)
+	support.RequireFileExists(t, ledgerPath)
 	if len(startPayload.NextAction) < 2 || startPayload.NextAction[1].Command == nil || *startPayload.NextAction[1].Command != "harness review aggregate --round "+startPayload.Artifacts.RoundID {
 		t.Fatalf("expected review-start next actions to point at aggregate, got %#v", startPayload)
 	}
@@ -193,6 +197,14 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	}
 	if inReviewStatus.Artifacts.ReviewRoundID != startPayload.Artifacts.RoundID {
 		t.Fatalf("expected active review round %q in status artifacts, got %#v", startPayload.Artifacts.RoundID, inReviewStatus)
+	}
+	if len(inReviewStatus.Artifacts.ReviewSlots) != len(startPayload.Artifacts.Slots) {
+		t.Fatalf("expected active review slots in status artifacts, got %#v", inReviewStatus.Artifacts)
+	}
+	for _, slot := range inReviewStatus.Artifacts.ReviewSlots {
+		if !strings.HasSuffix(slot.SubmissionPath, "/submission.json") {
+			t.Fatalf("expected reviewer-owned submission path in status, got %#v", slot)
+		}
 	}
 	if len(inReviewStatus.NextAction) == 0 || inReviewStatus.NextAction[0].Command == nil || *inReviewStatus.NextAction[0].Command != "harness review aggregate --round "+startPayload.Artifacts.RoundID {
 		t.Fatalf("expected status guidance to point at aggregate for the active round, got %#v", inReviewStatus)
@@ -214,8 +226,8 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 		t.Fatalf("expected tests instructions in review-start receipt, got %#v", testsSlot)
 	}
 	for _, slot := range startPayload.Artifacts.Slots {
-		support.RequireFileExists(t, slot.SubmissionPath)
-		skeleton := support.ReadJSONFile[reviewSubmission](t, slot.SubmissionPath)
+		support.RequireFileExists(t, resolveRepoPath(workspace.Root, slot.SubmissionPath))
+		skeleton := support.ReadJSONFile[reviewSubmission](t, resolveRepoPath(workspace.Root, slot.SubmissionPath))
 		if skeleton.RoundID != startPayload.Artifacts.RoundID || skeleton.Slot != slot.Slot || skeleton.Dimension != slot.Name {
 			t.Fatalf("expected review-start skeleton identity for slot %#v, got %#v", slot, skeleton)
 		}
@@ -224,7 +236,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 		}
 	}
 
-	preSubmitLedger := support.ReadJSONFile[reviewLedger](t, startPayload.Artifacts.LedgerPath)
+	preSubmitLedger := support.ReadJSONFile[reviewLedger](t, ledgerPath)
 	assertLedgerStatuses(t, preSubmitLedger, map[string]string{
 		correctnessSlot.Slot: "pending",
 		testsSlot.Slot:       "pending",
@@ -232,7 +244,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 
 	submitReviewSlot(t, workspace, startPayload.Artifacts.RoundID, correctnessSlot, "Core workflow artifacts look correct.", nil)
 
-	postFirstSubmitLedger := support.ReadJSONFile[reviewLedger](t, startPayload.Artifacts.LedgerPath)
+	postFirstSubmitLedger := support.ReadJSONFile[reviewLedger](t, ledgerPath)
 	assertLedgerStatuses(t, postFirstSubmitLedger, map[string]string{
 		correctnessSlot.Slot: "submitted",
 		testsSlot.Slot:       "pending",
@@ -251,7 +263,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	if len(blockedAggregatePayload.Errors) != 1 || blockedAggregatePayload.Errors[0].Path != "submissions" || !strings.Contains(blockedAggregatePayload.Errors[0].Message, testsSlot.Slot) {
 		t.Fatalf("expected missing tests-slot error, got %#v", blockedAggregatePayload.Errors)
 	}
-	support.RequireFileMissing(t, startPayload.Artifacts.AggregatePath)
+	support.RequireFileMissing(t, aggregatePath)
 
 	stillInReviewStatus := runStatus(t, workspace.Root)
 	assertNode(t, stillInReviewStatus, "execution/finalize/review")
@@ -287,7 +299,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 		},
 	})
 
-	postSubmitLedger := support.ReadJSONFile[reviewLedger](t, startPayload.Artifacts.LedgerPath)
+	postSubmitLedger := support.ReadJSONFile[reviewLedger](t, ledgerPath)
 	assertLedgerStatuses(t, postSubmitLedger, map[string]string{
 		correctnessSlot.Slot: "submitted",
 		testsSlot.Slot:       "submitted",
@@ -306,12 +318,9 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	if len(aggregatePayload.Review.NonBlockingFindings) != 1 || aggregatePayload.Review.NonBlockingFindings[0].Severity != "minor" {
 		t.Fatalf("expected one non-blocking finding in aggregate result, got %#v", aggregatePayload.Review)
 	}
-	support.RequireFileExists(t, aggregatePayload.Artifacts.AggregatePath)
-	if aggregatePayload.Artifacts.AggregatePath != startPayload.Artifacts.AggregatePath {
-		t.Fatalf("expected aggregate to reuse review-start aggregate path, got start=%q aggregate=%q", startPayload.Artifacts.AggregatePath, aggregatePayload.Artifacts.AggregatePath)
-	}
+	support.RequireFileExists(t, aggregatePath)
 
-	manifest := support.ReadJSONFile[reviewManifest](t, startPayload.Artifacts.ManifestPath)
+	manifest := support.ReadJSONFile[reviewManifest](t, manifestPath)
 	if manifest.RoundID != startPayload.Artifacts.RoundID || manifest.PlanPath != planRelPath {
 		t.Fatalf("unexpected manifest: %#v", manifest)
 	}
@@ -327,7 +336,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 		t.Fatalf("expected persisted manifest instructions, got %#v", manifest)
 	}
 
-	correctnessSubmission := support.ReadJSONFile[reviewSubmission](t, correctnessSlot.SubmissionPath)
+	correctnessSubmission := support.ReadJSONFile[reviewSubmission](t, resolveRepoPath(workspace.Root, correctnessSlot.SubmissionPath))
 	if correctnessSubmission.RoundID != startPayload.Artifacts.RoundID || correctnessSubmission.Slot != correctnessSlot.Slot || correctnessSubmission.Dimension != correctnessSlot.Name {
 		t.Fatalf("unexpected correctness submission: %#v", correctnessSubmission)
 	}
@@ -338,7 +347,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 		t.Fatalf("expected correctness submission without findings, got %#v", correctnessSubmission)
 	}
 
-	testsSubmission := support.ReadJSONFile[reviewSubmission](t, testsSlot.SubmissionPath)
+	testsSubmission := support.ReadJSONFile[reviewSubmission](t, resolveRepoPath(workspace.Root, testsSlot.SubmissionPath))
 	if testsSubmission.RoundID != startPayload.Artifacts.RoundID || testsSubmission.Slot != testsSlot.Slot || testsSubmission.Dimension != testsSlot.Name {
 		t.Fatalf("unexpected tests submission: %#v", testsSubmission)
 	}
@@ -352,7 +361,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 		t.Fatalf("expected persisted top-level reviewer worklog fields, got %#v", testsSubmission)
 	}
 
-	aggregateArtifact := support.ReadJSONFile[aggregateArtifact](t, aggregatePayload.Artifacts.AggregatePath)
+	aggregateArtifact := support.ReadJSONFile[aggregateArtifact](t, aggregatePath)
 	if aggregateArtifact.RoundID != startPayload.Artifacts.RoundID || aggregateArtifact.Kind != "full" {
 		t.Fatalf("unexpected aggregate artifact: %#v", aggregateArtifact)
 	}
@@ -363,17 +372,17 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 		t.Fatalf("expected persisted non-blocking finding in aggregate artifact, got %#v", aggregateArtifact)
 	}
 
-	postAggregateLedger := support.ReadJSONFile[reviewLedger](t, startPayload.Artifacts.LedgerPath)
+	postAggregateLedger := support.ReadJSONFile[reviewLedger](t, ledgerPath)
 	assertLedgerStatuses(t, postAggregateLedger, map[string]string{
 		correctnessSlot.Slot: "submitted",
 		testsSlot.Slot:       "submitted",
 	})
 
-	state := support.ReadJSONFile[runState](t, aggregatePayload.Artifacts.LocalStatePath)
+	state := support.ReadJSONFile[runState](t, workspace.Path(".local/harness/plans/2026-03-22-review-workflow/state.json"))
 	if state.ExecutionStartedAt == "" || state.Revision != 1 {
 		t.Fatalf("unexpected runstate: %#v", state)
 	}
-	assertRawStateJSONOmitsKeys(t, aggregatePayload.Artifacts.LocalStatePath, "current_node", "plan_path", "plan_stem")
+	assertRawStateJSONOmitsKeys(t, workspace.Path(".local/harness/plans/2026-03-22-review-workflow/state.json"), "current_node", "plan_path", "plan_stem")
 	if state.ActiveReviewRound.RoundID != startPayload.Artifacts.RoundID {
 		t.Fatalf("expected active review round %q, got %#v", startPayload.Artifacts.RoundID, state)
 	}

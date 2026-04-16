@@ -125,25 +125,20 @@
     },
     "ReviewAggregateArtifacts": {
       "properties": {
+        "project_root": {
+          "type": "string",
+          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing paths."
+        },
         "round_id": {
           "type": "string",
           "description": "RoundID is the stable identifier for the review round."
-        },
-        "aggregate_path": {
-          "type": "string",
-          "description": "AggregatePath is the path to the updated aggregate artifact."
-        },
-        "local_state_path": {
-          "type": "string",
-          "description": "LocalStatePath is the plan-local control-plane state path."
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "round_id",
-        "aggregate_path",
-        "local_state_path"
+        "project_root",
+        "round_id"
       ],
       "description": "ReviewAggregateArtifacts lists the artifacts touched by `harness review aggregate`."
     },

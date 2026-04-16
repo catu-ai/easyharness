@@ -65,7 +65,7 @@ type ReviewManifest struct {
 	CreatedAt string `json:"created_at"`
 
 	// Dimensions lists the materialized reviewer slots for the round.
-	Dimensions []ReviewManifestSlot `json:"dimensions"`
+	Dimensions []ReviewSlot `json:"dimensions"`
 
 	// LedgerPath is the path to the round ledger artifact.
 	LedgerPath string `json:"ledger_path"`
@@ -77,9 +77,8 @@ type ReviewManifest struct {
 	Submissions string `json:"submissions_dir"`
 }
 
-// ReviewManifestSlot describes one reviewer submission slot in a review
-// manifest.
-type ReviewManifestSlot struct {
+// ReviewSlot describes one surfaced reviewer submission slot.
+type ReviewSlot struct {
 	// Name is the human-readable dimension label.
 	Name string `json:"name"`
 
@@ -105,7 +104,7 @@ type ReviewLedger struct {
 	// UpdatedAt is the timestamp of the most recent ledger update.
 	UpdatedAt string `json:"updated_at"`
 
-	// Slots lists the current state of every manifest slot.
+	// Slots lists the current state of every reviewer slot.
 	Slots []ReviewLedgerSlot `json:"slots"`
 }
 
@@ -449,26 +448,18 @@ type ReviewStartResult struct {
 // ReviewStartArtifacts lists the review artifacts created by
 // `harness review start`.
 type ReviewStartArtifacts struct {
+	// ProjectRoot is the repository root that anchors surfaced repo-facing
+	// paths.
+	ProjectRoot string `json:"project_root"`
+
 	// PlanPath is the current plan path associated with the review round.
 	PlanPath string `json:"plan_path"`
-
-	// LocalStatePath is the plan-local control-plane state path.
-	LocalStatePath string `json:"local_state_path"`
 
 	// RoundID is the stable identifier for the review round.
 	RoundID string `json:"round_id"`
 
-	// ManifestPath is the path to the review manifest artifact.
-	ManifestPath string `json:"manifest_path"`
-
-	// LedgerPath is the path to the review ledger artifact.
-	LedgerPath string `json:"ledger_path"`
-
-	// AggregatePath is the path to the review aggregate artifact.
-	AggregatePath string `json:"aggregate_path"`
-
 	// Slots lists the materialized review slots created for the round.
-	Slots []ReviewManifestSlot `json:"slots"`
+	Slots []ReviewSlot `json:"slots"`
 }
 
 // ReviewSubmitResult is the JSON result returned by `harness review submit`.
@@ -494,6 +485,10 @@ type ReviewSubmitResult struct {
 
 // ReviewSubmitArtifacts lists the artifacts touched by `harness review submit`.
 type ReviewSubmitArtifacts struct {
+	// ProjectRoot is the repository root that anchors surfaced repo-facing
+	// paths.
+	ProjectRoot string `json:"project_root"`
+
 	// RoundID is the stable identifier for the review round.
 	RoundID string `json:"round_id"`
 
@@ -502,9 +497,6 @@ type ReviewSubmitArtifacts struct {
 
 	// SubmissionPath is the path to the created submission artifact.
 	SubmissionPath string `json:"submission_path"`
-
-	// LedgerPath is the path to the updated review ledger artifact.
-	LedgerPath string `json:"ledger_path"`
 }
 
 // ReviewAggregateResult is the JSON result returned by
@@ -535,14 +527,12 @@ type ReviewAggregateResult struct {
 // ReviewAggregateArtifacts lists the artifacts touched by
 // `harness review aggregate`.
 type ReviewAggregateArtifacts struct {
+	// ProjectRoot is the repository root that anchors surfaced repo-facing
+	// paths.
+	ProjectRoot string `json:"project_root"`
+
 	// RoundID is the stable identifier for the review round.
 	RoundID string `json:"round_id"`
-
-	// AggregatePath is the path to the updated aggregate artifact.
-	AggregatePath string `json:"aggregate_path"`
-
-	// LocalStatePath is the plan-local control-plane state path.
-	LocalStatePath string `json:"local_state_path"`
 }
 
 type reviewSubmissionInputPayload struct {

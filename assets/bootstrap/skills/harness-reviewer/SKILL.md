@@ -100,16 +100,17 @@ deferral stale.
 
 ## Workflow
 
-1. Read the controller's round ID, review kind, active-plan context, review
-   title, revision context when present, slot, assigned instructions, anchor
-   SHA when present, and change summary.
+1. Read the controller's round ID, review kind, active-plan context, repo-facing
+   `plan_path`, review title, revision context when present, slot, assigned
+   instructions, reviewer-owned `submission_path`, anchor SHA when present,
+   and change summary.
 2. If the controller did not give enough information to submit cleanly, report
    the missing input back to the controller instead of improvising.
-3. Read `.local/harness/current-plan.json`, open the active tracked plan, and
-   read the full plan before reviewing.
-4. Locate the slot-owned progressive submission artifact at
-   `.local/harness/plans/<plan-stem>/reviews/<round-id>/submissions/<slot>/submission.json`.
-   If needed, inspect the round manifest to confirm the exact path.
+3. Open the controller-provided repo-facing `plan_path` and read the full plan
+   before reviewing.
+4. Locate the slot-owned progressive submission artifact using the
+   controller-provided `submission_path`. That path is the reviewer-owned
+   working artifact for the round.
 5. Start updating that `submission.json` progressively while you review. Keep
    checked areas, open questions, candidate findings, or similar review
    progress in top-level worklog-style fields instead of a separate scratchpad.

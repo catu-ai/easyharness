@@ -38,7 +38,7 @@ type SyncRecord = contracts.EvidenceSyncRecord
 
 func (s Service) Submit(kind string, inputBytes []byte) Result {
 	now := s.now().Format(time.RFC3339)
-	planPath, relPlanPath, planStem, state, statePath, release, result := s.loadCurrentArchivedPlan()
+	planPath, relPlanPath, planStem, state, _, release, result := s.loadCurrentArchivedPlan()
 	if result != nil {
 		result.Command = "evidence submit"
 		return *result
@@ -74,7 +74,7 @@ func (s Service) Submit(kind string, inputBytes []byte) Result {
 		if err := writeJSONFile(recordPath, record); err != nil {
 			return errorResult("evidence submit", "Unable to persist the evidence artifact.", []CommandError{{Path: "record", Message: err.Error()}})
 		}
-		return s.finalizeMutation(successResult(planPath, statePath, kind, recordID, recordPath, "Recorded CI evidence for the current archived candidate."), func() []CommandError {
+		return s.finalizeMutation(successResult(planPath, kind, recordID, "Recorded CI evidence for the current archived candidate."), func() []CommandError {
 			return rollbackEvidenceMutation(recordPath)
 		})
 	case "publish":
@@ -106,7 +106,7 @@ func (s Service) Submit(kind string, inputBytes []byte) Result {
 		if err := writeJSONFile(recordPath, record); err != nil {
 			return errorResult("evidence submit", "Unable to persist the evidence artifact.", []CommandError{{Path: "record", Message: err.Error()}})
 		}
-		return s.finalizeMutation(successResult(planPath, statePath, kind, recordID, recordPath, "Recorded publish evidence for the current archived candidate."), func() []CommandError {
+		return s.finalizeMutation(successResult(planPath, kind, recordID, "Recorded publish evidence for the current archived candidate."), func() []CommandError {
 			return rollbackEvidenceMutation(recordPath)
 		})
 	case "sync":
@@ -136,7 +136,7 @@ func (s Service) Submit(kind string, inputBytes []byte) Result {
 		if err := writeJSONFile(recordPath, record); err != nil {
 			return errorResult("evidence submit", "Unable to persist the evidence artifact.", []CommandError{{Path: "record", Message: err.Error()}})
 		}
-		return s.finalizeMutation(successResult(planPath, statePath, kind, recordID, recordPath, "Recorded sync evidence for the current archived candidate."), func() []CommandError {
+		return s.finalizeMutation(successResult(planPath, kind, recordID, "Recorded sync evidence for the current archived candidate."), func() []CommandError {
 			return rollbackEvidenceMutation(recordPath)
 		})
 	default:
@@ -305,17 +305,15 @@ func nextRecordLocation(workdir, planStem, kind string) (string, string, error) 
 	return recordID, filepath.Join(dir, recordID+".json"), nil
 }
 
-func successResult(planPath, statePath, kind, recordID, recordPath, summary string) Result {
+func successResult(planPath, kind, recordID, summary string) Result {
 	return Result{
 		OK:      true,
 		Command: "evidence submit",
 		Summary: summary,
 		Artifacts: &Artifacts{
-			PlanPath:       planPath,
-			LocalStatePath: statePath,
-			RecordID:       recordID,
-			RecordPath:     recordPath,
-			Kind:           kind,
+			PlanPath: planPath,
+			RecordID: recordID,
+			Kind:     kind,
 		},
 		NextAction: []NextAction{
 			{Command: nil, Description: "Run harness status to refresh the archived candidate summary and next actions."},

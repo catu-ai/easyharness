@@ -51,6 +51,10 @@
     },
     "ReviewSubmitArtifacts": {
       "properties": {
+        "project_root": {
+          "type": "string",
+          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing paths."
+        },
         "round_id": {
           "type": "string",
           "description": "RoundID is the stable identifier for the review round."
@@ -62,19 +66,15 @@
         "submission_path": {
           "type": "string",
           "description": "SubmissionPath is the path to the created submission artifact."
-        },
-        "ledger_path": {
-          "type": "string",
-          "description": "LedgerPath is the path to the updated review ledger artifact."
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "project_root",
         "round_id",
         "slot",
-        "submission_path",
-        "ledger_path"
+        "submission_path"
       ],
       "description": "ReviewSubmitArtifacts lists the artifacts touched by `harness review submit`."
     },

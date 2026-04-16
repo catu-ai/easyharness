@@ -69,7 +69,7 @@ func (s Service) Read() Result {
 			OK:       false,
 			Resource: "plan",
 			Summary:  "Unable to determine the current plan for plan browsing.",
-			Errors:   []ErrorDetail{{Path: "plan", Message: err.Error()}},
+			Errors:   []ErrorDetail{{Path: "plan", Message: "Unable to determine the current plan for plan browsing."}},
 		}
 	}
 
@@ -79,13 +79,13 @@ func (s Service) Read() Result {
 			OK:       false,
 			Resource: "plan",
 			Summary:  "Unable to determine the current plan path for plan browsing.",
-			Errors:   []ErrorDetail{{Path: "plan", Message: err.Error()}},
+			Errors:   []ErrorDetail{{Path: "plan", Message: "Unable to determine the current plan path for plan browsing."}},
 		}
 	}
 	relPlanPath = filepath.ToSlash(relPlanPath)
 
 	planStem := strings.TrimSuffix(filepath.Base(relPlanPath), filepath.Ext(relPlanPath))
-	state, statePath, stateErr := runstate.LoadState(s.Workdir, planStem)
+	_, _, stateErr := runstate.LoadState(s.Workdir, planStem)
 	warnings := make([]string, 0, 2)
 	if stateErr != nil {
 		warnings = append(warnings, fmt.Sprintf("Unable to read local plan state for %s; some artifact hints may be incomplete.", planStem))
@@ -98,19 +98,15 @@ func (s Service) Read() Result {
 			Resource: "plan",
 			Summary:  "Unable to read the current plan document.",
 			Artifacts: &Artifacts{
-				PlanPath:       relPlanPath,
-				LocalStatePath: statePath,
+				PlanPath: relPlanPath,
 			},
 			Warnings: warnings,
-			Errors:   []ErrorDetail{{Path: "plan", Message: err.Error()}},
+			Errors:   []ErrorDetail{{Path: "plan", Message: "Unable to read the current plan document."}},
 		}
 	}
 
 	artifacts := &Artifacts{
 		PlanPath: relPlanPath,
-	}
-	if state != nil || statePath != "" {
-		artifacts.LocalStatePath = statePath
 	}
 
 	var supplements *Node
@@ -132,9 +128,9 @@ func (s Service) Read() Result {
 		}
 		supplements = rootNode
 	} else if err != nil && !os.IsNotExist(err) {
-		warnings = append(warnings, fmt.Sprintf("Unable to inspect supplements path %s: %v", filepath.ToSlash(supplementsPath), err))
+		warnings = append(warnings, "Unable to inspect plan supplements; supplement browsing may be incomplete.")
 	} else if err == nil && !info.IsDir() {
-		warnings = append(warnings, fmt.Sprintf("Supplements path is not a directory: %s", filepath.ToSlash(supplementsPath)))
+		warnings = append(warnings, "Plan supplements are present but could not be read as a directory.")
 	}
 
 	return Result{
@@ -401,7 +397,7 @@ func buildFilePreview(path string) (*Preview, string) {
 		return &Preview{
 			Status: "not_supported",
 			Reason: "File preview is unavailable because the file could not be read.",
-		}, err.Error()
+		}, "File preview is unavailable because the file metadata could not be read."
 	}
 
 	extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
@@ -425,7 +421,7 @@ func buildFilePreview(path string) (*Preview, string) {
 	if err != nil {
 		preview.Status = "not_supported"
 		preview.Reason = "File preview is unavailable because the file could not be read."
-		return preview, err.Error()
+		return preview, "File preview is unavailable because the file contents could not be read."
 	}
 	if !looksLikeText(data) {
 		preview.Status = "not_supported"

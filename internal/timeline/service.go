@@ -29,6 +29,33 @@ type Detail = contracts.TimelineDetail
 type Artifacts = contracts.TimelineArtifacts
 type TimelineError = contracts.ErrorDetail
 
+var hiddenTimelineArtifactRefLabels = map[string]bool{
+	"manifest_path":     true,
+	"ledger_path":       true,
+	"aggregate_path":    true,
+	"record_path":       true,
+	"publish_record":    true,
+	"ci_record":         true,
+	"sync_record":       true,
+	"submission_path":   true,
+	"local_state_path":  true,
+	"current_plan_path": true,
+	"event_index_path":  true,
+	"reviews_dir":       true,
+}
+
+var hiddenTimelinePathKeys = map[string]bool{
+	"manifest_path":     true,
+	"ledger_path":       true,
+	"aggregate_path":    true,
+	"record_path":       true,
+	"submissions_dir":   true,
+	"local_state_path":  true,
+	"current_plan_path": true,
+	"event_index_path":  true,
+	"reviews_dir":       true,
+}
+
 func (s Service) Read() Result {
 	currentPlan, err := runstate.LoadCurrentPlan(s.Workdir)
 	if err != nil {
@@ -36,7 +63,7 @@ func (s Service) Read() Result {
 			OK:       false,
 			Resource: "timeline",
 			Summary:  "Unable to read current worktree state.",
-			Errors:   []TimelineError{{Path: "state", Message: err.Error()}},
+			Errors:   []TimelineError{{Path: "state", Message: "Unable to read current worktree state."}},
 			Events:   []Event{},
 		}
 	}
@@ -58,7 +85,7 @@ func (s Service) Read() Result {
 			OK:       false,
 			Resource: "timeline",
 			Summary:  "Unable to determine the current plan for timeline loading.",
-			Errors:   []TimelineError{{Path: "plan", Message: err.Error()}},
+			Errors:   []TimelineError{{Path: "plan", Message: "Unable to determine the current plan for timeline loading."}},
 			Events:   []Event{},
 		}
 	}
@@ -69,7 +96,7 @@ func (s Service) Read() Result {
 			OK:       false,
 			Resource: "timeline",
 			Summary:  "Unable to determine the current plan path for timeline loading.",
-			Errors:   []TimelineError{{Path: "plan", Message: err.Error()}},
+			Errors:   []TimelineError{{Path: "plan", Message: "Unable to determine the current plan path for timeline loading."}},
 			Events:   []Event{},
 		}
 	}
@@ -86,26 +113,26 @@ func (s Service) readPlanTimeline(relPlanPath string) Result {
 			Resource: "timeline",
 			Summary:  "Unable to read the timeline event index.",
 			Artifacts: &Artifacts{
-				PlanPath:       relPlanPath,
-				EventIndexPath: eventIndexPath,
+				PlanPath: relPlanPath,
 			},
-			Errors: []TimelineError{{Path: "events", Message: err.Error()}},
+			Errors: []TimelineError{{Path: "events", Message: "Unable to read the timeline event index."}},
 			Events: []Event{},
 		}
 	}
 
-	state, statePath, err := runstate.LoadState(s.Workdir, planStem)
+	state, _, err := runstate.LoadState(s.Workdir, planStem)
 	errors := make([]TimelineError, 0, 1)
 	if err != nil {
-		errors = append(errors, TimelineError{Path: "state", Message: err.Error()})
+		errors = append(errors, TimelineError{Path: "state", Message: "Unable to read local harness state."})
 	}
 	doc, err := plan.LoadFile(resolvePlanPath(s.Workdir, relPlanPath))
 	if err != nil {
-		errors = append(errors, TimelineError{Path: "plan", Message: err.Error()})
+		errors = append(errors, TimelineError{Path: "plan", Message: "Unable to read the current plan."})
 	}
 	bootstrapEvents := buildBootstrapEvents(relPlanPath, planStem, doc, state, events)
 	mergedEvents := mergeTimelineEvents(bootstrapEvents, events)
 	mergedEvents = enrichArtifactRefs(s.Workdir, mergedEvents)
+	mergedEvents = sanitizeTimelineEventsForUI(mergedEvents)
 
 	summary := "No timeline events recorded yet for the current plan."
 	if len(mergedEvents) > 0 {
@@ -117,9 +144,7 @@ func (s Service) readPlanTimeline(relPlanPath string) Result {
 		Resource: "timeline",
 		Summary:  summary,
 		Artifacts: &Artifacts{
-			PlanPath:       relPlanPath,
-			LocalStatePath: statePath,
-			EventIndexPath: eventIndexPath,
+			PlanPath: relPlanPath,
 		},
 		Events: mergedEvents,
 		Errors: errors,
@@ -157,6 +182,89 @@ func enrichArtifactRefs(workdir string, events []Event) []Event {
 		enriched = append(enriched, next)
 	}
 	return enriched
+}
+
+func sanitizeTimelineEventsForUI(events []Event) []Event {
+	sanitized := make([]Event, 0, len(events))
+	for _, event := range events {
+		next := event
+		if len(event.ArtifactRefs) > 0 {
+			next.ArtifactRefs = sanitizeTimelineArtifactRefs(event.ArtifactRefs)
+		}
+		next.Output = sanitizeTimelineRawJSON(event.Output)
+		next.Artifacts = sanitizeTimelineRawJSON(event.Artifacts)
+		sanitized = append(sanitized, next)
+	}
+	return sanitized
+}
+
+func sanitizeTimelineArtifactRefs(refs []ArtifactRef) []ArtifactRef {
+	filtered := make([]ArtifactRef, 0, len(refs))
+	for _, ref := range refs {
+		if hiddenTimelineArtifactRefLabels[strings.TrimSpace(ref.Label)] {
+			continue
+		}
+		filtered = append(filtered, ref)
+	}
+	return filtered
+}
+
+func sanitizeTimelineRawJSON(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	var decoded any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return raw
+	}
+	sanitized, keep := sanitizeTimelineJSONValue(decoded)
+	if !keep {
+		return nil
+	}
+	data, err := json.Marshal(sanitized)
+	if err != nil {
+		return raw
+	}
+	if string(data) == "{}" || string(data) == "null" {
+		return nil
+	}
+	return data
+}
+
+func sanitizeTimelineJSONValue(value any) (any, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		if label, ok := typed["label"].(string); ok && hiddenTimelineArtifactRefLabels[strings.TrimSpace(label)] {
+			return nil, false
+		}
+		result := map[string]any{}
+		for key, next := range typed {
+			if hiddenTimelinePathKeys[strings.TrimSpace(key)] {
+				continue
+			}
+			sanitized, keep := sanitizeTimelineJSONValue(next)
+			if !keep {
+				continue
+			}
+			result[key] = sanitized
+		}
+		if len(result) == 0 {
+			return nil, false
+		}
+		return result, true
+	case []any:
+		result := make([]any, 0, len(typed))
+		for _, next := range typed {
+			sanitized, keep := sanitizeTimelineJSONValue(next)
+			if !keep {
+				continue
+			}
+			result = append(result, sanitized)
+		}
+		return result, true
+	default:
+		return value, true
+	}
 }
 
 func readArtifactRefContent(workdir, refPath string) (json.RawMessage, string, error) {
@@ -241,7 +349,7 @@ func loadEvents(path string) ([]Event, error) {
 		if trimmed != "" {
 			var event Event
 			if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
-				return nil, fmt.Errorf("parse %s line %d: %w", path, lineNumber, err)
+				return nil, fmt.Errorf("parse timeline events line %d: %w", lineNumber, err)
 			}
 			if event.Sequence == 0 {
 				event.Sequence = lineNumber

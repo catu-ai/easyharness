@@ -232,12 +232,13 @@ help explain the node:
 
 `artifacts` may include stable pointers such as:
 
+- `project_root`
 - `plan_path`
 - `supplements_path`
-- `local_state_path`
 - `review_round_id`
+- `review_slots` for an in-flight active review round
 - latest evidence record IDs
-- last-landed context
+- `last_landed_at`
 
 Legacy v0.1 fields are not part of the `harness status` contract and must not
 be emitted by `harness status`:
@@ -302,9 +303,9 @@ Contract:
   of introducing a second hidden product-only state store
 - render the current worktree's harness state through the UI more richly; it
   must not fork a competing interpretation of workflow state from the CLI
-- expose `Status` and `Timeline` through real read-only resources while
-  keeping `Review`, `Diff`, and `Files` as explicit WIP placeholders until
-  their data surfaces are implemented
+- expose `Status`, `Review`, and `Timeline` through real read-only resources
+- keep `Diff` and `Files` as explicit WIP placeholders until their data
+  surfaces are implemented
 - keep timeline data grounded in command-owned runtime artifacts rather than
   reconstructing history from ad hoc client-side state
 
@@ -419,6 +420,9 @@ Contract:
   falling back to a generic step summary
 - if review metadata cannot be recovered safely, degrade conservatively rather
   than writing a fallback cache answer into local state
+- when an active review round is in flight, surface the reviewer-owned slot
+  handles another controller would need to resume reviewer orchestration
+  without reopening internal control files
 - once all steps and acceptance criteria are complete, surface archive blockers
   early through a structured `blockers` list plus repair-first next actions
   instead of making the controller learn them only from `harness archive`
@@ -471,12 +475,12 @@ Contract:
 - require a `kind` of either `delta` or `full`
 - accept the review spec via a structured input such as `--spec <path>` or
   stdin
-- validate and persist the supplied review spec as the round manifest
+- validate and persist the supplied review spec as CLI-owned round metadata
 - normalize each review dimension into a deterministic reviewer slot
 - reserve reviewer output paths
 - precreate one reviewer-owned folder per slot with a `submission.json`
   skeleton that the reviewer can progressively update during the round
-- initialize a dispatch or audit ledger
+- initialize round dispatch bookkeeping
 - when `step` is omitted and the inferred binding would be finalize review,
   reject the request if earlier completed steps still lack review-complete
   closeout and direct the controller toward explicit `step=<i>` repair instead
@@ -486,22 +490,27 @@ Contract:
 - update local `state.json` so `harness status` can surface the active round
 - return round metadata plus next actions for the controller agent
 
-The controller agent should only need to know the round ID, review kind,
-dimension definitions, and how to invoke the reviewer skill. It should not
-need to remember the reviewer-submission storage contract from memory.
+The controller agent should only need to know the round ID, repo-facing
+`plan_path`, review kind, dimension definitions, any reviewer-owned
+`submission.json` paths it must hand to reviewer subagents, and how to invoke
+the reviewer skill. It should not need to know the paths or storage names of
+CLI-owned internal review-control artifacts.
 
 `harness review start` is still useful even when the agent provides the review
 spec because the CLI owns:
 
 - round ID allocation
-- manifest validation and persistence
+- review-spec validation and persistence
 - deterministic artifact locations
-- dispatch and audit bookkeeping
+- dispatch and review bookkeeping
 - local-state updates for `harness status`
 
-In this contract, the review spec is the command input. The persisted round
-manifest is the CLI-owned output artifact derived from that input plus CLI-owned
-fields such as `round_id`, timestamps, and artifact paths.
+In this contract, the review spec is the command input. The CLI also persists
+its own internal review-control artifacts derived from that input plus
+CLI-owned fields such as `round_id`, timestamps, and internal bookkeeping
+state. Agent-facing command output should expose only the stable handles and
+workflow-owned artifact paths the agent actually needs, not the internal
+control-artifact locations.
 
 Canonical input shape:
 
@@ -533,8 +542,8 @@ Example invocation:
 harness review start --spec /tmp/review-spec.json
 ```
 
-The command returns JSON describing the created round, persisted manifest path,
-owned artifact paths, and next actions for the controller agent.
+The command returns JSON describing the created round, the reviewer-owned slot
+artifacts, and next actions for the controller agent.
 
 Review-spec semantics:
 
@@ -548,7 +557,7 @@ Review-spec semantics:
   - optional for `full`
   - required for `delta`
   - for `delta`, carries the controller-chosen git commit anchor so the
-    persisted manifest records the review starting point durably
+    persisted round metadata records the review starting point durably
 - `review_title`
   - optional
   - human-readable review title shown back to the controller and reviewers
@@ -567,7 +576,7 @@ Review-spec semantics:
 
 Agents should not supply structural workflow tags such as `step_closeout` or
 `pre_archive`. The CLI owns that inference and persists the bound step or
-finalize scope in the round manifest and local state.
+finalize scope in stored round metadata and local state.
 
 Explicit `step` binding intentionally re-enters the targeted step's review
 loop. If the controller is already executing `step-k` or finalize work and
@@ -581,7 +590,7 @@ Round identifiers should be short and plan-local:
 
 - use `review-<NNN>-<kind>`
 - examples: `review-001-delta`, `review-002-full`
-- keep precise timestamps in the manifest and aggregate artifacts rather than
+- keep precise timestamps in stored review metadata rather than
   embedding them in the round ID
 
 If `review_title` is omitted, the CLI fills one in:
@@ -631,10 +640,11 @@ Contract:
   - `path/to/file.go#L123`
   - `path/to/file.go#L1-L3`
 - store the structured reviewer artifact in the round's owned location
-- update the dispatch or audit ledger
+- update round dispatch bookkeeping
 - stay on the review-artifact mutation path only; reviewer submission should
   not acquire the plan-local state mutation lock
-- return a submission receipt plus clear next actions
+- return a submission receipt plus clear next actions without surfacing
+  internal review-control artifact paths
 
 Recommended next action:
 
@@ -669,16 +679,17 @@ Contract:
 - stop with an error when expected reviewer slots are missing or invalid
 - ignore preserved extra top-level reviewer worklog fields when computing the
   decision surface
-- write an aggregate artifact that captures the review decision surface and
+- write persisted review decision data that captures the review decision surface and
   preserves any finding `locations` verbatim
 - when mutating both review artifacts and local state, acquire the review
   mutation lock before the state mutation lock instead of inventing a separate
   acquisition order for this command
 - update local `state.json` with the aggregate result, including whether the
   round passed or requested changes
-- allow later commands to recover that decision from the round aggregate
-  artifact when older local state predates the stored `decision` field
-- return next actions that depend on the review kind
+- allow later commands to recover that decision from the persisted review
+  decision data when older local state predates the stored `decision` field
+- return next actions that depend on the review kind without surfacing
+  internal review-control artifact paths or local state files
 
 Recommended next action:
 
@@ -794,9 +805,8 @@ Contract:
 - reject archive when plan-local state still shows unresolved finalize review
   or archive-closeout blockers for the current candidate
 - require plan-local review state to retain the latest review decision, or
-  recover it from the latest review round's aggregate artifact for older local
-  state, so archive can distinguish a failed aggregated review from a passing
-  one
+  recover it from the latest persisted review decision data for older local
+  state, so archive can distinguish a failed aggregated review from a passing one
 - require the pre-archive `Archive Summary` to include structured `PR`,
   `Ready`, and `Merge Handoff` lines
 - move the plan from its active path to its archived path:
@@ -975,7 +985,7 @@ reviewer threads.
 
 The CLI only owns deterministic local contracts:
 
-- manifest persistence
+- round-metadata persistence
 - output paths
 - submission validation
 - aggregation

@@ -24,13 +24,13 @@
                 "$ref": "#/$defs/ReviewLedgerSlot"
               },
               "type": "array",
-              "description": "Slots lists the current state of every manifest slot."
+              "description": "Slots lists the current state of every reviewer slot."
             },
             {
               "type": "null"
             }
           ],
-          "description": "Slots lists the current state of every manifest slot."
+          "description": "Slots lists the current state of every reviewer slot."
         }
       },
       "additionalProperties": false,

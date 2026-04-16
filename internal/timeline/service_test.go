@@ -52,8 +52,8 @@ func TestReadLoadsCurrentPlanTimelineEvents(t *testing.T) {
 	if result.Events[1].Command != "execute start" {
 		t.Fatalf("unexpected event order: %#v", result.Events)
 	}
-	if result.Artifacts == nil || !stringsHasSuffix(result.Artifacts.EventIndexPath, "events.jsonl") {
-		t.Fatalf("expected event index artifact, got %#v", result.Artifacts)
+	if result.Artifacts == nil || result.Artifacts.PlanPath != relPlanPath {
+		t.Fatalf("expected plan-path artifact, got %#v", result.Artifacts)
 	}
 }
 
@@ -92,8 +92,8 @@ func TestReadLoadsEventsWhenStateCacheIsMissing(t *testing.T) {
 	if len(result.Events) != 2 || result.Events[0].Command != "plan" || result.Events[1].Command != "execute start" {
 		t.Fatalf("unexpected timeline events without state cache: %#v", result.Events)
 	}
-	if result.Artifacts == nil || result.Artifacts.LocalStatePath == "" {
-		t.Fatalf("expected local state path artifact even when cache is missing, got %#v", result.Artifacts)
+	if result.Artifacts == nil || result.Artifacts.PlanPath != relPlanPath {
+		t.Fatalf("expected timeline to keep the plan path artifact even when cache is missing, got %#v", result.Artifacts)
 	}
 }
 
@@ -179,12 +179,12 @@ func TestReadResolvesArtifactRefFileContents(t *testing.T) {
 		t.Fatalf("save current plan: %v", err)
 	}
 
-	manifestPath := filepath.Join(root, ".local", "harness", "plans", "2026-04-01-timeline-plan", "reviews", "review-001-full", "manifest.json")
-	if err := os.MkdirAll(filepath.Dir(manifestPath), 0o755); err != nil {
-		t.Fatalf("mkdir manifest dir: %v", err)
+	submissionPath := filepath.Join(root, ".local", "harness", "plans", "2026-04-01-timeline-plan", "reviews", "review-001-full", "submissions", "correctness", "submission.json")
+	if err := os.MkdirAll(filepath.Dir(submissionPath), 0o755); err != nil {
+		t.Fatalf("mkdir submission dir: %v", err)
 	}
-	if err := os.WriteFile(manifestPath, []byte("{\"review_title\":\"Timeline artifacts\"}\n"), 0o644); err != nil {
-		t.Fatalf("write manifest: %v", err)
+	if err := os.WriteFile(submissionPath, []byte("{\"summary\":\"Timeline artifacts\"}\n"), 0o644); err != nil {
+		t.Fatalf("write submission: %v", err)
 	}
 
 	if _, _, err := timeline.AppendEvent(root, "2026-04-01-timeline-plan", timeline.Event{
@@ -196,7 +196,7 @@ func TestReadResolvesArtifactRefFileContents(t *testing.T) {
 		Revision:   1,
 		ArtifactRefs: []timeline.ArtifactRef{
 			{Label: "round_id", Value: "review-001-full"},
-			{Label: "manifest_path", Value: ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/manifest.json", Path: ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/manifest.json"},
+			{Label: "submission_correctness_path", Value: ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/submissions/correctness/submission.json", Path: ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/submissions/correctness/submission.json"},
 		},
 	}); err != nil {
 		t.Fatalf("append timeline event: %v", err)
@@ -217,14 +217,102 @@ func TestReadResolvesArtifactRefFileContents(t *testing.T) {
 		t.Fatalf("expected value-only ref to remain unresolved, got %#v", refs[0])
 	}
 	if refs[1].ContentType != "json" {
-		t.Fatalf("expected resolved manifest ref content type json, got %#v", refs[1])
+		t.Fatalf("expected resolved submission ref content type json, got %#v", refs[1])
 	}
 	var decoded map[string]string
 	if err := json.Unmarshal(refs[1].Content, &decoded); err != nil {
-		t.Fatalf("unmarshal resolved manifest content: %v", err)
+		t.Fatalf("unmarshal resolved submission content: %v", err)
 	}
-	if decoded["review_title"] != "Timeline artifacts" {
-		t.Fatalf("unexpected manifest content: %#v", decoded)
+	if decoded["summary"] != "Timeline artifacts" {
+		t.Fatalf("unexpected submission content: %#v", decoded)
+	}
+}
+
+func TestReadFiltersLegacyControlPathRefsAndPayloadKeysFromTimelineUI(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeActivePlanForTimeline(t, root, "docs/plans/active/2026-04-01-timeline-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+
+	submissionPath := filepath.Join(root, ".local", "harness", "plans", "2026-04-01-timeline-plan", "reviews", "review-001-full", "submissions", "correctness", "submission.json")
+	if err := os.MkdirAll(filepath.Dir(submissionPath), 0o755); err != nil {
+		t.Fatalf("mkdir submission dir: %v", err)
+	}
+	if err := os.WriteFile(submissionPath, []byte("{\"summary\":\"Timeline artifacts\"}\n"), 0o644); err != nil {
+		t.Fatalf("write submission: %v", err)
+	}
+
+	output, err := json.Marshal(map[string]any{
+		"artifacts": map[string]any{
+			"local_state_path": ".local/harness/plans/2026-04-01-timeline-plan/state.json",
+			"record_path":      ".local/harness/plans/2026-04-01-timeline-plan/evidence/ci/ci-001.json",
+			"submissions_dir":  ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/submissions",
+			"refs": []map[string]any{
+				{
+					"label": "record_path",
+					"path":  ".local/harness/plans/2026-04-01-timeline-plan/evidence/ci/ci-001.json",
+				},
+				{
+					"label": "publish_record",
+					"path":  ".local/harness/plans/2026-04-01-timeline-plan/evidence/publish/publish-001.json",
+				},
+				{
+					"label": "submission_path",
+					"path":  ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/submissions/correctness/submission.json",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal output: %v", err)
+	}
+	artifacts, err := json.Marshal(map[string]any{
+		"local_state_path": ".local/harness/plans/2026-04-01-timeline-plan/state.json",
+		"record_path":      ".local/harness/plans/2026-04-01-timeline-plan/evidence/ci/ci-001.json",
+		"submissions_dir":  ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/submissions",
+	})
+	if err != nil {
+		t.Fatalf("marshal artifacts: %v", err)
+	}
+
+	if _, _, err := timeline.AppendEvent(root, "2026-04-01-timeline-plan", timeline.Event{
+		RecordedAt: "2026-04-01T10:00:00Z",
+		Kind:       "review",
+		Command:    "review start",
+		Summary:    "Created review round.",
+		PlanPath:   relPlanPath,
+		Revision:   1,
+		ArtifactRefs: []timeline.ArtifactRef{
+			{Label: "manifest_path", Value: ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/manifest.json", Path: ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/manifest.json"},
+			{Label: "publish_record", Value: ".local/harness/plans/2026-04-01-timeline-plan/evidence/publish/publish-001.json", Path: ".local/harness/plans/2026-04-01-timeline-plan/evidence/publish/publish-001.json"},
+			{Label: "submission_correctness_path", Value: ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/submissions/correctness/submission.json", Path: ".local/harness/plans/2026-04-01-timeline-plan/reviews/review-001-full/submissions/correctness/submission.json"},
+		},
+		Output:    output,
+		Artifacts: artifacts,
+	}); err != nil {
+		t.Fatalf("append timeline event: %v", err)
+	}
+
+	result := timeline.Service{Workdir: root}.Read()
+	if !result.OK {
+		t.Fatalf("expected timeline read success, got %#v", result)
+	}
+	event := result.Events[1]
+	if len(event.ArtifactRefs) != 1 || event.ArtifactRefs[0].Label != "submission_correctness_path" {
+		t.Fatalf("expected only reviewer-owned artifact refs to remain, got %#v", event.ArtifactRefs)
+	}
+	if strings.Contains(string(event.Output), "local_state_path") || strings.Contains(string(event.Artifacts), "local_state_path") {
+		t.Fatalf("expected control-path keys to be scrubbed from timeline payloads, got output=%s artifacts=%s", event.Output, event.Artifacts)
+	}
+	if strings.Contains(string(event.Output), "submissions_dir") || strings.Contains(string(event.Artifacts), "submissions_dir") {
+		t.Fatalf("expected submissions_dir to be scrubbed from timeline payloads, got output=%s artifacts=%s", event.Output, event.Artifacts)
+	}
+	if strings.Contains(string(event.Output), "\"label\":\"record_path\"") || strings.Contains(string(event.Output), "\"label\":\"submission_path\"") {
+		t.Fatalf("expected hidden legacy artifact-ref objects to be scrubbed from timeline payloads, got output=%s", event.Output)
+	}
+	if strings.Contains(string(event.Output), "\"label\":\"publish_record\"") {
+		t.Fatalf("expected legacy evidence artifact-ref objects to be scrubbed from timeline payloads, got output=%s", event.Output)
 	}
 }
 

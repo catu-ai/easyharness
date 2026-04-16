@@ -26,7 +26,7 @@ type Reviewer = contracts.ReviewSlotView
 type Artifact = contracts.ReviewArtifactView
 type ErrorDetail = contracts.ErrorDetail
 type Manifest = contracts.ReviewManifest
-type ManifestSlot = contracts.ReviewManifestSlot
+type ManifestSlot = contracts.ReviewSlot
 type Ledger = contracts.ReviewLedger
 type LedgerSlot = contracts.ReviewLedgerSlot
 type Submission = contracts.ReviewSubmission
@@ -50,7 +50,7 @@ func (s Service) Read() Result {
 			OK:       false,
 			Resource: "review",
 			Summary:  "Unable to determine the current plan for review loading.",
-			Errors:   []ErrorDetail{{Path: "plan", Message: err.Error()}},
+			Errors:   []ErrorDetail{{Path: "plan", Message: "Unable to determine the current plan for review loading."}},
 			Rounds:   []Round{},
 		}
 	}
@@ -61,7 +61,7 @@ func (s Service) Read() Result {
 			OK:       false,
 			Resource: "review",
 			Summary:  "Unable to determine the current plan path for review loading.",
-			Errors:   []ErrorDetail{{Path: "plan", Message: err.Error()}},
+			Errors:   []ErrorDetail{{Path: "plan", Message: "Unable to determine the current plan path for review loading."}},
 			Rounds:   []Round{},
 		}
 	}
@@ -79,7 +79,7 @@ func (s Service) Read() Result {
 	}
 
 	planStem := strings.TrimSuffix(filepath.Base(relPlanPath), filepath.Ext(relPlanPath))
-	state, statePath, err := runstate.LoadState(s.Workdir, planStem)
+	state, _, err := runstate.LoadState(s.Workdir, planStem)
 	warnings := make([]string, 0, 2)
 	if err != nil {
 		warnings = append(warnings, fmt.Sprintf("Unable to read local review state for %s; active-round hints may be incomplete.", planStem))
@@ -90,8 +90,7 @@ func (s Service) Read() Result {
 			Resource: "review",
 			Summary:  "Review data is hidden once required post-merge bookkeeping begins.",
 			Artifacts: &Artifacts{
-				PlanPath:       relPlanPath,
-				LocalStatePath: statePath,
+				PlanPath: relPlanPath,
 			},
 			Rounds:   []Round{},
 			Warnings: warnings,
@@ -107,11 +106,9 @@ func (s Service) Read() Result {
 			Resource: "review",
 			Summary:  "Unable to enumerate review rounds for the current plan.",
 			Artifacts: &Artifacts{
-				PlanPath:       relPlanPath,
-				LocalStatePath: statePath,
-				ReviewsDir:     filepath.ToSlash(reviewsDir),
+				PlanPath: relPlanPath,
 			},
-			Errors: []ErrorDetail{{Path: "reviews", Message: discoverErr.Error()}},
+			Errors: []ErrorDetail{{Path: "reviews", Message: "Unable to enumerate review rounds for the current plan."}},
 			Rounds: []Round{},
 		}
 	}
@@ -136,10 +133,8 @@ func (s Service) Read() Result {
 		Resource: "review",
 		Summary:  summary,
 		Artifacts: &Artifacts{
-			PlanPath:       relPlanPath,
-			LocalStatePath: statePath,
-			ReviewsDir:     filepath.ToSlash(reviewsDir),
-			ActiveRoundID:  activeRoundID,
+			PlanPath:      relPlanPath,
+			ActiveRoundID: activeRoundID,
 		},
 		Rounds:   rounds,
 		Warnings: warnings,
@@ -270,11 +265,11 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 	ledgerPath := filepath.Join(roundDir, "ledger.json")
 	aggregatePath := filepath.Join(roundDir, "aggregate.json")
 
-	manifestArtifact, manifest, manifestWarning := readJSONArtifact[Manifest]("Manifest", manifestPath, validateManifestArtifact)
-	ledgerArtifact, ledger, ledgerWarning := readJSONArtifact[Ledger]("Ledger", ledgerPath, validateLedgerArtifact)
-	aggregateArtifact, aggregate, aggregateWarning := readJSONArtifact[Aggregate]("Aggregate", aggregatePath, validateAggregateArtifact)
+	manifestArtifact, manifest, manifestWarning := readJSONArtifact[Manifest]("Manifest", manifestPath, "", validateManifestArtifact)
+	ledgerArtifact, ledger, ledgerWarning := readJSONArtifact[Ledger]("Ledger", ledgerPath, "", validateLedgerArtifact)
+	aggregateArtifact, aggregate, aggregateWarning := readJSONArtifact[Aggregate]("Aggregate", aggregatePath, "", validateAggregateArtifact)
 
-	artifacts := []Artifact{manifestArtifact, ledgerArtifact, aggregateArtifact}
+	artifacts := []Artifact{}
 	warnings := make([]string, 0, 8)
 	appendWarning := func(message string) {
 		message = strings.TrimSpace(message)
@@ -447,14 +442,14 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 			ledgerClaimedSubmitted = normalizedLedgerStatus == "submitted"
 			ledgerStatusWarning = warning
 		}
-		reviewer.SubmissionPath = artifactPath
+		reviewer.SubmissionPath = repoFacingReviewUIPath(s.Workdir, artifactPath)
 
 		artifactLabel := fmt.Sprintf("Submission: %s", reviewer.Slot)
 		if reviewer.Name != "" {
 			artifactLabel = fmt.Sprintf("Submission: %s", reviewer.Name)
 		}
 		reviewerWarnings := make([]string, 0, 4)
-		submissionArtifact, submission, submissionWarning := readJSONArtifact[Submission](artifactLabel, artifactPath, validateSubmissionArtifact)
+		submissionArtifact, submission, submissionWarning := readJSONArtifact[Submission](artifactLabel, artifactPath, repoFacingReviewUIPath(s.Workdir, artifactPath), validateSubmissionArtifact)
 		if submissionArtifact.Status != "" {
 			artifacts = append(artifacts, submissionArtifact)
 		}
@@ -695,7 +690,7 @@ func discoverSubmissionPaths(submissionsDir string) (map[string]string, []string
 		if os.IsNotExist(err) {
 			return paths, warnings
 		}
-		return paths, []string{fmt.Sprintf("Unable to inspect submissions directory %s: %v", filepath.ToSlash(submissionsDir), err)}
+		return paths, []string{"Unable to inspect reviewer submissions."}
 	}
 
 	for _, entry := range entries {
@@ -726,10 +721,23 @@ func discoverSubmissionPaths(submissionsDir string) (map[string]string, []string
 
 type artifactValidator[T any] func(*T) []string
 
-func readJSONArtifact[T any](label, path string, validator artifactValidator[T]) (Artifact, *T, string) {
+var hiddenReviewArtifactKeys = map[string]bool{
+	"manifest_path":     true,
+	"ledger_path":       true,
+	"aggregate_path":    true,
+	"submission_path":   true,
+	"submissions_dir":   true,
+	"record_path":       true,
+	"local_state_path":  true,
+	"current_plan_path": true,
+	"event_index_path":  true,
+	"reviews_dir":       true,
+}
+
+func readJSONArtifact[T any](label, path, surfacedPath string, validator artifactValidator[T]) (Artifact, *T, string) {
 	artifact := Artifact{
 		Label: label,
-		Path:  path,
+		Path:  surfacedPath,
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -739,8 +747,8 @@ func readJSONArtifact[T any](label, path string, validator artifactValidator[T])
 			return artifact, nil, fmt.Sprintf("%s is missing.", label)
 		}
 		artifact.Status = "invalid"
-		artifact.Summary = err.Error()
-		return artifact, nil, fmt.Sprintf("Unable to read %s: %v", strings.ToLower(label), err)
+		artifact.Summary = fmt.Sprintf("Unable to read %s.", strings.ToLower(label))
+		return artifact, nil, fmt.Sprintf("Unable to read %s.", strings.ToLower(label))
 	}
 	trimmed := strings.TrimSpace(string(data))
 	if trimmed == "" {
@@ -761,7 +769,7 @@ func readJSONArtifact[T any](label, path string, validator artifactValidator[T])
 		artifact.Status = "invalid"
 		artifact.Summary = "Artifact JSON could not be parsed."
 		artifact.ContentType = "json"
-		artifact.Content = json.RawMessage([]byte(trimmed))
+		artifact.Content = sanitizeReviewArtifactJSON([]byte(trimmed))
 		return artifact, nil, fmt.Sprintf("%s could not be parsed cleanly.", label)
 	}
 	if validator != nil {
@@ -769,7 +777,7 @@ func readJSONArtifact[T any](label, path string, validator artifactValidator[T])
 			artifact.Status = "invalid"
 			artifact.Summary = "Artifact JSON is missing required fields."
 			artifact.ContentType = "json"
-			artifact.Content = json.RawMessage([]byte(trimmed))
+			artifact.Content = sanitizeReviewArtifactJSON([]byte(trimmed))
 			return artifact, nil, fmt.Sprintf("%s is missing required fields: %s.", label, strings.Join(missing, ", "))
 		}
 	}
@@ -777,8 +785,43 @@ func readJSONArtifact[T any](label, path string, validator artifactValidator[T])
 	artifact.Status = "available"
 	artifact.Summary = "Artifact is available."
 	artifact.ContentType = "json"
-	artifact.Content = json.RawMessage([]byte(trimmed))
+	artifact.Content = sanitizeReviewArtifactJSON([]byte(trimmed))
 	return artifact, &parsed, ""
+}
+
+func sanitizeReviewArtifactJSON(raw []byte) json.RawMessage {
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return json.RawMessage(raw)
+	}
+	sanitized := sanitizeReviewArtifactValue(value)
+	data, err := json.Marshal(sanitized)
+	if err != nil {
+		return json.RawMessage(raw)
+	}
+	return json.RawMessage(data)
+}
+
+func sanitizeReviewArtifactValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		sanitized := make(map[string]any, len(typed))
+		for key, child := range typed {
+			if hiddenReviewArtifactKeys[strings.TrimSpace(key)] {
+				continue
+			}
+			sanitized[key] = sanitizeReviewArtifactValue(child)
+		}
+		return sanitized
+	case []any:
+		sanitized := make([]any, 0, len(typed))
+		for _, child := range typed {
+			sanitized = append(sanitized, sanitizeReviewArtifactValue(child))
+		}
+		return sanitized
+	default:
+		return value
+	}
 }
 
 func mustMarshalString(value string) json.RawMessage {
@@ -801,6 +844,27 @@ func dedupeStrings(values []string) []string {
 		result = append(result, trimmed)
 	}
 	return result
+}
+
+func repoFacingReviewUIPath(workdir, path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+	if !filepath.IsAbs(trimmed) {
+		return filepath.ToSlash(filepath.Clean(trimmed))
+	}
+	relPath, err := filepath.Rel(workdir, trimmed)
+	if err != nil {
+		return filepath.ToSlash(filepath.Clean(trimmed))
+	}
+	if relPath == "." || relPath == "" {
+		return "."
+	}
+	if strings.HasPrefix(relPath, ".."+string(filepath.Separator)) || relPath == ".." {
+		return filepath.ToSlash(filepath.Clean(trimmed))
+	}
+	return filepath.ToSlash(filepath.Clean(relPath))
 }
 
 func validateManifestArtifact(manifest *Manifest) []string {

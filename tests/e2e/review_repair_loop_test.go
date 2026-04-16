@@ -257,7 +257,7 @@ func runBlockingStepReview(t *testing.T, workspace *support.Workspace, stepTitle
 	if aggregatePayload.Review.Decision != "changes_requested" {
 		t.Fatalf("expected blocking step review to request changes, got %#v", aggregatePayload)
 	}
-	return aggregatePayload.Artifacts.AggregatePath
+	return reviewRoundArtifactPath(workspace.Root, "2026-03-27-review-repair-loop", aggregatePayload.Review.RoundID, "aggregate.json")
 }
 
 func runBlockingFinalizeReview(t *testing.T, workspace *support.Workspace) string {
@@ -288,7 +288,7 @@ func runBlockingFinalizeReview(t *testing.T, workspace *support.Workspace) strin
 	if aggregatePayload.Review.Decision != "changes_requested" {
 		t.Fatalf("expected blocking finalize review to request changes, got %#v", aggregatePayload)
 	}
-	return aggregatePayload.Artifacts.AggregatePath
+	return reviewRoundArtifactPath(workspace.Root, "2026-03-27-review-repair-loop", aggregatePayload.Review.RoundID, "aggregate.json")
 }
 
 func runSingleSlotReviewWithFindings(t *testing.T, workspace *support.Workspace, specRelPath string, spec map[string]any, summary string, findings []map[string]any) aggregateResult {

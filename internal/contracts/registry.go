@@ -11,6 +11,7 @@ type SchemaEntry struct {
 	Title       string
 	Description string
 	Shape       string
+	HiddenFromIndex bool
 	Type        reflect.Type
 }
 
@@ -187,6 +188,7 @@ func SchemaRegistry() []SchemaEntry {
 			Title:       "Review manifest artifact",
 			Description: "Command-owned review manifest artifact for one review round.",
 			Shape:       "artifact",
+			HiddenFromIndex: true,
 			Type:        reflect.TypeFor[ReviewManifest](),
 		},
 		{
@@ -196,6 +198,7 @@ func SchemaRegistry() []SchemaEntry {
 			Title:       "Review ledger artifact",
 			Description: "Command-owned review ledger artifact for one review round.",
 			Shape:       "artifact",
+			HiddenFromIndex: true,
 			Type:        reflect.TypeFor[ReviewLedger](),
 		},
 		{
@@ -214,6 +217,7 @@ func SchemaRegistry() []SchemaEntry {
 			Title:       "Review aggregate artifact",
 			Description: "Command-owned review aggregate artifact.",
 			Shape:       "artifact",
+			HiddenFromIndex: true,
 			Type:        reflect.TypeFor[ReviewAggregate](),
 		},
 		{

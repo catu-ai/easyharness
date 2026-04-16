@@ -88,7 +88,7 @@ func TestStartRemovesRoundArtifactsWhenLedgerWriteFails(t *testing.T) {
 	if result.OK {
 		t.Fatalf("expected review start failure, got %#v", result)
 	}
-	assertCommandErrorPath(t, result.Errors, "ledger")
+	assertCommandErrorPath(t, result.Errors, "review.slots")
 
 	roundDir := filepath.Join(root, ".local", "harness", "plans", "2026-04-01-review-ledger-rollback", "reviews", "review-001-delta")
 	if _, err := os.Stat(roundDir); !os.IsNotExist(err) {
@@ -216,7 +216,7 @@ func TestSubmitRestoresSubmissionWhenLedgerWriteFails(t *testing.T) {
 	if result.OK {
 		t.Fatalf("expected submit failure, got %#v", result)
 	}
-	assertCommandErrorPath(t, result.Errors, "ledger")
+	assertCommandErrorPath(t, result.Errors, "review.slots")
 
 	data, err := os.ReadFile(manifest.Dimensions[0].SubmissionPath)
 	if err != nil {

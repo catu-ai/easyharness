@@ -45,7 +45,7 @@
           "oneOf": [
             {
               "items": {
-                "$ref": "#/$defs/ReviewManifestSlot"
+                "$ref": "#/$defs/ReviewSlot"
               },
               "type": "array",
               "description": "Dimensions lists the materialized reviewer slots for the round."
@@ -85,7 +85,7 @@
       ],
       "description": "ReviewManifest is the command-owned review manifest artifact for one review round."
     },
-    "ReviewManifestSlot": {
+    "ReviewSlot": {
       "properties": {
         "name": {
           "type": "string",
@@ -112,7 +112,7 @@
         "instructions",
         "submission_path"
       ],
-      "description": "ReviewManifestSlot describes one reviewer submission slot in a review manifest."
+      "description": "ReviewSlot describes one surfaced reviewer submission slot."
     }
   },
   "title": "Review manifest artifact",

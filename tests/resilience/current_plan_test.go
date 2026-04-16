@@ -27,8 +27,11 @@ func TestStatusFailsSafelyWhenCurrentPlanPointerIsMalformed(t *testing.T) {
 	if !findError(parsed.Errors, "state") {
 		t.Fatalf("expected state error, got %#v", parsed.Errors)
 	}
-	if len(parsed.Errors) == 0 || !strings.Contains(parsed.Errors[0].Message, "parse current-plan.json") {
-		t.Fatalf("expected parse-current-plan failure, got %#v", parsed.Errors)
+	if len(parsed.Errors) == 0 || parsed.Errors[0].Message != "Unable to read current worktree state." {
+		t.Fatalf("expected sanitized state error, got %#v", parsed.Errors)
+	}
+	if strings.Contains(parsed.Errors[0].Message, "current-plan.json") || strings.Contains(parsed.Errors[0].Message, "parse ") {
+		t.Fatalf("expected status error to hide parse details, got %#v", parsed.Errors)
 	}
 	support.RequireFileMissing(t, workspace.Path(".local/harness/plans/2026-04-11-resilience-current-plan/state.json"))
 }

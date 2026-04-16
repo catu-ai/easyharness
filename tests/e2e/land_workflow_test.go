@@ -98,7 +98,7 @@ func TestLandWorkflowWithBuiltBinary(t *testing.T) {
 
 	postLandStatus := runStatus(t, workspace.Root)
 	assertNode(t, postLandStatus, "idle")
-	if postLandStatus.Artifacts.LastLandedPlanPath != "docs/plans/archived/2026-03-23-land-workflow.md" {
+	if postLandStatus.Artifacts.PlanPath != "docs/plans/archived/2026-03-23-land-workflow.md" {
 		t.Fatalf("expected last-landed path in idle status, got %#v", postLandStatus)
 	}
 }

@@ -71,7 +71,7 @@
         },
         "path": {
           "type": "string",
-          "description": "Path is the artifact path when one exists."
+          "description": "Path is the repo-facing artifact path when one exists."
         },
         "status": {
           "type": "string",
@@ -101,14 +101,6 @@
         "plan_path": {
           "type": "string",
           "description": "PlanPath is the current plan path associated with the review data."
-        },
-        "local_state_path": {
-          "type": "string",
-          "description": "LocalStatePath is the plan-local control-plane state path when one exists."
-        },
-        "reviews_dir": {
-          "type": "string",
-          "description": "ReviewsDir is the current-plan review rounds directory."
         },
         "active_round_id": {
           "type": "string",
@@ -329,7 +321,7 @@
         },
         "instructions": {
           "type": "string",
-          "description": "Instructions is the reviewer prompt for this slot when the manifest is readable."
+          "description": "Instructions is the reviewer prompt for this slot when it is available in surfaced review data."
         },
         "status": {
           "type": "string",
@@ -374,7 +366,7 @@
       "required": [
         "slot"
       ],
-      "description": "ReviewSlotView is one reviewer-centric view of a manifest slot plus any submission that was returned for that slot."
+      "description": "ReviewSlotView is one reviewer-centric view of a surfaced reviewer slot plus any submission that was returned for that slot."
     },
     "ReviewWorklogView": {
       "properties": {

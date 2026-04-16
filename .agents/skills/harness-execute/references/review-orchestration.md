@@ -93,7 +93,7 @@ Field rules:
   - optional for `full`
   - required for `delta`
   - for `delta`, persist the controller-chosen git commit anchor here so the
-    manifest records the durable review starting point
+    stored round metadata records the durable review starting point
 - `review_title`
   - optional human-readable review title for the controller and reviewers
 - `step`
@@ -134,6 +134,10 @@ round to use the same set.
 
 2. Spawn or resume reviewer subagents: one reviewer per returned slot or review
    dimension.
+   If the controller is resuming an already in-flight round instead of starting
+   a new one, rerun `harness status` first and recover the active round's
+   reviewer-owned slot handles from the surfaced `review_slots` data rather
+   than reopening hidden review-control artifacts.
    For a slot's first pass in a tracked step or for one finalize review scope
    in one revision, or whenever reuse is not clearly safe, use clean reviewer
    subagents. Moving to a different tracked step, moving from step review into
@@ -165,10 +169,10 @@ round to use the same set.
 
 ## Fixed Reviewer Prompt Template
 
-The returned `manifest_path` is for the controller, not the reviewer. Use it
-when you need to inspect the CLI-normalized slots, expected artifact paths, or
-ledger-owned review metadata. Reviewer subagents do not need it unless your
-runtime prefers passing a single manifest pointer.
+The returned top-level `plan_path` plus each slot `submission_path` are the
+repo-facing reviewer handoff handles. Pass those surfaced paths directly to the
+reviewer subagent instead of teaching it about CLI-owned internal
+review-control artifacts or their storage names.
 
 Use this controller prompt shape when spawning a reviewer subagent:
 
@@ -180,11 +184,13 @@ Use the harness-reviewer skill and follow it exactly.
 Round ID: <round-id>
 Review kind: <delta-or-full>
 Active plan context: <Step N: title | Finalize: title>
+Plan Path: <repo-facing-plan-path>
 Review title: <review-title>
 Revision: <candidate-revision-or-none>
 Slot: <slot>
 Assigned dimension: <dimension-name>
 Instructions: <dimension-instructions>
+Submission Path: <repo-facing-submission-path>
 Anchor SHA: <commit-sha-or-none>
 Change summary: <bounded-change-summary>
 ```
@@ -225,11 +231,13 @@ Use the harness-reviewer skill and follow it exactly.
 New round ID: <new-round-id>
 Review kind: <delta-or-full>
 Active plan context: <Step N: title | Finalize: title>
+Plan Path: <repo-facing-plan-path>
 Review title: <review-title>
 Revision: <candidate-revision-or-none>
 Slot: <slot>
 Assigned dimension: <dimension-name>
 Instructions: <dimension-instructions>
+Submission Path: <repo-facing-submission-path>
 Anchor SHA: <commit-sha-or-none>
 Change summary since your last submission: <bounded-change-summary>
 ```

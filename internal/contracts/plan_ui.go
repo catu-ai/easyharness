@@ -39,9 +39,6 @@ type PlanArtifacts struct {
 	// SupplementsPath is the current plan's companion supplements directory
 	// when one exists.
 	SupplementsPath string `json:"supplements_path,omitempty"`
-
-	// LocalStatePath is the plan-local control-plane state path when one exists.
-	LocalStatePath string `json:"local_state_path,omitempty"`
 }
 
 // PlanDocumentView is the main markdown document for the current plan.
