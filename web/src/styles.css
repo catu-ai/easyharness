@@ -376,9 +376,43 @@ code {
 
 .explorer-item-subtitle {
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
   color: var(--text-muted);
   font-size: 0.63rem;
   line-height: 1.35;
+}
+
+.explorer-item-compact-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.explorer-item-compact-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-item-compact-token {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.timeline-explorer-time {
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
 }
 
 .explorer-item-meta,
@@ -783,21 +817,8 @@ body.is-resizing-workbench .workbench-divider::before {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.review-explorer-subtitle {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: 0.35rem;
-  min-width: 0;
-  width: 100%;
-  max-width: 100%;
-}
-
 .review-explorer-meta {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: inherit;
 }
 
 .review-round-status-text {

@@ -323,6 +323,9 @@ that agents no longer need to know.
 - Finalize-review follow-up verification also passed in reviewer-owned runs
   covering the command, UI, schema, evidence, and end-to-end surfaces touched
   by this slice.
+- Revision 2 reopen validation merged `origin/main` into the candidate,
+  resolved the generated UI artifact conflicts by rebuilding the embedded UI
+  bundle, and passed `go test ./...` against the merged worktree.
 
 ## Review Summary
 
@@ -342,11 +345,18 @@ that agents no longer need to know.
   `correctness` and `agent_ux` confirmed that the candidate now keeps only
   repo-facing workflow handles surfaced while hiding internal control files and
   legacy evidence-path refs.
+- After the archived candidate became unmergeable against updated `origin/main`,
+  revision 2 reopened in `finalize-fix`, merged the new mainline UI changes,
+  rebuilt the embedded UI bundle, and reran full finalize review
+  `review-019-full`.
+- Finalize full review `review-019-full` passed with no findings; both
+  `correctness` and `agent_ux` confirmed that the merge-conflict repair did
+  not reintroduce hidden-path leaks or break repo-facing handoff surfaces.
 
 ## Archive Summary
 
-- Archived At: 2026-04-16T11:13:17+08:00
-- Revision: 1
+- Archived At: 2026-04-16T21:27:09+08:00
+- Revision: 2
 - PR: https://github.com/catu-ai/easyharness/pull/178
 - Ready: The candidate now narrows agent-facing path exposure across
   `harness status`, review command outputs, plan/review/timeline read models,
@@ -355,10 +365,13 @@ that agents no longer need to know.
   also closed the remaining legacy leaks in raw timeline JSON, reviewer plan
   discovery, and historical evidence labels such as `publish_record`,
   `ci_record`, and `sync_record`. Finalize full review `review-018-full`
-  passed cleanly, and the archived candidate now has PR #178 ready for the
-  remaining publish/CI/sync evidence refresh.
-- Merge Handoff: Refresh publish/CI/sync evidence for the archived head on
-  PR #178, then wait for explicit merge approval once `harness status` reaches
+  passed cleanly. Revision 2 then reopened solely because the archived
+  candidate conflicted with updated `origin/main`; the repair merged the new
+  mainline UI changes, rebuilt the embedded UI bundle, passed `go test ./...`,
+  and then passed full finalize review `review-019-full` with no findings.
+- Merge Handoff: Push the refreshed candidate on PR #178, refresh
+  publish/CI/sync evidence for the new head, and then wait for explicit merge
+  approval once `harness status` reaches
   `execution/finalize/await_merge`.
 
 ## Outcome Summary
@@ -383,6 +396,10 @@ that agents no longer need to know.
   skills, schema index, generated schemas, frontend helpers/types, and
   regression suites so the new agent-facing-versus-internal-control rule is
   durable.
+- Reopened the archived candidate for revision 2 when the PR became
+  unmergeable against `origin/main`, merged the new mainline UI changes into
+  the branch, resolved the generated static bundle conflicts by rebuilding the
+  embedded UI assets, and revalidated the merged candidate before re-review.
 
 ### Not Delivered
 

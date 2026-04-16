@@ -978,8 +978,12 @@ export function TimelineWorkspace(props: {
                 selected={event.event_id === selectedEvent?.event_id}
                 onSelect={() => setSelectedEventId(event.event_id)}
                 title={timelineEventTitle(event)}
-                subtitle={timelineEventSubtitle(event)}
-                meta={formatTimestamp(event.recorded_at)}
+                subtitle={
+                  <div class="explorer-item-compact-row">
+                    <span class="explorer-item-compact-label">{timelineEventSubtitle(event)}</span>
+                    <span class="explorer-item-compact-token timeline-explorer-time">{formatTimestamp(event.recorded_at)}</span>
+                  </div>
+                }
               />
             ))
           ) : (
@@ -1110,9 +1114,11 @@ export function ReviewWorkspace(props: {
                 ariaLabel={reviewRoundAriaLabel(round)}
                 title={reviewRoundTitle(round)}
                 subtitle={
-                  <div class="review-explorer-subtitle">
-                    <span class="review-explorer-meta">{reviewRoundExplorerMetaLabel(round)}</span>
-                    <span class={`review-round-status-text is-${reviewRoundStatusTone(round)}`}>{reviewRoundCompactStatusLabel(round)}</span>
+                  <div class="explorer-item-compact-row">
+                    <span class="explorer-item-compact-label review-explorer-meta">{reviewRoundExplorerMetaLabel(round)}</span>
+                    <span class={`explorer-item-compact-token review-round-status-text is-${reviewRoundStatusTone(round)}`}>
+                      {reviewRoundCompactStatusLabel(round)}
+                    </span>
                   </div>
                 }
                 tone={reviewRoundStatusTone(round)}

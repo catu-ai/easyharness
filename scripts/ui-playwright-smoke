@@ -732,6 +732,114 @@ async (page) => {
 " >/dev/null
 }
 
+assert_explorer_item_contract() {
+  local session="$1"
+  local route_label="$2"
+  local token_mode="${3:-none}"
+
+  pwcli_run_code_checked "$session" "
+async (page) => {
+  const routeLabel = '${route_label}';
+  const tokenMode = '${token_mode}';
+  const targetWidth = 220;
+  await page.setViewportSize({ width: 1280, height: 520 });
+  await page.evaluate((width) => {
+    window.localStorage.setItem('harness-ui:workbench-explorer-width', String(width));
+  }, targetWidth);
+  await page.reload({ waitUntil: 'networkidle' });
+  return await page.evaluate(
+    ({ routeLabel, tokenMode, targetWidth }) => {
+      const parseExplorerWidth = (template) => {
+        const firstTrack = template.split(' ')[0] || '';
+        const width = Number.parseFloat(firstTrack);
+        if (Number.isNaN(width)) {
+          throw new Error(\`could not parse explorer width from \${template}\`);
+        }
+        return width;
+      };
+
+      const findTextRect = (root, matcher) => {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        let node;
+        while ((node = walker.nextNode())) {
+          const value = node.nodeValue || '';
+          const match = typeof matcher === 'string' ? value.indexOf(matcher) : value.match(matcher);
+          if (match === null || match === -1) {
+            continue;
+          }
+          const start = typeof matcher === 'string' ? match : match.index ?? 0;
+          const text = typeof matcher === 'string' ? matcher : match[0];
+          const range = document.createRange();
+          range.setStart(node, start);
+          range.setEnd(node, start + text.length);
+          return range.getBoundingClientRect();
+        }
+        return null;
+      };
+
+      const frame = document.querySelector('.workbench-page');
+      if (!(frame instanceof HTMLElement)) {
+        throw new Error(\`\${routeLabel} is missing the workbench frame\`);
+      }
+      const frameWidth = parseExplorerWidth(getComputedStyle(frame).gridTemplateColumns);
+      if (Math.abs(frameWidth - targetWidth) > 1) {
+        throw new Error(\`\${routeLabel} explorer width did not settle at 220px: \${frameWidth}\`);
+      }
+
+      const rows = Array.from(document.querySelectorAll('.explorer-item'));
+      if (rows.length === 0) {
+        throw new Error(\`\${routeLabel} did not render any shared explorer rows\`);
+      }
+
+      const overflowing = rows
+        .map((row, index) => {
+          const button = row;
+          const main = row.querySelector('.explorer-item-main');
+          const subtitle = row.querySelector('.explorer-item-subtitle');
+          const meta = row.querySelector('.explorer-item-meta, .explorer-item-trailing');
+          const checks = [button, main, subtitle, meta]
+            .filter((value) => value instanceof HTMLElement)
+            .map((element) => ({
+              className: element.className,
+              clientWidth: element.clientWidth,
+              scrollWidth: element.scrollWidth,
+            }))
+            .filter((metrics) => metrics.scrollWidth > metrics.clientWidth + 1);
+          return checks.length > 0 ? { index, checks } : null;
+        })
+        .filter(Boolean);
+
+      if (overflowing.length > 0) {
+        throw new Error(\`\${routeLabel} explorer rows overflow at 220px: \${JSON.stringify(overflowing.slice(0, 3))}\`);
+      }
+
+      if (tokenMode === 'timeline-revision') {
+        const timelineSubtitle = rows
+          .map((row) => row.querySelector('.explorer-item-compact-label'))
+          .find((value) => value instanceof HTMLElement && /\\brev\\s+\\d+\\b/i.test(value.textContent || ''));
+        if (!(timelineSubtitle instanceof HTMLElement)) {
+          throw new Error('missing timeline subtitle with revision text at 220px');
+        }
+        const revRect = findTextRect(timelineSubtitle, 'rev');
+        const numberRect = findTextRect(timelineSubtitle, /\\b\\d+\\b/);
+        if (!revRect || !numberRect) {
+          throw new Error('could not measure timeline revision text fragments');
+        }
+        if (Math.abs(revRect.top - numberRect.top) > 1) {
+          throw new Error(
+            \`\${routeLabel} revision token wrapped awkwardly at 220px: rev top \${revRect.top}, number top \${numberRect.top}\`,
+          );
+        }
+      }
+
+      return { routeLabel, rowCount: rows.length, frameWidth };
+    },
+    { routeLabel, tokenMode, targetWidth },
+  );
+}
+" >/dev/null
+}
+
 navigate_via_rail() {
   local rail_session="$1"
   local from_label="$2"
@@ -833,6 +941,8 @@ capture_session_screenshot "$status_mobile_session" "status-mobile"
 assert_has_text "status-mobile" "Status"
 assert_has_text "status-mobile" "Summary"
 pwcli_close "$status_mobile_session"
+assert_explorer_item_contract "$rail_session" "status"
+capture_session_screenshot "$rail_session" "status-explorer-220"
 
 capture_snapshot "/timeline" "timeline"
 assert_has_text "timeline" "Timeline"
@@ -854,6 +964,8 @@ assert_has_text "timeline-inspector-initial" "Output"
 assert_has_text "timeline-inspector-initial" "execution/finalize/await_merge → land"
 assert_has_text "timeline-inspector-initial" "Publish Record"
 assert_workbench_scroll_contract "$timeline_inspector_session" "timeline"
+assert_explorer_item_contract "$timeline_inspector_session" "timeline" "timeline-revision"
+capture_session_screenshot "$timeline_inspector_session" "timeline-explorer-220"
 pwcli_run_code_checked "$timeline_inspector_session" '
 async (page) => await page.evaluate(() => {
   const tabs = document.querySelector(".inspector-tabs");
@@ -890,6 +1002,14 @@ async (page) => {
   await page.mouse.up();
   await divider.focus();
   await page.keyboard.press("ArrowLeft");
+  await page.waitForFunction(
+    () => {
+      const value = window.localStorage.getItem("harness-ui:workbench-explorer-width");
+      return value !== null;
+    },
+    { timeout: 1000 },
+  );
+  await page.waitForTimeout(100);
   const after = await frame.evaluate((node) => getComputedStyle(node).gridTemplateColumns);
   const stored = await page.evaluate(() => window.localStorage.getItem("harness-ui:workbench-explorer-width"));
   if (before === after) {
@@ -902,7 +1022,7 @@ async (page) => {
   if (Math.abs(resizedWidth - Number.parseFloat(stored)) > 1) {
     throw new Error(`stored shared width ${stored} did not match resized width ${resizedWidth}`);
   }
-  const origin = new URL(page.url()).origin;
+  const origin = await page.evaluate(() => window.location.origin);
   const compatibleRoutes = [
     ["/review", "Review"],
     ["/status", "Status"],
@@ -1054,6 +1174,12 @@ capture_snapshot "/review" "review-archived-visible"
 assert_has_text "review-archived-visible" "Archived finalize review"
 assert_has_text "review-archived-visible" "Aggregate review passed cleanly."
 assert_lacks_text "review-archived-visible" "Review data is hidden once required post-merge bookkeeping begins."
+review_visible_session="$(session_name review-visible)"
+navigate_browser_to "$review_visible_session" "${base_url}/review"
+sleep 1
+assert_explorer_item_contract "$review_visible_session" "review"
+capture_session_screenshot "$review_visible_session" "review-explorer-220"
+pwcli_close "$review_visible_session"
 
 python3 - "$runtime_workdir/.local/harness/plans/$plan_stem/state.json" <<'PY'
 import json
