@@ -1,6 +1,6 @@
 {
   "title": "easyharness contract schema index",
-  "description": "Generated JSON Schema index for public command surfaces plus CLI-owned runtime artifacts.",
+  "description": "Generated JSON Schema index for public command surfaces plus intentionally surfaced runtime artifacts.",
   "schemas": [
     {
       "key": "artifacts.current_plan",
@@ -51,36 +51,6 @@
       "path": "schema/artifacts/local-state.schema.json",
       "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/local-state.schema.json",
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.LocalStateFile"
-    },
-    {
-      "key": "artifacts.review_aggregate",
-      "group": "artifacts",
-      "surface": "cli_owned_runtime",
-      "title": "Review aggregate artifact",
-      "description": "Command-owned review aggregate artifact.",
-      "path": "schema/artifacts/review-aggregate.schema.json",
-      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/review-aggregate.schema.json",
-      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewAggregate"
-    },
-    {
-      "key": "artifacts.review_ledger",
-      "group": "artifacts",
-      "surface": "cli_owned_runtime",
-      "title": "Review ledger artifact",
-      "description": "Command-owned review ledger artifact for one review round.",
-      "path": "schema/artifacts/review-ledger.schema.json",
-      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/review-ledger.schema.json",
-      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewLedger"
-    },
-    {
-      "key": "artifacts.review_manifest",
-      "group": "artifacts",
-      "surface": "cli_owned_runtime",
-      "title": "Review manifest artifact",
-      "description": "Command-owned review manifest artifact for one review round.",
-      "path": "schema/artifacts/review-manifest.schema.json",
-      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/review-manifest.schema.json",
-      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewManifest"
     },
     {
       "key": "artifacts.review_submission",

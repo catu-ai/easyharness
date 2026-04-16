@@ -1002,8 +1002,8 @@ func TestServiceReadKeepsUnreadableAggregateRoundsDegraded(t *testing.T) {
 	if len(round.Warnings) == 0 || !strings.Contains(strings.Join(round.Warnings, " "), "Unable to read aggregate") {
 		t.Fatalf("expected unreadable aggregate warning, got %#v", round)
 	}
-	if len(round.Artifacts) < 3 || round.Artifacts[2].Status != "invalid" {
-		t.Fatalf("expected aggregate artifact to be invalid, got %#v", round.Artifacts)
+	if len(round.Artifacts) != 1 || round.Artifacts[0].Label != "Submission: Correctness" || round.Artifacts[0].Status != "available" {
+		t.Fatalf("expected only the reviewer-owned submission artifact to remain surfaced, got %#v", round.Artifacts)
 	}
 }
 
@@ -1074,11 +1074,8 @@ func TestServiceReadKeepsSemanticallyBrokenArtifactsConservative(t *testing.T) {
 	if round.Decision != "" {
 		t.Fatalf("expected incomplete aggregate not to render as a clean decision, got %#v", round)
 	}
-	if len(round.Artifacts) < 4 {
-		t.Fatalf("expected core and submission artifacts, got %#v", round.Artifacts)
-	}
-	if round.Artifacts[0].Status != "invalid" || round.Artifacts[1].Status != "invalid" || round.Artifacts[2].Status != "invalid" || round.Artifacts[3].Status != "available" {
-		t.Fatalf("expected semantically incomplete artifacts to be marked invalid, got %#v", round.Artifacts)
+	if len(round.Artifacts) != 1 || round.Artifacts[0].Label != "Submission: correctness" || round.Artifacts[0].Status != "available" {
+		t.Fatalf("expected only the reviewer-owned submission artifact to remain surfaced, got %#v", round.Artifacts)
 	}
 	if len(round.Warnings) == 0 || !strings.Contains(strings.Join(round.Warnings, " "), "missing required fields") {
 		t.Fatalf("expected missing-required-fields warning, got %#v", round)

@@ -69,11 +69,10 @@ type reviewStartResult struct {
 	OK        bool   `json:"ok"`
 	Command   string `json:"command"`
 	Artifacts struct {
-		RoundID       string       `json:"round_id"`
-		ManifestPath  string       `json:"manifest_path"`
-		LedgerPath    string       `json:"ledger_path"`
-		AggregatePath string       `json:"aggregate_path"`
-		Slots         []reviewSlot `json:"slots"`
+		ProjectRoot string       `json:"project_root"`
+		PlanPath    string       `json:"plan_path"`
+		RoundID     string       `json:"round_id"`
+		Slots       []reviewSlot `json:"slots"`
 	} `json:"artifacts"`
 	NextAction []struct {
 		Command     *string `json:"command"`
@@ -98,9 +97,10 @@ type submitResult struct {
 	OK        bool   `json:"ok"`
 	Command   string `json:"command"`
 	Artifacts struct {
+		ProjectRoot    string `json:"project_root"`
 		Slot           string `json:"slot"`
 		SubmissionPath string `json:"submission_path"`
-		LedgerPath     string `json:"ledger_path"`
+		RoundID        string `json:"round_id"`
 	} `json:"artifacts"`
 }
 
@@ -110,10 +110,11 @@ type aggregateResult struct {
 	Summary   string         `json:"summary"`
 	Errors    []commandError `json:"errors"`
 	Artifacts struct {
-		AggregatePath  string `json:"aggregate_path"`
-		LocalStatePath string `json:"local_state_path"`
+		ProjectRoot string `json:"project_root"`
+		RoundID     string `json:"round_id"`
 	} `json:"artifacts"`
 	Review struct {
+		RoundID             string `json:"round_id"`
 		Decision            string `json:"decision"`
 		NonBlockingFindings []struct {
 			Severity string `json:"severity"`
@@ -198,12 +199,14 @@ type statusResult struct {
 		LandPRURL     string `json:"land_pr_url"`
 	} `json:"facts"`
 	Artifacts struct {
-		ReviewRoundID      string `json:"review_round_id"`
-		PublishRecordID    string `json:"publish_record_id"`
-		CIRecordID         string `json:"ci_record_id"`
-		SyncRecordID       string `json:"sync_record_id"`
-		LastLandedPlanPath string `json:"last_landed_plan_path"`
-		LastLandedAt       string `json:"last_landed_at"`
+		ProjectRoot     string       `json:"project_root"`
+		PlanPath        string       `json:"plan_path"`
+		ReviewRoundID   string       `json:"review_round_id"`
+		ReviewSlots     []reviewSlot `json:"review_slots"`
+		PublishRecordID string       `json:"publish_record_id"`
+		CIRecordID      string       `json:"ci_record_id"`
+		SyncRecordID    string       `json:"sync_record_id"`
+		LastLandedAt    string       `json:"last_landed_at"`
 	} `json:"artifacts"`
 	NextAction []struct {
 		Command     *string `json:"command"`
@@ -340,7 +343,7 @@ func submitReviewSlot(t *testing.T, workspace *support.Workspace, roundID string
 	if submitPayload.Artifacts.Slot != slot.Slot || submitPayload.Artifacts.SubmissionPath != slot.SubmissionPath {
 		t.Fatalf("unexpected submit artifacts for slot %#v: %#v", slot, submitPayload)
 	}
-	support.RequireFileExists(t, submitPayload.Artifacts.SubmissionPath)
+	support.RequireFileExists(t, filepath.Join(workspace.Root, filepath.FromSlash(submitPayload.Artifacts.SubmissionPath)))
 }
 
 func slotMap(slots []reviewSlot) map[string]reviewSlot {
@@ -371,6 +374,16 @@ func assertLedgerStatuses(t *testing.T, ledger reviewLedger, want map[string]str
 
 func trackedStepTitle(stepNumber int, stepTitle string) string {
 	return fmt.Sprintf("Step %d: %s", stepNumber, stepTitle)
+}
+
+func resolveRepoPath(root, path string) string {
+	return filepath.Join(root, filepath.FromSlash(path))
+}
+
+func reviewRoundArtifactPath(root, planStem, roundID string, elems ...string) string {
+	parts := []string{root, ".local", "harness", "plans", planStem, "reviews", roundID}
+	parts = append(parts, elems...)
+	return filepath.Join(parts...)
 }
 
 func startReviewRound(t *testing.T, workspace *support.Workspace, specRelPath string, spec map[string]any) reviewStartResult {

@@ -44,10 +44,10 @@ func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
 	if result.Artifacts.RoundID != "review-001-delta" {
 		t.Fatalf("expected compact first round id, got %#v", result.Artifacts)
 	}
-	if _, err := os.Stat(result.Artifacts.ManifestPath); err != nil {
+	if _, err := os.Stat(reviewRoundFile(root, "2026-03-18-review-contract", result.Artifacts.RoundID, "manifest.json")); err != nil {
 		t.Fatalf("manifest missing: %v", err)
 	}
-	skeletonBytes, err := os.ReadFile(result.Artifacts.Slots[0].SubmissionPath)
+	skeletonBytes, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(result.Artifacts.Slots[0].SubmissionPath)))
 	if err != nil {
 		t.Fatalf("read starter submission skeleton: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestStartAcceptsExplicitEarlierStepFromLaterExecutionFrontier(t *testing.T)
 	}
 
 	var manifest review.Manifest
-	data, err := os.ReadFile(result.Artifacts.ManifestPath)
+	data, err := os.ReadFile(reviewRoundFile(root, "2026-03-18-review-contract", result.Artifacts.RoundID, "manifest.json"))
 	if err != nil {
 		t.Fatalf("read manifest: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestStartAcceptsExplicitEarlierStepFromFinalizeContext(t *testing.T) {
 	}
 
 	var manifest review.Manifest
-	data, err := os.ReadFile(result.Artifacts.ManifestPath)
+	data, err := os.ReadFile(reviewRoundFile(root, "2026-03-18-review-contract", result.Artifacts.RoundID, "manifest.json"))
 	if err != nil {
 		t.Fatalf("read manifest: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestStartAllowsDefaultFinalizeReviewWhenEarlierCloseoutDebtIsSatisfied(t *t
 		t.Fatalf("expected finalize review artifacts, got %#v", result)
 	}
 	var manifest review.Manifest
-	data, err := os.ReadFile(result.Artifacts.ManifestPath)
+	data, err := os.ReadFile(reviewRoundFile(root, "2026-03-18-review-contract", result.Artifacts.RoundID, "manifest.json"))
 	if err != nil {
 		t.Fatalf("read manifest: %v", err)
 	}
@@ -385,7 +385,7 @@ func TestStartPersistsDeltaAnchorSHAInManifest(t *testing.T) {
 		t.Fatalf("expected start success, got %#v", result)
 	}
 
-	data, err := os.ReadFile(result.Artifacts.ManifestPath)
+	data, err := os.ReadFile(reviewRoundFile(root, "2026-03-18-review-contract", result.Artifacts.RoundID, "manifest.json"))
 	if err != nil {
 		t.Fatalf("read manifest: %v", err)
 	}
@@ -517,11 +517,11 @@ func TestSubmitStoresSubmissionAndUpdatesLedger(t *testing.T) {
 	if !result.OK {
 		t.Fatalf("expected submit success, got %#v", result)
 	}
-	if _, err := os.Stat(result.Artifacts.SubmissionPath); err != nil {
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(result.Artifacts.SubmissionPath))); err != nil {
 		t.Fatalf("submission missing: %v", err)
 	}
 	var submission review.Submission
-	data, err := os.ReadFile(result.Artifacts.SubmissionPath)
+	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(result.Artifacts.SubmissionPath)))
 	if err != nil {
 		t.Fatalf("read submission: %v", err)
 	}
@@ -760,7 +760,7 @@ func TestSubmitAcceptsAndPreservesExtraTopLevelFields(t *testing.T) {
 	if !result.OK {
 		t.Fatalf("expected submit success with extra top-level fields, got %#v", result)
 	}
-	data, err := os.ReadFile(result.Artifacts.SubmissionPath)
+	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(result.Artifacts.SubmissionPath)))
 	if err != nil {
 		t.Fatalf("read submission artifact: %v", err)
 	}
@@ -882,7 +882,7 @@ func TestSubmitPreservesExplicitEmptyLocationsArray(t *testing.T) {
 		t.Fatalf("expected submit success, got %#v", result)
 	}
 
-	data, err := os.ReadFile(result.Artifacts.SubmissionPath)
+	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(result.Artifacts.SubmissionPath)))
 	if err != nil {
 		t.Fatalf("read submission: %v", err)
 	}
@@ -933,7 +933,7 @@ func TestSubmitAcceptsFindingWithoutLocations(t *testing.T) {
 		t.Fatalf("expected submit success, got %#v", result)
 	}
 
-	data, err := os.ReadFile(result.Artifacts.SubmissionPath)
+	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(result.Artifacts.SubmissionPath)))
 	if err != nil {
 		t.Fatalf("read submission: %v", err)
 	}
@@ -1048,12 +1048,13 @@ func TestAggregateAcceptsLegacySubmissionWithoutBy(t *testing.T) {
 	if !submit.OK {
 		t.Fatalf("expected submit success, got %#v", submit)
 	}
-	data, err := os.ReadFile(submit.Artifacts.SubmissionPath)
+	submissionPath := filepath.Join(root, filepath.FromSlash(submit.Artifacts.SubmissionPath))
+	data, err := os.ReadFile(submissionPath)
 	if err != nil {
 		t.Fatalf("read submission: %v", err)
 	}
 	legacy := strings.Replace(string(data), "\"by\": \"reviewer-correctness\",\n", "", 1)
-	if err := os.WriteFile(submit.Artifacts.SubmissionPath, []byte(legacy), 0o644); err != nil {
+	if err := os.WriteFile(submissionPath, []byte(legacy), 0o644); err != nil {
 		t.Fatalf("rewrite legacy submission: %v", err)
 	}
 
@@ -1435,7 +1436,7 @@ func TestAggregatePreservesExplicitEmptyLocationsArray(t *testing.T) {
 		t.Fatalf("aggregate failed: %#v", result)
 	}
 
-	data, err := os.ReadFile(start.Artifacts.AggregatePath)
+	data, err := os.ReadFile(reviewRoundFile(root, "2026-03-18-review-contract", start.Artifacts.RoundID, "aggregate.json"))
 	if err != nil {
 		t.Fatalf("read aggregate: %v", err)
 	}
@@ -1461,6 +1462,10 @@ func writeExecutingPlan(t *testing.T, root, relPath string) string {
 		t.Fatalf("save execute-start state: %v", err)
 	}
 	return path
+}
+
+func reviewRoundFile(root, planStem, roundID, fileName string) string {
+	return filepath.Join(root, ".local", "harness", "plans", planStem, "reviews", roundID, fileName)
 }
 
 func writeExecutingFinalizePlan(t *testing.T, root, relPath string) string {

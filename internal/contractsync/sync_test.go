@@ -126,6 +126,15 @@ func TestSchemaIndexNoLongerPointsAtGeneratedMarkdown(t *testing.T) {
 	if surfaces["artifacts.current_plan"] != "cli_owned_runtime" {
 		t.Fatalf("expected artifacts.current_plan surface=cli_owned_runtime, got %q", surfaces["artifacts.current_plan"])
 	}
+	if _, ok := surfaces["artifacts.review_manifest"]; ok {
+		t.Fatal("expected schema index to omit hidden review manifest artifacts")
+	}
+	if _, ok := surfaces["artifacts.review_ledger"]; ok {
+		t.Fatal("expected schema index to omit hidden review ledger artifacts")
+	}
+	if _, ok := surfaces["artifacts.review_aggregate"]; ok {
+		t.Fatal("expected schema index to omit hidden review aggregate artifacts")
+	}
 }
 
 func TestCheckFilesFailsOnMissingAndUnexpectedGeneratedFiles(t *testing.T) {

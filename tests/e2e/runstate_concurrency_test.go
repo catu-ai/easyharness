@@ -107,6 +107,9 @@ func TestArchivedRunstateInterleavingsIgnoreStaleEvidenceAndFailClearlyUnderLock
 	if lockedStatusPayload.OK || lockedStatusPayload.Summary != "Another local state mutation is already in progress." {
 		t.Fatalf("expected locked status failure, got %#v", lockedStatusPayload)
 	}
+	if lockedStatusPayload.Artifacts.ProjectRoot == "" || lockedStatusPayload.Artifacts.PlanPath != postRearchiveStatus.Artifacts.PlanPath {
+		t.Fatalf("expected repo-facing locked status artifacts, got %#v", lockedStatusPayload.Artifacts)
+	}
 
 	lockedCIInput := workspace.WriteJSON(t, "tmp/locked-ci.json", map[string]any{
 		"status":   "success",

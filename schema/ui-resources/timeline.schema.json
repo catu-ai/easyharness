@@ -57,14 +57,6 @@
         "plan_path": {
           "type": "string",
           "description": "PlanPath is the current or last-landed plan path associated with the timeline."
-        },
-        "local_state_path": {
-          "type": "string",
-          "description": "LocalStatePath is the plan-local control-plane state path when one exists."
-        },
-        "event_index_path": {
-          "type": "string",
-          "description": "EventIndexPath is the append-only event index path."
         }
       },
       "additionalProperties": false,

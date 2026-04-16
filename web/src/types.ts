@@ -69,7 +69,6 @@ export type PlanResult = {
   artifacts?: {
     plan_path?: string;
     supplements_path?: string;
-    local_state_path?: string;
   } | null;
   document?: PlanDocument | null;
   supplements?: PlanNode | null;
@@ -121,8 +120,6 @@ export type TimelineResult = {
   summary: string;
   artifacts?: {
     plan_path?: string;
-    local_state_path?: string;
-    event_index_path?: string;
   } | null;
   events?: TimelineEvent[] | null;
   errors?: ErrorDetail[] | null;
@@ -202,8 +199,6 @@ export type ReviewResult = {
   summary: string;
   artifacts?: {
     plan_path?: string;
-    local_state_path?: string;
-    reviews_dir?: string;
     active_round_id?: string;
   } | null;
   rounds?: ReviewRound[] | null;

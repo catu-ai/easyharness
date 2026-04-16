@@ -120,9 +120,9 @@ For active work in both profiles, this plan artifact is a tracked file under
 
 - worktree-level current-plan and last-landed context
 - execute-start milestones
-- review manifests, ledgers, submissions, and aggregates, including optional
-  reviewer-provided finding locations preserved in submission and aggregate
-  artifacts
+- review round metadata, submission-tracking data, reviewer submissions, and
+  persisted review decisions, including optional reviewer-provided finding
+  locations preserved in submission and decision artifacts
 - append-only timeline event indexes under
   `.local/harness/plans/<plan-stem>/events.jsonl`
 - append-only `ci`, `publish`, and `sync` evidence records
@@ -142,7 +142,7 @@ any interrupted or overlapping command.
 - `current_node`
 - CLI-owned pointer files
 - CLI-owned `state.json`
-- review manifests or aggregates
+- hidden review-control artifacts or persisted review decision data
 - command-owned evidence records that should have been created through
   `harness evidence submit`
 

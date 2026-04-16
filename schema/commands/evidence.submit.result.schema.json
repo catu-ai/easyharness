@@ -28,17 +28,9 @@
           "type": "string",
           "description": "PlanPath is the archived plan path associated with the evidence record."
         },
-        "local_state_path": {
-          "type": "string",
-          "description": "LocalStatePath is the plan-local control-plane state path when one exists."
-        },
         "record_id": {
           "type": "string",
           "description": "RecordID is the stable identifier of the created evidence record."
-        },
-        "record_path": {
-          "type": "string",
-          "description": "RecordPath is the path to the created evidence record artifact."
         },
         "kind": {
           "type": "string",
@@ -50,7 +42,6 @@
       "required": [
         "plan_path",
         "record_id",
-        "record_path",
         "kind"
       ],
       "description": "EvidenceArtifacts lists the evidence-related paths and identifiers touched by `harness evidence submit`."

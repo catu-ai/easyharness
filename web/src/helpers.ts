@@ -25,6 +25,15 @@ const hiddenArtifactTabLabels = new Set([
   "current_plan_path",
   "from_plan_path",
   "to_plan_path",
+  "manifest_path",
+  "ledger_path",
+  "aggregate_path",
+  "event_index_path",
+  "reviews_dir",
+  "record_path",
+  "publish_record",
+  "ci_record",
+  "sync_record",
 ]);
 
 export function metadataValue(value: string | undefined): string {

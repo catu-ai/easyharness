@@ -1,6 +1,7 @@
 package status
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -70,7 +71,7 @@ func (s Service) read(acquireLock bool) Result {
 			OK:      false,
 			Command: "status",
 			Summary: "Unable to read current worktree state.",
-			Errors:  []StatusError{{Path: "state", Message: err.Error()}},
+			Errors:  []StatusError{{Path: "state", Message: "Unable to read current worktree state."}},
 		}
 	}
 
@@ -83,7 +84,7 @@ func (s Service) read(acquireLock bool) Result {
 			OK:      false,
 			Command: "status",
 			Summary: "Unable to determine the current plan.",
-			Errors:  []StatusError{{Path: "plan", Message: err.Error()}},
+			Errors:  []StatusError{{Path: "plan", Message: "Unable to determine the current plan."}},
 		}
 	}
 
@@ -97,9 +98,10 @@ func (s Service) read(acquireLock bool) Result {
 				Command: "status",
 				Summary: "Another local state mutation is already in progress.",
 				Artifacts: &Artifacts{
-					PlanPath: planPath,
+					ProjectRoot: s.Workdir,
+					PlanPath:    repoFacingPath(s.Workdir, planPath),
 				},
-				Errors: []StatusError{{Path: "state", Message: err.Error()}},
+				Errors: []StatusError{{Path: "state", Message: "Another local state mutation is already in progress."}},
 			}
 		}
 		defer release()
@@ -110,7 +112,7 @@ func (s Service) read(acquireLock bool) Result {
 				OK:      false,
 				Command: "status",
 				Summary: "Unable to determine the current plan.",
-				Errors:  []StatusError{{Path: "plan", Message: err.Error()}},
+				Errors:  []StatusError{{Path: "plan", Message: "Unable to determine the current plan."}},
 			}
 		}
 	}
@@ -122,22 +124,23 @@ func (s Service) read(acquireLock bool) Result {
 			Command: "status",
 			Summary: "Unable to read the current plan.",
 			Artifacts: &Artifacts{
-				PlanPath: planPath,
+				ProjectRoot: s.Workdir,
+				PlanPath:    repoFacingPath(s.Workdir, planPath),
 			},
-			Errors: []StatusError{{Path: "plan", Message: err.Error()}},
+			Errors: []StatusError{{Path: "plan", Message: "Unable to read the current plan."}},
 		}
 	}
-	state, statePath, err := runstate.LoadState(s.Workdir, planStem)
+	state, _, err := runstate.LoadState(s.Workdir, planStem)
 	if err != nil {
 		return Result{
 			OK:      false,
 			Command: "status",
 			Summary: "Unable to read local harness state.",
 			Artifacts: &Artifacts{
-				PlanPath:       planPath,
-				LocalStatePath: statePath,
+				ProjectRoot: s.Workdir,
+				PlanPath:    repoFacingPath(s.Workdir, planPath),
 			},
-			Errors: []StatusError{{Path: "state", Message: err.Error()}},
+			Errors: []StatusError{{Path: "state", Message: "Unable to read local harness state."}},
 		}
 	}
 
@@ -145,17 +148,17 @@ func (s Service) read(acquireLock bool) Result {
 		OK:      true,
 		Command: "status",
 		Artifacts: &Artifacts{
-			PlanPath:       planPath,
-			LocalStatePath: statePath,
+			ProjectRoot: s.Workdir,
+			PlanPath:    repoFacingPath(s.Workdir, planPath),
 		},
 	}
 	supplementsPath := plan.SupplementsDirForPlanPath(planPath)
 	if info, err := os.Stat(supplementsPath); err == nil && info.IsDir() {
-		result.Artifacts.SupplementsPath = supplementsPath
+		result.Artifacts.SupplementsPath = repoFacingPath(s.Workdir, supplementsPath)
 	} else if err != nil && !os.IsNotExist(err) {
-		result.Warnings = append(result.Warnings, fmt.Sprintf("unable to inspect supplements path %s: %v", supplementsPath, err))
+		result.Warnings = append(result.Warnings, fmt.Sprintf("unable to inspect supplements path %s: %v", repoFacingPath(s.Workdir, supplementsPath), err))
 	} else if err == nil && !info.IsDir() {
-		result.Warnings = append(result.Warnings, fmt.Sprintf("supplements path is not a directory: %s", supplementsPath))
+		result.Warnings = append(result.Warnings, fmt.Sprintf("supplements path is not a directory: %s", repoFacingPath(s.Workdir, supplementsPath)))
 	}
 
 	reviewCtx, reviewWarnings := loadReviewContext(s.Workdir, planStem, doc, state)
@@ -163,6 +166,13 @@ func (s Service) read(acquireLock bool) Result {
 	planApproved := doc.ExplicitlyApproved()
 	if reviewCtx != nil && isStructuralReviewTrigger(reviewCtx.Trigger) && strings.TrimSpace(reviewCtx.RoundID) != "" {
 		result.Artifacts.ReviewRoundID = reviewCtx.RoundID
+		if reviewCtx.InFlight {
+			reviewSlots, slotWarnings := loadReviewSlots(s.Workdir, planStem, reviewCtx.RoundID)
+			result.Warnings = append(result.Warnings, slotWarnings...)
+			if len(reviewSlots) > 0 {
+				result.Artifacts.ReviewSlots = reviewSlots
+			}
+		}
 	}
 
 	facts := &Facts{}
@@ -222,10 +232,10 @@ func (s Service) read(acquireLock bool) Result {
 			Command: "status",
 			Summary: "Unable to classify the current plan path.",
 			Artifacts: &Artifacts{
-				PlanPath:       planPath,
-				LocalStatePath: statePath,
+				ProjectRoot: s.Workdir,
+				PlanPath:    repoFacingPath(s.Workdir, planPath),
 			},
-			Errors: []StatusError{{Path: "plan", Message: fmt.Sprintf("unsupported plan path kind for %s", planPath)}},
+			Errors: []StatusError{{Path: "plan", Message: "unsupported plan path kind for current plan"}},
 		}
 	}
 
@@ -259,10 +269,12 @@ func (s Service) read(acquireLock bool) Result {
 		result.Facts = facts
 	}
 
-	if result.Artifacts != nil && result.Artifacts.PlanPath == "" && result.Artifacts.LocalStatePath == "" &&
-		result.Artifacts.ReviewRoundID == "" && result.Artifacts.CIRecordID == "" &&
+	if result.Artifacts != nil && result.Artifacts.ProjectRoot == "" &&
+		result.Artifacts.PlanPath == "" && result.Artifacts.SupplementsPath == "" &&
+		result.Artifacts.ReviewRoundID == "" && len(result.Artifacts.ReviewSlots) == 0 &&
+		result.Artifacts.CIRecordID == "" &&
 		result.Artifacts.PublishRecordID == "" && result.Artifacts.SyncRecordID == "" &&
-		result.Artifacts.LastLandedPlanPath == "" && result.Artifacts.LastLandedAt == "" {
+		result.Artifacts.LastLandedAt == "" {
 		result.Artifacts = nil
 	}
 
@@ -278,6 +290,7 @@ func clearStepCloseoutReviewMetadata(facts *Facts, artifacts *Artifacts) {
 	}
 	if artifacts != nil {
 		artifacts.ReviewRoundID = ""
+		artifacts.ReviewSlots = nil
 	}
 }
 
@@ -424,22 +437,52 @@ func loadReviewContext(workdir, planStem string, doc *plan.Document, state *runs
 	return ctx, warnings
 }
 
+func loadReviewSlots(workdir, planStem, roundID string) ([]contracts.ReviewSlot, []string) {
+	if strings.TrimSpace(roundID) == "" {
+		return nil, nil
+	}
+	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", roundID, "manifest.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, []string{fmt.Sprintf("Unable to read reviewer slot handles for %s because the review manifest is missing.", roundID)}
+		}
+		return nil, []string{fmt.Sprintf("Unable to read reviewer slot handles for %s; review status may be incomplete.", roundID)}
+	}
+
+	var manifest contracts.ReviewManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return nil, []string{fmt.Sprintf("Unable to parse reviewer slot handles for %s: %v", roundID, err)}
+	}
+	if len(manifest.Dimensions) == 0 {
+		return nil, nil
+	}
+
+	slots := make([]contracts.ReviewSlot, 0, len(manifest.Dimensions))
+	for _, slot := range manifest.Dimensions {
+		next := slot
+		next.SubmissionPath = repoFacingPath(workdir, slot.SubmissionPath)
+		slots = append(slots, next)
+	}
+	return slots, nil
+}
+
 func loadEvidenceContext(workdir, planStem string, revision int) (*evidenceContext, []string) {
 	ctx := &evidenceContext{}
 	warnings := make([]string, 0)
 
 	if publish, err := evidence.LoadLatestPublish(workdir, planStem, revision); err != nil {
-		warnings = append(warnings, fmt.Sprintf("Unable to read publish evidence: %v", err))
+		warnings = append(warnings, "Unable to read publish evidence; publish status may be incomplete.")
 	} else {
 		ctx.Publish = publish
 	}
 	if ci, err := evidence.LoadLatestCI(workdir, planStem, revision); err != nil {
-		warnings = append(warnings, fmt.Sprintf("Unable to read CI evidence: %v", err))
+		warnings = append(warnings, "Unable to read CI evidence; CI status may be incomplete.")
 	} else {
 		ctx.CI = ci
 	}
 	if sync, err := evidence.LoadLatestSync(workdir, planStem, revision); err != nil {
-		warnings = append(warnings, fmt.Sprintf("Unable to read sync evidence: %v", err))
+		warnings = append(warnings, "Unable to read sync evidence; sync status may be incomplete.")
 	} else {
 		ctx.Sync = sync
 	}
@@ -977,8 +1020,9 @@ func idleResult(workdir string, currentPlan *runstate.CurrentPlan) Result {
 	if currentPlan != nil && strings.TrimSpace(currentPlan.LastLandedPlanPath) != "" {
 		result.Summary = "No current plan is active in this worktree. The most recent landed candidate is recorded for handoff context."
 		result.Artifacts = &Artifacts{
-			LastLandedPlanPath: currentPlan.LastLandedPlanPath,
-			LastLandedAt:       currentPlan.LastLandedAt,
+			ProjectRoot:  workdir,
+			PlanPath:     repoFacingPath(workdir, currentPlan.LastLandedPlanPath),
+			LastLandedAt: currentPlan.LastLandedAt,
 		}
 	} else {
 		result.Summary = "No current plan is active in this worktree."
@@ -1000,6 +1044,27 @@ func idleResult(workdir string, currentPlan *runstate.CurrentPlan) Result {
 	}
 
 	return result
+}
+
+func repoFacingPath(workdir, path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+	if !filepath.IsAbs(trimmed) {
+		return filepath.ToSlash(filepath.Clean(trimmed))
+	}
+	relPath, err := filepath.Rel(workdir, trimmed)
+	if err != nil {
+		return filepath.ToSlash(filepath.Clean(trimmed))
+	}
+	if relPath == "." || relPath == "" {
+		return "."
+	}
+	if strings.HasPrefix(relPath, ".."+string(filepath.Separator)) || relPath == ".." {
+		return filepath.ToSlash(filepath.Clean(trimmed))
+	}
+	return filepath.ToSlash(filepath.Clean(relPath))
 }
 
 func buildIdleBootstrapDriftWarning(drift install.RepoBootstrapDrift) string {

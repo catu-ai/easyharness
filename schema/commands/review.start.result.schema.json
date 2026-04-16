@@ -49,7 +49,7 @@
       ],
       "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
     },
-    "ReviewManifestSlot": {
+    "ReviewSlot": {
       "properties": {
         "name": {
           "type": "string",
@@ -76,39 +76,27 @@
         "instructions",
         "submission_path"
       ],
-      "description": "ReviewManifestSlot describes one reviewer submission slot in a review manifest."
+      "description": "ReviewSlot describes one surfaced reviewer submission slot."
     },
     "ReviewStartArtifacts": {
       "properties": {
+        "project_root": {
+          "type": "string",
+          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing paths."
+        },
         "plan_path": {
           "type": "string",
           "description": "PlanPath is the current plan path associated with the review round."
-        },
-        "local_state_path": {
-          "type": "string",
-          "description": "LocalStatePath is the plan-local control-plane state path."
         },
         "round_id": {
           "type": "string",
           "description": "RoundID is the stable identifier for the review round."
         },
-        "manifest_path": {
-          "type": "string",
-          "description": "ManifestPath is the path to the review manifest artifact."
-        },
-        "ledger_path": {
-          "type": "string",
-          "description": "LedgerPath is the path to the review ledger artifact."
-        },
-        "aggregate_path": {
-          "type": "string",
-          "description": "AggregatePath is the path to the review aggregate artifact."
-        },
         "slots": {
           "oneOf": [
             {
               "items": {
-                "$ref": "#/$defs/ReviewManifestSlot"
+                "$ref": "#/$defs/ReviewSlot"
               },
               "type": "array",
               "description": "Slots lists the materialized review slots created for the round."
@@ -123,12 +111,9 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "project_root",
         "plan_path",
-        "local_state_path",
         "round_id",
-        "manifest_path",
-        "ledger_path",
-        "aggregate_path",
         "slots"
       ],
       "description": "ReviewStartArtifacts lists the review artifacts created by `harness review start`."

@@ -265,6 +265,9 @@ func TestStatusRejectsWhenStateMutationLockIsHeld(t *testing.T) {
 	if len(result.Errors) != 1 || result.Errors[0].Path != "state" {
 		t.Fatalf("unexpected errors: %#v", result.Errors)
 	}
+	if result.Artifacts == nil || result.Artifacts.ProjectRoot != root || result.Artifacts.PlanPath != "docs/plans/active/2026-03-18-status-plan.md" {
+		t.Fatalf("expected repo-facing locked-status artifacts, got %#v", result.Artifacts)
+	}
 }
 
 func TestStatusIgnoresNonStructuralReviewFactsForCurrentStep(t *testing.T) {
@@ -311,6 +314,14 @@ func TestStatusExecutionStepReviewNode(t *testing.T) {
 		"review_title": stepOneTitle,
 		"step":         1,
 		"revision":     1,
+		"dimensions": []map[string]any{
+			{
+				"name":            "correctness",
+				"slot":            "correctness",
+				"instructions":    "Check correctness.",
+				"submission_path": filepath.Join(root, ".local", "harness", "plans", "2026-03-18-status-plan", "reviews", "review-001-delta", "submissions", "correctness", "submission.json"),
+			},
+		},
 	})
 
 	result := status.Service{Workdir: root}.Read()
@@ -322,6 +333,9 @@ func TestStatusExecutionStepReviewNode(t *testing.T) {
 	}
 	if result.Artifacts == nil || result.Artifacts.ReviewRoundID != "review-001-delta" {
 		t.Fatalf("unexpected artifacts: %#v", result.Artifacts)
+	}
+	if len(result.Artifacts.ReviewSlots) != 1 || result.Artifacts.ReviewSlots[0].SubmissionPath != ".local/harness/plans/2026-03-18-status-plan/reviews/review-001-delta/submissions/correctness/submission.json" {
+		t.Fatalf("expected active review slot handles, got %#v", result.Artifacts)
 	}
 }
 
@@ -2291,7 +2305,7 @@ func TestStatusIdleNodeAfterLand(t *testing.T) {
 	if result.State.CurrentNode != "idle" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
-	if result.Artifacts == nil || result.Artifacts.LastLandedPlanPath != "docs/plans/archived/2026-03-18-status-plan.md" {
+	if result.Artifacts == nil || result.Artifacts.PlanPath != "docs/plans/archived/2026-03-18-status-plan.md" {
 		t.Fatalf("unexpected artifacts: %#v", result.Artifacts)
 	}
 }

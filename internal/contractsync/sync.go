@@ -54,7 +54,7 @@ func expectedFiles(workdir string) (map[string][]byte, error) {
 
 	index := schemaIndex{
 		Title:       "easyharness contract schema index",
-		Description: "Generated JSON Schema index for public command surfaces plus CLI-owned runtime artifacts.",
+		Description: "Generated JSON Schema index for public command surfaces plus intentionally surfaced runtime artifacts.",
 		Schemas:     make([]schemaIndexEntry, 0, len(entries)),
 	}
 
@@ -76,16 +76,18 @@ func expectedFiles(workdir string) (map[string][]byte, error) {
 		}
 		expected[entry.Path] = schemaBytes
 
-		index.Schemas = append(index.Schemas, schemaIndexEntry{
-			Key:         entry.Key,
-			Group:       entry.Group,
-			Surface:     schemaSurface(entry.Group),
-			Title:       entry.Title,
-			Description: entry.Description,
-			Path:        filepath.ToSlash(entry.Path),
-			ID:          string(schemaObj.ID),
-			GoType:      entry.Type.PkgPath() + "." + entry.Type.Name(),
-		})
+		if !entry.HiddenFromIndex {
+			index.Schemas = append(index.Schemas, schemaIndexEntry{
+				Key:         entry.Key,
+				Group:       entry.Group,
+				Surface:     schemaSurface(entry.Group),
+				Title:       entry.Title,
+				Description: entry.Description,
+				Path:        filepath.ToSlash(entry.Path),
+				ID:          string(schemaObj.ID),
+				GoType:      entry.Type.PkgPath() + "." + entry.Type.Name(),
+			})
+		}
 	}
 
 	sort.Slice(index.Schemas, func(i, j int) bool {

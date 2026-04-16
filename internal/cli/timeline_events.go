@@ -162,8 +162,6 @@ func timelineEventFromLifecycle(result lifecycle.Result) timeline.Event {
 		event.ArtifactRefs = append(event.ArtifactRefs,
 			pathRef("from_plan_path", result.Artifacts.FromPlanPath),
 			pathRef("to_plan_path", result.Artifacts.ToPlanPath),
-			pathRef("local_state_path", result.Artifacts.LocalStatePath),
-			pathRef("current_plan_path", result.Artifacts.CurrentPlanPath),
 		)
 	}
 	return pruneTimelineEvent(event)
@@ -179,12 +177,11 @@ func timelineEventFromReviewStart(result reviewStartResult) timeline.Event {
 		event.PlanPath = result.Artifacts.PlanPath
 		event.ArtifactRefs = append(event.ArtifactRefs,
 			pathRef("plan_path", result.Artifacts.PlanPath),
-			pathRef("local_state_path", result.Artifacts.LocalStatePath),
 			valueRef("round_id", result.Artifacts.RoundID),
-			pathRef("manifest_path", result.Artifacts.ManifestPath),
-			pathRef("ledger_path", result.Artifacts.LedgerPath),
-			pathRef("aggregate_path", result.Artifacts.AggregatePath),
 		)
+		for _, slot := range result.Artifacts.Slots {
+			event.ArtifactRefs = append(event.ArtifactRefs, pathRef(slotSubmissionPathLabel(slot.Slot), slot.SubmissionPath))
+		}
 		event.Details = append(event.Details, timeline.Detail{
 			Key:   "slot_count",
 			Value: strconv.Itoa(len(result.Artifacts.Slots)),
@@ -203,8 +200,7 @@ func timelineEventFromReviewSubmit(result reviewSubmitResult) timeline.Event {
 		event.ArtifactRefs = append(event.ArtifactRefs,
 			valueRef("round_id", result.Artifacts.RoundID),
 			valueRef("slot", result.Artifacts.Slot),
-			pathRef("submission_path", result.Artifacts.SubmissionPath),
-			pathRef("ledger_path", result.Artifacts.LedgerPath),
+			pathRef(slotSubmissionPathLabel(result.Artifacts.Slot), result.Artifacts.SubmissionPath),
 		)
 		event.Details = append(event.Details, timeline.Detail{Key: "slot", Value: result.Artifacts.Slot})
 	}
@@ -220,8 +216,6 @@ func timelineEventFromReviewAggregate(result reviewAggregateResult) timeline.Eve
 	if result.Artifacts != nil {
 		event.ArtifactRefs = append(event.ArtifactRefs,
 			valueRef("round_id", result.Artifacts.RoundID),
-			pathRef("aggregate_path", result.Artifacts.AggregatePath),
-			pathRef("local_state_path", result.Artifacts.LocalStatePath),
 		)
 	}
 	if result.Review != nil {
@@ -246,9 +240,7 @@ func timelineEventFromEvidence(result evidence.Result, kind string) timeline.Eve
 		event.PlanPath = result.Artifacts.PlanPath
 		event.ArtifactRefs = append(event.ArtifactRefs,
 			pathRef("plan_path", result.Artifacts.PlanPath),
-			pathRef("local_state_path", result.Artifacts.LocalStatePath),
 			valueRef("record_id", result.Artifacts.RecordID),
-			pathRef("record_path", result.Artifacts.RecordPath),
 		)
 	}
 	return pruneTimelineEvent(event)
@@ -270,6 +262,14 @@ func valueRef(label, value string) timeline.ArtifactRef {
 		return timeline.ArtifactRef{}
 	}
 	return timeline.ArtifactRef{Label: label, Value: value}
+}
+
+func slotSubmissionPathLabel(slot string) string {
+	trimmed := strings.TrimSpace(slot)
+	if trimmed == "" {
+		return "submission_path"
+	}
+	return fmt.Sprintf("submission_%s_path", trimmed)
 }
 
 func pruneTimelineEvent(event timeline.Event) timeline.Event {
@@ -348,9 +348,6 @@ func statusPlanPath(result *status.Result) string {
 	}
 	if strings.TrimSpace(result.Artifacts.PlanPath) != "" {
 		return result.Artifacts.PlanPath
-	}
-	if strings.TrimSpace(result.Artifacts.LastLandedPlanPath) != "" {
-		return result.Artifacts.LastLandedPlanPath
 	}
 	return ""
 }

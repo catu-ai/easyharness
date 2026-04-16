@@ -94,6 +94,10 @@ type StatusFacts struct {
 // StatusArtifacts lists stable paths or identifiers related to the current
 // status result.
 type StatusArtifacts struct {
+	// ProjectRoot is the repository root that anchors surfaced repo-facing
+	// paths.
+	ProjectRoot string `json:"project_root,omitempty"`
+
 	// PlanPath is the active, archived, or last-landed plan path relevant to the
 	// current status resolution.
 	PlanPath string `json:"plan_path,omitempty" jsonschema:"example=docs/plans/active/2026-03-31-centralize-contract-schemas-and-generated-reference-docs.md"`
@@ -102,12 +106,13 @@ type StatusArtifacts struct {
 	// plan package when one exists.
 	SupplementsPath string `json:"supplements_path,omitempty" jsonschema:"example=docs/plans/active/supplements/2026-03-31-centralize-contract-schemas-and-generated-reference-docs"`
 
-	// LocalStatePath is the plan-local control-plane state path when one exists.
-	LocalStatePath string `json:"local_state_path,omitempty" jsonschema:"example=.local/harness/plans/2026-03-31-centralize-contract-schemas-and-generated-reference-docs/state.json"`
-
 	// ReviewRoundID is the active review round identifier when review is in
 	// flight.
 	ReviewRoundID string `json:"review_round_id,omitempty"`
+
+	// ReviewSlots lists the active round's reviewer-owned slot handles when
+	// review is in flight.
+	ReviewSlots []ReviewSlot `json:"review_slots,omitempty"`
 
 	// CIRecordID is the latest CI evidence record identifier when known.
 	CIRecordID string `json:"ci_record_id,omitempty"`
@@ -118,10 +123,6 @@ type StatusArtifacts struct {
 
 	// SyncRecordID is the latest sync evidence record identifier when known.
 	SyncRecordID string `json:"sync_record_id,omitempty"`
-
-	// LastLandedPlanPath is the most recent landed plan path when the repository
-	// is otherwise idle.
-	LastLandedPlanPath string `json:"last_landed_plan_path,omitempty"`
 
 	// LastLandedAt is the timestamp of the most recent landed plan.
 	LastLandedAt string `json:"last_landed_at,omitempty"`

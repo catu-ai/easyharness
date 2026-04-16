@@ -646,13 +646,13 @@ func TestNewHandlerServesResolvedArtifactFileContents(t *testing.T) {
 		t.Fatalf("save current plan: %v", err)
 	}
 
-	manifestRelPath := ".local/harness/plans/2026-04-01-ui-timeline-artifacts/reviews/review-001-full/manifest.json"
-	manifestPath := filepath.Join(workdir, filepath.FromSlash(manifestRelPath))
-	if err := os.MkdirAll(filepath.Dir(manifestPath), 0o755); err != nil {
-		t.Fatalf("mkdir manifest dir: %v", err)
+	submissionRelPath := ".local/harness/plans/2026-04-01-ui-timeline-artifacts/reviews/review-001-full/submissions/correctness/submission.json"
+	submissionPath := filepath.Join(workdir, filepath.FromSlash(submissionRelPath))
+	if err := os.MkdirAll(filepath.Dir(submissionPath), 0o755); err != nil {
+		t.Fatalf("mkdir submission dir: %v", err)
 	}
-	if err := os.WriteFile(manifestPath, []byte("{\"review_title\":\"Artifact tabs\"}\n"), 0o644); err != nil {
-		t.Fatalf("write manifest: %v", err)
+	if err := os.WriteFile(submissionPath, []byte("{\"summary\":\"Artifact tabs\"}\n"), 0o644); err != nil {
+		t.Fatalf("write submission: %v", err)
 	}
 
 	if _, _, err := timeline.AppendEvent(workdir, "2026-04-01-ui-timeline-artifacts", timeline.Event{
@@ -663,7 +663,7 @@ func TestNewHandlerServesResolvedArtifactFileContents(t *testing.T) {
 		PlanPath:   relPlanPath,
 		Revision:   1,
 		ArtifactRefs: []timeline.ArtifactRef{
-			{Label: "manifest_path", Value: manifestRelPath, Path: manifestRelPath},
+			{Label: "submission_correctness_path", Value: submissionRelPath, Path: submissionRelPath},
 		},
 	}); err != nil {
 		t.Fatalf("append timeline event: %v", err)
@@ -709,7 +709,7 @@ func TestNewHandlerServesResolvedArtifactFileContents(t *testing.T) {
 	if err := json.Unmarshal(payload.Events[1].ArtifactRefs[0].Content, &content); err != nil {
 		t.Fatalf("unmarshal resolved artifact content: %v", err)
 	}
-	if content["review_title"] != "Artifact tabs" {
+	if content["summary"] != "Artifact tabs" {
 		t.Fatalf("unexpected resolved artifact content: %#v", content)
 	}
 }

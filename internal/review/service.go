@@ -37,7 +37,7 @@ type Service struct {
 type Spec = contracts.ReviewSpec
 type Dimension = contracts.ReviewDimension
 type Manifest = contracts.ReviewManifest
-type ManifestSlot = contracts.ReviewManifestSlot
+type ManifestSlot = contracts.ReviewSlot
 type Ledger = contracts.ReviewLedger
 type LedgerSlot = contracts.ReviewLedgerSlot
 type SubmissionInput = contracts.ReviewSubmissionInput
@@ -77,7 +77,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 	defer locks.release()
 
 	now := s.now()
-	planPath, doc, planStem, relPlanPath, state, statePath, errResult := s.loadCurrentExecutingPlan(locks.PlanPath)
+	_, doc, planStem, relPlanPath, state, statePath, errResult := s.loadCurrentExecutingPlan(locks.PlanPath)
 	if errResult != nil {
 		return *errResult
 	}
@@ -123,7 +123,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 			OK:      false,
 			Command: "review start",
 			Summary: "Unable to determine the next review round identifier.",
-			Errors:  []CommandError{{Path: "round", Message: err.Error()}},
+			Errors:  []CommandError{{Path: "review.round", Message: sanitizedReadMessage("the next review round identifier", err)}},
 		}
 	}
 	roundDir := filepath.Join(s.Workdir, ".local", "harness", "plans", planStem, "reviews", roundID)
@@ -136,7 +136,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 			OK:      false,
 			Command: "review start",
 			Summary: "Unable to initialize review artifacts.",
-			Errors:  []CommandError{{Path: "round", Message: err.Error()}},
+			Errors:  []CommandError{{Path: "review.round", Message: sanitizedWriteMessage("review round artifacts", err)}},
 		}
 	}
 
@@ -170,7 +170,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 				OK:      false,
 				Command: "review start",
 				Summary: "Unable to create reviewer submission skeletons.",
-				Errors:  []CommandError{{Path: "submission", Message: err.Error()}},
+				Errors:  []CommandError{{Path: "review.submission", Message: sanitizedWriteMessage("reviewer submission skeletons", err)}},
 			}
 		}
 	}
@@ -195,8 +195,8 @@ func (s Service) Start(specBytes []byte) StartResult {
 		return StartResult{
 			OK:      false,
 			Command: "review start",
-			Summary: "Unable to persist the review manifest.",
-			Errors:  []CommandError{{Path: "manifest", Message: err.Error()}},
+			Summary: "Unable to persist review round metadata.",
+			Errors:  []CommandError{{Path: "review.round", Message: sanitizedWriteMessage("review round metadata", err)}},
 		}
 	}
 	if err := writeJSON(ledgerPath, ledger); err != nil {
@@ -204,8 +204,8 @@ func (s Service) Start(specBytes []byte) StartResult {
 		return StartResult{
 			OK:      false,
 			Command: "review start",
-			Summary: "Unable to persist the review ledger.",
-			Errors:  []CommandError{{Path: "ledger", Message: err.Error()}},
+			Summary: "Unable to persist reviewer slot state.",
+			Errors:  []CommandError{{Path: "review.slots", Message: sanitizedWriteMessage("reviewer slot state", err)}},
 		}
 	}
 
@@ -225,9 +225,9 @@ func (s Service) Start(specBytes []byte) StartResult {
 	if err != nil {
 		issues := restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
 		if removeErr := os.RemoveAll(roundDir); removeErr != nil && !os.IsNotExist(removeErr) {
-			issues = append(issues, CommandError{Path: "round", Message: fmt.Sprintf("rollback review round: %v", removeErr)})
+			issues = append(issues, CommandError{Path: "review.round", Message: sanitizedRollbackMessage("review round artifacts", removeErr)})
 		}
-		issues = append([]CommandError{{Path: "state", Message: err.Error()}}, issues...)
+		issues = append([]CommandError{{Path: "state", Message: sanitizedWriteMessage("local harness state", err)}}, issues...)
 		return StartResult{
 			OK:      false,
 			Command: "review start",
@@ -243,13 +243,10 @@ func (s Service) Start(specBytes []byte) StartResult {
 		Command: "review start",
 		Summary: fmt.Sprintf("Created %s review round %q.", spec.Kind, roundID),
 		Artifacts: &StartArtifacts{
-			PlanPath:       planPath,
-			LocalStatePath: statePath,
-			RoundID:        roundID,
-			ManifestPath:   manifestPath,
-			LedgerPath:     ledgerPath,
-			AggregatePath:  aggregatePath,
-			Slots:          slots,
+			ProjectRoot: s.Workdir,
+			PlanPath:    relPlanPath,
+			RoundID:     roundID,
+			Slots:       surfacedReviewSlots(s.Workdir, slots),
 		},
 		NextAction: []NextAction{
 			{
@@ -264,7 +261,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 	}, func() []CommandError {
 		issues := restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
 		if err := os.RemoveAll(roundDir); err != nil && !os.IsNotExist(err) {
-			issues = append(issues, CommandError{Path: "round", Message: fmt.Sprintf("rollback review round: %v", err)})
+			issues = append(issues, CommandError{Path: "review.round", Message: sanitizedRollbackMessage("review round artifacts", err)})
 		}
 		return issues
 	})
@@ -279,7 +276,7 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 			OK:      false,
 			Command: "review submit",
 			Summary: "Another review state mutation is already in progress.",
-			Errors:  []CommandError{{Path: "review", Message: err.Error()}},
+			Errors:  []CommandError{{Path: "review", Message: "Another review state mutation is already in progress."}},
 		}
 	}
 	_, _, planStem, _, _, _, errResult := s.loadCurrentExecutingPlan(lockedPlanPath)
@@ -298,8 +295,8 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 		return SubmitResult{
 			OK:      false,
 			Command: "review submit",
-			Summary: "Unable to load the review manifest.",
-			Errors:  []CommandError{{Path: "manifest", Message: err.Error()}},
+			Summary: "Unable to load review round metadata.",
+			Errors:  []CommandError{{Path: "review.round", Message: sanitizedReadMessage("review round metadata", err)}},
 		}
 	}
 	slotDef := findSlot(manifest, slot)
@@ -355,7 +352,7 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 			OK:      false,
 			Command: "review submit",
 			Summary: "Unable to snapshot the previous reviewer submission.",
-			Errors:  []CommandError{{Path: "submission", Message: err.Error()}},
+			Errors:  []CommandError{{Path: "review.submission", Message: sanitizedReadMessage("the previous reviewer submission", err)}},
 		}
 	}
 	ledger, err := loadLedger(manifest.LedgerPath)
@@ -363,8 +360,8 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 		return SubmitResult{
 			OK:      false,
 			Command: "review submit",
-			Summary: "Unable to load the review ledger.",
-			Errors:  []CommandError{{Path: "ledger", Message: err.Error()}},
+			Summary: "Unable to load reviewer slot state.",
+			Errors:  []CommandError{{Path: "review.slots", Message: sanitizedReadMessage("reviewer slot state", err)}},
 		}
 	}
 	previousLedger, previousLedgerExists, err := readFileIfExists(manifest.LedgerPath)
@@ -373,7 +370,7 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 			OK:      false,
 			Command: "review submit",
 			Summary: "Unable to snapshot the review ledger before writing the submission.",
-			Errors:  []CommandError{{Path: "ledger", Message: err.Error()}},
+			Errors:  []CommandError{{Path: "review.slots", Message: sanitizedReadMessage("reviewer slot state", err)}},
 		}
 	}
 	if err := writeJSON(slotDef.SubmissionPath, submission); err != nil {
@@ -381,7 +378,7 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 			OK:      false,
 			Command: "review submit",
 			Summary: "Unable to persist the reviewer submission.",
-			Errors:  []CommandError{{Path: "submission", Message: err.Error()}},
+			Errors:  []CommandError{{Path: "review.submission", Message: sanitizedWriteMessage("the reviewer submission", err)}},
 		}
 	}
 	for i := range ledger.Slots {
@@ -392,13 +389,13 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 	}
 	ledger.UpdatedAt = now
 	if err := writeJSON(manifest.LedgerPath, ledger); err != nil {
-		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "ledger")
-		issues = append(issues, restoreJSONFileSnapshot(slotDef.SubmissionPath, previousSubmission, previousSubmissionExists, "submission")...)
-		issues = append([]CommandError{{Path: "ledger", Message: err.Error()}}, issues...)
+		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "review.slots")
+		issues = append(issues, restoreJSONFileSnapshot(slotDef.SubmissionPath, previousSubmission, previousSubmissionExists, "review.submission")...)
+		issues = append([]CommandError{{Path: "review.slots", Message: sanitizedWriteMessage("reviewer slot state", err)}}, issues...)
 		return SubmitResult{
 			OK:      false,
 			Command: "review submit",
-			Summary: "Unable to persist the review ledger.",
+			Summary: "Unable to persist reviewer slot state.",
 			Errors:  issues,
 		}
 	}
@@ -408,10 +405,10 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 		Command: "review submit",
 		Summary: fmt.Sprintf("Recorded submission for slot %q in review round %q.", slotDef.Slot, roundID),
 		Artifacts: &SubmitArtifacts{
+			ProjectRoot:    s.Workdir,
 			RoundID:        roundID,
 			Slot:           slotDef.Slot,
-			SubmissionPath: slotDef.SubmissionPath,
-			LedgerPath:     manifest.LedgerPath,
+			SubmissionPath: repoFacingReviewPath(s.Workdir, slotDef.SubmissionPath),
 		},
 		NextAction: []NextAction{
 			{
@@ -457,8 +454,8 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		return AggregateResult{
 			OK:      false,
 			Command: "review aggregate",
-			Summary: "Unable to load the review manifest.",
-			Errors:  []CommandError{{Path: "manifest", Message: err.Error()}},
+			Summary: "Unable to load review round metadata.",
+			Errors:  []CommandError{{Path: "review.round", Message: sanitizedReadMessage("review round metadata", err)}},
 		}
 	}
 
@@ -467,8 +464,8 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		return AggregateResult{
 			OK:      false,
 			Command: "review aggregate",
-			Summary: "Unable to load the review ledger.",
-			Errors:  []CommandError{{Path: "ledger", Message: err.Error()}},
+			Summary: "Unable to load reviewer slot state.",
+			Errors:  []CommandError{{Path: "review.slots", Message: sanitizedReadMessage("reviewer slot state", err)}},
 		}
 	}
 	ledgerBySlot := map[string]LedgerSlot{}
@@ -495,7 +492,7 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 				OK:      false,
 				Command: "review aggregate",
 				Summary: "Unable to load reviewer submissions.",
-				Errors:  []CommandError{{Path: "submission", Message: err.Error()}},
+				Errors:  []CommandError{{Path: "review.submission", Message: sanitizedReadMessage("reviewer submissions", err)}},
 			}
 		}
 		if issues := validateStoredSubmission(*submission); len(issues) > 0 {
@@ -554,7 +551,7 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 			OK:      false,
 			Command: "review aggregate",
 			Summary: "Unable to reload local harness state before persisting the aggregate.",
-			Errors:  []CommandError{{Path: "state", Message: err.Error()}},
+			Errors:  []CommandError{{Path: "state", Message: sanitizedReadMessage("local harness state", err)}},
 		}
 	}
 	if guard := activeAggregateRoundError(state, roundID); guard != nil {
@@ -567,7 +564,7 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 			OK:      false,
 			Command: "review aggregate",
 			Summary: "Unable to snapshot the previous aggregate artifact.",
-			Errors:  []CommandError{{Path: "aggregate", Message: err.Error()}},
+			Errors:  []CommandError{{Path: "review.decision", Message: sanitizedReadMessage("the previous review decision", err)}},
 		}
 	}
 	if err := writeJSON(manifest.Aggregate, aggregate); err != nil {
@@ -575,7 +572,7 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 			OK:      false,
 			Command: "review aggregate",
 			Summary: "Unable to persist the aggregate review result.",
-			Errors:  []CommandError{{Path: "aggregate", Message: err.Error()}},
+			Errors:  []CommandError{{Path: "review.decision", Message: sanitizedWriteMessage("the persisted review decision", err)}},
 		}
 	}
 
@@ -594,7 +591,7 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 	if err != nil {
 		issues := restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
 		issues = append(issues, restoreJSONFileSnapshot(manifest.Aggregate, previousAggregate, previousAggregateExists, "aggregate")...)
-		issues = append([]CommandError{{Path: "state", Message: err.Error()}}, issues...)
+		issues = append([]CommandError{{Path: "state", Message: sanitizedWriteMessage("local harness state", err)}}, issues...)
 		return AggregateResult{
 			OK:      false,
 			Command: "review aggregate",
@@ -608,9 +605,8 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		Command: "review aggregate",
 		Summary: buildAggregateSummary(manifest.Kind, decision, len(blocking), len(nonBlocking)),
 		Artifacts: &AggregateArtifacts{
-			RoundID:        roundID,
-			AggregatePath:  manifest.Aggregate,
-			LocalStatePath: statePath,
+			ProjectRoot: s.Workdir,
+			RoundID:     roundID,
 		},
 		Review:     &aggregate,
 		NextAction: buildAggregateNextActions(manifest.Kind, decision),
@@ -629,7 +625,7 @@ func (s Service) acquireReviewAndStateMutationLocks() (*reviewDualMutationLocks,
 	if err != nil {
 		return nil, &reviewMutationLockFailure{
 			Summary: "Another review state mutation is already in progress.",
-			Issue:   CommandError{Path: "review", Message: err.Error()},
+			Issue:   CommandError{Path: "review", Message: "Another review state mutation is already in progress."},
 		}
 	}
 	planStem := strings.TrimSuffix(filepath.Base(planPath), filepath.Ext(planPath))
@@ -638,7 +634,7 @@ func (s Service) acquireReviewAndStateMutationLocks() (*reviewDualMutationLocks,
 		releaseReview()
 		return nil, &reviewMutationLockFailure{
 			Summary: "Another local state mutation is already in progress.",
-			Issue:   CommandError{Path: "state", Message: err.Error()},
+			Issue:   CommandError{Path: "state", Message: "Another local state mutation is already in progress."},
 		}
 	}
 	return &reviewDualMutationLocks{
@@ -710,7 +706,7 @@ func (s Service) loadCurrentExecutingPlan(lockedPlanPath string) (string, *plan.
 				OK:      false,
 				Command: "review start",
 				Summary: "Unable to determine the current plan.",
-				Errors:  []CommandError{{Path: "plan", Message: err.Error()}},
+				Errors:  []CommandError{{Path: "plan", Message: sanitizedReadMessage("the current plan", err)}},
 			}
 		}
 	}
@@ -720,7 +716,7 @@ func (s Service) loadCurrentExecutingPlan(lockedPlanPath string) (string, *plan.
 			OK:      false,
 			Command: "review start",
 			Summary: "Unable to read the current plan.",
-			Errors:  []CommandError{{Path: "plan", Message: err.Error()}},
+			Errors:  []CommandError{{Path: "plan", Message: sanitizedReadMessage("the current plan", err)}},
 		}
 	}
 
@@ -731,7 +727,7 @@ func (s Service) loadCurrentExecutingPlan(lockedPlanPath string) (string, *plan.
 			OK:      false,
 			Command: "review start",
 			Summary: "Unable to relativize the current plan path.",
-			Errors:  []CommandError{{Path: "plan", Message: err.Error()}},
+			Errors:  []CommandError{{Path: "plan", Message: "Unable to relativize the current plan path."}},
 		}
 	}
 	relPlanPath = filepath.ToSlash(relPlanPath)
@@ -741,7 +737,7 @@ func (s Service) loadCurrentExecutingPlan(lockedPlanPath string) (string, *plan.
 			OK:      false,
 			Command: "review start",
 			Summary: "Unable to read local harness state.",
-			Errors:  []CommandError{{Path: "state", Message: err.Error()}},
+			Errors:  []CommandError{{Path: "state", Message: sanitizedReadMessage("local harness state", err)}},
 		}
 	}
 	if doc.DerivedPlanStatus() != "active" || doc.DerivedLifecycle(state) != "executing" {
@@ -756,6 +752,40 @@ func (s Service) loadCurrentExecutingPlan(lockedPlanPath string) (string, *plan.
 		}
 	}
 	return planPath, doc, planStem, relPlanPath, state, statePath, nil
+}
+
+func surfacedReviewSlots(workdir string, slots []ManifestSlot) []ManifestSlot {
+	if len(slots) == 0 {
+		return nil
+	}
+	surfaced := make([]ManifestSlot, 0, len(slots))
+	for _, slot := range slots {
+		next := slot
+		next.SubmissionPath = repoFacingReviewPath(workdir, slot.SubmissionPath)
+		surfaced = append(surfaced, next)
+	}
+	return surfaced
+}
+
+func repoFacingReviewPath(workdir, path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+	if !filepath.IsAbs(trimmed) {
+		return filepath.ToSlash(filepath.Clean(trimmed))
+	}
+	relPath, err := filepath.Rel(workdir, trimmed)
+	if err != nil {
+		return filepath.ToSlash(filepath.Clean(trimmed))
+	}
+	if relPath == "." || relPath == "" {
+		return "."
+	}
+	if strings.HasPrefix(relPath, ".."+string(filepath.Separator)) || relPath == ".." {
+		return filepath.ToSlash(filepath.Clean(trimmed))
+	}
+	return filepath.ToSlash(filepath.Clean(relPath))
 }
 
 func validateSpec(spec Spec) []CommandError {
@@ -1145,7 +1175,7 @@ func (s Service) finalizeStart(result StartResult, rollback func() []CommandErro
 		return result
 	}
 	if err := s.AfterStart(result); err != nil {
-		issues := []CommandError{{Path: "timeline", Message: err.Error()}}
+		issues := []CommandError{{Path: "timeline", Message: "Unable to record the review timeline event."}}
 		if rollback != nil {
 			issues = append(issues, rollback()...)
 		}
@@ -1164,7 +1194,7 @@ func (s Service) finalizeSubmit(result SubmitResult, rollback func() []CommandEr
 		return result
 	}
 	if err := s.AfterSubmit(result); err != nil {
-		issues := []CommandError{{Path: "timeline", Message: err.Error()}}
+		issues := []CommandError{{Path: "timeline", Message: "Unable to record the review timeline event."}}
 		if rollback != nil {
 			issues = append(issues, rollback()...)
 		}
@@ -1183,7 +1213,7 @@ func (s Service) finalizeAggregate(result AggregateResult, rollback func() []Com
 		return result
 	}
 	if err := s.AfterAggregate(result); err != nil {
-		issues := []CommandError{{Path: "timeline", Message: err.Error()}}
+		issues := []CommandError{{Path: "timeline", Message: "Unable to record the review timeline event."}}
 		if rollback != nil {
 			issues = append(issues, rollback()...)
 		}
@@ -1221,7 +1251,7 @@ func restoreStateSnapshot(workdir, planStem string, originalState *runstate.Stat
 	issues := make([]CommandError, 0)
 	if originalState != nil {
 		if _, err := runstate.SaveState(workdir, planStem, originalState); err != nil {
-			issues = append(issues, CommandError{Path: "state", Message: fmt.Sprintf("rollback local state: %v", err)})
+			issues = append(issues, CommandError{Path: "state", Message: sanitizedRollbackMessage("local harness state", err)})
 		}
 		return issues
 	}
@@ -1229,7 +1259,7 @@ func restoreStateSnapshot(workdir, planStem string, originalState *runstate.Stat
 		return issues
 	}
 	if err := os.Remove(statePath); err != nil && !os.IsNotExist(err) {
-		issues = append(issues, CommandError{Path: "state", Message: fmt.Sprintf("rollback local state: %v", err)})
+		issues = append(issues, CommandError{Path: "state", Message: sanitizedRollbackMessage("local harness state", err)})
 	}
 	return issues
 }
@@ -1249,17 +1279,40 @@ func restoreJSONFileSnapshot(path string, data []byte, existed bool, pathLabel s
 	issues := make([]CommandError, 0, 1)
 	if existed {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return append(issues, CommandError{Path: pathLabel, Message: fmt.Sprintf("rollback %s: %v", pathLabel, err)})
+			return append(issues, CommandError{Path: pathLabel, Message: sanitizedRollbackMessage(pathLabel, err)})
 		}
 		if err := os.WriteFile(path, data, 0o644); err != nil {
-			return append(issues, CommandError{Path: pathLabel, Message: fmt.Sprintf("rollback %s: %v", pathLabel, err)})
+			return append(issues, CommandError{Path: pathLabel, Message: sanitizedRollbackMessage(pathLabel, err)})
 		}
 		return issues
 	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		issues = append(issues, CommandError{Path: pathLabel, Message: fmt.Sprintf("rollback %s: %v", pathLabel, err)})
+		issues = append(issues, CommandError{Path: pathLabel, Message: sanitizedRollbackMessage(pathLabel, err)})
 	}
 	return issues
+}
+
+func sanitizedReadMessage(subject string, err error) string {
+	return sanitizedStorageMessage("read", subject, err)
+}
+
+func sanitizedWriteMessage(subject string, err error) string {
+	return sanitizedStorageMessage("write", subject, err)
+}
+
+func sanitizedRollbackMessage(subject string, err error) string {
+	return sanitizedStorageMessage("restore", subject, err)
+}
+
+func sanitizedStorageMessage(action, subject string, err error) string {
+	switch {
+	case os.IsNotExist(err):
+		return fmt.Sprintf("%s is missing.", subject)
+	case os.IsPermission(err):
+		return fmt.Sprintf("Permission denied while trying to %s %s.", action, subject)
+	default:
+		return fmt.Sprintf("Unable to %s %s.", action, subject)
+	}
 }
 
 func (s Service) now() time.Time {

@@ -49,8 +49,41 @@
       ],
       "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
     },
+    "ReviewSlot": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name is the human-readable dimension label."
+        },
+        "slot": {
+          "type": "string",
+          "description": "Slot is the stable slot identifier."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Instructions is the reviewer prompt for this slot."
+        },
+        "submission_path": {
+          "type": "string",
+          "description": "SubmissionPath is the target path for this slot's submission artifact."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "slot",
+        "instructions",
+        "submission_path"
+      ],
+      "description": "ReviewSlot describes one surfaced reviewer submission slot."
+    },
     "StatusArtifacts": {
       "properties": {
+        "project_root": {
+          "type": "string",
+          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing paths."
+        },
         "plan_path": {
           "type": "string",
           "description": "PlanPath is the active, archived, or last-landed plan path relevant to the current status resolution.",
@@ -65,16 +98,16 @@
             "docs/plans/active/supplements/2026-03-31-centralize-contract-schemas-and-generated-reference-docs"
           ]
         },
-        "local_state_path": {
-          "type": "string",
-          "description": "LocalStatePath is the plan-local control-plane state path when one exists.",
-          "examples": [
-            ".local/harness/plans/2026-03-31-centralize-contract-schemas-and-generated-reference-docs/state.json"
-          ]
-        },
         "review_round_id": {
           "type": "string",
           "description": "ReviewRoundID is the active review round identifier when review is in flight."
+        },
+        "review_slots": {
+          "items": {
+            "$ref": "#/$defs/ReviewSlot"
+          },
+          "type": "array",
+          "description": "ReviewSlots lists the active round's reviewer-owned slot handles when review is in flight."
         },
         "ci_record_id": {
           "type": "string",
@@ -87,10 +120,6 @@
         "sync_record_id": {
           "type": "string",
           "description": "SyncRecordID is the latest sync evidence record identifier when known."
-        },
-        "last_landed_plan_path": {
-          "type": "string",
-          "description": "LastLandedPlanPath is the most recent landed plan path when the repository is otherwise idle."
         },
         "last_landed_at": {
           "type": "string",

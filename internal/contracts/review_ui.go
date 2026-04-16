@@ -34,12 +34,6 @@ type ReviewArtifacts struct {
 	// PlanPath is the current plan path associated with the review data.
 	PlanPath string `json:"plan_path,omitempty"`
 
-	// LocalStatePath is the plan-local control-plane state path when one exists.
-	LocalStatePath string `json:"local_state_path,omitempty"`
-
-	// ReviewsDir is the current-plan review rounds directory.
-	ReviewsDir string `json:"reviews_dir,omitempty"`
-
 	// ActiveRoundID is the currently active review round when one exists in
 	// local state.
 	ActiveRoundID string `json:"active_round_id,omitempty"`
@@ -113,8 +107,8 @@ type ReviewRoundView struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-// ReviewSlotView is one reviewer-centric view of a manifest slot plus any
-// submission that was returned for that slot.
+// ReviewSlotView is one reviewer-centric view of a surfaced reviewer slot plus
+// any submission that was returned for that slot.
 type ReviewSlotView struct {
 	// Name is the human-readable dimension label.
 	Name string `json:"name,omitempty"`
@@ -122,8 +116,8 @@ type ReviewSlotView struct {
 	// Slot is the stable reviewer slot identifier.
 	Slot string `json:"slot"`
 
-	// Instructions is the reviewer prompt for this slot when the manifest is
-	// readable.
+	// Instructions is the reviewer prompt for this slot when it is available in
+	// surfaced review data.
 	Instructions string `json:"instructions,omitempty"`
 
 	// Status is the current submission status label for the slot.
@@ -186,7 +180,7 @@ type ReviewArtifactView struct {
 	// Label is the stable display label for the artifact.
 	Label string `json:"label"`
 
-	// Path is the artifact path when one exists.
+	// Path is the repo-facing artifact path when one exists.
 	Path string `json:"path,omitempty"`
 
 	// Status reports whether the artifact is available, missing, or invalid.
