@@ -1,11 +1,14 @@
 $ pnpm --dir web check
 
+
 > harness-ui@0.0.0 check /Users/yaozhang/.codex/worktrees/4815/superharness/web
 > tsc -p tsconfig.json --noEmit
+
 
 [exit 0]
 
 $ pnpm --dir web build
+
 
 > harness-ui@0.0.0 build /Users/yaozhang/.codex/worktrees/4815/superharness/web
 > tsc -p tsconfig.json && vite build
@@ -17,8 +20,9 @@ rendering chunks...
 computing gzip size...
 ../internal/ui/static/index.html                   0.74 kB │ gzip:  0.43 kB
 ../internal/ui/static/assets/index-DW5YH7Wr.css   21.34 kB │ gzip:  4.88 kB
-../internal/ui/static/assets/index-cu2wS75v.js   166.40 kB │ gzip: 64.34 kB
-✓ built in 227ms
+../internal/ui/static/assets/index-BU_Nt-jg.js   166.57 kB │ gzip: 64.41 kB
+✓ built in 239ms
+
 [exit 0]
 
 $ git diff --check

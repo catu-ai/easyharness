@@ -3,4 +3,7 @@ status-live-update-ok
 stale-state-ok
 visibility-catchup-ok
 timeline-live-update-ok
+reopen-buffer-server=http://127.0.0.1:52585
+fast-success-no-blink-ok labels=Live
+fast-failure-no-blink-ok labels=Live->Stale
 [exit 0]

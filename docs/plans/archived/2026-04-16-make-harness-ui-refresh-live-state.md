@@ -153,6 +153,16 @@ active controller can clear the shared in-flight guard in `finally`. That
 prevents both the original skip-on-refocus bug and the later overlap-window
 regression found during delta review.
 
+Revision 2 reopened the candidate for a narrow UX polish fix after PR feedback
+pointed out that the topbar freshness pill briefly flashed `Updating` on every
+fast local refresh. `useLiveResource` now applies a small buffer before showing
+the background `Updating` state when prior live data already exists. Fast
+successful refreshes therefore stay visually on `Live`, while fast failures now
+move directly from `Live` to `Stale` without a hard-to-read intermediate blink.
+A focused Playwright follow-up validated both transitions against a live
+`harness ui` session and recorded the markers in the tracked browser
+supplement.
+
 #### Review Notes
 
 `review-001-full` requested changes for one catch-up correctness gap and two
@@ -274,13 +284,17 @@ same `review-001-full` -> `review-003-delta` closeout sequence tracked in Step
   `visibility-catchup-ok`, and `timeline-live-update-ok`; the durable output
   lives in
   `docs/plans/active/supplements/2026-04-16-make-harness-ui-refresh-live-state/browser-validation.txt`.
+- A focused reopen follow-up against the revision-2 candidate also recorded
+  `fast-success-no-blink-ok` and `fast-failure-no-blink-ok`, proving that the
+  buffered freshness indicator no longer flashes `Updating` during fast local
+  success/failure paths.
 - `docs/plans/active/supplements/2026-04-16-make-harness-ui-refresh-live-state/validation-evidence.md`
   ties those command and browser artifacts back to the candidate behaviors this
   slice claims to validate.
 - `scripts/ui-playwright-smoke` now covers same-session status and timeline
   live-update behavior plus an isolated visibility-regain catch-up assertion.
-  The broader smoke flow still has an older early-navigation stall outside this
-  slice, so the tracked focused browser run remains the authoritative
+  The broader smoke flow still hits an older unrelated timeline snapshot
+  assertion outside this slice, so the tracked focused browser run remains the authoritative
   end-to-end evidence for the final candidate.
 
 ## Review Summary
@@ -298,22 +312,28 @@ same `review-001-full` -> `review-003-delta` closeout sequence tracked in Step
   and explicit plan references for that evidence repair.
 - `review-006-full` passed cleanly as the final archive-candidate review, with
   no correctness or tests findings remaining.
+- Revision 2 reopened the archived candidate for one narrow UX repair after PR
+  feedback about the freshness pill blinking on fast local refreshes.
+- `review-007-full` passed for revision 2 with no blocking findings and one
+  minor tests note: browser coverage now proves the no-blink fast paths, but it
+  still does not positively assert the slower delayed-`Updating` path.
 
 ## Archive Summary
 
-- Archived At: 2026-04-17T00:29:29+08:00
-- Revision: 1
-- PR: NONE. The branch has not been pushed or opened as a PR yet; publish
-  handoff should open or update the PR after archive and link it to issue
-  `#158` while preserving follow-up issue `#179`.
-- Ready: The candidate satisfies all tracked acceptance criteria, rebuilt the
-  embedded `harness ui` assets, recorded durable command/browser validation
-  evidence in the tracked supplement package, and passed the final full
-  finalize review in `review-006-full` after the earlier review-driven repairs.
-- Merge Handoff: Run `harness archive`, commit the tracked archive move plus
-  these closeout notes, push branch `codex/issue-158-live-ui-refresh`, open or
-  update the PR so it closes `#158` and references follow-up `#179`, then
-  record publish, CI, and sync evidence until `harness status` reaches
+- Archived At: 2026-04-17T11:51:29+08:00
+- Revision: 2
+current reopen repair candidate waiting to be re-archived.
+- PR: existing PR `#180` (`https://github.com/catu-ai/easyharness/pull/180`)
+  already tracks this candidate and should be updated in place after the
+  revision-2 archive move is committed and pushed.
+- Ready: Revision 2 keeps the accepted live-refresh behavior, rebuilds the
+  embedded bundle with the buffered freshness-indicator UX repair, refreshes the
+  tracked command/browser evidence, and passes `review-007-full` with one minor
+  non-blocking coverage note.
+- Merge Handoff: Re-archive the revision-2 candidate, commit the tracked plan
+  move plus refreshed closeout notes, push branch
+  `codex/issue-158-live-ui-refresh` to update PR `#180`, then refresh publish,
+  CI, and sync evidence until `harness status` returns to
   `execution/finalize/await_merge`.
 
 ## Outcome Summary
@@ -328,6 +348,9 @@ same `review-001-full` -> `review-003-delta` closeout sequence tracked in Step
   failures, or disconnected on first-load failure.
 - The catch-up path now aborts superseded in-flight requests safely and keeps
   the latest request responsible for clearing the shared in-flight guard.
+- Revision 2 adds a small activity buffer before switching an already-live
+  freshness pill into `Updating`, so fast local refreshes stay visually stable
+  on `Live` and fast failures move directly to `Stale`.
 - `scripts/ui-playwright-smoke` and the tracked supplement evidence now prove
   same-session status/timeline updates, stale-state signaling, and
   visibility-regain recovery without a manual page reload.
@@ -342,6 +365,9 @@ same `review-001-full` -> `review-003-delta` closeout sequence tracked in Step
   polling plus focus/visibility catch-up.
 - Broader stale-state recovery affordances beyond the shell-level freshness
   indicator and the retry behavior already needed for this slice.
+- A dedicated positive browser assertion for the slower delayed-`Updating` path
+  is still missing; `review-007-full` recorded that as a minor non-blocking
+  validation gap.
 
 ### Follow-Up Issues
 

@@ -25,6 +25,7 @@ const pages: PageDef[] = [
   { id: "review", label: "Review", href: "/review" },
 ];
 const LIVE_REFRESH_INTERVAL_MS = 4000;
+const LIVE_REFRESH_ACTIVITY_BUFFER_MS = 250;
 
 type LiveResourceResult<T> = {
   data: T | null;
@@ -93,23 +94,41 @@ function useLiveResource<T>(options: {
 
     let disposed = false;
     let activeController: AbortController | null = null;
+    let updatingIndicatorTimeoutID: number | null = null;
+
+    const clearUpdatingIndicator = () => {
+      if (updatingIndicatorTimeoutID !== null) {
+        window.clearTimeout(updatingIndicatorTimeoutID);
+        updatingIndicatorTimeoutID = null;
+      }
+    };
 
     const refresh = (trigger: "initial" | "poll" | "focus") => {
       if (disposed) return;
       if (trigger === "poll" && document.visibilityState !== "visible") return;
       if (inFlightRef.current) {
         if (trigger === "poll") return;
+        clearUpdatingIndicator();
         activeController?.abort();
         inFlightRef.current = false;
       }
 
       const hasLiveData = hasSuccessfulLoadRef.current;
       setLoading(!hasLiveData);
-      setFreshness(describeLiveFreshness(hasLiveData ? "updating" : "connecting", lastSuccessAtRef.current));
 
       const controller = new AbortController();
       activeController = controller;
       inFlightRef.current = true;
+      clearUpdatingIndicator();
+      if (hasLiveData) {
+        updatingIndicatorTimeoutID = window.setTimeout(() => {
+          updatingIndicatorTimeoutID = null;
+          if (disposed || controller.signal.aborted) return;
+          setFreshness(describeLiveFreshness("updating", lastSuccessAtRef.current));
+        }, LIVE_REFRESH_ACTIVITY_BUFFER_MS);
+      } else {
+        setFreshness(describeLiveFreshness("connecting", lastSuccessAtRef.current));
+      }
 
       fetch(path, { signal: controller.signal })
         .then(async (response) => {
@@ -121,6 +140,7 @@ function useLiveResource<T>(options: {
         })
         .then((payload) => {
           if (disposed || controller.signal.aborted) return;
+          clearUpdatingIndicator();
           const nextSuccessAt = new Date().toISOString();
           hasSuccessfulLoadRef.current = true;
           lastSuccessAtRef.current = nextSuccessAt;
@@ -131,6 +151,7 @@ function useLiveResource<T>(options: {
         })
         .catch((nextError: unknown) => {
           if (disposed || controller.signal.aborted) return;
+          clearUpdatingIndicator();
           const message = nextError instanceof Error ? nextError.message : `Unable to load ${path}`;
           setError(message);
           setLoading(false);
@@ -163,6 +184,7 @@ function useLiveResource<T>(options: {
 
     return () => {
       disposed = true;
+      clearUpdatingIndicator();
       window.clearInterval(intervalID);
       window.removeEventListener("focus", refreshOnFocus);
       document.removeEventListener("visibilitychange", refreshOnVisibility);

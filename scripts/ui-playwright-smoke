@@ -1185,6 +1185,97 @@ async (page) => {
 capture_session_snapshot "$rail_session" "status-live-update"
 assert_has_text "status-live-update" "execution/finalize/await_merge"
 
+pwcli_run_code_checked "$rail_session" '
+async (page) => {
+  await page.evaluate(() => {
+    const label = document.querySelector(".topbar-freshness-label");
+    if (!(label instanceof HTMLElement)) {
+      throw new Error("missing topbar freshness label");
+    }
+    window.__codexObservedFreshness = [label.textContent ?? ""];
+    window.__codexFreshnessObserver?.disconnect?.();
+    const observer = new MutationObserver(() => {
+      const next = label.textContent ?? "";
+      const seen = window.__codexObservedFreshness;
+      if (seen[seen.length - 1] !== next) {
+        seen.push(next);
+      }
+    });
+    observer.observe(label, { childList: true, subtree: true, characterData: true });
+    window.__codexFreshnessObserver = observer;
+    if (!window.__codexOriginalFetch) {
+      window.__codexOriginalFetch = window.fetch.bind(window);
+    }
+    window.__codexRefreshDone = false;
+    window.fetch = async (...args) => {
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+      try {
+        return await window.__codexOriginalFetch(...args);
+      } finally {
+        window.__codexRefreshDone = true;
+      }
+    };
+    window.dispatchEvent(new Event("focus"));
+  });
+  await page.waitForFunction(() => window.__codexRefreshDone === true, { timeout: 1500 });
+  const seen = await page.evaluate(() => {
+    window.fetch = window.__codexOriginalFetch;
+    window.__codexFreshnessObserver?.disconnect?.();
+    return [...window.__codexObservedFreshness];
+  });
+  if (seen.includes("Updating")) {
+    throw new Error(`fast successful refresh flashed Updating: ${seen.join(" -> ")}`);
+  }
+  if (seen[seen.length - 1] !== "Live") {
+    throw new Error(`fast successful refresh did not settle back to Live: ${seen.join(" -> ")}`);
+  }
+}
+' >/dev/null
+
+pwcli_run_code_checked "$rail_session" '
+async (page) => {
+  await page.evaluate(() => {
+    const label = document.querySelector(".topbar-freshness-label");
+    if (!(label instanceof HTMLElement)) {
+      throw new Error("missing topbar freshness label");
+    }
+    window.__codexObservedFreshness = [label.textContent ?? ""];
+    window.__codexFreshnessObserver?.disconnect?.();
+    const observer = new MutationObserver(() => {
+      const next = label.textContent ?? "";
+      const seen = window.__codexObservedFreshness;
+      if (seen[seen.length - 1] !== next) {
+        seen.push(next);
+      }
+    });
+    observer.observe(label, { childList: true, subtree: true, characterData: true });
+    window.__codexFreshnessObserver = observer;
+    if (!window.__codexOriginalFetch) {
+      window.__codexOriginalFetch = window.fetch.bind(window);
+    }
+    window.fetch = async () => {
+      throw new Error("blocked fast refresh");
+    };
+    window.dispatchEvent(new Event("focus"));
+  });
+  await page.waitForFunction(
+    () => (document.querySelector(".topbar-freshness-label")?.textContent ?? "") === "Stale",
+    { timeout: 1500 },
+  );
+  const seen = await page.evaluate(() => {
+    window.fetch = window.__codexOriginalFetch;
+    window.__codexFreshnessObserver?.disconnect?.();
+    return [...window.__codexObservedFreshness];
+  });
+  if (seen.includes("Updating")) {
+    throw new Error(`fast failed refresh flashed Updating: ${seen.join(" -> ")}`);
+  }
+  if (seen[seen.length - 1] !== "Stale") {
+    throw new Error(`fast failed refresh did not settle to Stale: ${seen.join(" -> ")}`);
+  }
+}
+' >/dev/null
+
 python3 - "$runtime_workdir/.local/harness/plans/$plan_stem/state.json" <<'PY'
 import json
 import sys
