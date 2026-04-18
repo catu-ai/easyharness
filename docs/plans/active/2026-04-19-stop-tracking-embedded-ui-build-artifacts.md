@@ -113,7 +113,11 @@ they verify build-before-test and build-before-package ordering directly.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+PASSED via `review-001-full` follow-up repair and `review-002-delta` on
+2026-04-19. The initial full closeout review requested five blocking fixes
+around shared builder usage, missing-`node` guidance, clean-checkout smoke
+proof, and workflow-order assertions; the repair commit addressed those items
+and the delta follow-up passed with zero findings.
 
 ### Step 2: Update local developer bootstrap and failure modes
 
