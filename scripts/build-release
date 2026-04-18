@@ -5,7 +5,8 @@ usage() {
   cat <<'EOF'
 Usage: scripts/build-release --version <version> [--output-dir <path>] [--platform <goos/goarch>]
 
-Build versioned release archives and SHA256 checksums for easyharness.
+Build embedded UI assets, versioned release archives, and SHA256 checksums for
+easyharness.
 
 Options:
   --version <version>     Required release identifier (for example v0.0.0).
@@ -21,6 +22,7 @@ EOF
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 version_package="github.com/catu-ai/easyharness/internal/version"
+build_embedded_ui_script="${repo_root}/scripts/build-embedded-ui"
 output_dir="${repo_root}/dist/release"
 version=""
 platforms=()
@@ -260,6 +262,13 @@ if [[ ${#platforms[@]} -eq 0 ]]; then
     "linux/arm64"
   )
 fi
+
+if [[ ! -x "${build_embedded_ui_script}" ]]; then
+  echo "Missing embedded UI build helper at ${build_embedded_ui_script}" >&2
+  exit 1
+fi
+
+"${build_embedded_ui_script}"
 
 if ! command -v zip >/dev/null 2>&1; then
   echo "zip is required to build release archives" >&2

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+web_dir="${repo_root}/web"
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pnpm is required to build embedded UI assets." >&2
+  echo "Install Node.js and pnpm, then rerun this command." >&2
+  exit 1
+fi
+
+if [[ ! -d "${web_dir}" ]]; then
+  echo "missing frontend source directory at ${web_dir}" >&2
+  exit 1
+fi
+
+CI=true pnpm --dir "${web_dir}" install --frozen-lockfile
+pnpm --dir "${web_dir}" build

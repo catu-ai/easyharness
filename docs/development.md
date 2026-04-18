@@ -16,6 +16,7 @@ scripts/install-dev-harness
 
 By default the installer:
 
+- installs frontend dependencies and rebuilds the embedded UI assets
 - builds the binary at `.local/bin/harness`
 - installs a small worktree-aware `harness` wrapper in a user-local bin dir
 - uses `~/.local/bin` by default
@@ -64,11 +65,25 @@ After changing Go CLI code, rerun `scripts/install-dev-harness` so the direct
 Contributors should use the Go toolchain recorded in `go.mod`, which is
 currently `go 1.25.0`.
 
+Repo-level UI development also expects `pnpm` to be available locally. If it
+is missing, install Node.js and pnpm before rerunning the embedded UI build or
+development installer.
+
 ## UI Development
 
 When changing the embedded UI shell under `web/`, rebuild the production UI
 assets before relying on `harness ui` or rerunning Go builds/tests that embed
-the UI:
+the UI. The supported one-shot path is:
+
+```bash
+scripts/build-embedded-ui
+```
+
+That helper runs `pnpm --dir web install --frozen-lockfile` and
+`pnpm --dir web build` for you. `scripts/install-dev-harness` also runs the
+same helper before rebuilding the repo-local binary.
+
+If you want to run the frontend commands directly, the underlying steps are:
 
 ```bash
 pnpm --dir web install

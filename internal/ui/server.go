@@ -23,7 +23,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/timeline"
 )
 
-//go:embed static
+//go:embed generated
 var embeddedStatic embed.FS
 
 const productDisplayName = "easyharness"
@@ -84,9 +84,9 @@ func (s Server) Run(ctx context.Context) error {
 }
 
 func NewHandler(workdir string) (http.Handler, error) {
-	staticFS, err := fs.Sub(embeddedStatic, "static")
+	staticFS, err := fs.Sub(embeddedStatic, "generated/build")
 	if err != nil {
-		return nil, fmt.Errorf("load embedded ui assets: %w", err)
+		return nil, fmt.Errorf("load embedded ui assets: %w (run scripts/install-dev-harness or scripts/build-embedded-ui first)", err)
 	}
 
 	mux := http.NewServeMux()

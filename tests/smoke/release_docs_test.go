@@ -36,6 +36,7 @@ func TestReleaseDocsPresentStableOnboardingSurface(t *testing.T) {
 	support.RequireContains(t, normalizedDevelopment, "stable `harness` installation to already be available on `PATH`")
 	support.RequireContains(t, normalizedDevelopment, "Homebrew install shown in the root")
 	support.RequireContains(t, development, "bundled Playwright wrapper")
+	support.RequireContains(t, development, "scripts/build-embedded-ui")
 	if strings.Contains(development, "--global") {
 		t.Fatalf("expected development doc to avoid retired --global guidance, got:\n%s", development)
 	}
@@ -53,6 +54,7 @@ func TestReleaseDocsPresentStableOnboardingSurface(t *testing.T) {
 	support.RequireContains(t, normalizedReleasing, "`v0.0.0`")
 	support.RequireContains(t, normalizedReleasing, "including prerelease tags")
 	support.RequireContains(t, normalizedReleasing, "default Homebrew formula `easyharness`")
+	support.RequireContains(t, releasing, "scripts/build-embedded-ui")
 	if strings.Contains(strings.ToLower(releasing), "first public alpha") {
 		t.Fatalf("expected releasing doc to avoid first-public-alpha wording, got:\n%s", releasing)
 	}

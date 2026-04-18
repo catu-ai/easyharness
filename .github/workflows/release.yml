@@ -74,6 +74,20 @@ jobs:
           go-version-file: dist/release-source/go.mod
           cache: true
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: dist/release-source/web/pnpm-lock.yaml
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Build embedded UI assets
+        working-directory: dist/release-source
+        run: scripts/build-embedded-ui
+
       - name: Run tests
         env:
           EASYHARNESS_HOMEBREW_TAP_TOKEN: ""

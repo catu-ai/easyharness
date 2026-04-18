@@ -237,7 +237,7 @@ func TestInstallDevHarnessWrapperRequiresStableHarnessOnPathOutsideWorktree(t *t
 		t,
 		otherProject,
 		envWithOverrides(t, map[string]string{
-			"PATH": installerPath(t, installDir),
+			"PATH": strings.Join([]string{installDir, "/usr/bin", "/bin", "/usr/sbin", "/sbin"}, string(os.PathListSeparator)),
 		}),
 		wrapperPath,
 		"--help",
@@ -783,7 +783,18 @@ func copyInstallerFixture(t *testing.T) string {
 		"assets",
 		"cmd",
 		"internal",
+		"scripts/build-embedded-ui",
 		"scripts/install-dev-harness",
+	} {
+		copyPath(t, filepath.Join(sourceRoot, rel), filepath.Join(root, rel))
+	}
+	for _, rel := range []string{
+		"web/index.html",
+		"web/package.json",
+		"web/pnpm-lock.yaml",
+		"web/tsconfig.json",
+		"web/vite.config.ts",
+		"web/src",
 	} {
 		copyPath(t, filepath.Join(sourceRoot, rel), filepath.Join(root, rel))
 	}
@@ -1045,9 +1056,13 @@ func installerPath(t *testing.T, extraDirs ...string) string {
 	if err != nil {
 		t.Fatalf("find go on PATH: %v", err)
 	}
+	pnpmPath, err := exec.LookPath("pnpm")
+	if err != nil {
+		t.Fatalf("find pnpm on PATH: %v", err)
+	}
 
 	seen := map[string]bool{}
-	dirs := make([]string, 0, len(extraDirs)+5)
+	dirs := make([]string, 0, len(extraDirs)+6)
 	addDir := func(dir string) {
 		if dir == "" || seen[dir] {
 			return
@@ -1060,6 +1075,7 @@ func installerPath(t *testing.T, extraDirs ...string) string {
 		addDir(dir)
 	}
 	addDir(filepath.Dir(goPath))
+	addDir(filepath.Dir(pnpmPath))
 	addDir("/usr/bin")
 	addDir("/bin")
 	addDir("/usr/sbin")

@@ -13,8 +13,8 @@ install as `catu-ai/tap/easyharness`.
 
 1. Decide the next release version, such as `0.0.0`, and update the
    root `VERSION` file in a dedicated release PR.
-2. Make sure `main` is up to date and run `go test ./...` in the release PR
-   before merge.
+2. Make sure `main` is up to date, run `scripts/build-embedded-ui`, and then
+   run `go test ./...` in the release PR before merge.
 3. If you want an extra local packaging check before merge, run
    `scripts/build-release --version "v$(cat VERSION)"`.
 4. Merge the release PR to `main`.
@@ -98,4 +98,5 @@ The formula name remains `easyharness`, while the installed binary remains
 ## Contributor Baseline
 
 Release and CI jobs use the Go version recorded in `go.mod`, which is currently
-`go 1.25.0`.
+`go 1.25.0`. They also install Node.js/pnpm so the embedded UI assets are
+built before Go tests and release packaging consume them.

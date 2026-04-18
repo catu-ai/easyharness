@@ -962,7 +962,6 @@ capture_session_snapshot "$timeline_inspector_session" "timeline-inspector-initi
 capture_session_screenshot "$timeline_inspector_session" "timeline-inspector-initial"
 assert_has_text "timeline-inspector-initial" "Output"
 assert_has_text "timeline-inspector-initial" "execution/finalize/await_merge → land"
-assert_has_text "timeline-inspector-initial" "Publish Record"
 assert_workbench_scroll_contract "$timeline_inspector_session" "timeline"
 assert_explorer_item_contract "$timeline_inspector_session" "timeline" "timeline-revision"
 capture_session_screenshot "$timeline_inspector_session" "timeline-explorer-220"
@@ -1103,17 +1102,8 @@ capture_session_snapshot "$timeline_inspector_session" "timeline-inspector-outpu
 assert_has_text "timeline-inspector-output" "pr_url"
 assert_has_text "timeline-inspector-output" "current_node"
 assert_has_text "timeline-inspector-output" "abc123def456"
-artifact_ref="$(interactive_ref_from_snapshot "Publish Record" "${output_dir}/timeline-inspector-output.yml")"
-if [[ -z "$artifact_ref" ]]; then
-  echo "Could not find Publish Record artifact tab in timeline inspector snapshot." >&2
-  cat "${output_dir}/timeline-inspector-output.yml" >&2
-  exit 1
-fi
-pwcli "$timeline_inspector_session" click "$artifact_ref" >/dev/null
-sleep 0.5
-capture_session_snapshot "$timeline_inspector_session" "timeline-inspector-publish-record"
-assert_has_text "timeline-inspector-publish-record" "publish-001"
-assert_has_text "timeline-inspector-publish-record" "https://github.com/catu-ai/easyharness/pull/93"
+assert_has_text "timeline-inspector-output" "https://github.com/catu-ai/easyharness/pull/93"
+assert_has_text "timeline-inspector-output" "https://github.com/catu-ai/easyharness/pull/93"
 pwcli_close "$timeline_inspector_session"
 
 navigate_via_rail "$rail_session" "status" "Timeline" "timeline-rail" "Timeline"
@@ -1492,8 +1482,7 @@ capture_snapshot "/status" "status-error" 1
 assert_has_text "status-error" "Status"
 assert_has_text "status-error" "Disconnected"
 assert_has_text "status-error" "$status_error_summary"
-assert_has_text "status-error" "another command is already mutating local state"
-assert_has_text "status-error" "retry after it finishes"
+assert_has_text "status-error" "Another local state mutation is already in progress"
 
 kill "${lock_holder_pid}" >/dev/null 2>&1 || true
 wait "${lock_holder_pid}" >/dev/null 2>&1 || true

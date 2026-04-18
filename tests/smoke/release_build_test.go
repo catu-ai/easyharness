@@ -950,6 +950,23 @@ func newReleaseBuildCheckout(t *testing.T) string {
 	if err := os.WriteFile(checkoutPublishHelperPath, publishHelperData, 0o644); err != nil {
 		t.Fatalf("write checkout release_publish helper: %v", err)
 	}
+	buildEmbeddedUIPath := filepath.Join(repoRoot, "scripts", "build-embedded-ui")
+	buildEmbeddedUIData := readFileBytes(t, buildEmbeddedUIPath)
+	checkoutBuildEmbeddedUIPath := filepath.Join(checkoutRoot, "scripts", "build-embedded-ui")
+	if err := os.WriteFile(checkoutBuildEmbeddedUIPath, buildEmbeddedUIData, 0o755); err != nil {
+		t.Fatalf("write checkout build-embedded-ui script: %v", err)
+	}
+	for _, rel := range []string{
+		"web/index.html",
+		"web/package.json",
+		"web/pnpm-lock.yaml",
+		"web/tsconfig.json",
+		"web/vite.config.ts",
+		"web/src",
+		"internal/ui",
+	} {
+		copyPath(t, filepath.Join(repoRoot, rel), filepath.Join(checkoutRoot, rel))
+	}
 
 	return checkoutRoot
 }
