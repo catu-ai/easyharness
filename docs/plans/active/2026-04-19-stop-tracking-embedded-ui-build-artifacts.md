@@ -288,26 +288,72 @@ closeout review.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+Validated the generated-artifact contract through both source-path and
+embedded-binary paths. Initial closeout validation covered
+`pnpm --dir web check`, `scripts/build-embedded-ui`,
+`scripts/install-dev-harness`, `go test ./internal/ui -count=1`,
+`go test ./tests/smoke -count=1`, `go test ./... -count=1`,
+`scripts/build-release --version "v$(cat VERSION)" --output-dir
+.local/release-ui-artifacts-check --platform "$(go env GOOS)/$(go env GOARCH)"`,
+and `scripts/ui-playwright-smoke`.
+
+Review-driven repair validation reran `go test ./tests/smoke -count=1`,
+`scripts/ui-playwright-smoke`, and `go test ./... -count=1` after the
+shared-builder, fixture-cleanup, and workflow-ordering fixes. Finalize repair
+validation then covered the missing-tool smoke cases directly with
+`go test ./tests/smoke -run
+'TestBuildEmbeddedUIScriptFailsWithActionableMessageWhen(NodeIsMissingButPnpmExists|PnpmIsMissing)$'
+-count=1` followed by a full `go test ./tests/smoke -count=1`.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Step closeout review started with `review-001-full`, which requested five
+blocking fixes around shared builder usage in Playwright smoke entrypoints,
+actionable missing-`node` guidance, clean-checkout fixture proof, and
+workflow-order assertions. Those repairs were reviewed in `review-002-delta`,
+which passed with zero findings.
+
+Finalize review then ran as `review-003-full`. That round found one blocking
+tests issue and one minor docs-consistency issue: executable smoke coverage
+still missed the `pnpm`-missing preflight, and the plan opening still led with
+the retired `internal/ui/static/` path. The narrow finalize repair added the
+missing `pnpm` smoke coverage and rewrote the opening language to foreground
+`internal/ui/generated/build/`; `review-004-delta` passed with zero findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+The repository now treats `internal/ui/generated/build/` as generated output,
+not tracked source. Contributors rebuild embedded assets through the shared
+`scripts/build-embedded-ui` entrypoint, `scripts/install-dev-harness` prepares
+those assets during local bootstrap, and CI/release workflows install Node,
+enable Corepack, build the UI, and only then run Go tests or release
+packaging.
+
+Tracked minified bundle artifacts under `internal/ui/static/` are gone. The
+durable repo contract is now enforced by updated docs, smoke/workflow tests,
+release-checkout fixtures that clear inherited generated assets, and browser
+smoke scripts that route through the same shared builder used elsewhere.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Removed tracked embedded UI bundle artifacts from git and moved the embed
+  contract onto generated `internal/ui/generated/build/`.
+- Added `scripts/build-embedded-ui` as the shared frontend build path for local
+  bootstrap, browser smoke scripts, CI, and release automation.
+- Added actionable missing-tool handling for both `node` and `pnpm`.
+- Updated smoke/workflow coverage so clean-checkout fixtures and automation
+  assertions exercise the generated-artifact contract directly.
+- Updated the tracked plan and docs to reflect the generated-build contract and
+  the review/repair history that closed it out.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No runtime fallback rebuild path was added inside `harness ui` when generated
+  embedded assets are missing.
 
 ### Follow-Up Issues
 
-NONE
+- #182: Consider fallback handling when generated embedded UI assets are
+  missing at runtime.
