@@ -40,11 +40,11 @@ release PR flow, where merge to `main` triggers the existing automation chain.
 
 ## Acceptance Criteria
 
-- [ ] `VERSION` is updated from `0.2.2` to `0.2.3` and no other tracked source
+- [x] `VERSION` is updated from `0.2.2` to `0.2.3` and no other tracked source
       files are changed for this slice.
-- [ ] `scripts/read-release-version --tag` resolves `v0.2.3` from the updated
+- [x] `scripts/read-release-version --tag` resolves `v0.2.3` from the updated
       repository state.
-- [ ] The resulting change remains a dedicated release bump candidate suitable
+- [x] The resulting change remains a dedicated release bump candidate suitable
       for the normal merge-driven automation flow.
 
 ## Deferred Items
@@ -56,7 +56,7 @@ release PR flow, where merge to `main` triggers the existing automation chain.
 
 ### Step 1: Bump the release entry point and validate the helper path
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -94,7 +94,11 @@ surface changes and only advanced the tracked release version value.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` passed with no findings for the `correctness` slot. The
+review re-read the full active plan, checked the delta from anchor
+`b0ae2924b68c1d2b4de55fecb020dcd583cd9f8f`, confirmed the implementation
+change stayed limited to `VERSION`, and reran focused smoke coverage with
+`go test ./tests/smoke -run 'TestRepositoryVersionFile|TestReadReleaseVersion|TestCreateReleaseTagFromVersion|TestVersionTagWorkflowUsesRepositoryVersionFile' -count=1`.
 
 ## Validation Strategy
 
