@@ -11,12 +11,13 @@ size: L
 
 ## Goal
 
-Shift the repository from checking in generated UI bundles under
-`internal/ui/static/` to treating the frontend as a normal build input. After
-this change, UI pull requests should primarily review source edits under
-`web/` plus any supporting scripts/tests/docs, while the generated embedded
-assets are rebuilt locally during developer bootstrap and rebuilt in CI and
-release automation before Go compilation.
+Treat `internal/ui/generated/build/` as the canonical generated embed output
+for this repository, with frontend source under `web/` as the tracked input
+and contributor/automation flows responsible for rebuilding assets locally and
+in CI/release before Go compilation. This replaces the earlier practice of
+checking generated UI bundles into git under `internal/ui/static/`, so UI pull
+requests should primarily review source edits under `web/` plus any supporting
+scripts/tests/docs.
 
 The shipped `harness` binary should remain self-contained for end users. The
 contract change applies to repository contributors and automation, not to
@@ -26,8 +27,9 @@ people installing released binaries.
 
 ### In Scope
 
-- Stop tracking generated bundle files under `internal/ui/static/` and replace
-  them with a generated-at-build-time contract suitable for `//go:embed`.
+- Keep generated embed output under `internal/ui/generated/build/` while
+  removing the old practice of tracking bundle files under `internal/ui/static/`
+  in git.
 - Update developer bootstrap so `scripts/install-dev-harness` prepares frontend
   dependencies/build output and fails with actionable guidance when `node` or
   `pnpm` is missing.
