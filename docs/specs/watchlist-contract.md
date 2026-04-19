@@ -75,6 +75,23 @@ The minimal persisted workspace record is intentionally small:
 This contract does not require any additional persisted per-workspace fields in
 the first slice.
 
+## Path Normalization and Uniqueness
+
+Writers must normalize `workspace_path` before comparing or persisting records.
+
+The normalization contract for this first slice is:
+
+- resolve the path to an absolute local filesystem path before writing
+- use one canonical textual path per watched workspace for duplicate detection
+- treat the normalized `workspace_path` as the uniqueness key in
+  `workspaces[]`
+
+This spec intentionally does not fix every platform-specific normalization
+detail yet. Later implementation may need to clarify symlink or case-folding
+rules per platform, but it must still preserve one clear rule: repeated
+registration of the same local workspace must converge on one canonical
+`workspace_path` record rather than creating duplicates.
+
 ## Identity Model
 
 For this first machine-local contract, watched-workspace identity is the
@@ -90,6 +107,23 @@ This choice is intentionally local and path-oriented:
 If a workspace moves to a different path, that is a different watched
 workspace under this initial contract. The first contract does not attempt to
 preserve identity across path moves.
+
+## Missing or Unreadable Workspaces
+
+The watchlist is a remembered local set, not a best-effort snapshot of only
+currently readable directories.
+
+If a previously watched `workspace_path` later becomes:
+
+- missing
+- unreadable
+- no longer a valid Git-backed workspace
+
+the watchlist record should remain present until a later local lifecycle action
+explicitly removes or hides it.
+
+Read-model and UI layers should surface those entries as explicit degraded
+states rather than silently dropping them from the watched set.
 
 ## Derived Repository Grouping
 
@@ -144,7 +178,27 @@ In particular, fields such as:
 must not be folded into the minimal persisted watchlist record defined here.
 
 Those concerns belong to a later local view-model or lifecycle contract once
-the dashboard behavior is ready to define.
+the dashboard behavior is ready to define. That later dashboard-local state
+should live in a separate machine-local companion artifact rather than
+retrofitting UI-only fields into `watchlist.json`.
+
+## Write Expectations
+
+This spec does not define which command writes the watchlist, but any future
+writer must preserve basic local integrity expectations:
+
+- writes must not silently drop unrelated existing workspace records
+- duplicate registration attempts must converge on one record per normalized
+  `workspace_path`
+- persistence should use crash-safe replacement rather than partial in-place
+  writes when the file is rewritten
+- concurrent write paths must avoid last-writer-wins corruption that would
+  lose another workspace record
+
+The exact file-locking or mutation-coordination mechanism is an implementation
+detail for later work, but these integrity expectations are part of the
+watchlist contract because silent registration during commands such as
+`harness status` will depend on them.
 
 ## Non-Goals
 

@@ -206,38 +206,47 @@ docs slice and will be checked in the normal branch-level review round.
 ## Validation Summary
 
 - `harness plan lint docs/plans/active/2026-04-19-define-machine-local-watchlist-contract.md`
-  passed before approval and again after the execution notes and closeout
-  summaries were filled in.
+  passed before approval, after the initial closeout notes were filled in, and
+  again after the revision-2 repair reopened the candidate.
 - Direct reread of `docs/specs/watchlist-contract.md` confirmed the tracked
   spec itself carries the machine-local file location, the minimal persisted
   schema, the path-based identity model, the derived repository-family
   grouping boundary, and the explicit deferral of dashboard-only state such as
   `hidden`.
+- Direct reread after revision 2 confirmed the contract now also fixes the
+  missing foundation-level invariants around path normalization and
+  uniqueness, degraded retention for missing or unreadable workspaces,
+  companion dashboard-local state separation, and crash-safe/concurrent write
+  expectations.
 - Direct reread of `docs/specs/index.md` confirmed the new contract is
   discoverable from the existing specs index without requiring issue or chat
   context.
 - `review-001-full` passed with 0 findings across the `correctness` and
   `docs_consistency` dimensions.
+- `review-002-delta` passed with 0 findings across the same dimensions after
+  the narrow revision-2 contract repair.
 
 ## Review Summary
 
 - `review-001-full`: finalize review passed with 0 findings across the
   `correctness` and `docs_consistency` dimensions.
+- `review-002-delta`: reopen follow-up review passed with 0 findings after the
+  narrow contract repair strengthened invariants without expanding the
+  persisted schema.
 
 ## Archive Summary
 
-- Archived At: 2026-04-19T10:51:12+08:00
-- Revision: 1
-- PR: Not opened yet; this candidate still needs the ordinary post-archive
-  commit, push, and PR handoff.
-- Ready: The candidate satisfies the acceptance criteria, keeps the watchlist
-  contract intentionally narrow around machine-local `git-backed workspaces`,
-  and passed `review-001-full` with 0 findings.
-- Merge Handoff: Archive the plan, commit the tracked archive move plus the
-  new watchlist contract and closeout summaries on
-  `codex/define-watchlist-contract`, push the branch, open or refresh the PR,
-  and record publish/CI/sync evidence until `harness status` reaches
-  `execution/finalize/await_merge`.
+- Archived At: 2026-04-19T11:11:16+08:00
+- Revision: 2
+- PR: https://github.com/catu-ai/easyharness/pull/184
+- Ready: Revision 2 keeps the persisted watchlist schema intentionally small
+  while strengthening the contract with path-normalization, degraded-retention,
+  companion-state, and write-integrity invariants, and `review-002-delta`
+  passed clean.
+- Merge Handoff: Re-archive the candidate, commit the tracked re-archive move
+  plus the revision-2 contract refinements on `codex/define-watchlist-contract`,
+  push the branch to refresh PR #184, and refresh publish/CI/sync evidence
+  until `harness status` returns to `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
@@ -255,6 +264,11 @@ docs slice and will be checked in the normal branch-level review round.
   classification as derived read-time facts.
 - Published the new contract in `docs/specs/index.md` so future agents can
   discover it without relying on issue or chat history.
+- Strengthened the foundation-level contract for follow-up watchlist issues by
+  defining normalization and uniqueness expectations for `workspace_path`,
+  explicit retention of missing or unreadable watched workspaces, a separate
+  companion artifact boundary for dashboard-local state, and crash-safe /
+  concurrent-write integrity expectations for future writers.
 
 ### Not Delivered
 
