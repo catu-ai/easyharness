@@ -18,6 +18,10 @@
 - [Contract Registry](./contract.md): normative guide to the checked-in JSON
   Schema registry, its ownership model, the public-vs-runtime boundary, and
   what is intentionally not rendered as duplicated markdown.
+- [Watchlist Contract](./watchlist-contract.md): normative machine-local
+  storage contract for watched git-backed workspaces, including the minimal
+  persisted schema, path-based local identity, and the boundary between
+  persisted workspace records and derived repository-family grouping.
 - [Schema Registry](../../schema/index.json): checked-in JSON Schema index for
   command outputs, command inputs, shared shapes, and CLI-owned local JSON
   artifacts, with each entry labeled by surface.
