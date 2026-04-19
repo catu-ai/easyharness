@@ -37,9 +37,11 @@ same remote.
   repository-family grouping derived at read time.
 - Define which dashboard-facing facts are derived on read, including local
   repository grouping and linked-worktree classification.
-- Explicitly keep dashboard-only state such as `hidden` out of the minimal
-  persisted watchlist contract and defer that view-model question to later
-  work.
+- Define the smallest durable metadata needed for remembered-set behavior and
+  future stale or missing handling without turning the watchlist into a broad
+  read model.
+- Define the first membership action boundary so `unwatch` is the one explicit
+  way to remove a workspace from the remembered set.
 
 ### Out of Scope
 
@@ -61,19 +63,22 @@ same remote.
 - [x] The contract distinguishes persisted workspace fields from derived
       dashboard fields, including local repository-family grouping and branch
       or linked-worktree classification.
-- [x] The contract explicitly defers dashboard-only state such as `hidden`
-      rather than folding it into the minimal persisted record.
+- [x] The contract defines a minimal persisted workspace record that now
+      includes durable time metadata needed for remembered-set behavior and
+      later stale handling.
+- [x] The contract explicitly defines `unwatch` as the one membership-removal
+      action and keeps `active`, `completed`, and `missing` as derived states
+      rather than persisted transitions.
 - [x] The new documentation is easy to discover from the existing specs index,
       and the tracked plan lints cleanly.
 
 ## Deferred Items
 
-- The separate contract for dashboard-only view state such as `hidden`,
-  completion filtering, or manual dismissal.
 - Automatic workspace registration behavior on `harness status` or any other
   command.
 - The v1 backend shape for reading or serving the watchlist.
 - Read-model details for aggregating live status across watched workspaces.
+- Any future stale-item cleanup or GC policy beyond explicit `unwatch`.
 - Any later concept of project grouping that merges distinct local clones by
   remote identity.
 
@@ -123,8 +128,11 @@ the initial machine-local identity.
 The spec also records the accepted boundary between persisted and derived
 fields: repository-family grouping, branch display, and linked-worktree
 classification are derived from live Git state instead of stored in the record
-itself. Dashboard-only view state such as `hidden` is deferred explicitly so
-the foundation slice stays narrow. This is a docs-only contract change, so no
+itself. This revision reopened the candidate to replace the earlier
+`hidden`-style direction with a simpler membership model: the main watchlist
+record now carries `watched_at` and `last_seen_at`, while `unwatch` becomes
+the single explicit membership-removal action and `active` / `completed` /
+`missing` stay derived. This is a docs-only contract change, so no
 Red/Green/Refactor loop was needed.
 
 #### Review Notes
@@ -169,7 +177,8 @@ the existing normative specs so future agents can discover it without issue or
 chat context. Re-read the nearby spec and proposal surfaces after the index
 update and did not find any additional wording that needed immediate alignment:
 the new contract already carries the accepted `git-backed workspace`,
-repository-family grouping, and deferred `hidden` decisions directly.
+repository-family grouping, explicit `unwatch`, and the minimal
+`watched_at` / `last_seen_at` metadata direction directly.
 
 #### Review Notes
 
@@ -195,9 +204,9 @@ docs slice and will be checked in the normal branch-level review round.
     identity.
 - Risk: The contract could mix UI-only concerns such as `hidden` into the core
   storage schema, making later read-model work heavier than needed.
-  - Mitigation: Keep the persisted watchlist record minimal and defer view
-    state to the later lifecycle/read-model slices already tracked in the
-    watchlist issue set.
+  - Mitigation: Avoid a separate `hidden` layer in the first contract, keep
+    one explicit `unwatch` action instead, and leave lifecycle buckets such as
+    `active`, `completed`, and `missing` as derived read-model states.
 - Risk: Repository grouping could become ambiguous if the contract tries to
   solve remote-based project identity too early.
   - Mitigation: Limit the initial grouping story to local repository families
@@ -207,17 +216,19 @@ docs slice and will be checked in the normal branch-level review round.
 
 - `harness plan lint docs/plans/active/2026-04-19-define-machine-local-watchlist-contract.md`
   passed before approval, after the initial closeout notes were filled in, and
-  again after the revision-2 repair reopened the candidate.
+  again after the revision-2 and revision-3 repairs reopened the candidate.
 - Direct reread of `docs/specs/watchlist-contract.md` confirmed the tracked
   spec itself carries the machine-local file location, the minimal persisted
   schema, the path-based identity model, the derived repository-family
-  grouping boundary, and the explicit deferral of dashboard-only state such as
-  `hidden`.
+  grouping boundary, and the remembered-set semantics for watched workspaces.
 - Direct reread after revision 2 confirmed the contract now also fixes the
   missing foundation-level invariants around path normalization and
   uniqueness, degraded retention for missing or unreadable workspaces,
-  companion dashboard-local state separation, and crash-safe/concurrent write
-  expectations.
+  crash-safe/concurrent write expectations, and no-silent-drop behavior.
+- Direct reread after revision 3 confirmed the persisted record now includes
+  `watched_at` and `last_seen_at`, the contract uses explicit `unwatch`
+  instead of a separate `hidden` state, and `active` / `completed` /
+  `missing` remain derived read-time states.
 - Direct reread of `docs/specs/index.md` confirmed the new contract is
   discoverable from the existing specs index without requiring issue or chat
   context.
@@ -225,6 +236,13 @@ docs slice and will be checked in the normal branch-level review round.
   `docs_consistency` dimensions.
 - `review-002-delta` passed with 0 findings across the same dimensions after
   the narrow revision-2 contract repair.
+- `review-003-delta` passed with 1 non-blocking docs-consistency finding, then
+  prompted this narrow revision-3 summary refresh so the plan matches the
+  latest contract direction.
+- `review-004-delta` passed with 1 non-blocking docs-consistency finding, then
+  prompted one final execution-note wording fix so the tracked plan no longer
+  uses residual hidden-era language.
+- `review-005-delta` passed with 0 findings after that last wording repair.
 
 ## Review Summary
 
@@ -233,18 +251,29 @@ docs slice and will be checked in the normal branch-level review round.
 - `review-002-delta`: reopen follow-up review passed with 0 findings after the
   narrow contract repair strengthened invariants without expanding the
   persisted schema.
+- `review-003-delta`: reopen follow-up review passed with 1 non-blocking
+  docs-consistency finding asking the active plan summaries to catch up with
+  the revision-3 `unwatch` plus `watched_at` / `last_seen_at` contract
+  direction.
+- `review-004-delta`: reopen follow-up review passed with 1 non-blocking
+  docs-consistency finding pointing out one last hidden-era sentence in the
+  execution notes.
+- `review-005-delta`: final docs-consistency follow-up passed with 0 findings
+  after the execution-note wording repair.
 
 ## Archive Summary
 
-- Archived At: 2026-04-19T11:11:16+08:00
-- Revision: 2
+- Archived At: 2026-04-19T16:29:56+08:00
+- Revision: 3
 - PR: https://github.com/catu-ai/easyharness/pull/184
-- Ready: Revision 2 keeps the persisted watchlist schema intentionally small
-  while strengthening the contract with path-normalization, degraded-retention,
-  companion-state, and write-integrity invariants, and `review-002-delta`
-  passed clean.
+- Ready: Revision 3 keeps the remembered-set contract intentionally small
+  while adding the minimal durable time metadata (`watched_at`,
+  `last_seen_at`), replacing `hidden` with explicit `unwatch`, and keeping
+  `active` / `completed` / `missing` derived; the earlier non-blocking
+  docs-consistency findings have been repaired and `review-005-delta` passed
+  clean.
 - Merge Handoff: Re-archive the candidate, commit the tracked re-archive move
-  plus the revision-2 contract refinements on `codex/define-watchlist-contract`,
+  plus the revision-3 contract refinements on `codex/define-watchlist-contract`,
   push the branch to refresh PR #184, and refresh publish/CI/sync evidence
   until `harness status` returns to `execution/finalize/await_merge`.
 
@@ -258,7 +287,7 @@ docs slice and will be checked in the normal branch-level review round.
   both a repository's primary checkout and linked git worktrees.
 - Fixed one machine-local, user-private file location at
   `~/.easyharness/watchlist.json` and one minimal persisted JSON shape with
-  `version` plus `workspaces[].workspace_path`.
+  `version`, `workspace_path`, `watched_at`, and `last_seen_at`.
 - Defined canonical absolute `workspace_path` as the first machine-local
   identity and kept repository-family grouping, branch, and linked-worktree
   classification as derived read-time facts.
@@ -266,21 +295,22 @@ docs slice and will be checked in the normal branch-level review round.
   discover it without relying on issue or chat history.
 - Strengthened the foundation-level contract for follow-up watchlist issues by
   defining normalization and uniqueness expectations for `workspace_path`,
-  explicit retention of missing or unreadable watched workspaces, a separate
-  companion artifact boundary for dashboard-local state, and crash-safe /
-  concurrent-write integrity expectations for future writers.
+  explicit retention of missing or unreadable watched workspaces, crash-safe /
+  concurrent-write integrity expectations for future writers, and one explicit
+  membership-removal action (`unwatch`) instead of a separate `hidden` state.
 
 ### Not Delivered
 
 - No watchlist write path, dashboard read model, backend implementation shape,
   or UI behavior was implemented in this slice.
-- Dashboard-only view state such as `hidden` remains intentionally deferred to
-  later watchlist lifecycle work.
+- No automatic GC policy or stale-item cleanup flow was implemented in this
+  slice beyond the contract hooks created by `last_seen_at` and explicit
+  `unwatch`.
 
 ### Follow-Up Issues
 
 - `#163` Decide the v1 backend shape for the watchlist dashboard.
 - `#164` Silently register worktrees in the watchlist on harness status.
 - `#165` Build a watchlist-backed dashboard read model.
-- `#166` Define completed and hidden lifecycle for watched worktrees.
+- `#166` Define completed and unwatch lifecycle for watched worktrees.
 - `#167` Ship a minimal watchlist dashboard UI.

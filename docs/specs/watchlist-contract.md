@@ -54,7 +54,9 @@ The watchlist file is UTF-8 JSON with one top-level object:
   "version": 1,
   "workspaces": [
     {
-      "workspace_path": "/absolute/path/to/workspace"
+      "workspace_path": "/absolute/path/to/workspace",
+      "watched_at": "2026-04-19T03:00:00Z",
+      "last_seen_at": "2026-04-19T03:00:00Z"
     }
   ]
 }
@@ -65,12 +67,19 @@ Contract:
 - `version` is required and identifies the watchlist file format version
 - `workspaces` is required and contains zero or more watched workspace records
 - each `workspace_path` is required
+- each `watched_at` is required
+- each `last_seen_at` is required
 - each `workspace_path` must be an absolute canonical local filesystem path
+- `watched_at` records when the workspace first entered the watchlist
+- `last_seen_at` records the latest successful watchlist-touching harness
+  command that confirmed this workspace locally
 - duplicate `workspace_path` values are invalid
 
 The minimal persisted workspace record is intentionally small:
 
 - `workspace_path`
+- `watched_at`
+- `last_seen_at`
 
 This contract does not require any additional persisted per-workspace fields in
 the first slice.
@@ -120,7 +129,7 @@ If a previously watched `workspace_path` later becomes:
 - no longer a valid Git-backed workspace
 
 the watchlist record should remain present until a later local lifecycle action
-explicitly removes or hides it.
+explicitly unwatches it.
 
 Read-model and UI layers should surface those entries as explicit degraded
 states rather than silently dropping them from the watched set.
@@ -152,6 +161,8 @@ Persisted:
 
 - `version`
 - `workspaces[].workspace_path`
+- `workspaces[].watched_at`
+- `workspaces[].last_seen_at`
 
 Derived at read time:
 
@@ -160,27 +171,65 @@ Derived at read time:
 - branch name
 - whether the workspace is the repository's primary checkout or a linked
   worktree
+- whether a watched workspace currently presents as `active`, `completed`, or
+  `missing`
 - live harness status or dashboard summary fields
 
 The contract prefers deriving these facts from the current filesystem and Git
 state instead of persisting copies that can drift.
 
-## Deferred View State
+## Membership and User Action
 
-Dashboard-only view state is out of scope for this minimal watchlist contract.
+Watchlist membership is binary in this first contract:
 
-In particular, fields such as:
+- a workspace is watched because a record exists in `watchlist.json`
+- a workspace stops being watched only through `unwatch`, which removes that
+  record from the watchlist
 
-- `hidden`
-- completion filtering
-- manual dismissal or archive-like dashboard preferences
+This contract does not define a separate dashboard-local `hidden` state.
 
-must not be folded into the minimal persisted watchlist record defined here.
+The first contract keeps one explicit user-controlled action:
 
-Those concerns belong to a later local view-model or lifecycle contract once
-the dashboard behavior is ready to define. That later dashboard-local state
-should live in a separate machine-local companion artifact rather than
-retrofitting UI-only fields into `watchlist.json`.
+- `unwatch`
+  - remove the watched workspace record from `watchlist.json`
+  - stop including that workspace in the watched set and dashboard read model
+
+If a later command such as `harness status` re-registers the same workspace,
+that creates a new watched record again under the ordinary watchlist rules.
+
+## Derived Lifecycle States
+
+The first contract keeps dashboard lifecycle classification derived instead of
+persisted.
+
+At minimum, later read-model and UI work may classify a watched workspace as:
+
+- `active`
+- `completed`
+- `missing`
+
+These are read-time states for currently watched entries, not membership
+transitions stored in the watchlist file.
+
+In particular:
+
+- a harness plan moving through `archive` or back to `idle` does not remove
+  the workspace from the watchlist
+- deleting the local directory does not remove the workspace from the
+  watchlist by itself; it instead becomes a `missing` watched workspace until
+  the user explicitly unwatches it
+
+## No Automatic GC In V1
+
+This first contract does not define silent automatic garbage collection.
+
+The watchlist is a remembered local set, not an auto-pruned mirror of the
+current filesystem. The combination of `last_seen_at`, derived `missing`
+status, and explicit `unwatch` is enough for the first slice.
+
+Later work may add user-facing cleanup or stale-item policies, but v1 should
+not silently discard watched entries just because they have gone idle,
+unreadable, or missing.
 
 ## Write Expectations
 
@@ -190,6 +239,9 @@ writer must preserve basic local integrity expectations:
 - writes must not silently drop unrelated existing workspace records
 - duplicate registration attempts must converge on one record per normalized
   `workspace_path`
+- rewriting an existing watched record should preserve `watched_at`
+- rewriting an existing watched record may refresh `last_seen_at` when the
+  watchlist-touching command successfully confirms the workspace
 - persistence should use crash-safe replacement rather than partial in-place
   writes when the file is rewritten
 - concurrent write paths must avoid last-writer-wins corruption that would
@@ -209,3 +261,5 @@ This spec does not:
 - define a dashboard read model beyond the persisted-versus-derived boundary
 - merge separate local clones into one project because they share a remote
 - support non-git watched directories in the first slice
+- define any dashboard-local `hidden` state or secondary visibility layer
+  beyond explicit `unwatch`
