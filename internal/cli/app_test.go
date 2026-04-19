@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -89,6 +90,23 @@ func TestPlanTemplateSizeFlagSeedsExplicitSize(t *testing.T) {
 	if !strings.Contains(stdout.String(), "size: XL") {
 		t.Fatalf("expected explicit size in template, got:\n%s", stdout.String())
 	}
+}
+
+func TestPlanTemplateDoesNotTouchWatchlist(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	home := t.TempDir()
+	app.UserHomeDir = func() (string, error) { return home, nil }
+
+	exitCode := app.Run([]string{
+		"plan", "template",
+		"--title", "Watchlist Exclusion",
+	})
+	if exitCode != 0 {
+		t.Fatalf("plan template failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistAbsent(t, home)
 }
 
 func TestVersionFlagPrintsJSONBuildInfo(t *testing.T) {
@@ -361,7 +379,9 @@ func TestInstructionsInstallCommandWritesManagedAssets(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 	root := t.TempDir()
+	home := t.TempDir()
 	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
 
 	exitCode := app.Run([]string{"instructions", "install"})
 	if exitCode != 0 {
@@ -378,6 +398,7 @@ func TestInstructionsInstallCommandWritesManagedAssets(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "AGENTS.md")); err != nil {
 		t.Fatalf("expected AGENTS.md to be written: %v", err)
 	}
+	assertWatchlistAbsent(t, home)
 }
 
 func TestSkillsCommandRejectsInvalidScope(t *testing.T) {
@@ -472,12 +493,219 @@ func TestStatusCommandReturnsJSON(t *testing.T) {
 	}
 }
 
+func TestStatusCommandTouchesWatchlistForIdleWorkspace(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	home := t.TempDir()
+	seedGitWorkspace(t, root)
+	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 15, 0, 0, 0, time.UTC)
+	}
+
+	exitCode := app.Run([]string{"status"})
+	if exitCode != 0 {
+		t.Fatalf("status command failed with %d: %s", exitCode, stderr.String())
+	}
+
+	data, err := os.ReadFile(filepath.Join(home, ".easyharness", "watchlist.json"))
+	if err != nil {
+		t.Fatalf("expected watchlist file after status, err=%v", err)
+	}
+	var payload struct {
+		Workspaces []struct {
+			WorkspacePath string `json:"workspace_path"`
+		} `json:"workspaces"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("decode watchlist: %v\n%s", err, data)
+	}
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("resolve canonical workspace: %v", err)
+	}
+	if len(payload.Workspaces) != 1 || payload.Workspaces[0].WorkspacePath != canonicalRoot {
+		t.Fatalf("unexpected watchlist payload: %#v", payload)
+	}
+}
+
+func TestStatusCommandTouchesWatchlistForIdleLinkedWorktree(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	repoRoot := filepath.Join(t.TempDir(), "workspace")
+	home := t.TempDir()
+	initGitRepoWithCommit(t, repoRoot)
+	linked := filepath.Join(t.TempDir(), "linked-worktree")
+	runGit(t, repoRoot, "worktree", "add", "-b", "linked-status-branch", linked, "HEAD")
+	app.Getwd = func() (string, error) { return linked, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 15, 5, 0, 0, time.UTC)
+	}
+
+	exitCode := app.Run([]string{"status"})
+	if exitCode != 0 {
+		t.Fatalf("status command failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistContainsWorkspace(t, home, linked)
+}
+
+func TestStatusCommandDoesNotTouchWatchlistOutsideGitWorkspace(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	home := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
+
+	exitCode := app.Run([]string{"status"})
+	if exitCode != 0 {
+		t.Fatalf("status command failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistAbsent(t, home)
+}
+
+func TestPlanLintDoesNotTouchWatchlist(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	home := t.TempDir()
+	app.UserHomeDir = func() (string, error) { return home, nil }
+	outputPath := filepath.Join(t.TempDir(), "docs/plans/active/2026-03-17-test-plan.md")
+
+	if exitCode := app.Run([]string{
+		"plan", "template",
+		"--title", "CLI Generated Plan",
+		"--output", outputPath,
+	}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
+	ensurePlanSizeInFile(t, outputPath, "M")
+
+	stdout.Reset()
+	stderr.Reset()
+	exitCode := app.Run([]string{"plan", "lint", outputPath})
+	if exitCode != 0 {
+		t.Fatalf("lint command failed with %d: %s", exitCode, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(home, ".easyharness", "watchlist.json")); !os.IsNotExist(err) {
+		t.Fatalf("expected plan lint to avoid touching watchlist, err=%v", err)
+	}
+}
+
+func TestStatusCommandIgnoresWatchlistWriteFailure(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	seedGitWorkspace(t, root)
+	app.Getwd = func() (string, error) { return root, nil }
+	app.LookupEnv = func(string) (string, bool) { return "", false }
+	app.UserHomeDir = func() (string, error) { return "", errors.New("watchlist-home-boom") }
+
+	exitCode := app.Run([]string{"status"})
+	if exitCode != 0 {
+		t.Fatalf("expected status to succeed despite watchlist failure, got %d: %s", exitCode, stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON status output: %v\n%s", err, stdout.String())
+	}
+	if ok, _ := payload["ok"].(bool); !ok {
+		t.Fatalf("expected status success payload, got %#v", payload)
+	}
+}
+
+func TestVersionCommandDoesNotTouchWatchlist(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	home := t.TempDir()
+	app.UserHomeDir = func() (string, error) { return home, nil }
+
+	exitCode := app.Run([]string{"--version"})
+	if exitCode != 0 {
+		t.Fatalf("version command failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistAbsent(t, home)
+}
+
+func TestHelpDoesNotTouchWatchlist(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	home := t.TempDir()
+	app.UserHomeDir = func() (string, error) { return home, nil }
+
+	exitCode := app.Run([]string{"help"})
+	if exitCode != 0 {
+		t.Fatalf("help command failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistAbsent(t, home)
+}
+
+func TestInitDryRunDoesNotTouchWatchlist(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	home := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
+
+	exitCode := app.Run([]string{"init", "--dry-run"})
+	if exitCode != 0 {
+		t.Fatalf("init --dry-run failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistAbsent(t, home)
+}
+
+func TestSkillsInstallDryRunDoesNotTouchWatchlist(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	home := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
+
+	exitCode := app.Run([]string{"skills", "install", "--dry-run"})
+	if exitCode != 0 {
+		t.Fatalf("skills install --dry-run failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistAbsent(t, home)
+}
+
+func TestUIHelpDoesNotTouchWatchlist(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	home := t.TempDir()
+	app.UserHomeDir = func() (string, error) { return home, nil }
+
+	exitCode := app.Run([]string{"ui", "--help"})
+	if exitCode != 0 {
+		t.Fatalf("ui help failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistAbsent(t, home)
+}
+
 func TestExecuteStartCommandReturnsJSON(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 	root := t.TempDir()
+	home := t.TempDir()
+	seedGitWorkspace(t, root)
 	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
 	app.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 15, 0, 0, 0, time.FixedZone("CST", 8*60*60))
 	}
@@ -515,6 +743,65 @@ func TestExecuteStartCommandReturnsJSON(t *testing.T) {
 	}
 	if timelineResult.Events[0].Command != "plan" || timelineResult.Events[1].Command != "execute start" {
 		t.Fatalf("unexpected execute-start timeline events: %#v", timelineResult.Events)
+	}
+	assertWatchlistContainsWorkspace(t, home, root)
+}
+
+func TestPlanApproveTouchesWatchlist(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	home := t.TempDir()
+	seedGitWorkspace(t, root)
+	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 14, 55, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+
+	outputPath := filepath.Join(root, "docs/plans/active/2026-03-18-test-plan.md")
+	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Approve Plan", "--output", outputPath}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+	ensurePlanSizeInFile(t, outputPath, "M")
+
+	stdout.Reset()
+	stderr.Reset()
+	if exitCode := app.Run([]string{"plan", "approve", "--by", "human"}); exitCode != 0 {
+		t.Fatalf("plan approve failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistContainsWorkspace(t, home, root)
+}
+
+func TestExecuteStartIgnoresWatchlistWriteFailure(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	seedGitWorkspace(t, root)
+	app.Getwd = func() (string, error) { return root, nil }
+	app.LookupEnv = func(string) (string, bool) { return "", false }
+	app.UserHomeDir = func() (string, error) { return "", errors.New("watchlist-home-boom") }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 15, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+
+	outputPath := filepath.Join(root, "docs/plans/active/2026-03-18-test-plan.md")
+	if exitCode := app.Run([]string{
+		"plan", "template",
+		"--title", "CLI Generated Plan",
+		"--output", outputPath,
+	}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
+
+	stdout.Reset()
+	stderr.Reset()
+	exitCode := app.Run([]string{"execute", "start"})
+	if exitCode != 0 {
+		t.Fatalf("expected execute start to succeed despite watchlist failure, got %d: %s", exitCode, stderr.String())
 	}
 }
 
@@ -565,7 +852,10 @@ func TestEvidenceSubmitCommandReturnsJSON(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 	root := t.TempDir()
+	home := t.TempDir()
+	seedGitWorkspace(t, root)
 	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
 	app.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 6, 0, 0, 0, time.UTC)
 	}
@@ -595,6 +885,32 @@ func TestEvidenceSubmitCommandReturnsJSON(t *testing.T) {
 	}
 	if timelineResult.Events[0].Command != "plan" || timelineResult.Events[1].Command != "evidence submit" {
 		t.Fatalf("unexpected evidence timeline events: %#v", timelineResult.Events)
+	}
+	assertWatchlistContainsWorkspace(t, home, root)
+}
+
+func TestEvidenceSubmitIgnoresWatchlistWriteFailure(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	seedGitWorkspace(t, root)
+	app.Getwd = func() (string, error) { return root, nil }
+	app.LookupEnv = func(string) (string, bool) { return "", false }
+	app.UserHomeDir = func() (string, error) { return "", errors.New("watchlist-home-boom") }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 6, 0, 0, 0, time.UTC)
+	}
+
+	writeArchivedPlanForCLI(t, root, "docs/plans/archived/2026-03-18-landed-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-landed-plan.md"); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+
+	app.Stdin = bytes.NewBufferString(`{"status":"success","provider":"github-actions"}`)
+	exitCode := app.Run([]string{"evidence", "submit", "--kind", "ci"})
+	if exitCode != 0 {
+		t.Fatalf("expected evidence submit to succeed despite watchlist failure, got %d: %s", exitCode, stderr.String())
 	}
 }
 
@@ -682,6 +998,91 @@ func TestReviewStartCommandAppendsTimelineEvent(t *testing.T) {
 	last := timelineResult.Events[len(timelineResult.Events)-1]
 	if last.Command != "review start" {
 		t.Fatalf("unexpected review-start timeline event: %#v", last)
+	}
+}
+
+func TestReviewCommandsTouchWatchlist(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	home := t.TempDir()
+	anchor := initGitRepoWithCommit(t, root)
+	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 15, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+
+	outputPath := filepath.Join(root, "docs/plans/active/2026-03-18-test-plan.md")
+	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Review Touch Plan", "--output", outputPath}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
+	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
+		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
+	}
+	if err := os.Remove(watchlistPathForHome(home)); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("remove watchlist after execute start: %v", err)
+	}
+
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
+		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistContainsWorkspace(t, home, root)
+	if err := os.Remove(watchlistPathForHome(home)); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("remove watchlist after review start: %v", err)
+	}
+
+	app.Stdin = bytes.NewBufferString(`{"summary":"Looks good.","findings":[]}`)
+	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness", "--by", "reviewer-correctness"}); exitCode != 0 {
+		t.Fatalf("review submit failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistContainsWorkspace(t, home, root)
+	if err := os.Remove(watchlistPathForHome(home)); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("remove watchlist after review submit: %v", err)
+	}
+
+	if exitCode := app.Run([]string{"review", "aggregate", "--round", "review-001-delta"}); exitCode != 0 {
+		t.Fatalf("review aggregate failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistContainsWorkspace(t, home, root)
+}
+
+func TestReviewAggregateIgnoresWatchlistWriteFailure(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	anchor := initGitRepoWithCommit(t, root)
+	app.Getwd = func() (string, error) { return root, nil }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 15, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+
+	outputPath := filepath.Join(root, "docs/plans/active/2026-03-18-test-plan.md")
+	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Review Failure Plan", "--output", outputPath}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
+	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
+		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
+	}
+
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
+		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
+	}
+	app.Stdin = bytes.NewBufferString(`{"summary":"Looks good.","findings":[]}`)
+	if exitCode := app.Run([]string{"review", "submit", "--round", "review-001-delta", "--slot", "correctness", "--by", "reviewer-correctness"}); exitCode != 0 {
+		t.Fatalf("review submit failed with %d: %s", exitCode, stderr.String())
+	}
+
+	app.LookupEnv = func(string) (string, bool) { return "", false }
+	app.UserHomeDir = func() (string, error) { return "", errors.New("watchlist-home-boom") }
+	if exitCode := app.Run([]string{"review", "aggregate", "--round", "review-001-delta"}); exitCode != 0 {
+		t.Fatalf("expected review aggregate to succeed despite watchlist failure, got %d: %s", exitCode, stderr.String())
 	}
 }
 
@@ -992,7 +1393,10 @@ func TestArchiveCommandAppendsTimelineEvent(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 	root := t.TempDir()
+	home := t.TempDir()
+	seedGitWorkspace(t, root)
 	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
 	app.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 16, 0, 0, 0, time.UTC)
 	}
@@ -1030,6 +1434,7 @@ func TestArchiveCommandAppendsTimelineEvent(t *testing.T) {
 	assertLifecycleEnvelope(t, payload, "execution/finalize/publish", 1)
 
 	assertLastTimelineEventCommand(t, root, "archive")
+	assertWatchlistContainsWorkspace(t, home, root)
 }
 
 func TestLandCommandReturnsJSON(t *testing.T) {
@@ -1037,7 +1442,10 @@ func TestLandCommandReturnsJSON(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 	root := t.TempDir()
+	home := t.TempDir()
+	seedGitWorkspace(t, root)
 	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
 	app.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 6, 0, 0, 0, time.UTC)
 	}
@@ -1070,6 +1478,7 @@ func TestLandCommandReturnsJSON(t *testing.T) {
 	}
 
 	assertLastTimelineEventCommand(t, root, "land")
+	assertWatchlistContainsWorkspace(t, home, root)
 }
 
 func TestReopenNewStepCommandReturnsJSON(t *testing.T) {
@@ -1077,7 +1486,10 @@ func TestReopenNewStepCommandReturnsJSON(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 	root := t.TempDir()
+	home := t.TempDir()
+	seedGitWorkspace(t, root)
 	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
 	app.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 7, 0, 0, 0, time.UTC)
 	}
@@ -1133,6 +1545,7 @@ func TestReopenNewStepCommandReturnsJSON(t *testing.T) {
 	if len(statusResult.NextAction) == 0 || !strings.Contains(statusResult.NextAction[0].Description, "Add a new unfinished step") {
 		t.Fatalf("expected new-step guidance after reopen, got %#v", statusResult.NextAction)
 	}
+	assertWatchlistContainsWorkspace(t, home, root)
 }
 
 func TestReopenFinalizeFixCommandReturnsJSON(t *testing.T) {
@@ -1140,7 +1553,10 @@ func TestReopenFinalizeFixCommandReturnsJSON(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 	root := t.TempDir()
+	home := t.TempDir()
+	seedGitWorkspace(t, root)
 	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
 	app.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 7, 15, 0, 0, time.UTC)
 	}
@@ -1191,6 +1607,7 @@ func TestReopenFinalizeFixCommandReturnsJSON(t *testing.T) {
 	}
 
 	assertLastTimelineEventCommand(t, root, "reopen")
+	assertWatchlistContainsWorkspace(t, home, root)
 }
 
 func TestReopenCommandRequiresMode(t *testing.T) {
@@ -1362,7 +1779,10 @@ func TestLandCompleteCommandReturnsJSON(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 	root := t.TempDir()
+	home := t.TempDir()
+	seedGitWorkspace(t, root)
 	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
 	app.Now = func() time.Time {
 		return time.Date(2026, 3, 18, 6, 0, 0, 0, time.UTC)
 	}
@@ -1399,6 +1819,7 @@ func TestLandCompleteCommandReturnsJSON(t *testing.T) {
 	}
 
 	assertLastTimelineEventCommand(t, root, "land complete")
+	assertWatchlistContainsWorkspace(t, home, root)
 }
 
 func TestLandCommandRejectsActivePlanWithoutWritingLandedMarker(t *testing.T) {
@@ -1679,4 +2100,69 @@ func approvePlanInFile(t *testing.T, path, approvedAt string) {
 		}
 	}
 	t.Fatalf("created_at frontmatter line not found in %s", path)
+}
+
+func watchlistPathForHome(home string) string {
+	return filepath.Join(home, ".easyharness", "watchlist.json")
+}
+
+func assertWatchlistAbsent(t *testing.T, home string) {
+	t.Helper()
+	if _, err := os.Stat(watchlistPathForHome(home)); !os.IsNotExist(err) {
+		t.Fatalf("expected no watchlist at %s, err=%v", watchlistPathForHome(home), err)
+	}
+}
+
+func assertWatchlistContainsWorkspace(t *testing.T, home, root string) {
+	t.Helper()
+	data, err := os.ReadFile(watchlistPathForHome(home))
+	if err != nil {
+		t.Fatalf("read watchlist file: %v", err)
+	}
+	var payload struct {
+		Workspaces []struct {
+			WorkspacePath string `json:"workspace_path"`
+		} `json:"workspaces"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("decode watchlist file: %v\n%s", err, data)
+	}
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("resolve canonical workspace: %v", err)
+	}
+	if len(payload.Workspaces) != 1 || payload.Workspaces[0].WorkspacePath != canonicalRoot {
+		t.Fatalf("unexpected watchlist payload: %#v", payload)
+	}
+}
+
+func seedGitWorkspace(t *testing.T, root string) {
+	t.Helper()
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("mkdir git workspace root %q: %v", root, err)
+	}
+	runGit(t, root, "init")
+	runGit(t, root, "config", "user.name", "Codex Test")
+	runGit(t, root, "config", "user.email", "codex@example.com")
+}
+
+func initGitRepoWithCommit(t *testing.T, root string) string {
+	t.Helper()
+	seedGitWorkspace(t, root)
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("test repo\n"), 0o644); err != nil {
+		t.Fatalf("write git fixture file: %v", err)
+	}
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-m", "test fixture")
+	return runGit(t, root, "rev-parse", "HEAD")
+}
+
+func runGit(t *testing.T, root string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
+	}
+	return strings.TrimSpace(string(output))
 }

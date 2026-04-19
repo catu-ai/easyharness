@@ -39,6 +39,16 @@ The watchlist file lives at:
 
 - `~/.easyharness/watchlist.json`
 
+If `EASYHARNESS_HOME` is set to a non-empty path:
+
+- an absolute value places the watchlist at
+  `$EASYHARNESS_HOME/watchlist.json`
+- a relative value is resolved under the current user's home directory before
+  writing, so `relative-home` means
+  `~/relative-home/watchlist.json`
+- a relative value that would escape above the user's home directory, such as
+  `../escape`, is invalid and must be rejected
+
 This location is machine-local and user-private. It is not a repository-shared
 artifact and must not be written into the repository itself.
 
@@ -86,12 +96,12 @@ The minimal persisted workspace record is intentionally small:
 This contract does not require any additional persisted per-workspace fields in
 the first slice.
 
-Major harness commands that successfully confirm the current workspace locally
-may refresh `last_seen_at`, not just explicit watchlist-management commands.
-The exact command list is an implementation detail, but the intended shape for
-the dashboard is that routine successful commands such as `harness status`,
-`harness plan lint`, or `harness review start` can keep the recency signal
-fresh when they pass through one shared watchlist writer.
+Successful core harness workflow commands may refresh `last_seen_at`, not just
+explicit watchlist-management commands. The exact command list is an
+implementation detail, but the intended shape for the dashboard is that
+routine successful workflow confirmations such as `harness status`,
+`harness review start`, or lifecycle/evidence commands can keep the recency
+signal fresh when they pass through one shared watchlist writer.
 
 ## Path Normalization and Uniqueness
 
@@ -108,7 +118,9 @@ This spec intentionally does not fix every platform-specific normalization
 detail yet. Later implementation may need to clarify symlink or case-folding
 rules per platform, but it must still preserve one clear rule: repeated
 registration of the same local workspace must converge on one canonical
-`workspace_path` record rather than creating duplicates.
+`workspace_path` record rather than creating duplicates. Repeated touch of the
+same workspace may refresh `last_seen_at`, but it should preserve the original
+`watched_at`.
 
 ## Identity Model
 
@@ -164,8 +176,8 @@ If a previously watched `workspace_path` later becomes:
 - unreadable
 - no longer a valid Git-backed workspace
 
-the watchlist record should remain present until a later local lifecycle action
-explicitly unwatches it.
+the watchlist record should remain present until later explicit
+membership-removal behavior exists and removes it.
 
 Read-model and UI layers should surface those entries as explicit degraded
 states rather than silently dropping them from the watched set.
@@ -221,19 +233,13 @@ state instead of persisting copies that can drift.
 Watchlist membership is binary in this first contract:
 
 - a workspace is watched because a record exists in `watchlist.json`
-- a workspace stops being watched only through `unwatch`, which removes that
-  record from the watchlist
+- this touch-foundation slice does not yet define a membership-removal command
 
 This contract does not define a separate dashboard-local `hidden` state.
 
-The first contract keeps one explicit user-controlled action:
-
-- `unwatch`
-  - remove the watched workspace record from `watchlist.json`
-  - stop including that workspace in the watched set and dashboard read model
-
-If a later command such as `harness status` re-registers the same workspace,
-that creates a new watched record again under the ordinary watchlist rules.
+Future work may add an explicit local action such as `unwatch` to remove a
+workspace record from `watchlist.json`, but that user-facing removal path is
+deferred beyond this machine-local touch foundation.
 
 ## Derived Lifecycle States
 
@@ -256,7 +262,7 @@ In particular:
   the workspace from the watchlist
 - deleting the local directory does not remove the workspace from the
   watchlist by itself; it instead becomes a `missing` watched workspace until
-  the user explicitly unwatches it
+  later explicit membership-removal behavior exists and removes it
 - a permissions or probe failure may surface as `unreadable` without removing
   the workspace from the watchlist
 
@@ -266,7 +272,8 @@ This first contract does not define silent automatic garbage collection.
 
 The watchlist is a remembered local set, not an auto-pruned mirror of the
 current filesystem. The combination of `last_seen_at`, derived `missing`
-status, and explicit `unwatch` is enough for the first slice.
+status, and deferred explicit membership-removal behavior is enough for this
+touch-foundation slice.
 
 Later work may add user-facing cleanup or stale-item policies, but v1 should
 not silently discard watched entries just because they have gone idle,
@@ -295,12 +302,17 @@ writer must preserve basic local integrity expectations:
 - rewriting an existing watched record should preserve `watched_at`
 - rewriting an existing watched record may refresh `last_seen_at` when the
   watchlist-touching command successfully confirms the workspace
-- major harness commands should refresh `last_seen_at` through one shared
-  watchlist writer rather than ad hoc per-command file mutation paths
+- major core workflow commands should refresh `last_seen_at` through one
+  shared watchlist writer rather than ad hoc per-command file mutation paths
 - persistence should use crash-safe replacement rather than partial in-place
   writes when the file is rewritten
 - concurrent write paths must avoid last-writer-wins corruption that would
   lose another workspace record
+
+Because the watchlist is a machine-local dashboard/index aid rather than the
+workflow control plane, watchlist persistence should be treated as a
+best-effort side effect. A watchlist write failure should not by itself change
+the success/failure result of an otherwise successful core workflow command.
 
 The exact file-locking or mutation-coordination mechanism is an implementation
 detail for later work, but these integrity expectations are part of the

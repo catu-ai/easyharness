@@ -66,6 +66,12 @@ harness ui
 UI for human steering: the place to inspect the current plan, workflow status,
 and execution summaries without reconstructing the story from shell history.
 
+Machine-local easyharness watchlist data defaults under `~/.easyharness`. Set
+`EASYHARNESS_HOME` to override that root when you want `watchlist.json` to
+live somewhere else on the current machine. Absolute values are used as-is;
+relative values are anchored under your home directory, and escaping relative
+paths such as `../escape` are rejected.
+
 ## Stability
 
 `easyharness` is evolving quickly, and breaking changes may happen between

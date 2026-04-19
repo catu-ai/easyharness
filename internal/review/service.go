@@ -27,11 +27,14 @@ var saveState = runstate.SaveState
 var writeJSON = writeJSONFile
 
 type Service struct {
-	Workdir        string
-	Now            func() time.Time
-	AfterStart     func(StartResult) error
-	AfterSubmit    func(SubmitResult) error
-	AfterAggregate func(AggregateResult) error
+	Workdir               string
+	Now                   func() time.Time
+	AfterStart            func(StartResult) error
+	AfterSubmit           func(SubmitResult) error
+	AfterAggregate        func(AggregateResult) error
+	AfterStartSuccess     func(StartResult)
+	AfterSubmitSuccess    func(SubmitResult)
+	AfterAggregateSuccess func(AggregateResult)
 }
 
 type Spec = contracts.ReviewSpec
@@ -1172,6 +1175,9 @@ func buildAggregateNextActions(kind, decision string) []NextAction {
 
 func (s Service) finalizeStart(result StartResult, rollback func() []CommandError) StartResult {
 	if !result.OK || s.AfterStart == nil {
+		if result.OK && s.AfterStartSuccess != nil {
+			s.AfterStartSuccess(result)
+		}
 		return result
 	}
 	if err := s.AfterStart(result); err != nil {
@@ -1186,11 +1192,17 @@ func (s Service) finalizeStart(result StartResult, rollback func() []CommandErro
 			Errors:  issues,
 		}
 	}
+	if s.AfterStartSuccess != nil {
+		s.AfterStartSuccess(result)
+	}
 	return result
 }
 
 func (s Service) finalizeSubmit(result SubmitResult, rollback func() []CommandError) SubmitResult {
 	if !result.OK || s.AfterSubmit == nil {
+		if result.OK && s.AfterSubmitSuccess != nil {
+			s.AfterSubmitSuccess(result)
+		}
 		return result
 	}
 	if err := s.AfterSubmit(result); err != nil {
@@ -1205,11 +1217,17 @@ func (s Service) finalizeSubmit(result SubmitResult, rollback func() []CommandEr
 			Errors:  issues,
 		}
 	}
+	if s.AfterSubmitSuccess != nil {
+		s.AfterSubmitSuccess(result)
+	}
 	return result
 }
 
 func (s Service) finalizeAggregate(result AggregateResult, rollback func() []CommandError) AggregateResult {
 	if !result.OK || s.AfterAggregate == nil {
+		if result.OK && s.AfterAggregateSuccess != nil {
+			s.AfterAggregateSuccess(result)
+		}
 		return result
 	}
 	if err := s.AfterAggregate(result); err != nil {
@@ -1223,6 +1241,9 @@ func (s Service) finalizeAggregate(result AggregateResult, rollback func() []Com
 			Summary: "Unable to record the timeline event for the successful command result.",
 			Errors:  issues,
 		}
+	}
+	if s.AfterAggregateSuccess != nil {
+		s.AfterAggregateSuccess(result)
 	}
 	return result
 }

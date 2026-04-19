@@ -20,6 +20,7 @@ type Service struct {
 	Workdir       string
 	Now           func() time.Time
 	AfterMutation func(Result) error
+	AfterSuccess  func(Result)
 }
 
 type Result = contracts.LifecycleResult
@@ -945,6 +946,9 @@ func errorResult(command, summary string, errors []CommandError) Result {
 
 func (s Service) finalizeMutation(result Result, rollback func() []CommandError) Result {
 	if !result.OK || s.AfterMutation == nil {
+		if result.OK && s.AfterSuccess != nil {
+			s.AfterSuccess(result)
+		}
 		return result
 	}
 	if err := s.AfterMutation(result); err != nil {
@@ -953,6 +957,9 @@ func (s Service) finalizeMutation(result Result, rollback func() []CommandError)
 			issues = append(issues, rollback()...)
 		}
 		return errorResult(result.Command, "Unable to record the timeline event for the successful command result.", issues)
+	}
+	if s.AfterSuccess != nil {
+		s.AfterSuccess(result)
 	}
 	return result
 }

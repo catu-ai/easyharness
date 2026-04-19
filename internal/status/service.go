@@ -19,7 +19,8 @@ import (
 )
 
 type Service struct {
-	Workdir string
+	Workdir      string
+	AfterSuccess func(Result)
 }
 
 type Result = contracts.StatusResult
@@ -78,7 +79,7 @@ func (s Service) read(acquireLock bool) Result {
 	planPath, err := plan.DetectCurrentPath(s.Workdir)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoCurrentPlan) {
-			return idleResult(s.Workdir, currentPlan)
+			return s.finalizeRead(idleResult(s.Workdir, currentPlan))
 		}
 		return Result{
 			OK:      false,
@@ -278,6 +279,14 @@ func (s Service) read(acquireLock bool) Result {
 		result.Artifacts = nil
 	}
 
+	return s.finalizeRead(result)
+}
+
+func (s Service) finalizeRead(result Result) Result {
+	if !result.OK || s.AfterSuccess == nil {
+		return result
+	}
+	s.AfterSuccess(result)
 	return result
 }
 

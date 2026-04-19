@@ -22,25 +22,30 @@ import (
 	"github.com/catu-ai/easyharness/internal/status"
 	"github.com/catu-ai/easyharness/internal/ui"
 	versioninfo "github.com/catu-ai/easyharness/internal/version"
+	"github.com/catu-ai/easyharness/internal/watchlist"
 )
 
 type App struct {
-	Stdout  io.Writer
-	Stderr  io.Writer
-	Stdin   io.Reader
-	Now     func() time.Time
-	Getwd   func() (string, error)
-	Version func() versioninfo.Info
+	Stdout      io.Writer
+	Stderr      io.Writer
+	Stdin       io.Reader
+	Now         func() time.Time
+	Getwd       func() (string, error)
+	LookupEnv   func(string) (string, bool)
+	UserHomeDir func() (string, error)
+	Version     func() versioninfo.Info
 }
 
 func New(stdout, stderr io.Writer) *App {
 	return &App{
-		Stdout:  stdout,
-		Stderr:  stderr,
-		Stdin:   os.Stdin,
-		Now:     time.Now,
-		Getwd:   os.Getwd,
-		Version: versioninfo.Current,
+		Stdout:      stdout,
+		Stderr:      stderr,
+		Stdin:       os.Stdin,
+		Now:         time.Now,
+		Getwd:       os.Getwd,
+		LookupEnv:   os.LookupEnv,
+		UserHomeDir: os.UserHomeDir,
+		Version:     versioninfo.Current,
 	}
 }
 
@@ -263,7 +268,7 @@ func (a *App) runEvidenceSubmit(args []string) int {
 			"input": json.RawMessage(inputBytes),
 		}),
 	}.Submit(*kind, inputBytes)
-	return a.writeJSONResult(result)
+	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
 func (a *App) runLandEntry(args []string) int {
@@ -301,7 +306,7 @@ func (a *App) runLandEntry(args []string) int {
 			"commit": strings.TrimSpace(*commit),
 		}),
 	}.Land(*prURL, *commit)
-	return a.writeJSONResult(result)
+	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
 func (a *App) runInit(args []string) int {
@@ -682,7 +687,7 @@ func (a *App) runPlanApprove(args []string) int {
 			"by": strings.TrimSpace(*by),
 		}),
 	}.PlanApprove(*by)
-	return a.writeJSONResult(result)
+	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
 func (a *App) runStatus(args []string) int {
@@ -711,16 +716,7 @@ func (a *App) runStatus(args []string) int {
 	}
 
 	result := status.Service{Workdir: workdir}.Read()
-	encoder := json.NewEncoder(a.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(result); err != nil {
-		fmt.Fprintf(a.Stderr, "encode status result: %v\n", err)
-		return 1
-	}
-	if result.OK {
-		return 0
-	}
-	return 1
+	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
 func (a *App) runReviewStart(args []string) int {
@@ -761,7 +757,7 @@ func (a *App) runReviewStart(args []string) int {
 		Now:        a.Now,
 		AfterStart: reviewStartTimelineHook(workdir, beforeStatus, recordedAt, specBytes),
 	}.Start(specBytes)
-	return a.writeJSONResult(result)
+	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
 func (a *App) runReviewSubmit(args []string) int {
@@ -806,7 +802,7 @@ func (a *App) runReviewSubmit(args []string) int {
 			"input": json.RawMessage(inputBytes),
 		}),
 	}.Submit(*roundID, *slot, *by, inputBytes)
-	return a.writeJSONResult(result)
+	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
 func (a *App) runReviewAggregate(args []string) int {
@@ -840,7 +836,7 @@ func (a *App) runReviewAggregate(args []string) int {
 		Now:            a.Now,
 		AfterAggregate: reviewAggregateTimelineHook(workdir, beforeStatus, recordedAt, map[string]any{"round_id": *roundID}),
 	}.Aggregate(*roundID)
-	return a.writeJSONResult(result)
+	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
 func (a *App) runExecuteStart(args []string) int {
@@ -873,7 +869,7 @@ func (a *App) runExecuteStart(args []string) int {
 		Now:           a.Now,
 		AfterMutation: lifecycleTimelineHook(workdir, beforeStatus, recordedAt, nil),
 	}.ExecuteStart()
-	return a.writeJSONResult(result)
+	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
 func (a *App) runLandComplete(args []string) int {
@@ -906,7 +902,7 @@ func (a *App) runLandComplete(args []string) int {
 		Now:           a.Now,
 		AfterMutation: lifecycleTimelineHook(workdir, beforeStatus, recordedAt, nil),
 	}.LandComplete()
-	return a.writeJSONResult(result)
+	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
 func (a *App) runArchive(args []string) int {
@@ -939,7 +935,7 @@ func (a *App) runArchive(args []string) int {
 		Now:           a.Now,
 		AfterMutation: lifecycleTimelineHook(workdir, beforeStatus, recordedAt, nil),
 	}.Archive()
-	return a.writeJSONResult(result)
+	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
 func (a *App) runReopen(args []string) int {
@@ -973,7 +969,7 @@ func (a *App) runReopen(args []string) int {
 		Now:           a.Now,
 		AfterMutation: lifecycleTimelineHook(workdir, beforeStatus, recordedAt, map[string]any{"mode": *mode}),
 	}.Reopen(*mode)
-	return a.writeJSONResult(result)
+	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
 func (a *App) resolveTimestamp(timestampValue, dateValue string) (time.Time, error) {
@@ -1090,6 +1086,23 @@ func (f *stringListFlag) Set(value string) error {
 	return nil
 }
 
+func (a *App) touchWatchlist(workdir string) {
+	service := watchlist.Service{
+		LookupEnv:   a.LookupEnv,
+		UserHomeDir: a.UserHomeDir,
+		Now:         a.Now,
+	}
+	_ = service.Touch(workdir)
+}
+
+func (a *App) writeJSONResultForWorkdir(workdir string, value any) int {
+	exitCode := a.writeJSONResult(value)
+	if exitCode == 0 && watchlistTouchEnabled(value) {
+		a.touchWatchlist(workdir)
+	}
+	return exitCode
+}
+
 func (a *App) readInput(path string) ([]byte, error) {
 	if strings.TrimSpace(path) != "" {
 		return os.ReadFile(path)
@@ -1143,4 +1156,13 @@ func (a *App) writeJSONResult(value any) int {
 		}
 	}
 	return 1
+}
+
+func watchlistTouchEnabled(value any) bool {
+	switch value.(type) {
+	case evidence.Result, lifecycle.Result, review.AggregateResult, review.StartResult, review.SubmitResult, status.Result:
+		return true
+	default:
+		return false
+	}
 }

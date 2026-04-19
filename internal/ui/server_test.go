@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -54,6 +55,53 @@ func TestNewHandlerServesStatusJSON(t *testing.T) {
 	}
 	if payload.State.CurrentNode == "" {
 		t.Fatalf("expected current_node, got %#v", payload)
+	}
+}
+
+func TestNewHandlerStatusDoesNotTouchWatchlist(t *testing.T) {
+	workdir := filepath.Join(t.TempDir(), "workspace")
+	seedGitWorkspace(t, workdir)
+	home := t.TempDir()
+	t.Setenv("EASYHARNESS_HOME", home)
+
+	handler, err := NewHandler(workdir)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+	if _, err := os.Stat(filepath.Join(home, "watchlist.json")); !os.IsNotExist(err) {
+		t.Fatalf("expected UI status request to avoid watchlist writes, err=%v", err)
+	}
+}
+
+func TestUIReadSurfacesDoNotTouchWatchlist(t *testing.T) {
+	workdir := filepath.Join(t.TempDir(), "workspace")
+	seedGitWorkspace(t, workdir)
+	home := t.TempDir()
+	t.Setenv("EASYHARNESS_HOME", home)
+
+	handler, err := NewHandler(workdir)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	for _, path := range []string{"/api/status", "/api/plan", "/api/review", "/api/timeline", "/"} {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code >= http.StatusInternalServerError {
+			t.Fatalf("expected %s to avoid server error, got %d", path, recorder.Code)
+		}
+		if _, err := os.Stat(filepath.Join(home, "watchlist.json")); !os.IsNotExist(err) {
+			t.Fatalf("expected %s to avoid watchlist writes, err=%v", path, err)
+		}
 	}
 }
 
@@ -820,6 +868,75 @@ func TestServerRunPrintsListeningURLWithoutOpeningBrowser(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for server shutdown")
 	}
+}
+
+func TestServerRunStartupDoesNotTouchWatchlist(t *testing.T) {
+	logs := &lockedBuffer{}
+	workdir := filepath.Join(t.TempDir(), "workspace")
+	seedGitWorkspace(t, workdir)
+	home := t.TempDir()
+	t.Setenv("EASYHARNESS_HOME", home)
+
+	server := Server{
+		Workdir:     workdir,
+		Host:        "127.0.0.1",
+		Port:        0,
+		Stdout:      logs,
+		Stderr:      io.Discard,
+		OpenBrowser: false,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- server.Run(ctx)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(logs.String(), "Harness UI listening at http://") {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !strings.Contains(logs.String(), "Harness UI listening at http://") {
+		t.Fatalf("expected listening URL in stdout, got %q", logs.String())
+	}
+	if _, err := os.Stat(filepath.Join(home, "watchlist.json")); !os.IsNotExist(err) {
+		t.Fatalf("expected UI startup to avoid watchlist writes, err=%v", err)
+	}
+
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for server shutdown")
+	}
+}
+
+func seedGitWorkspace(t *testing.T, root string) {
+	t.Helper()
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("mkdir git workspace root %q: %v", root, err)
+	}
+	runGit(t, root, "init")
+	runGit(t, root, "config", "user.name", "Codex Test")
+	runGit(t, root, "config", "user.email", "codex@example.com")
+}
+
+func runGit(t *testing.T, root string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
+	}
+	return strings.TrimSpace(string(output))
 }
 
 func renderPlanFixture(t *testing.T, title string) string {
