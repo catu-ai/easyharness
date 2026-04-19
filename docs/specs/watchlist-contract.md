@@ -73,6 +73,8 @@ Contract:
 - `watched_at` records when the workspace first entered the watchlist
 - `last_seen_at` records the latest successful watchlist-touching harness
   command that confirmed this workspace locally
+- `last_seen_at` is the dashboard's recency signal for ordering watched
+  workspaces on the machine-local home page
 - duplicate `workspace_path` values are invalid
 
 The minimal persisted workspace record is intentionally small:
@@ -83,6 +85,13 @@ The minimal persisted workspace record is intentionally small:
 
 This contract does not require any additional persisted per-workspace fields in
 the first slice.
+
+Major harness commands that successfully confirm the current workspace locally
+may refresh `last_seen_at`, not just explicit watchlist-management commands.
+The exact command list is an implementation detail, but the intended shape for
+the dashboard is that routine successful commands such as `harness status`,
+`harness plan lint`, or `harness review start` can keep the recency signal
+fresh when they pass through one shared watchlist writer.
 
 ## Path Normalization and Uniqueness
 
@@ -116,6 +125,33 @@ This choice is intentionally local and path-oriented:
 If a workspace moves to a different path, that is a different watched
 workspace under this initial contract. The first contract does not attempt to
 preserve identity across path moves.
+
+## Dashboard Route Key
+
+The dashboard may expose watched workspaces through a route family such as:
+
+- `/workspace/<workspace_key>`
+
+For v1, `workspace_key` is a read-time derived value, not a persisted
+watchlist field.
+
+Contract:
+
+- the route key must be derived deterministically from canonical
+  `workspace_path`
+- the route key must be opaque enough that the dashboard does not need to
+  expose raw absolute paths in URLs
+- the watchlist file must not grow a separate persisted route-only
+  `workspace_id` field for this first slice
+- readers must be able to resolve `workspace_key` back to a watched workspace
+  by rereading the current watchlist and deriving keys again from canonical
+  `workspace_path`
+- if a reader encounters a route-key collision, it must surface an explicit
+  error rather than silently choosing one workspace
+
+The exact derivation algorithm is an implementation detail for later work so
+long as it remains deterministic for the same canonical `workspace_path`
+within a given implementation revision.
 
 ## Missing or Unreadable Workspaces
 
@@ -168,11 +204,13 @@ Derived at read time:
 
 - repository root or top-level path
 - local repository-family grouping key
+- dashboard route key derived from canonical `workspace_path`
 - branch name
 - whether the workspace is the repository's primary checkout or a linked
   worktree
-- whether a watched workspace currently presents as `active`, `completed`, or
-  `missing`
+- whether a watched workspace currently presents as `active`, `completed`,
+  `missing`, or another explicit degraded read-time state such as
+  `unreadable`
 - live harness status or dashboard summary fields
 
 The contract prefers deriving these facts from the current filesystem and Git
@@ -207,6 +245,7 @@ At minimum, later read-model and UI work may classify a watched workspace as:
 - `active`
 - `completed`
 - `missing`
+- `unreadable`
 
 These are read-time states for currently watched entries, not membership
 transitions stored in the watchlist file.
@@ -218,6 +257,8 @@ In particular:
 - deleting the local directory does not remove the workspace from the
   watchlist by itself; it instead becomes a `missing` watched workspace until
   the user explicitly unwatches it
+- a permissions or probe failure may surface as `unreadable` without removing
+  the workspace from the watchlist
 
 ## No Automatic GC In V1
 
@@ -231,6 +272,18 @@ Later work may add user-facing cleanup or stale-item policies, but v1 should
 not silently discard watched entries just because they have gone idle,
 unreadable, or missing.
 
+## Dashboard Routing Outcomes
+
+For dashboard workspace-detail routing:
+
+- a watched workspace that is now `missing` or `unreadable` should still
+  resolve to an explicit degraded workspace page rather than being silently
+  dropped or redirected away
+- a route key that does not match any current watched workspace should be
+  treated as "not currently watched"
+- the first dashboard slice does not need extra watchlist history state just
+  to distinguish "never watched" from "used to be watched and later unwatched"
+
 ## Write Expectations
 
 This spec does not define which command writes the watchlist, but any future
@@ -242,6 +295,8 @@ writer must preserve basic local integrity expectations:
 - rewriting an existing watched record should preserve `watched_at`
 - rewriting an existing watched record may refresh `last_seen_at` when the
   watchlist-touching command successfully confirms the workspace
+- major harness commands should refresh `last_seen_at` through one shared
+  watchlist writer rather than ad hoc per-command file mutation paths
 - persistence should use crash-safe replacement rather than partial in-place
   writes when the file is rewritten
 - concurrent write paths must avoid last-writer-wins corruption that would
