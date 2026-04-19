@@ -4,8 +4,10 @@
 
 This document is a non-normative proposal.
 
-It describes a recommended direction for a future `harness ui` surface. It
-does not change the current CLI, plan, or state contracts by itself.
+It describes the recommended steering-surface direction as the current
+single-workspace `harness ui` workbench evolves into a machine-local
+`harness dashboard`. It does not change the current CLI, plan, or state
+contracts by itself.
 
 ## Background
 
@@ -15,6 +17,8 @@ Two open issues define the current UI problem space:
   for local status and trajectory visualization
 - [Issue #70](https://github.com/catu-ai/easyharness/issues/70): define the
   human steering surface for harness UI and status
+- [Issue #163](https://github.com/catu-ai/easyharness/issues/163): decide the
+  v1 backend and entrypoint shape for the watchlist-backed dashboard
 
 Several interaction principles are already clear enough to state directly:
 
@@ -24,8 +28,8 @@ Several interaction principles are already clear enough to state directly:
 - file trees, diffs, and review artifacts need a document-style viewer
 - a global deck of all possible actions becomes noisy and hard to steer from
 
-This proposal turns those principles into a real `harness ui` direction for
-the current repository.
+This proposal turns those principles into the accepted direction for the
+dashboard-era steering surface in the current repository.
 
 ## Purpose
 
@@ -43,12 +47,13 @@ The UI should complement `harness status`, not replace it.
 
 ## Goals
 
-- provide a clear human steering surface for the current worktree
+- provide a clear human steering surface for the current machine-local
+  dashboard and the selected watched workspace
 - stay grounded in existing tracked files and `.local/harness` runtime
   artifacts
 - make `next actions`, blockers, and review state easy to understand
 - show plans, tracked diffs, review artifacts, and recent trajectory in one
-  dense local workbench
+  dense local workbench once a workspace is selected
 - minimize full-page scrolling and avoid multi-screen dashboard sprawl
 - keep the product visually calm, technical, and legible under sustained use
 
@@ -64,8 +69,10 @@ The UI should complement `harness status`, not replace it.
 
 ## Summary
 
-The recommended product shape is a local `harness ui` workbench for the
-current repository. It should feel closer to VS Code than to a dashboard:
+The recommended product shape is a local `harness dashboard` entrypoint with a
+dashboard home plus a dense workbench for each watched workspace. The
+workspace detail surface should still feel closer to VS Code than to a
+marketing-style dashboard:
 
 - narrow top bar
 - icon-only activity rail on the left
@@ -73,19 +80,43 @@ current repository. It should feel closer to VS Code than to a dashboard:
 - editor/detail pane on the right
 - collapsible bottom status drawer
 
-The UI should read from `harness status`, tracked plan files, git diff, and
-`.local/harness` artifacts. It should present those sources through a dense,
-document-oriented interface instead of inventing new product-only state.
+The dashboard should read from the machine-local watchlist plus
+`harness status`, tracked plan files, git diff, and `.local/harness`
+artifacts for the selected workspace. It should present those sources through
+one machine-local entrypoint and one dense document-oriented workspace surface
+instead of inventing new product-only state.
 
 ## Product Shape
 
 ### Entry Point
 
-`harness ui` should start a local server for the current working repository and
-open a local workbench surface.
+`harness dashboard` should be the explicit UI command starting in `0.3.0`.
+Running it should start one on-demand local server for the current command run
+and open a machine-local dashboard at `/dashboard`.
 
-It should inspect the actual current worktree and its harness artifacts rather
-than a disposable demo workspace.
+The command should work from any directory. The dashboard home should be backed
+by the machine-local watchlist rather than by the shell's current working
+directory.
+
+`harness dashboard` should not introduce:
+
+- a background daemon
+- singleton server reuse across separate command runs
+- implicit startup without an explicit command invocation
+
+### Transition from `harness ui`
+
+`harness ui` should be treated as a compatibility command during `0.3.x`, not
+as a long-term parallel product entrypoint.
+
+During that deprecation window:
+
+- `harness ui` should print a deprecation warning in the console
+- `harness ui` should still start a local UI session on demand
+- the opened surface should be the dashboard-owned workspace detail route for
+  the current workspace rather than a separate legacy workbench
+
+The goal is a smooth migration path, not two permanent UI products.
 
 ### Default Role
 
@@ -100,7 +131,7 @@ should be contextual and sparse rather than the main organizing principle.
 
 `harness status` remains the fast, scriptable, agent-facing summary.
 
-`harness ui` should provide:
+The steering surface should provide:
 
 - denser context
 - artifact navigation
@@ -108,23 +139,45 @@ should be contextual and sparse rather than the main organizing principle.
 - latest-change inspection
 - clearer human steering moments
 
-`harness ui` should not fork a second interpretation of workflow state. When
+The steering surface should not fork a second interpretation of workflow state. When
 possible, it should render the `harness status` view more richly rather than
 reinterpret it from scratch.
 
+### Relationship between Dashboard Home and Workspace Detail
+
+`/dashboard` is the machine-local home page.
+
+It should:
+
+- list watched workspaces
+- order them by recency using watchlist data
+- let the user enter a specific watched workspace
+- surface degraded watched entries such as missing or unreadable workspaces
+
+Workspace detail should live under `/workspace/<workspace_key>`.
+
+That route family should:
+
+- reuse the existing single-workspace workbench model
+- keep `Status` as the workspace overview page
+- preserve the current `Plan`, `Timeline`, and `Review` views instead of
+  inventing a second workspace-home shell
+
 ## Design Principles
 
-### One Page, Not a Dashboard
+### One Dense Workspace Page, Plus a Small Dashboard Home
 
-The main workbench should fit the important information on one screen:
+The selected-workspace workbench should fit the important information on one
+screen:
 
 - current status
 - next actions
 - changed files or active review evidence
 - recent trajectory
 
-The user should navigate panes, tabs, and drawers, not scroll through stacked
-marketing-style sections.
+The dashboard home may be more list-oriented, but it should still avoid
+stacked marketing-style sections and should hand off quickly into the dense
+workspace workbench.
 
 ### Dense and Quiet
 
@@ -192,7 +245,7 @@ VS Code.
 
 ### Activity Rail
 
-The left rail should use icons only. Recommended sections:
+The workspace-detail left rail should use icons only. Recommended sections:
 
 - Overview
 - Reviews
@@ -203,7 +256,7 @@ The rail should stay narrow and visually secondary.
 
 ### Overview
 
-Overview is the main steering entry.
+Within workspace detail, Overview is the main steering entry.
 
 It should show:
 
@@ -267,7 +320,8 @@ These controls should not live in the main header.
 
 ### Top Bar
 
-The top bar should be thin and mostly infrastructural:
+The top bar should be thin and mostly infrastructural in both the dashboard
+home and workspace detail:
 
 - repository or worktree path
 - connection or freshness indicator
@@ -275,6 +329,21 @@ The top bar should be thin and mostly infrastructural:
 
 It should not contain large branding or duplicate state already visible in the
 status drawer.
+
+### Dashboard Home
+
+The dashboard home should stay lightweight and machine-local.
+
+It should:
+
+- default to the watched-workspace list instead of a specific repo
+- sort watched workspaces by watchlist recency
+- make the current workspace easy to find without requiring direct-open flags
+- present missing or unreadable watched entries as explicit degraded rows
+
+The home page does not need a second dashboard-only workspace summary shell.
+Its job is to help the user pick a watched workspace and move into the
+existing workbench model.
 
 ### Explorer and Editor Panes
 
@@ -293,7 +362,7 @@ interaction model.
 The bottom drawer should be default-open on first load and collapsible after
 that.
 
-It should contain:
+Within workspace detail it should contain:
 
 - current node
 - status summary
@@ -370,21 +439,49 @@ Several interaction patterns are worth preserving:
 - visually heavy header and card-based layout
 - product energy spent on explaining the UI instead of helping a human steer
 
+## Routing and Degraded States
+
+### Workspace Route Model
+
+Workspace detail should use:
+
+- `/workspace/<workspace_key>`
+
+The route key should be an opaque deterministic value derived from the watched
+workspace's canonical path at read time. The URL should not expose the raw
+absolute path, and the watchlist should not grow a separate persisted
+route-only ID just to support the route family.
+
+### Missing, Unreadable, and Unknown Workspace Routes
+
+If a watched workspace is still in the watchlist but is currently missing or
+unreadable, `/workspace/<workspace_key>` should render a simple degraded page
+instead of failing hard or silently redirecting away.
+
+That degraded page may offer one local cleanup action:
+
+- `Unwatch`
+
+If the key does not match any currently watched workspace, the route should be
+treated as not currently watched. The product does not need extra tombstone or
+history state just to distinguish "never existed" from "used to be watched."
+
 ## Proposed Phasing
 
-### Phase 1: Read-First Steering Workbench
+### Phase 1: Dashboard Entrypoint and Workspace Reuse
 
 Ship:
 
-- top-level `harness ui`
-- Overview, Reviews, Timeline, Settings
-- status drawer
-- artifact inspection grounded in harness-owned data, not a general-purpose IDE
-  browser
+- top-level `harness dashboard`
+- `/dashboard` as the machine-local home page
+- `/workspace/<workspace_key>` backed by the existing workspace workbench model
+- Overview, Reviews, Timeline, Settings within workspace detail
+- status drawer within workspace detail
+- `harness ui` as a deprecated compatibility command through `0.3.x`
 
 Defer:
 
-- direct action triggers beyond minimal refresh or open behaviors
+- direct action triggers beyond minimal refresh, open, or `Unwatch`
 
 ### Phase 2: Contextual Steering Actions
 
@@ -404,12 +501,13 @@ Extend the workbench when remote facts become first-class:
 - merge readiness
 - sync drift
 
-This phase should build on the same steering surface rather than creating a
-separate dashboard.
+This phase should build on the same dashboard-owned steering surface rather
+than creating a second remote-only product shell.
 
 ## Open Questions
 
-- which steering actions truly belong in the UI versus staying CLI-only
+- which steering actions truly belong in the UI versus staying CLI-only beyond
+  the accepted `Unwatch` action
 - whether Overview and Timeline should be separate primary sections or one
   combined steering view
 - how much remote PR and CI state should appear before the contracts for those
@@ -419,15 +517,18 @@ separate dashboard.
 
 ## Recommendation
 
-Treat issue #70 as the product-definition frame and issue #2 as the delivery
-vehicle.
+Treat issue #70 as the workspace-detail product-definition frame, issue #2 as
+the original delivery vehicle for the workbench model, and issue #163 as the
+accepted entrypoint-and-migration decision.
 
-Build `harness ui` as a dense local steering workbench for the current repo,
-not as a dashboard. Preserve the artifact-first, status-grounded model, and
-carry forward the strongest interaction patterns outlined above:
+Build `harness dashboard` as the machine-local home and route owner for the
+same dense steering workbench model, with the selected workspace reusing the
+existing `Status`, `Plan`, `Timeline`, and `Review` shape. Preserve the
+artifact-first, status-grounded model, and carry forward the strongest
+interaction patterns outlined above:
 
 - VS Code-like workbench structure
-- one-page density
+- one dense workspace page plus a small machine-local dashboard home
 - strong status and next-action visibility
 - file, diff, and review artifact inspection as first-class tasks
 - contextual human steering instead of a giant action deck
