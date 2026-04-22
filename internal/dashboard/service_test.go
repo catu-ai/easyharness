@@ -283,6 +283,31 @@ func TestReadSurfacesGitProbeFailuresAsUnreadable(t *testing.T) {
 	}
 }
 
+func TestClassifyGitProbeExitDistinguishesNotGitFromUnreadableMetadata(t *testing.T) {
+	notGit := filepath.Join(t.TempDir(), "not-git")
+	if err := os.MkdirAll(notGit, 0o755); err != nil {
+		t.Fatalf("mkdir not-git: %v", err)
+	}
+	notGitMessage := "fatal: not a git repository (or any of the parent directories): .git"
+	if err := classifyGitProbeExit(notGit, notGitMessage); !errors.Is(err, watchlist.ErrNotGitWorkspace) {
+		t.Fatalf("expected no-marker not-git message to map to ErrNotGitWorkspace, got %v", err)
+	}
+
+	unreadableMetadata := filepath.Join(t.TempDir(), "unreadable-metadata")
+	if err := os.MkdirAll(filepath.Join(unreadableMetadata, ".git"), 0o755); err != nil {
+		t.Fatalf("mkdir git marker: %v", err)
+	}
+	err := classifyGitProbeExit(unreadableMetadata, notGitMessage)
+	if err == nil || errors.Is(err, watchlist.ErrNotGitWorkspace) {
+		t.Fatalf("expected existing git marker not-git message to stay unreadable, got %v", err)
+	}
+
+	permissionMessage := "fatal: cannot change to '/watched/workspace': Permission denied"
+	if err := classifyGitProbeExit(notGit, permissionMessage); err == nil || errors.Is(err, watchlist.ErrNotGitWorkspace) {
+		t.Fatalf("expected permission probe failure to stay unreadable, got %v", err)
+	}
+}
+
 func statusResult(node, summary string, artifacts *contracts.StatusArtifacts) contracts.StatusResult {
 	return contracts.StatusResult{
 		OK:        true,

@@ -260,6 +260,10 @@ untested, and that Git probe failures could be classified as
 to `ReadUnlocked()`, added active-workspace no-mutation coverage, and refined
 Git probe failure classification. Validation:
 `go test ./internal/dashboard ./internal/watchlist ./internal/contractsync -count=1`.
+`review-006-delta` confirmed the non-mutating status fix but found the Git
+probe parser still treated some unreadable `.git` metadata as
+`not_git_workspace` and the parser boundary was not directly tested. Added
+marker-aware Git probe classification and direct parser-boundary coverage.
 
 ### Step 4: Serve the dashboard model through the UI backend
 

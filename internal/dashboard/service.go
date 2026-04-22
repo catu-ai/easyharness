@@ -188,12 +188,7 @@ func requireGitWorkspace(path string) error {
 			if message == "" {
 				message = err.Error()
 			}
-			lowerMessage := strings.ToLower(message)
-			if strings.Contains(lowerMessage, "not a git repository") ||
-				strings.Contains(lowerMessage, "not a git work tree") {
-				return fmt.Errorf("%w: %s", watchlist.ErrNotGitWorkspace, message)
-			}
-			return fmt.Errorf("inspect git workspace: %s", message)
+			return classifyGitProbeExit(path, message)
 		}
 		return fmt.Errorf("inspect git workspace: %w", err)
 	}
@@ -201,6 +196,23 @@ func requireGitWorkspace(path string) error {
 		return watchlist.ErrNotGitWorkspace
 	}
 	return nil
+}
+
+func classifyGitProbeExit(path, message string) error {
+	lowerMessage := strings.ToLower(message)
+	if strings.Contains(lowerMessage, "not a git repository") ||
+		strings.Contains(lowerMessage, "not a git work tree") {
+		if gitMarkerExists(path) {
+			return fmt.Errorf("inspect git workspace: %s", message)
+		}
+		return fmt.Errorf("%w: %s", watchlist.ErrNotGitWorkspace, message)
+	}
+	return fmt.Errorf("inspect git workspace: %s", message)
+}
+
+func gitMarkerExists(path string) bool {
+	_, err := os.Lstat(filepath.Join(path, ".git"))
+	return err == nil
 }
 
 func workspaceKey(path string) string {
