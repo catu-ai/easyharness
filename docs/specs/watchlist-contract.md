@@ -281,6 +281,50 @@ Invalid entries carry a reason such as `unreadable`, `not_git_workspace`, or
 `status_error`. The reason refines the `invalid` state; it does not expand the
 top-level lifecycle enum.
 
+## Dashboard Read Model Payload
+
+The dashboard read model should expose one compact result for the dashboard
+home. The concrete API route is implementation-owned, but the payload boundary
+should follow this shape:
+
+- `ok`: whether the dashboard read completed without a top-level watchlist
+  load failure
+- `command`: stable result label such as `dashboard`
+- `summary`: concise human-readable result summary
+- `groups`: dashboard lifecycle groups in stable order
+- `errors`: top-level watchlist or read-model errors when the watched set
+  cannot be loaded at all
+
+Each group contains:
+
+- `state`: one of `active`, `completed`, `idle`, `missing`, or `invalid`
+- `workspaces`: watched workspace entries in dashboard recency order
+
+Each workspace entry contains:
+
+- `workspace_key`: dashboard route key derived from canonical
+  `workspace_path`
+- `workspace_path`: canonical watched path from the watchlist record
+- `watched_at`: timestamp from the watchlist record
+- `last_seen_at`: timestamp from the watchlist record, used as the primary
+  dashboard recency signal
+- `dashboard_state`: same lifecycle value as the containing group
+- `invalid_reason`: present only when `dashboard_state` is `invalid`
+- `current_node`: raw harness workflow node for readable status entries
+- `summary`: compact row/card summary; for readable entries this should come
+  from harness status
+- `next_actions`: compact pass-through of the most relevant status next
+  actions for readable entries
+- `warnings`, `blockers`, and `errors`: compact pass-through or degraded-entry
+  diagnostics for the watched workspace
+- `artifacts`: stable status artifact handles needed for dashboard navigation
+  or display
+
+Readable entries should omit `invalid_reason`. Missing entries do not have
+`current_node` because there is no readable workspace status. Invalid entries
+may omit `current_node` unless a partial status result produced a trustworthy
+raw node before failing.
+
 In particular:
 
 - a harness plan moving through `archive` or back to `idle` does not remove

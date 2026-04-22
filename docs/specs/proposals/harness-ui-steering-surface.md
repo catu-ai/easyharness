@@ -92,7 +92,9 @@ Readable entries should expose raw `current_node` separately from the
 dashboard lifecycle state. The lifecycle states are `active`, `completed`,
 `idle`, `missing`, and `invalid`; ordinary idle without last-landed context
 stays `idle`, and invalid rows carry a reason such as `unreadable`,
-`not_git_workspace`, or `status_error`.
+`not_git_workspace`, or `status_error`. The read model should return stable
+lifecycle groups containing compact watched workspace entries rather than
+making the frontend derive grouping or field names from raw status payloads.
 
 ## Product Shape
 

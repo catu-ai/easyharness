@@ -185,7 +185,11 @@ record invalid reasons such as `unreadable`, `not_git_workspace`, and
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-003-delta` found one blocking agent-UX gap: lifecycle states were
+documented, but the concrete dashboard payload boundary was still implicit.
+Added the top-level result, lifecycle group, and per-workspace entry field
+contract to `docs/specs/watchlist-contract.md`, plus proposal wording that the
+frontend should consume stable groups rather than derive field names.
 
 ### Step 3: Build the dashboard summary service
 
