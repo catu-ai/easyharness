@@ -253,7 +253,13 @@ pattern. Validation: `go test ./internal/dashboard ./internal/watchlist ./intern
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-005-delta` found that default dashboard reads used the locking status
+path for active workspaces, that active default-status read-only behavior was
+untested, and that Git probe failures could be classified as
+`not_git_workspace` instead of `unreadable`. Switched the default status path
+to `ReadUnlocked()`, added active-workspace no-mutation coverage, and refined
+Git probe failure classification. Validation:
+`go test ./internal/dashboard ./internal/watchlist ./internal/contractsync -count=1`.
 
 ### Step 4: Serve the dashboard model through the UI backend
 

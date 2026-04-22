@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/catu-ai/easyharness/internal/contracts"
+	"github.com/catu-ai/easyharness/internal/plan"
+	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/watchlist"
 )
 
@@ -213,6 +215,74 @@ func TestReadUsesDefaultStatusService(t *testing.T) {
 	}
 }
 
+func TestReadUsesDefaultStatusServiceForActiveWorkspaceWithoutMutatingState(t *testing.T) {
+	home := t.TempDir()
+	workspace := seedGitWorkspace(t, "active-default-status")
+	relPlanPath := writeActivePlan(t, workspace)
+	if _, err := runstate.SaveCurrentPlan(workspace, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	planStem := strings.TrimSuffix(filepath.Base(relPlanPath), filepath.Ext(relPlanPath))
+	if _, err := runstate.SaveState(workspace, planStem, &runstate.State{
+		ExecutionStartedAt: "2026-04-22T09:00:00Z",
+		Revision:           1,
+	}); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(workspace, "2026-04-22T12:00:00Z")})
+	currentPlanPath := filepath.Join(workspace, ".local", "harness", "current-plan.json")
+	statePath := filepath.Join(workspace, ".local", "harness", "plans", planStem, "state.json")
+	lockPath := filepath.Join(workspace, ".local", "harness", "plans", planStem, ".state-mutation.lock")
+	stateFiles := []string{currentPlanPath, statePath}
+	fixedTime := time.Date(2026, 4, 22, 8, 0, 0, 0, time.UTC)
+	before := make(map[string]fileSnapshot, len(stateFiles))
+	for _, path := range stateFiles {
+		if err := os.Chtimes(path, fixedTime, fixedTime); err != nil {
+			t.Fatalf("set state timestamp %s: %v", path, err)
+		}
+		before[path] = snapshotFile(t, path)
+	}
+
+	result := Service{LookupEnv: easyHome(home)}.Read()
+	if !result.OK {
+		t.Fatalf("dashboard read failed: %#v", result)
+	}
+	entry := findWorkspace(t, result, StateActive, workspace)
+	if entry.CurrentNode != "execution/step-1/implement" {
+		t.Fatalf("expected active execution node, got %#v", entry)
+	}
+	for _, path := range stateFiles {
+		assertFileUnchanged(t, path, before[path])
+	}
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Fatalf("expected dashboard read to avoid creating state lock, err=%v", err)
+	}
+}
+
+func TestReadSurfacesGitProbeFailuresAsUnreadable(t *testing.T) {
+	home := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatalf("mkdir workspace: %v", err)
+	}
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(workspace, "2026-04-22T12:00:00Z")})
+
+	result := Service{
+		LookupEnv: easyHome(home),
+		CheckGitWorkspace: func(path string) error {
+			if path != workspace {
+				t.Fatalf("unexpected git probe path %q", path)
+			}
+			return errors.New("inspect git workspace: permission denied")
+		},
+	}.Read()
+
+	entry := findWorkspace(t, result, StateInvalid, workspace)
+	if entry.InvalidReason != InvalidUnreadable {
+		t.Fatalf("expected unreadable invalid reason, got %#v", entry)
+	}
+}
+
 func statusResult(node, summary string, artifacts *contracts.StatusArtifacts) contracts.StatusResult {
 	return contracts.StatusResult{
 		OK:        true,
@@ -224,6 +294,57 @@ func statusResult(node, summary string, artifacts *contracts.StatusArtifacts) co
 			{Command: nil, Description: "Keep going."},
 		},
 	}
+}
+
+type fileSnapshot struct {
+	data    []byte
+	modTime time.Time
+}
+
+func snapshotFile(t *testing.T, path string) fileSnapshot {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat file %s: %v", path, err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file %s: %v", path, err)
+	}
+	return fileSnapshot{data: data, modTime: info.ModTime()}
+}
+
+func assertFileUnchanged(t *testing.T, path string, before fileSnapshot) {
+	t.Helper()
+	after := snapshotFile(t, path)
+	if string(after.data) != string(before.data) {
+		t.Fatalf("expected %s bytes to remain unchanged", path)
+	}
+	if !after.modTime.Equal(before.modTime) {
+		t.Fatalf("expected %s mtime to remain unchanged, got %s want %s", path, after.modTime, before.modTime)
+	}
+}
+
+func writeActivePlan(t *testing.T, root string) string {
+	t.Helper()
+	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
+		Title:      "Dashboard Active Plan",
+		Timestamp:  time.Date(2026, 4, 22, 9, 0, 0, 0, time.UTC),
+		SourceType: "direct_request",
+		Size:       "M",
+	})
+	if err != nil {
+		t.Fatalf("render plan: %v", err)
+	}
+	relPath := filepath.ToSlash(filepath.Join("docs", "plans", "active", "2026-04-22-dashboard-active-plan.md"))
+	path := filepath.Join(root, filepath.FromSlash(relPath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	return relPath
 }
 
 func writeWatchlist(t *testing.T, home string, workspaces []watchlist.Workspace) {

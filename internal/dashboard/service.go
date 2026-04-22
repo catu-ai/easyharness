@@ -32,10 +32,11 @@ const (
 var dashboardStateOrder = []string{StateActive, StateCompleted, StateIdle, StateMissing, StateInvalid}
 
 type Service struct {
-	LookupEnv   func(string) (string, bool)
-	UserHomeDir func() (string, error)
-	ReadStatus  func(string) contracts.StatusResult
-	Stat        func(string) (os.FileInfo, error)
+	LookupEnv         func(string) (string, bool)
+	UserHomeDir       func() (string, error)
+	ReadStatus        func(string) contracts.StatusResult
+	Stat              func(string) (os.FileInfo, error)
+	CheckGitWorkspace func(string) error
 }
 
 type Result = contracts.DashboardResult
@@ -111,7 +112,7 @@ func (s Service) readWorkspace(watched watchlist.Workspace) Workspace {
 		entry.Errors = []ErrorDetail{{Path: "workspace_path", Message: "watched workspace path is not a directory"}}
 		return entry
 	}
-	if err := requireGitWorkspace(path); err != nil {
+	if err := s.checkGitWorkspace(path); err != nil {
 		if errors.Is(err, watchlist.ErrNotGitWorkspace) {
 			entry.InvalidReason = InvalidNotGitWorkspace
 			entry.Summary = "Watched workspace path is not a Git workspace."
@@ -154,11 +155,18 @@ func (s Service) stat(path string) (os.FileInfo, error) {
 	return os.Stat(path)
 }
 
+func (s Service) checkGitWorkspace(path string) error {
+	if s.CheckGitWorkspace != nil {
+		return s.CheckGitWorkspace(path)
+	}
+	return requireGitWorkspace(path)
+}
+
 func (s Service) readStatus(path string) contracts.StatusResult {
 	if s.ReadStatus != nil {
 		return s.ReadStatus(path)
 	}
-	return status.Service{Workdir: path}.Read()
+	return status.Service{Workdir: path}.ReadUnlocked()
 }
 
 func dashboardState(result contracts.StatusResult) string {
@@ -176,7 +184,16 @@ func requireGitWorkspace(path string) error {
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			return fmt.Errorf("%w: %s", watchlist.ErrNotGitWorkspace, strings.TrimSpace(string(output)))
+			message := strings.TrimSpace(string(output))
+			if message == "" {
+				message = err.Error()
+			}
+			lowerMessage := strings.ToLower(message)
+			if strings.Contains(lowerMessage, "not a git repository") ||
+				strings.Contains(lowerMessage, "not a git work tree") {
+				return fmt.Errorf("%w: %s", watchlist.ErrNotGitWorkspace, message)
+			}
+			return fmt.Errorf("inspect git workspace: %s", message)
 		}
 		return fmt.Errorf("inspect git workspace: %w", err)
 	}
