@@ -5,20 +5,29 @@ import "reflect"
 // SchemaEntry describes one generated JSON Schema and matching generated
 // reference doc entry.
 type SchemaEntry struct {
-	Key         string
-	Group       string
-	Path        string
-	Title       string
-	Description string
-	Shape       string
+	Key             string
+	Group           string
+	Path            string
+	Title           string
+	Description     string
+	Shape           string
 	HiddenFromIndex bool
-	Type        reflect.Type
+	Type            reflect.Type
 }
 
 // SchemaRegistry returns the generated schema/doc registry entries for the
 // current public contract surface.
 func SchemaRegistry() []SchemaEntry {
 	return []SchemaEntry{
+		{
+			Key:         "ui_resources.dashboard",
+			Group:       "ui_resources",
+			Path:        "schema/ui-resources/dashboard.schema.json",
+			Title:       "Dashboard UI resource",
+			Description: "Read-only JSON resource returned by the dashboard home API for `harness ui`.",
+			Shape:       "output",
+			Type:        reflect.TypeFor[DashboardResult](),
+		},
 		{
 			Key:         "ui_resources.plan",
 			Group:       "ui_resources",
@@ -182,24 +191,24 @@ func SchemaRegistry() []SchemaEntry {
 			Type:        reflect.TypeFor[LocalStateFile](),
 		},
 		{
-			Key:         "artifacts.review_manifest",
-			Group:       "artifacts",
-			Path:        "schema/artifacts/review-manifest.schema.json",
-			Title:       "Review manifest artifact",
-			Description: "Command-owned review manifest artifact for one review round.",
-			Shape:       "artifact",
+			Key:             "artifacts.review_manifest",
+			Group:           "artifacts",
+			Path:            "schema/artifacts/review-manifest.schema.json",
+			Title:           "Review manifest artifact",
+			Description:     "Command-owned review manifest artifact for one review round.",
+			Shape:           "artifact",
 			HiddenFromIndex: true,
-			Type:        reflect.TypeFor[ReviewManifest](),
+			Type:            reflect.TypeFor[ReviewManifest](),
 		},
 		{
-			Key:         "artifacts.review_ledger",
-			Group:       "artifacts",
-			Path:        "schema/artifacts/review-ledger.schema.json",
-			Title:       "Review ledger artifact",
-			Description: "Command-owned review ledger artifact for one review round.",
-			Shape:       "artifact",
+			Key:             "artifacts.review_ledger",
+			Group:           "artifacts",
+			Path:            "schema/artifacts/review-ledger.schema.json",
+			Title:           "Review ledger artifact",
+			Description:     "Command-owned review ledger artifact for one review round.",
+			Shape:           "artifact",
 			HiddenFromIndex: true,
-			Type:        reflect.TypeFor[ReviewLedger](),
+			Type:            reflect.TypeFor[ReviewLedger](),
 		},
 		{
 			Key:         "artifacts.review_submission",
@@ -211,14 +220,14 @@ func SchemaRegistry() []SchemaEntry {
 			Type:        reflect.TypeFor[ReviewSubmission](),
 		},
 		{
-			Key:         "artifacts.review_aggregate",
-			Group:       "artifacts",
-			Path:        "schema/artifacts/review-aggregate.schema.json",
-			Title:       "Review aggregate artifact",
-			Description: "Command-owned review aggregate artifact.",
-			Shape:       "artifact",
+			Key:             "artifacts.review_aggregate",
+			Group:           "artifacts",
+			Path:            "schema/artifacts/review-aggregate.schema.json",
+			Title:           "Review aggregate artifact",
+			Description:     "Command-owned review aggregate artifact.",
+			Shape:           "artifact",
 			HiddenFromIndex: true,
-			Type:        reflect.TypeFor[ReviewAggregate](),
+			Type:            reflect.TypeFor[ReviewAggregate](),
 		},
 		{
 			Key:         "artifacts.evidence_ci_record",

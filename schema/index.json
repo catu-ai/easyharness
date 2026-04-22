@@ -213,6 +213,16 @@
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.NextAction"
     },
     {
+      "key": "ui_resources.dashboard",
+      "group": "ui_resources",
+      "surface": "public",
+      "title": "Dashboard UI resource",
+      "description": "Read-only JSON resource returned by the dashboard home API for `harness ui`.",
+      "path": "schema/ui-resources/dashboard.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/ui-resources/dashboard.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.DashboardResult"
+    },
+    {
       "key": "ui_resources.plan",
       "group": "ui_resources",
       "surface": "public",

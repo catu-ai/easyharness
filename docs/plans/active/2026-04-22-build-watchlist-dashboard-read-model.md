@@ -194,7 +194,7 @@ Follow-up `review-004-delta` passed with no findings.
 
 ### Step 3: Build the dashboard summary service
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -243,7 +243,13 @@ expanding the top-level dashboard state enum.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added `internal/dashboard` with a read-only service that loads the watchlist,
+probes watched paths, reuses `status.Service` for readable Git workspaces,
+classifies entries into stable dashboard lifecycle groups, and preserves raw
+`current_node` on readable status entries. Added `internal/contracts`
+dashboard types, registered the UI resource schema, synced generated contract
+artifacts, and aligned the spec field name with the existing UI `resource`
+pattern. Validation: `go test ./internal/dashboard ./internal/watchlist ./internal/contractsync -count=1`; `scripts/sync-contract-artifacts --check`; `git diff --check`.
 
 #### Review Notes
 

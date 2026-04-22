@@ -1,0 +1,290 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/ui-resources/dashboard.schema.json",
+  "$ref": "#/$defs/DashboardResult",
+  "$defs": {
+    "DashboardGroup": {
+      "properties": {
+        "state": {
+          "type": "string",
+          "description": "State is the dashboard lifecycle state for every workspace in the group."
+        },
+        "workspaces": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DashboardWorkspace"
+              },
+              "type": "array",
+              "description": "Workspaces lists watched workspace entries in dashboard recency order."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Workspaces lists watched workspace entries in dashboard recency order."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "state",
+        "workspaces"
+      ],
+      "description": "DashboardGroup is one dashboard lifecycle group."
+    },
+    "DashboardResult": {
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "OK reports whether the machine-local watchlist was loaded."
+        },
+        "resource": {
+          "type": "string",
+          "description": "Resource is the stable UI resource identifier."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary is the concise human-readable explanation of the loaded dashboard model."
+        },
+        "groups": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DashboardGroup"
+              },
+              "type": "array",
+              "description": "Groups lists watched workspaces grouped by dashboard lifecycle state."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Groups lists watched workspaces grouped by dashboard lifecycle state."
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/ErrorDetail"
+          },
+          "type": "array",
+          "description": "Errors lists hard failures that prevented dashboard loading."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ok",
+        "resource",
+        "summary",
+        "groups"
+      ],
+      "description": "DashboardResult is the read-only UI resource for the machine-local dashboard home."
+    },
+    "DashboardWorkspace": {
+      "properties": {
+        "workspace_key": {
+          "type": "string",
+          "description": "WorkspaceKey is the opaque deterministic route key derived from the watched workspace path."
+        },
+        "workspace_path": {
+          "type": "string",
+          "description": "WorkspacePath is the canonical watched path from the watchlist record."
+        },
+        "watched_at": {
+          "type": "string",
+          "description": "WatchedAt is the timestamp when the workspace first entered the watchlist."
+        },
+        "last_seen_at": {
+          "type": "string",
+          "description": "LastSeenAt is the dashboard recency timestamp from the watchlist record."
+        },
+        "dashboard_state": {
+          "type": "string",
+          "description": "DashboardState is the read-time dashboard lifecycle state."
+        },
+        "invalid_reason": {
+          "type": "string",
+          "description": "InvalidReason refines invalid entries without expanding the dashboard lifecycle state enum."
+        },
+        "current_node": {
+          "type": "string",
+          "description": "CurrentNode is the raw harness workflow node for readable status entries."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary is the compact workspace summary for dashboard rows or cards."
+        },
+        "next_actions": {
+          "items": {
+            "$ref": "#/$defs/NextAction"
+          },
+          "type": "array",
+          "description": "NextAction lists the most relevant status follow-up steps for readable entries."
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Warnings lists non-fatal degraded-state notes for this workspace."
+        },
+        "blockers": {
+          "items": {
+            "$ref": "#/$defs/ErrorDetail"
+          },
+          "type": "array",
+          "description": "Blockers lists state issues that block ordinary progression for this workspace."
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/ErrorDetail"
+          },
+          "type": "array",
+          "description": "Errors lists hard failures for this workspace entry."
+        },
+        "artifacts": {
+          "$ref": "#/$defs/StatusArtifacts",
+          "description": "Artifacts points to stable status artifact handles for navigation or display."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "workspace_key",
+        "workspace_path",
+        "dashboard_state",
+        "summary"
+      ],
+      "description": "DashboardWorkspace is one watched workspace summary for the dashboard home."
+    },
+    "ErrorDetail": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path identifies the field, section, or artifact path associated with the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message is the human-readable explanation of the problem."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "message"
+      ],
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+    },
+    "NextAction": {
+      "properties": {
+        "command": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description explains the suggested next step in plain language."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "command",
+        "description"
+      ],
+      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
+    },
+    "ReviewSlot": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name is the human-readable dimension label."
+        },
+        "slot": {
+          "type": "string",
+          "description": "Slot is the stable slot identifier."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Instructions is the reviewer prompt for this slot."
+        },
+        "submission_path": {
+          "type": "string",
+          "description": "SubmissionPath is the target path for this slot's submission artifact."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "slot",
+        "instructions",
+        "submission_path"
+      ],
+      "description": "ReviewSlot describes one surfaced reviewer submission slot."
+    },
+    "StatusArtifacts": {
+      "properties": {
+        "project_root": {
+          "type": "string",
+          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing paths."
+        },
+        "plan_path": {
+          "type": "string",
+          "description": "PlanPath is the active, archived, or last-landed plan path relevant to the current status resolution.",
+          "examples": [
+            "docs/plans/active/2026-03-31-centralize-contract-schemas-and-generated-reference-docs.md"
+          ]
+        },
+        "supplements_path": {
+          "type": "string",
+          "description": "SupplementsPath is the companion supplements directory for the current plan package when one exists.",
+          "examples": [
+            "docs/plans/active/supplements/2026-03-31-centralize-contract-schemas-and-generated-reference-docs"
+          ]
+        },
+        "review_round_id": {
+          "type": "string",
+          "description": "ReviewRoundID is the active review round identifier when review is in flight."
+        },
+        "review_slots": {
+          "items": {
+            "$ref": "#/$defs/ReviewSlot"
+          },
+          "type": "array",
+          "description": "ReviewSlots lists the active round's reviewer-owned slot handles when review is in flight."
+        },
+        "ci_record_id": {
+          "type": "string",
+          "description": "CIRecordID is the latest CI evidence record identifier when known."
+        },
+        "publish_record_id": {
+          "type": "string",
+          "description": "PublishRecordID is the latest publish evidence record identifier when known."
+        },
+        "sync_record_id": {
+          "type": "string",
+          "description": "SyncRecordID is the latest sync evidence record identifier when known."
+        },
+        "last_landed_at": {
+          "type": "string",
+          "description": "LastLandedAt is the timestamp of the most recent landed plan."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "StatusArtifacts lists stable paths or identifiers related to the current status result."
+    }
+  },
+  "title": "Dashboard UI resource",
+  "description": "Read-only JSON resource returned by the dashboard home API for `harness ui`."
+}

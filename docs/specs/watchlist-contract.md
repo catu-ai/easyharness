@@ -289,7 +289,7 @@ should follow this shape:
 
 - `ok`: whether the dashboard read completed without a top-level watchlist
   load failure
-- `command`: stable result label such as `dashboard`
+- `resource`: stable UI resource label such as `dashboard`
 - `summary`: concise human-readable result summary
 - `groups`: dashboard lifecycle groups in stable order
 - `errors`: top-level watchlist or read-model errors when the watched set
