@@ -190,6 +190,7 @@ documented, but the concrete dashboard payload boundary was still implicit.
 Added the top-level result, lifecycle group, and per-workspace entry field
 contract to `docs/specs/watchlist-contract.md`, plus proposal wording that the
 frontend should consume stable groups rather than derive field names.
+Follow-up `review-004-delta` passed with no findings.
 
 ### Step 3: Build the dashboard summary service
 
