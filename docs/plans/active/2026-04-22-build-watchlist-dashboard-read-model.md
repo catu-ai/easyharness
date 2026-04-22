@@ -268,7 +268,7 @@ Follow-up `review-007-delta` passed with no findings.
 
 ### Step 4: Serve the dashboard model through the UI backend
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -299,7 +299,12 @@ command.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added `GET /api/dashboard` to the UI server and wired it to
+`dashboard.Service{}.Read()`. The endpoint returns dashboard JSON, rejects
+non-GET methods, reports service-unavailable for top-level dashboard load
+failures, and does not rewrite the machine-local watchlist. Validation:
+`go test ./internal/ui ./internal/dashboard ./internal/watchlist -count=1`;
+`git diff --check`.
 
 #### Review Notes
 
