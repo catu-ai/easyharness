@@ -56,27 +56,28 @@ state.
 
 ## Acceptance Criteria
 
-- [ ] The tracked specs consistently describe `completed` as a derived
+- [x] The tracked specs consistently describe `completed` as a derived
       dashboard lifecycle state rather than persisted watchlist state.
-- [ ] The tracked specs define `unwatch` as explicit watchlist membership
+- [x] The tracked specs define `unwatch` as explicit watchlist membership
       removal from `watchlist.json`.
-- [ ] The tracked specs clearly state that `unwatch` does not call or mean
+- [x] The tracked specs clearly state that `unwatch` does not call or mean
       `harness archive`.
-- [ ] The tracked specs state that completed workspaces do not automatically
+- [x] The tracked specs state that completed workspaces do not automatically
       age out or disappear in v1.
-- [ ] Any existing references to dashboard-local hide/archive semantics are
+- [x] Any existing references to dashboard-local hide/archive semantics are
       either removed or reframed as historical/deferred wording.
-- [ ] If implementation work is needed in this slice, focused watchlist or
+- [x] If implementation work is needed in this slice, focused watchlist or
       dashboard tests prove the new behavior without changing workflow state.
-- [ ] Issue #166 has a closeout comment or PR note summarizing the accepted
+- [x] Issue #166 has a closeout comment or PR note summarizing the accepted
       `unwatch` direction.
 
 ## Deferred Items
 
-- Implement the concrete dashboard/API `unwatch` write path if this slice only
-  lands the normative contract.
-- Add the frontend control that lets a user unwatch a completed workspace from
-  the dashboard home.
+- Wire the new watchlist-level `Service.Unwatch` method into the future
+  dashboard/API/UI surface, tracked by
+  [#167](https://github.com/catu-ai/easyharness/issues/167).
+- Add the frontend control that lets a user unwatch a completed, missing, or
+  invalid workspace from the dashboard home or degraded workspace page.
 
 ## Work Breakdown
 
@@ -258,26 +259,86 @@ tracked specs beyond this plan note.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `harness plan lint docs/plans/active/2026-04-23-define-watchlist-unwatch-lifecycle.md`
+  passed after planning, step closeout updates, and final closeout updates.
+- `git diff --check -- docs/specs/watchlist-contract.md docs/specs/proposals/harness-ui-steering-surface.md docs/specs/index.md`
+  passed for the Step 1 docs contract update.
+- `rg -n "membership-removal behavior|hidden state|dashboard-local archive|age out|age-out|automatic"
+  docs/specs/watchlist-contract.md docs/specs/proposals/harness-ui-steering-surface.md`
+  confirmed the stale membership-removal wording was removed and remaining
+  hidden/archive/automatic references are non-goal or rejected-semantics
+  wording.
+- Red/green watchlist validation was used for Step 2: `go test
+  ./internal/watchlist -run Unwatch -count=1` failed before
+  `Service.Unwatch` existed, and `go test ./internal/watchlist -count=1`
+  passed after implementation and review fixes.
+- Final focused validation passed with `go test ./internal/watchlist
+  ./internal/dashboard -count=1`; the finalize correctness reviewer also ran
+  `go test ./internal/watchlist ./internal/dashboard ./internal/ui -count=1`
+  successfully.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-delta` found one docs-consistency issue: a Missing or Unreadable
+  Workspaces paragraph still used old deferred membership-removal wording.
+- `review-002-delta` passed after that paragraph was changed to explicit
+  `unwatch` terminology.
+- `review-003-delta` found one tests issue: `Unwatch` lacked
+  `EASYHARNESS_HOME` / configured-home coverage.
+- `review-004-delta` passed after adding
+  `TestUnwatchUsesEasyharnessHomeOverride`.
+- `review-005-full` found one archive-readiness issue: final acceptance
+  criteria and durable closeout sections were still placeholders. This update
+  resolves that closeout gap before the archive retry.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: pending `harness archive`
+- Revision: 1
+- PR: not opened yet; publish closeout should create a PR from branch
+  `codex/issue-166-unwatch-lifecycle` and include `Closes #166`.
+- Ready: Acceptance criteria are satisfied, the watchlist contract and UI
+  proposal consistently define `completed` and `unwatch`, the isolated
+  watchlist-level `Service.Unwatch` write path is implemented with focused
+  tests, issue #166 has a GitHub-visible handoff comment, and the only
+  finalize-review finding was this closeout placeholder update.
+- Merge Handoff: After archive, commit the tracked plan move, push the branch,
+  open the PR, record publish/CI/sync evidence, and stop at merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Updated `docs/specs/watchlist-contract.md` so `completed` is clearly a
+  derived dashboard lifecycle state, `unwatch` is explicit watchlist
+  membership removal, completed/missing/invalid entries remain watched until
+  explicit `unwatch`, and v1 has no hidden state, dashboard-local archive
+  bucket, or automatic GC.
+- Updated `docs/specs/proposals/harness-ui-steering-surface.md` so the
+  dashboard proposal uses the same completed/unwatch terminology and states
+  that `Unwatch` is not `harness archive`, workflow mutation, or checkout
+  deletion.
+- Added `watchlist.Service.Unwatch`, reusing watchlist home resolution,
+  locking, loading, and atomic-write helpers while preserving unrelated
+  records and treating absent records as no-ops.
+- Added watchlist tests for removing a selected workspace, preserving
+  unrelated records, nested workspace canonicalization, missing watched paths,
+  absent-record idempotence, no watchlist creation for absent no-op removal,
+  and configured `EASYHARNESS_HOME` resolution.
+- Posted the #166 handoff comment:
+  https://github.com/catu-ai/easyharness/issues/166#issuecomment-4301163030
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Dashboard frontend/API wiring for invoking `Service.Unwatch`; that belongs
+  with the dashboard UI follow-up.
+- Automatic cleanup, age-out, background monitoring, or garbage collection for
+  completed, idle, missing, invalid, or stale watched workspaces.
+- Any change to `harness archive`, harness workflow state, checkout deletion,
+  tracked plan deletion, or `.local/harness` artifact cleanup semantics.
 
 ### Follow-Up Issues
 
-NONE
+- [#167 Ship a minimal watchlist dashboard UI](https://github.com/catu-ai/easyharness/issues/167)
+  should wire a user-facing `Unwatch` control to the new watchlist-level
+  removal behavior.
