@@ -290,6 +290,8 @@ tracked specs beyond this plan note.
 - `review-005-full` found one archive-readiness issue: final acceptance
   criteria and durable closeout sections were still placeholders. This update
   resolves that closeout gap before the archive retry.
+- `review-006-delta` passed after the closeout summaries and follow-up issue
+  handoff were filled.
 
 ## Archive Summary
 
@@ -300,8 +302,8 @@ tracked specs beyond this plan note.
 - Ready: Acceptance criteria are satisfied, the watchlist contract and UI
   proposal consistently define `completed` and `unwatch`, the isolated
   watchlist-level `Service.Unwatch` write path is implemented with focused
-  tests, issue #166 has a GitHub-visible handoff comment, and the only
-  finalize-review finding was this closeout placeholder update.
+  tests, issue #166 has a GitHub-visible handoff comment, and
+  `review-006-delta` passed after the finalize closeout repair.
 - Merge Handoff: After archive, commit the tracked plan move, push the branch,
   open the PR, record publish/CI/sync evidence, and stop at merge approval.
 
