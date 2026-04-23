@@ -312,6 +312,11 @@ should follow this shape:
 - `errors`: top-level watchlist or read-model errors when the watched set
   cannot be loaded at all
 
+The `groups` field is a stable classification/result shape for API consumers.
+The first dashboard home UI may flatten entries from those groups into one
+recency-sorted watched-workspace list instead of rendering grouped sections,
+so long as lifecycle state remains visible on each entry.
+
 Each group contains:
 
 - `state`: one of `active`, `completed`, `idle`, `missing`, or `invalid`

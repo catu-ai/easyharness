@@ -9,10 +9,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/catu-ai/easyharness/internal/contracts"
+	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/status"
 	"github.com/catu-ai/easyharness/internal/watchlist"
 )
@@ -39,12 +41,22 @@ type Service struct {
 	ReadStatus        func(string) contracts.StatusResult
 	Stat              func(string) (os.FileInfo, error)
 	CheckGitWorkspace func(string) error
+	LoadPlan          func(string) (*plan.Document, error)
 }
 
 type Result = contracts.DashboardResult
 type Group = contracts.DashboardGroup
 type Workspace = contracts.DashboardWorkspace
 type ErrorDetail = contracts.ErrorDetail
+type WorkspaceResult = contracts.DashboardWorkspaceResult
+type Progress = contracts.DashboardProgress
+type ProgressNode = contracts.DashboardProgressNode
+
+const (
+	progressStatePending = "pending"
+	progressStateCurrent = "current"
+	progressStateDone    = "done"
+)
 
 func (s Service) Read() Result {
 	file, err := watchlist.Service{
@@ -79,10 +91,76 @@ func (s Service) Read() Result {
 	}
 }
 
+func (s Service) ReadWorkspace(key string) WorkspaceResult {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return WorkspaceResult{
+			OK:       false,
+			Resource: "workspace",
+			Summary:  "Workspace route key is empty.",
+			Errors:   []ErrorDetail{{Path: "workspace_key", Message: "workspace route key is empty"}},
+		}
+	}
+
+	file, err := watchlist.Service{
+		LookupEnv:   s.LookupEnv,
+		UserHomeDir: s.UserHomeDir,
+	}.Read()
+	if err != nil {
+		return WorkspaceResult{
+			OK:       false,
+			Resource: "workspace",
+			Summary:  "Unable to load the machine-local watchlist.",
+			Errors:   []ErrorDetail{{Path: "watchlist", Message: err.Error()}},
+		}
+	}
+
+	matches := make([]watchlist.Workspace, 0, 2)
+	for _, watched := range file.Workspaces {
+		if WorkspaceKey(watched.WorkspacePath) == key {
+			matches = append(matches, watched)
+		}
+	}
+	if len(matches) == 0 {
+		return WorkspaceResult{
+			OK:       true,
+			Resource: "workspace",
+			Summary:  "Workspace is not currently watched.",
+			Watched:  false,
+		}
+	}
+
+	entry := s.readWorkspace(matches[0])
+	if len(matches) > 1 {
+		entry.DashboardState = StateInvalid
+		entry.InvalidReason = InvalidRouteKeyCollision
+		entry.CurrentNode = ""
+		entry.NextAction = nil
+		entry.Warnings = nil
+		entry.Blockers = nil
+		entry.Artifacts = nil
+		entry.Facts = nil
+		entry.Progress = nil
+		entry.Summary = "Watched workspace route key collides with another watchlist record."
+		entry.Errors = append(entry.Errors, ErrorDetail{
+			Path:    "workspace_key",
+			Message: fmt.Sprintf("workspace_key %q is shared by %d watchlist records", key, len(matches)),
+		})
+	}
+	return WorkspaceResult{
+		OK:        true,
+		Resource:  "workspace",
+		Summary:   fmt.Sprintf("Loaded watched workspace %s.", entry.WorkspaceName),
+		Watched:   true,
+		Workspace: &entry,
+	}
+}
+
 func (s Service) readWorkspace(watched watchlist.Workspace) Workspace {
 	path := strings.TrimSpace(watched.WorkspacePath)
 	entry := Workspace{
 		WorkspaceKey:   workspaceKey(path),
+		WorkspaceName:  workspaceName(path),
 		WorkspacePath:  path,
 		WatchedAt:      strings.TrimSpace(watched.WatchedAt),
 		LastSeenAt:     strings.TrimSpace(watched.LastSeenAt),
@@ -137,22 +215,26 @@ func (s Service) readWorkspace(watched watchlist.Workspace) Workspace {
 		entry.InvalidReason = InvalidStatusError
 		entry.Summary = statusResult.Summary
 		entry.CurrentNode = statusResult.State.CurrentNode
+		entry.Facts = statusResult.Facts
 		entry.NextAction = statusResult.NextAction
 		entry.Warnings = statusResult.Warnings
 		entry.Blockers = statusResult.Blockers
 		entry.Errors = statusResult.Errors
 		entry.Artifacts = statusResult.Artifacts
+		entry.PlanTitle, entry.Progress = s.planContext(path, statusResult)
 		return entry
 	}
 
 	entry.DashboardState = dashboardState(statusResult)
 	entry.Summary = statusResult.Summary
 	entry.CurrentNode = statusResult.State.CurrentNode
+	entry.Facts = statusResult.Facts
 	entry.NextAction = statusResult.NextAction
 	entry.Warnings = statusResult.Warnings
 	entry.Blockers = statusResult.Blockers
 	entry.Errors = statusResult.Errors
 	entry.Artifacts = statusResult.Artifacts
+	entry.PlanTitle, entry.Progress = s.planContext(path, statusResult)
 	return entry
 }
 
@@ -250,9 +332,144 @@ func gitMarkerExists(path string) bool {
 	return err == nil
 }
 
-func workspaceKey(path string) string {
+func WorkspaceKey(path string) string {
 	sum := sha256.Sum256([]byte(filepath.Clean(strings.TrimSpace(path))))
 	return "wk_" + hex.EncodeToString(sum[:])[:16]
+}
+
+func workspaceKey(path string) string {
+	return WorkspaceKey(path)
+}
+
+func workspaceName(path string) string {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "" || path == "." {
+		return ""
+	}
+	return filepath.Base(path)
+}
+
+func (s Service) loadPlan(path string) (*plan.Document, error) {
+	if s.LoadPlan != nil {
+		return s.LoadPlan(path)
+	}
+	return plan.LoadFile(path)
+}
+
+func (s Service) planContext(workspacePath string, statusResult contracts.StatusResult) (string, *Progress) {
+	if statusResult.Artifacts == nil {
+		return "", nil
+	}
+	relPlanPath := strings.TrimSpace(statusResult.Artifacts.PlanPath)
+	if relPlanPath == "" {
+		return "", nil
+	}
+	absPlanPath := filepath.Join(workspacePath, filepath.FromSlash(relPlanPath))
+	doc, err := s.loadPlan(absPlanPath)
+	if err != nil || doc == nil {
+		return "", nil
+	}
+	return doc.Title, buildProgress(doc, statusResult)
+}
+
+func buildProgress(doc *plan.Document, statusResult contracts.StatusResult) *Progress {
+	if doc == nil || len(doc.Steps) == 0 {
+		return nil
+	}
+
+	nodes := make([]ProgressNode, 0, len(doc.Steps)+2)
+	for _, step := range doc.Steps {
+		nodes = append(nodes, ProgressNode{Label: step.Title, State: progressStatePending})
+	}
+	nodes = append(nodes, ProgressNode{Label: "Finalize", State: progressStatePending})
+	nodes = append(nodes, ProgressNode{Label: "Await merge", State: progressStatePending})
+
+	currentIndex, allDone := progressPosition(doc, statusResult)
+	if allDone {
+		for i := range nodes {
+			nodes[i].State = progressStateDone
+		}
+		return &Progress{Nodes: nodes}
+	}
+	if currentIndex < 0 {
+		return &Progress{Nodes: nodes}
+	}
+	if currentIndex >= len(nodes) {
+		currentIndex = len(nodes) - 1
+	}
+	for i := range nodes {
+		switch {
+		case i < currentIndex:
+			nodes[i].State = progressStateDone
+		case i == currentIndex:
+			nodes[i].State = progressStateCurrent
+		default:
+			nodes[i].State = progressStatePending
+		}
+	}
+	return &Progress{Nodes: nodes}
+}
+
+func progressPosition(doc *plan.Document, statusResult contracts.StatusResult) (int, bool) {
+	currentNode := strings.TrimSpace(statusResult.State.CurrentNode)
+	if currentNode == "land" {
+		return len(doc.Steps) + 1, true
+	}
+	if currentNode == "idle" {
+		if statusResult.Artifacts != nil && strings.TrimSpace(statusResult.Artifacts.LastLandedAt) != "" {
+			return len(doc.Steps) + 1, true
+		}
+		if statusResult.Facts != nil {
+			if index := stepIndexForTitle(doc, statusResult.Facts.CurrentStep); index >= 0 {
+				return index, false
+			}
+		}
+		return -1, false
+	}
+	if index, ok := stepIndexFromNode(currentNode); ok {
+		return index, false
+	}
+	if strings.HasPrefix(currentNode, "execution/finalize/") {
+		if strings.HasSuffix(currentNode, "/await_merge") {
+			return len(doc.Steps) + 1, false
+		}
+		return len(doc.Steps), false
+	}
+	if currentNode == "plan" && statusResult.Facts != nil {
+		if index := stepIndexForTitle(doc, statusResult.Facts.CurrentStep); index >= 0 {
+			return index, false
+		}
+	}
+	return -1, false
+}
+
+func stepIndexFromNode(currentNode string) (int, bool) {
+	trimmed := strings.TrimPrefix(strings.TrimSpace(currentNode), "execution/step-")
+	if trimmed == currentNode {
+		return 0, false
+	}
+	stepPart, _, ok := strings.Cut(trimmed, "/")
+	if !ok {
+		return 0, false
+	}
+	value, err := strconv.Atoi(stepPart)
+	if err != nil || value <= 0 {
+		return 0, false
+	}
+	return value - 1, true
+}
+
+func stepIndexForTitle(doc *plan.Document, title string) int {
+	title = strings.TrimSpace(title)
+	if title == "" || doc == nil {
+		return -1
+	}
+	for index, step := range doc.Steps {
+		if strings.TrimSpace(step.Title) == title {
+			return index
+		}
+	}
+	return -1
 }
 
 func emptyGroups() []Group {

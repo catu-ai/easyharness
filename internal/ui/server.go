@@ -22,6 +22,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/reviewui"
 	"github.com/catu-ai/easyharness/internal/status"
 	"github.com/catu-ai/easyharness/internal/timeline"
+	"github.com/catu-ai/easyharness/internal/watchlist"
 )
 
 //go:embed generated
@@ -36,6 +37,7 @@ type Server struct {
 	Stdout      io.Writer
 	Stderr      io.Writer
 	OpenBrowser bool
+	OpenPath    string
 }
 
 func (s Server) Run(ctx context.Context) error {
@@ -56,7 +58,8 @@ func (s Server) Run(ctx context.Context) error {
 	}
 
 	if s.OpenBrowser {
-		if err := openBrowser(url); err != nil && s.Stderr != nil {
+		target := browserTarget(url, s.OpenPath)
+		if err := openBrowser(target); err != nil && s.Stderr != nil {
 			_, _ = fmt.Fprintf(s.Stderr, "open browser: %v\n", err)
 		}
 	}
@@ -97,6 +100,104 @@ func NewHandler(workdir string) (http.Handler, error) {
 			return
 		}
 		writeDashboardJSON(w, dashboard.Service{}.Read())
+	})
+	mux.HandleFunc("/api/workspace/", func(w http.ResponseWriter, r *http.Request) {
+		key, resource, ok := parseWorkspaceAPIPath(r.URL.Path)
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+
+		dashboardSvc := dashboard.Service{}
+		workspaceResult := dashboardSvc.ReadWorkspace(key)
+		if resource == "" {
+			if r.Method != http.MethodGet {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			writeWorkspaceJSON(w, workspaceResult)
+			return
+		}
+		if resource == "unwatch" {
+			if r.Method != http.MethodPost {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			if !workspaceResult.OK {
+				writeWorkspaceJSON(w, workspaceResult)
+				return
+			}
+			if !workspaceResult.Watched || workspaceResult.Workspace == nil {
+				writeJSON(w, http.StatusNotFound, map[string]any{
+					"ok":       false,
+					"resource": "workspace",
+					"summary":  "Workspace is not currently watched.",
+				})
+				return
+			}
+			if err := (watchlist.Service{}).Unwatch(workspaceResult.Workspace.WorkspacePath); err != nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+					"ok":       false,
+					"resource": "workspace",
+					"summary":  "Unable to remove workspace from the machine-local watchlist.",
+					"errors": []map[string]string{{
+						"path":    "watchlist",
+						"message": err.Error(),
+					}},
+				})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"ok":       true,
+				"resource": "workspace",
+				"summary":  "Removed workspace from the machine-local watchlist.",
+			})
+			return
+		}
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !workspaceResult.OK {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+				"ok":       false,
+				"resource": resource,
+				"summary":  workspaceResult.Summary,
+				"errors":   workspaceResult.Errors,
+			})
+			return
+		}
+		if !workspaceResult.Watched || workspaceResult.Workspace == nil {
+			writeJSON(w, http.StatusNotFound, map[string]any{
+				"ok":       false,
+				"resource": resource,
+				"summary":  "Workspace is not currently watched.",
+			})
+			return
+		}
+		if state := workspaceResult.Workspace.DashboardState; state == dashboard.StateMissing || state == dashboard.StateInvalid {
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"ok":       false,
+				"resource": resource,
+				"summary":  workspaceResult.Workspace.Summary,
+				"errors":   workspaceResult.Workspace.Errors,
+			})
+			return
+		}
+
+		workspacePath := workspaceResult.Workspace.WorkspacePath
+		switch resource {
+		case "status":
+			writeStatusJSON(w, status.Service{Workdir: workspacePath}.Read())
+		case "plan":
+			writePlanJSON(w, planui.Service{Workdir: workspacePath}.Read())
+		case "timeline":
+			writeTimelineJSON(w, timeline.Service{Workdir: workspacePath}.Read())
+		case "review":
+			writeReviewJSON(w, reviewui.Service{Workdir: workspacePath}.Read())
+		default:
+			http.NotFound(w, r)
+		}
 	})
 	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -145,6 +246,18 @@ func spaHandler(staticFS fs.FS, workdir string) http.Handler {
 		requestPath := path.Clean(strings.TrimPrefix(r.URL.Path, "/"))
 		switch requestPath {
 		case ".", "":
+			http.Redirect(w, r, "/dashboard", http.StatusFound)
+			return
+		}
+		if requestPath == "dashboard" {
+			serveIndex(staticFS, workdir, w)
+			return
+		}
+		if nextPath, ok := workspacePagePath(requestPath); ok {
+			if nextPath != "" {
+				http.Redirect(w, r, nextPath, http.StatusFound)
+				return
+			}
 			serveIndex(staticFS, workdir, w)
 			return
 		}
@@ -155,6 +268,64 @@ func spaHandler(staticFS fs.FS, workdir string) http.Handler {
 		}
 		serveIndex(staticFS, workdir, w)
 	})
+}
+
+func browserTarget(baseURL, openPath string) string {
+	openPath = strings.TrimSpace(openPath)
+	if openPath == "" || openPath == "/" {
+		return baseURL
+	}
+	if strings.HasPrefix(openPath, "/") {
+		return baseURL + openPath
+	}
+	return baseURL + "/" + openPath
+}
+
+func parseWorkspaceAPIPath(rawPath string) (key, resource string, ok bool) {
+	trimmed := strings.TrimPrefix(strings.TrimSpace(rawPath), "/api/workspace/")
+	trimmed = strings.Trim(trimmed, "/")
+	if trimmed == "" {
+		return "", "", false
+	}
+	parts := strings.Split(trimmed, "/")
+	if len(parts) == 1 {
+		return parts[0], "", true
+	}
+	if len(parts) == 2 {
+		return parts[0], parts[1], true
+	}
+	return "", "", false
+}
+
+func workspacePagePath(requestPath string) (redirectPath string, ok bool) {
+	parts := strings.Split(strings.Trim(requestPath, "/"), "/")
+	if len(parts) < 2 || parts[0] != "workspace" {
+		return "", false
+	}
+	if len(parts) == 2 {
+		return "/" + path.Join("workspace", parts[1], "status"), true
+	}
+	if len(parts) == 3 && isWorkspacePage(parts[2]) {
+		return "", true
+	}
+	return "", false
+}
+
+func isWorkspacePage(value string) bool {
+	switch value {
+	case "status", "plan", "timeline", "review":
+		return true
+	default:
+		return false
+	}
+}
+
+func writeWorkspaceJSON(w http.ResponseWriter, result dashboard.WorkspaceResult) {
+	statusCode := http.StatusOK
+	if !result.OK {
+		statusCode = http.StatusServiceUnavailable
+	}
+	writeJSON(w, statusCode, result)
 }
 
 func serveIndex(staticFS fs.FS, workdir string, w http.ResponseWriter) {

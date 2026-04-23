@@ -5,8 +5,14 @@ import type { LiveFreshness, Tone } from "./types";
 const WORKBENCH_EXPLORER_WIDTH_STORAGE_KEY = "harness-ui:workbench-explorer-width";
 const DEFAULT_WORKBENCH_EXPLORER_WIDTH = 304;
 
-export function RailIcon(props: { page: "status" | "plan" | "timeline" | "review" }) {
+export function RailIcon(props: { page: "status" | "plan" | "timeline" | "review" | "home" }) {
   switch (props.page) {
+    case "home":
+      return (
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M3 7.2L8 3l5 4.2v5.3H9.8V9.5H6.2v3H3z" fill="none" stroke="currentColor" stroke-width="1.2" />
+        </svg>
+      );
     case "status":
       return (
         <svg viewBox="0 0 16 16" aria-hidden="true">

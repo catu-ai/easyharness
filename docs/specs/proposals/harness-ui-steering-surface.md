@@ -93,8 +93,10 @@ dashboard lifecycle state. The lifecycle states are `active`, `completed`,
 `idle`, `missing`, and `invalid`; ordinary idle without last-landed context
 stays `idle`, and invalid rows carry a reason such as `unreadable`,
 `not_git_workspace`, or `status_error`. The read model should return stable
-lifecycle groups containing compact watched workspace entries rather than
-making the frontend derive grouping or field names from raw status payloads.
+classification fields and compact watched workspace entries rather than making
+the frontend derive lifecycle meaning from raw status payloads alone. The
+first dashboard home may flatten those entries into one recency-sorted list
+instead of rendering lifecycle-grouped sections.
 Completed rows should remain watched until the user explicitly removes
 watchlist membership with `Unwatch`; the dashboard should not invent a
 separate hidden state or use dashboard-local archive terminology for that
@@ -123,12 +125,13 @@ directory.
 `harness ui` should be treated as a compatibility command during `0.3.x`, not
 as a long-term parallel product entrypoint.
 
-During that deprecation window:
+During that compatibility window:
 
-- `harness ui` should print a deprecation warning in the console
 - `harness ui` should still start a local UI session on demand
 - the opened surface should be the dashboard-owned workspace detail route for
   the current workspace rather than a separate legacy workbench
+- the command may stay quiet at first; a later slice can decide when a
+  deprecation warning becomes worth the churn
 
 The goal is a smooth migration path, not two permanent UI products.
 
@@ -352,8 +355,11 @@ It should:
 
 - default to the watched-workspace list instead of a specific repo
 - sort watched workspaces by watchlist recency
+- render one flat stacked list rather than lifecycle-grouped home sections
 - make the current workspace easy to find without requiring direct-open flags
 - present missing or invalid watched entries as explicit degraded rows
+- feel like the explorer/home of the existing workbench product rather than a
+  separate SaaS dashboard
 
 The home page does not need a second dashboard-only workspace summary shell.
 Its job is to help the user pick a watched workspace and move into the
@@ -460,17 +466,25 @@ Several interaction patterns are worth preserving:
 Workspace detail should use:
 
 - `/workspace/<workspace_key>`
+- `/workspace/<workspace_key>/status`
+- `/workspace/<workspace_key>/plan`
+- `/workspace/<workspace_key>/timeline`
+- `/workspace/<workspace_key>/review`
 
 The route key should be an opaque deterministic value derived from the watched
 workspace's canonical path at read time. The URL should not expose the raw
 absolute path, and the watchlist should not grow a separate persisted
 route-only ID just to support the route family.
 
+The bare `/workspace/<workspace_key>` route may redirect to the default
+workspace overview page, which should remain the `Status` view in the first
+slice.
+
 ### Missing, Invalid, and Unknown Workspace Routes
 
 If a watched workspace is still in the watchlist but is currently missing or
-invalid, `/workspace/<workspace_key>` should render a simple degraded page
-instead of failing hard or silently redirecting away.
+invalid, the workspace route should render a simple degraded page instead of
+failing hard or silently redirecting away.
 
 That degraded page may offer one local cleanup action:
 
@@ -481,8 +495,11 @@ not `harness archive`, does not alter harness workflow state, and does not
 delete the local checkout or git worktree.
 
 If the key does not match any currently watched workspace, the route should be
-treated as not currently watched. The product does not need extra tombstone or
-history state just to distinguish "never existed" from "used to be watched."
+treated as not currently watched. The first slice may reuse the same minimal
+page shell for unknown and degraded watched routes so long as the copy stays
+clear and `Unwatch` is shown only when the workspace is still watched. The
+product does not need extra tombstone or history state just to distinguish
+"never existed" from "used to be watched."
 
 ## Proposed Phasing
 
@@ -492,10 +509,11 @@ Ship:
 
 - top-level `harness dashboard`
 - `/dashboard` as the machine-local home page
-- `/workspace/<workspace_key>` backed by the existing workspace workbench model
+- `/workspace/<workspace_key>/...` backed by the existing workspace workbench
+  model
 - Overview, Reviews, Timeline, Settings within workspace detail
 - status drawer within workspace detail
-- `harness ui` as a deprecated compatibility command through `0.3.x`
+- `harness ui` as a quiet compatibility command through `0.3.x`
 
 Defer:
 

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/catu-ai/easyharness/internal/dashboard"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/timeline"
@@ -239,6 +240,140 @@ func TestNewHandlerFallsBackToIndexForSPAPath(t *testing.T) {
 	}
 	if !strings.Contains(body, "productName: \""+productDisplayName+"\"") {
 		t.Fatalf("expected injected product name %q in embedded index, got %s", productDisplayName, body)
+	}
+}
+
+func TestNewHandlerRedirectsRootToDashboard(t *testing.T) {
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("expected status 302, got %d", recorder.Code)
+	}
+	if location := recorder.Header().Get("Location"); location != "/dashboard" {
+		t.Fatalf("expected redirect to /dashboard, got %q", location)
+	}
+}
+
+func TestNewHandlerRedirectsWorkspaceRouteToStatus(t *testing.T) {
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/workspace/wk_abc123", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("expected status 302, got %d", recorder.Code)
+	}
+	if location := recorder.Header().Get("Location"); location != "/workspace/wk_abc123/status" {
+		t.Fatalf("expected redirect to /workspace/<key>/status, got %q", location)
+	}
+}
+
+func TestNewHandlerServesWorkspaceLookupJSON(t *testing.T) {
+	home := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	seedGitWorkspace(t, workspace)
+	writeWatchlist(t, home, []watchlist.Workspace{{
+		WorkspacePath: workspace,
+		WatchedAt:     "2026-04-22T09:00:00Z",
+		LastSeenAt:    "2026-04-22T12:00:00Z",
+	}})
+	t.Setenv("EASYHARNESS_HOME", home)
+
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/workspace/"+dashboard.WorkspaceKey(workspace), nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		OK       bool `json:"ok"`
+		Watched  bool `json:"watched"`
+		Workspace *struct {
+			WorkspacePath string `json:"workspace_path"`
+		} `json:"workspace"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v\n%s", err, recorder.Body.String())
+	}
+	if !payload.OK || !payload.Watched || payload.Workspace == nil || payload.Workspace.WorkspacePath != workspace {
+		t.Fatalf("unexpected workspace payload: %#v", payload)
+	}
+}
+
+func TestNewHandlerServesWorkspaceStatusJSONByKey(t *testing.T) {
+	home := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "workspace-status")
+	seedGitWorkspace(t, workspace)
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(workspace, "2026-04-22T12:00:00Z")})
+	t.Setenv("EASYHARNESS_HOME", home)
+
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/workspace/"+dashboard.WorkspaceKey(workspace)+"/status", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		OK      bool `json:"ok"`
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v\n%s", err, recorder.Body.String())
+	}
+	if !payload.OK || payload.Command != "status" {
+		t.Fatalf("unexpected status payload: %#v", payload)
+	}
+}
+
+func TestNewHandlerWorkspaceUnwatchRemovesEntry(t *testing.T) {
+	home := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "workspace-unwatch")
+	seedGitWorkspace(t, workspace)
+	canonicalPath, err := watchlist.CanonicalWorkspacePath(workspace)
+	if err != nil {
+		t.Fatalf("canonical workspace path: %v", err)
+	}
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(canonicalPath, "2026-04-22T12:00:00Z")})
+	t.Setenv("EASYHARNESS_HOME", home)
+
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/workspace/"+dashboard.WorkspaceKey(canonicalPath)+"/unwatch", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	after := readWatchlist(t, home)
+	if len(after.Workspaces) != 0 {
+		t.Fatalf("expected watched workspace to be removed, got %#v", after.Workspaces)
 	}
 }
 
@@ -1127,6 +1262,27 @@ func writeWatchlist(t *testing.T, home string, workspaces []watchlist.Workspace)
 	}
 	if err := os.WriteFile(filepath.Join(home, "watchlist.json"), data, 0o644); err != nil {
 		t.Fatalf("write watchlist: %v", err)
+	}
+}
+
+func readWatchlist(t *testing.T, home string) watchlist.File {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(home, "watchlist.json"))
+	if err != nil {
+		t.Fatalf("read watchlist: %v", err)
+	}
+	var file watchlist.File
+	if err := json.Unmarshal(data, &file); err != nil {
+		t.Fatalf("decode watchlist: %v\n%s", err, data)
+	}
+	return file
+}
+
+func workspaceRecord(path, seenAt string) watchlist.Workspace {
+	return watchlist.Workspace{
+		WorkspacePath: path,
+		WatchedAt:     "2026-04-22T09:00:00Z",
+		LastSeenAt:    seenAt,
 	}
 }
 

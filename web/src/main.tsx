@@ -5,7 +5,9 @@ import "./styles.css";
 
 import {
   combineLiveFreshness,
+  dashboardWorkspaces,
   describeLiveFreshness,
+  formatDashboardError,
   formatPlanError,
   formatReviewError,
   formatStatusError,
@@ -14,18 +16,36 @@ import {
   productNameLabel,
   workdirLabel,
 } from "./helpers";
-import { PlanWorkspace, ReviewWorkspace, StatusWorkspace, TimelineWorkspace } from "./pages";
-import type { LiveFreshness, Page, PageDef, PlanResult, ReviewResult, StatusResult, TimelineResult } from "./types";
+import { DashboardHome, PlanWorkspace, ReviewWorkspace, StatusWorkspace, TimelineWorkspace, WorkspaceDegradedPage } from "./pages";
+import type {
+  DashboardResult,
+  DashboardWorkspace,
+  LiveFreshness,
+  Page,
+  PlanResult,
+  ReviewResult,
+  StatusResult,
+  TimelineResult,
+  WorkspaceRouteResult,
+} from "./types";
 import { RailIcon, TopbarFreshness, TopbarMetric } from "./workbench";
 
-const pages: PageDef[] = [
-  { id: "status", label: "Status", href: "/status" },
-  { id: "plan", label: "Plan", href: "/plan" },
-  { id: "timeline", label: "Timeline", href: "/timeline" },
-  { id: "review", label: "Review", href: "/review" },
+const pages: Array<{ id: Page; label: string }> = [
+  { id: "status", label: "Status" },
+  { id: "plan", label: "Plan" },
+  { id: "timeline", label: "Timeline" },
+  { id: "review", label: "Review" },
 ];
 const LIVE_REFRESH_INTERVAL_MS = 4000;
 const LIVE_REFRESH_ACTIVITY_BUFFER_MS = 250;
+
+type AppRoute =
+  | { kind: "dashboard" }
+  | {
+      kind: "workspace";
+      workspaceKey: string;
+      page: Page;
+    };
 
 type LiveResourceResult<T> = {
   data: T | null;
@@ -38,23 +58,6 @@ function isPage(value: string | null): value is Page {
   return value === "status" || value === "plan" || value === "timeline" || value === "review";
 }
 
-function pageFromPathname(pathname: string): Page | null {
-  const trimmed = pathname.replace(/\/+$/, "");
-  const value = trimmed.split("/").filter(Boolean).pop() ?? "";
-  return isPage(value) ? value : null;
-}
-
-function readPageFromLocation(): Page {
-  const pathnamePage = pageFromPathname(window.location.pathname);
-  if (pathnamePage) return pathnamePage;
-  const hashValue = window.location.hash.replace(/^#/, "");
-  return isPage(hashValue) ? hashValue : "status";
-}
-
-function pageDefinition(page: Page): PageDef {
-  return pages.find((item) => item.id === page) ?? pages[0];
-}
-
 function sectionIDsForPage(page: Page): string[] {
   if (page === "status") {
     return ["summary", "next-actions", "warnings", "facts", "artifacts"];
@@ -62,9 +65,23 @@ function sectionIDsForPage(page: Page): string[] {
   return ["overview"];
 }
 
-function readSectionFromLocation(page: Page): string {
+function readRouteFromLocation(): AppRoute {
+  const trimmed = window.location.pathname.replace(/\/+$/, "");
+  const parts = trimmed.split("/").filter(Boolean);
+  if (parts.length === 0 || (parts.length === 1 && parts[0] === "dashboard")) {
+    return { kind: "dashboard" };
+  }
+  if (parts[0] === "workspace" && parts[1]) {
+    const page = isPage(parts[2] ?? "status") ? (parts[2] as Page) : "status";
+    return { kind: "workspace", workspaceKey: parts[1], page };
+  }
+  return { kind: "dashboard" };
+}
+
+function readSectionFromLocation(route: AppRoute): string {
+  if (route.kind !== "workspace") return "overview";
   const section = window.location.hash.replace(/^#/, "");
-  return sectionIDsForPage(page).includes(section) ? section : sectionIDsForPage(page)[0];
+  return sectionIDsForPage(route.page).includes(section) ? section : sectionIDsForPage(route.page)[0];
 }
 
 function formatTimelineResourceError(result: TimelineResult | null, statusCode?: number): string {
@@ -197,14 +214,15 @@ function useLiveResource<T>(options: {
 }
 
 function App() {
-  const [page, setPage] = useState<Page>(() => readPageFromLocation());
-  const [section, setSection] = useState<string>(() => readSectionFromLocation(readPageFromLocation()));
+  const [route, setRoute] = useState<AppRoute>(() => readRouteFromLocation());
+  const [section, setSection] = useState<string>(() => readSectionFromLocation(readRouteFromLocation()));
+  const [busyWorkspaceKey, setBusyWorkspaceKey] = useState<string | null>(null);
 
   useEffect(() => {
     const onLocationChange = () => {
-      const nextPage = readPageFromLocation();
-      setPage(nextPage);
-      setSection(readSectionFromLocation(nextPage));
+      const nextRoute = readRouteFromLocation();
+      setRoute(nextRoute);
+      setSection(readSectionFromLocation(nextRoute));
     };
     window.addEventListener("popstate", onLocationChange);
     window.addEventListener("hashchange", onLocationChange);
@@ -215,44 +233,69 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (pageFromPathname(window.location.pathname) === null && !window.location.hash) {
-      window.history.replaceState({}, "", `${pageDefinition(page).href}#${sectionIDsForPage(page)[0]}`);
+    if (route.kind === "workspace" && !window.location.hash) {
+      window.history.replaceState({}, "", `${workspacePageHref(route.workspaceKey, route.page)}#${sectionIDsForPage(route.page)[0]}`);
     }
-  }, [page]);
+  }, [route]);
 
-  const navigateToPage = (nextPage: Page, nextSection = sectionIDsForPage(nextPage)[0]) => {
-    const nextURL = `${pageDefinition(nextPage).href}#${nextSection}`;
+  const navigateToDashboard = () => {
+    if (window.location.pathname !== "/dashboard") {
+      window.history.pushState({}, "", "/dashboard");
+    }
+    setRoute({ kind: "dashboard" });
+    setSection("overview");
+  };
+
+  const navigateToWorkspacePage = (workspaceKey: string, page: Page, nextSection = sectionIDsForPage(page)[0]) => {
+    const nextURL = `${workspacePageHref(workspaceKey, page)}#${nextSection}`;
     if (`${window.location.pathname}${window.location.hash}` !== nextURL) {
       window.history.pushState({}, "", nextURL);
     }
-    setPage(nextPage);
+    setRoute({ kind: "workspace", workspaceKey, page });
     setSection(nextSection);
   };
 
-  const navigateToSection = (nextSection: string) => {
-    navigateToPage(page, nextSection);
-  };
+  const dashboardResource = useLiveResource<DashboardResult>({
+    enabled: route.kind === "dashboard",
+    path: "/api/dashboard",
+    formatError: (result, statusCode) => result?.summary?.trim() || (statusCode ? `GET /api/dashboard failed with ${statusCode}` : "Unable to load dashboard"),
+  });
+  const workspaceResource = useLiveResource<WorkspaceRouteResult>({
+    enabled: route.kind === "workspace",
+    path: route.kind === "workspace" ? `/api/workspace/${route.workspaceKey}` : "/api/workspace/_",
+    formatError: formatDashboardError,
+  });
+
+  const selectedWorkspace = route.kind === "workspace" ? workspaceResource.data?.workspace ?? null : null;
+  const workspaceReadable =
+    route.kind === "workspace" &&
+    workspaceResource.data?.watched === true &&
+    selectedWorkspace !== null &&
+    selectedWorkspace.dashboard_state !== "missing" &&
+    selectedWorkspace.dashboard_state !== "invalid";
+
   const statusResource = useLiveResource<StatusResult>({
-    enabled: true,
-    path: "/api/status",
+    enabled: workspaceReadable,
+    path: route.kind === "workspace" ? `/api/workspace/${route.workspaceKey}/status` : "/api/workspace/_/status",
     formatError: formatStatusError,
   });
   const planResource = useLiveResource<PlanResult>({
-    enabled: page === "plan",
-    path: "/api/plan",
+    enabled: workspaceReadable && route.kind === "workspace" && route.page === "plan",
+    path: route.kind === "workspace" ? `/api/workspace/${route.workspaceKey}/plan` : "/api/workspace/_/plan",
     formatError: formatPlanError,
   });
   const timelineResource = useLiveResource<TimelineResult>({
-    enabled: page === "timeline",
-    path: "/api/timeline",
+    enabled: workspaceReadable && route.kind === "workspace" && route.page === "timeline",
+    path: route.kind === "workspace" ? `/api/workspace/${route.workspaceKey}/timeline` : "/api/workspace/_/timeline",
     formatError: formatTimelineResourceError,
   });
   const reviewResource = useLiveResource<ReviewResult>({
-    enabled: page === "review",
-    path: "/api/review",
+    enabled: workspaceReadable && route.kind === "workspace" && route.page === "review",
+    path: route.kind === "workspace" ? `/api/workspace/${route.workspaceKey}/review` : "/api/workspace/_/review",
     formatError: formatReviewError,
   });
 
+  const { data: dashboard, error: dashboardError, loading: dashboardLoading, freshness: dashboardFreshness } = dashboardResource;
   const { data: status, error: statusError, loading: statusLoading, freshness: statusFreshness } = statusResource;
   const { data: plan, error: planError, loading: planLoading, freshness: planFreshness } = planResource;
   const { data: timeline, error: timelineError, loading: timelineLoading, freshness: timelineFreshness } = timelineResource;
@@ -261,15 +304,15 @@ function App() {
   const activeStatus = useMemo(
     () => ({
       summary: status?.summary ?? "Waiting for status data.",
-      currentNode: status?.state?.current_node ?? "unknown",
+      currentNode: status?.state?.current_node ?? selectedWorkspace?.current_node ?? "unknown",
       nextActions: Array.isArray(status?.next_actions) ? status.next_actions ?? [] : [],
       blockers: Array.isArray(status?.blockers) ? status.blockers ?? [] : [],
       warnings: Array.isArray(status?.warnings) ? status.warnings ?? [] : [],
       errors: Array.isArray(status?.errors) ? status.errors ?? [] : [],
-      facts: pickEntries(status?.facts),
+      facts: pickEntries((status?.facts as Record<string, unknown>) ?? null),
       artifacts: pickEntries(status?.artifacts),
     }),
-    [status],
+    [selectedWorkspace?.current_node, status],
   );
 
   const activeTimeline = useMemo(
@@ -301,11 +344,45 @@ function App() {
   );
 
   const shellFreshness = useMemo(() => {
-    if (page === "status") return statusFreshness;
-    if (page === "plan") return combineLiveFreshness([statusFreshness, planFreshness]);
-    if (page === "timeline") return combineLiveFreshness([statusFreshness, timelineFreshness]);
+    if (route.kind === "dashboard") return dashboardFreshness;
+    if (!workspaceReadable) return workspaceResource.freshness;
+    if (route.page === "status") return statusFreshness;
+    if (route.page === "plan") return combineLiveFreshness([statusFreshness, planFreshness]);
+    if (route.page === "timeline") return combineLiveFreshness([statusFreshness, timelineFreshness]);
     return combineLiveFreshness([statusFreshness, reviewFreshness]);
-  }, [page, planFreshness, reviewFreshness, statusFreshness, timelineFreshness]);
+  }, [
+    dashboardFreshness,
+    planFreshness,
+    reviewFreshness,
+    route,
+    statusFreshness,
+    timelineFreshness,
+    workspaceReadable,
+    workspaceResource.freshness,
+  ]);
+
+  const dashboardEntries = useMemo(() => dashboardWorkspaces(dashboard?.groups), [dashboard?.groups]);
+
+  const unwatchWorkspace = (workspace: DashboardWorkspace) => {
+    setBusyWorkspaceKey(workspace.workspace_key);
+    fetch(`/api/workspace/${workspace.workspace_key}/unwatch`, { method: "POST" })
+      .then(async (response) => {
+        const payload = (await response.json()) as { ok?: boolean; summary?: string };
+        if (!response.ok || payload.ok === false) {
+          throw new Error(payload.summary || "Unable to remove workspace from the machine-local watchlist.");
+        }
+        if (route.kind === "workspace" && route.workspaceKey === workspace.workspace_key) {
+          window.location.assign("/dashboard");
+          return;
+        }
+        window.location.reload();
+      })
+      .catch((nextError: unknown) => {
+        const message = nextError instanceof Error ? nextError.message : "Unable to remove workspace from the machine-local watchlist.";
+        window.alert(message);
+        setBusyWorkspaceKey(null);
+      });
+  };
 
   return (
     <div class="app-shell">
@@ -313,105 +390,153 @@ function App() {
         <div class="brand">
           <span class="brand-mark">{productNameLabel()}</span>
         </div>
-        <div class="workspace-path" title={workdirLabel()}>
-          {workdirLabel()}
+        <div class="workspace-path" title={route.kind === "workspace" ? selectedWorkspace?.workspace_path || workdirLabel() : "Dashboard"}>
+          {route.kind === "workspace" ? selectedWorkspace?.workspace_path || workdirLabel() : "Dashboard"}
         </div>
         <TopbarFreshness freshness={shellFreshness} />
-        <div class="topbar-summary">
-          <TopbarMetric kind="node" label="Node" value={activeStatus.currentNode} onClick={() => navigateToPage("status", "summary")} />
-          {activeStatus.blockers.length > 0 ? (
+        {route.kind === "workspace" && workspaceReadable ? (
+          <div class="topbar-summary">
             <TopbarMetric
-              kind="blockers"
-              label="Blockers"
-              value={String(activeStatus.blockers.length)}
-              tone="danger"
-              onClick={() => navigateToPage("status", "warnings")}
+              kind="node"
+              label="Node"
+              value={activeStatus.currentNode}
+              onClick={() => navigateToWorkspacePage(route.workspaceKey, "status", "summary")}
             />
-          ) : null}
-          <TopbarMetric
-            kind="warnings"
-            label="Warnings"
-            value={String(activeStatus.warnings.length)}
-            tone={activeStatus.warnings.length > 0 ? "warning" : "muted"}
-            onClick={() => navigateToPage("status", "warnings")}
-          />
-          <TopbarMetric
-            kind="actions"
-            label="Actions"
-            value={String(activeStatus.nextActions.length)}
-            tone={activeStatus.nextActions.length > 0 ? "good" : "muted"}
-            onClick={() => navigateToPage("status", "next-actions")}
-          />
-        </div>
+            {activeStatus.blockers.length > 0 ? (
+              <TopbarMetric
+                kind="blockers"
+                label="Blockers"
+                value={String(activeStatus.blockers.length)}
+                tone="danger"
+                onClick={() => navigateToWorkspacePage(route.workspaceKey, "status", "warnings")}
+              />
+            ) : null}
+            <TopbarMetric
+              kind="warnings"
+              label="Warnings"
+              value={String(activeStatus.warnings.length)}
+              tone={activeStatus.warnings.length > 0 ? "warning" : "muted"}
+              onClick={() => navigateToWorkspacePage(route.workspaceKey, "status", "warnings")}
+            />
+            <TopbarMetric
+              kind="actions"
+              label="Actions"
+              value={String(activeStatus.nextActions.length)}
+              tone={activeStatus.nextActions.length > 0 ? "good" : "muted"}
+              onClick={() => navigateToWorkspacePage(route.workspaceKey, "status", "next-actions")}
+            />
+          </div>
+        ) : null}
       </header>
 
-      <div class="layout">
-        <aside class="rail" aria-label="Pages">
-          {pages.map((item) => {
-            const selected = page === item.id;
-            return (
-              <a
-                key={item.id}
-                class={`rail-item${selected ? " is-active" : ""}`}
-                href={item.href}
-                aria-current={selected ? "page" : undefined}
-                aria-label={item.label}
-                title={item.label}
-                onClick={(event) => {
-                  event.preventDefault();
-                  navigateToPage(item.id);
-                }}
-              >
-                <span class="rail-icon">
-                  <RailIcon page={item.id} />
-                </span>
-                <span class="sr-only">{item.label}</span>
-              </a>
-            );
-          })}
-        </aside>
-
-        <main class="main-stage">
-          {page === "plan" ? (
-            <PlanWorkspace
-              loading={planLoading}
-              error={planError}
-              summary={activePlan.summary}
-              document={activePlan.document}
-              supplements={activePlan.supplements}
-              warnings={activePlan.warnings}
-            />
-          ) : page === "timeline" ? (
-            <TimelineWorkspace loading={timelineLoading} error={timelineError} events={activeTimeline.events} />
-          ) : page === "review" ? (
-            <ReviewWorkspace
-              loading={reviewLoading}
-              error={reviewError}
-              summary={activeReview.summary}
-              rounds={activeReview.rounds}
-              warnings={activeReview.warnings}
-              artifacts={activeReview.artifacts}
-            />
-          ) : (
-            <StatusWorkspace
-              loading={statusLoading}
-              error={statusError}
-              summary={activeStatus.summary}
-              currentNode={activeStatus.currentNode}
-              nextActions={activeStatus.nextActions}
-              blockers={activeStatus.blockers}
-              warnings={activeStatus.warnings}
-              errors={activeStatus.errors}
-              facts={activeStatus.facts}
-              artifacts={activeStatus.artifacts}
-              selectedSection={section}
-              onSelectSection={navigateToSection}
-            />
-          )}
+      {route.kind === "dashboard" ? (
+        <main class="dashboard-stage">
+          <DashboardHome
+            loading={dashboardLoading}
+            error={dashboardError}
+            workspaces={dashboardEntries}
+            onOpenWorkspace={(workspaceKey) => navigateToWorkspacePage(workspaceKey, "status")}
+            onUnwatch={unwatchWorkspace}
+            busyWorkspaceKey={busyWorkspaceKey}
+          />
         </main>
-      </div>
+      ) : workspaceReadable ? (
+        <div class="layout">
+          <aside class="rail" aria-label="Pages">
+            {pages.map((item) => {
+              const selected = route.page === item.id;
+              return (
+                <a
+                  key={item.id}
+                  class={`rail-item${selected ? " is-active" : ""}`}
+                  href={workspacePageHref(route.workspaceKey, item.id)}
+                  aria-current={selected ? "page" : undefined}
+                  aria-label={item.label}
+                  title={item.label}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    navigateToWorkspacePage(route.workspaceKey, item.id);
+                  }}
+                >
+                  <span class="rail-icon">
+                    <RailIcon page={item.id} />
+                  </span>
+                  <span class="sr-only">{item.label}</span>
+                </a>
+              );
+            })}
+            <div class="rail-spacer" />
+            <button type="button" class="rail-item" aria-label="Home" title="Home" onClick={navigateToDashboard}>
+              <span class="rail-icon">
+                <RailIcon page="home" />
+              </span>
+              <span class="sr-only">Home</span>
+            </button>
+          </aside>
+
+          <main class="main-stage">
+            {route.page === "plan" ? (
+              <PlanWorkspace
+                loading={planLoading}
+                error={planError}
+                summary={activePlan.summary}
+                document={activePlan.document}
+                supplements={activePlan.supplements}
+                warnings={activePlan.warnings}
+              />
+            ) : route.page === "timeline" ? (
+              <TimelineWorkspace loading={timelineLoading} error={timelineError} events={activeTimeline.events} />
+            ) : route.page === "review" ? (
+              <ReviewWorkspace
+                loading={reviewLoading}
+                error={reviewError}
+                summary={activeReview.summary}
+                rounds={activeReview.rounds}
+                warnings={activeReview.warnings}
+                artifacts={activeReview.artifacts}
+              />
+            ) : (
+              <StatusWorkspace
+                loading={statusLoading}
+                error={statusError}
+                summary={activeStatus.summary}
+                currentNode={activeStatus.currentNode}
+                nextActions={activeStatus.nextActions}
+                blockers={activeStatus.blockers}
+                warnings={activeStatus.warnings}
+                errors={activeStatus.errors}
+                facts={activeStatus.facts}
+                artifacts={activeStatus.artifacts}
+                selectedSection={section}
+                onSelectSection={(nextSection) => {
+                  setSection(nextSection);
+                  const nextURL = `${workspacePageHref(route.workspaceKey, "status")}#${nextSection}`;
+                  if (`${window.location.pathname}${window.location.hash}` !== nextURL) {
+                    window.history.pushState({}, "", nextURL);
+                  }
+                }}
+              />
+            )}
+          </main>
+        </div>
+      ) : (
+        <main class="dashboard-stage">
+          <WorkspaceDegradedPage
+            loading={workspaceResource.loading}
+            error={workspaceResource.error}
+            result={workspaceResource.data}
+            onReturnDashboard={navigateToDashboard}
+            onUnwatch={unwatchWorkspace}
+            busyWorkspaceKey={busyWorkspaceKey}
+          />
+        </main>
+      )}
     </div>
   );
+}
+
+function workspacePageHref(workspaceKey: string, page: Page): string {
+  return `/workspace/${workspaceKey}/${page}`;
 }
 
 render(<App />, document.getElementById("app") as HTMLElement);

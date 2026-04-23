@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/catu-ai/easyharness/internal/dashboard"
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/install"
 	"github.com/catu-ai/easyharness/internal/lifecycle"
@@ -34,6 +35,7 @@ type App struct {
 	LookupEnv   func(string) (string, bool)
 	UserHomeDir func() (string, error)
 	Version     func() versioninfo.Info
+	RunUIServer func(context.Context, ui.Server) error
 }
 
 func New(stdout, stderr io.Writer) *App {
@@ -46,6 +48,9 @@ func New(stdout, stderr io.Writer) *App {
 		LookupEnv:   os.LookupEnv,
 		UserHomeDir: os.UserHomeDir,
 		Version:     versioninfo.Current,
+		RunUIServer: func(ctx context.Context, server ui.Server) error {
+			return server.Run(ctx)
+		},
 	}
 }
 
@@ -80,6 +85,8 @@ func (a *App) Run(args []string) int {
 		return a.runSkills(args[1:])
 	case "instructions":
 		return a.runInstructions(args[1:])
+	case "dashboard":
+		return a.runDashboard(args[1:])
 	case "ui":
 		return a.runUI(args[1:])
 	case "-h", "--help", "help":
@@ -501,16 +508,47 @@ func (a *App) runInstructionsCommand(name string, args []string, installOp bool)
 	return a.writeJSONResult(service.UninstallInstructions(opts))
 }
 
+func (a *App) runDashboard(args []string) int {
+	return a.runUIServerCommand("dashboard", args, func() (string, error) {
+		return "/dashboard", nil
+	})
+}
+
 func (a *App) runUI(args []string) int {
-	fs := flag.NewFlagSet("harness ui", flag.ContinueOnError)
+	return a.runUIServerCommand("ui", args, func() (string, error) {
+		workdir, err := a.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("resolve working directory: %w", err)
+		}
+		if err := (watchlist.Service{
+			LookupEnv:   a.LookupEnv,
+			UserHomeDir: a.UserHomeDir,
+		}).Touch(workdir); err != nil {
+			return "", fmt.Errorf("touch watchlist for current workspace: %w", err)
+		}
+		canonicalPath, err := watchlist.CanonicalWorkspacePath(workdir)
+		if err != nil {
+			return "", fmt.Errorf("resolve canonical workspace path: %w", err)
+		}
+		return fmt.Sprintf("/workspace/%s/status", dashboard.WorkspaceKey(canonicalPath)), nil
+	})
+}
+
+func (a *App) runUIServerCommand(command string, args []string, resolveOpenPath func() (string, error)) int {
+	fs := flag.NewFlagSet("harness "+command, flag.ContinueOnError)
 	fs.SetOutput(a.Stderr)
 	host := fs.String("host", "127.0.0.1", "Bind the local UI server to this host.")
 	port := fs.Int("port", 0, "Bind the local UI server to this port. Use 0 to auto-select an available port.")
 	noOpen := fs.Bool("no-open", false, "Start the local UI server without opening a browser.")
 	fs.Usage = func() {
-		fmt.Fprintln(a.Stderr, "Usage: harness ui [--host <host>] [--port <port>] [--no-open]")
+		fmt.Fprintf(a.Stderr, "Usage: harness %s [--host <host>] [--port <port>] [--no-open]\n", command)
 		fmt.Fprintln(a.Stderr)
-		fmt.Fprintln(a.Stderr, "Start the local read-only harness UI workbench for the current repository.")
+		switch command {
+		case "dashboard":
+			fmt.Fprintln(a.Stderr, "Start the local machine-local dashboard home.")
+		default:
+			fmt.Fprintln(a.Stderr, "Start the local read-only harness UI workbench for the current repository.")
+		}
 		fmt.Fprintln(a.Stderr)
 		fs.PrintDefaults()
 	}
@@ -529,20 +567,26 @@ func (a *App) runUI(args []string) int {
 		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
 		return 1
 	}
+	openPath, err := resolveOpenPath()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "%v\n", err)
+		return 1
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	err = ui.Server{
+	err = a.RunUIServer(ctx, ui.Server{
 		Workdir:     workdir,
 		Host:        *host,
 		Port:        *port,
 		Stdout:      a.Stdout,
 		Stderr:      a.Stderr,
 		OpenBrowser: !*noOpen,
-	}.Run(ctx)
+		OpenPath:    openPath,
+	})
 	if err != nil {
-		fmt.Fprintf(a.Stderr, "run harness ui: %v\n", err)
+		fmt.Fprintf(a.Stderr, "run harness %s: %v\n", command, err)
 		return 1
 	}
 	return 0
@@ -1015,6 +1059,7 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "  init            Install or refresh the managed bootstrap resources for the current repository")
 	fmt.Fprintln(a.Stderr, "  skills          Manage easyharness skill packages")
 	fmt.Fprintln(a.Stderr, "  instructions    Manage easyharness instruction files and managed blocks")
+	fmt.Fprintln(a.Stderr, "  dashboard       Start the local machine-local dashboard home")
 	fmt.Fprintln(a.Stderr, "  ui              Start the local read-only harness UI workbench")
 }
 

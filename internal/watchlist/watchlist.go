@@ -273,6 +273,10 @@ func canonicalWorkspacePath(workdir string) (string, error) {
 	return filepath.Clean(resolved), nil
 }
 
+func CanonicalWorkspacePath(workdir string) (string, error) {
+	return canonicalWorkspacePath(workdir)
+}
+
 func unwatchWorkspacePath(workdir string) (string, error) {
 	workdir = strings.TrimSpace(workdir)
 	if workdir == "" {

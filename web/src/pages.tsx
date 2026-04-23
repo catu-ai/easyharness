@@ -4,7 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import {
   buildTimelineTabs,
+  dashboardStateLabel,
+  dashboardStateTone,
   formatTimestamp,
+  formatRelativeTimestamp,
   formatValue,
   humanizeLabel,
   pickDefaultTimelineEvent,
@@ -33,6 +36,7 @@ import {
   timelineTabText,
 } from "./helpers";
 import type {
+  DashboardWorkspace,
   ErrorDetail,
   NextAction,
   PlanDocument,
@@ -45,6 +49,7 @@ import type {
   ReviewReviewer,
   ReviewWorklog,
   TimelineEvent,
+  WorkspaceRouteResult,
 } from "./types";
 import {
   EmptyState,
@@ -1281,6 +1286,164 @@ export function ReviewWorkspace(props: {
         />
       ) : null}
     </WorkbenchFrame>
+  );
+}
+
+function dashboardItemMeta(workspace: DashboardWorkspace): string[] {
+  const parts: string[] = [];
+  if (workspace.current_node?.trim()) {
+    parts.push(workspace.current_node.trim());
+  }
+  if (workspace.facts?.current_step?.trim()) {
+    parts.push(workspace.facts.current_step.trim());
+  }
+  const warningCount = Array.isArray(workspace.warnings) ? workspace.warnings.length : 0;
+  if (warningCount > 0) {
+    parts.push(`${warningCount} warning${warningCount === 1 ? "" : "s"}`);
+  }
+  if (workspace.progress?.nodes?.length) {
+    parts.push(`${workspace.progress.nodes.length} nodes`);
+  }
+  return parts;
+}
+
+function DashboardProgressAxis(props: { workspace: DashboardWorkspace }) {
+  const nodes = props.workspace.progress?.nodes ?? [];
+  if (nodes.length === 0) return null;
+  return (
+    <div class="dashboard-progress" style={{ gridTemplateColumns: `repeat(${nodes.length}, minmax(0, 1fr))` }}>
+      <div class="dashboard-progress-line" aria-hidden="true" />
+      {nodes.map((node, index) => (
+        <span
+          key={`${props.workspace.workspace_key}-${node.label}-${index}`}
+          class={`dashboard-progress-node is-${node.state} is-${props.workspace.dashboard_state}`}
+          title={node.label}
+          aria-label={node.label}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function DashboardHome(props: {
+  loading: boolean;
+  error: string | null;
+  workspaces: DashboardWorkspace[];
+  onOpenWorkspace: (workspaceKey: string) => void;
+  onUnwatch: (workspace: DashboardWorkspace) => void;
+  busyWorkspaceKey?: string | null;
+}) {
+  const { loading, error, workspaces, onOpenWorkspace, onUnwatch, busyWorkspaceKey = null } = props;
+
+  return (
+    <div class="dashboard-page">
+      <div class="dashboard-header">
+        <div>
+          <div class="sidebar-label">Machine-local home</div>
+          <h1>Dashboard</h1>
+        </div>
+      </div>
+
+      {loading ? <EmptyState>Loading watched workspaces.</EmptyState> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      {!loading && !error && workspaces.length === 0 ? <EmptyState>No watched workspaces yet.</EmptyState> : null}
+
+      {workspaces.length > 0 ? (
+        <div class="dashboard-list">
+          {workspaces.map((workspace) => {
+            const meta = dashboardItemMeta(workspace);
+            const planTitle = workspace.plan_title?.trim() || workspace.summary;
+            const busy = busyWorkspaceKey === workspace.workspace_key;
+            return (
+              <article key={workspace.workspace_key} class={`dashboard-item is-${workspace.dashboard_state}`}>
+                <div class="dashboard-item-top">
+                  <div class="dashboard-item-head">
+                    <div class="dashboard-item-title-row">
+                      <h2 class="dashboard-item-title">{workspace.workspace_name || workspace.workspace_path}</h2>
+                      <StatusBadge tone={dashboardStateTone(workspace.dashboard_state)}>{dashboardStateLabel(workspace.dashboard_state)}</StatusBadge>
+                      <span class="dashboard-item-time">last seen {formatRelativeTimestamp(workspace.last_seen_at)}</span>
+                    </div>
+                    <p class="dashboard-item-plan" title={planTitle}>
+                      {planTitle}
+                    </p>
+                    <div class="dashboard-item-path" title={workspace.workspace_path}>
+                      {workspace.workspace_path}
+                    </div>
+                  </div>
+                  <div class="dashboard-item-actions">
+                    <button type="button" class="dashboard-action" onClick={() => onOpenWorkspace(workspace.workspace_key)}>
+                      Open
+                    </button>
+                    <button type="button" class="dashboard-action" onClick={() => onUnwatch(workspace)} disabled={busy}>
+                      {busy ? "Working..." : "Unwatch"}
+                    </button>
+                  </div>
+                </div>
+                <DashboardProgressAxis workspace={workspace} />
+                {meta.length > 0 ? (
+                  <div class="dashboard-item-meta">
+                    {meta.map((part) => (
+                      <span key={part}>{part}</span>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function WorkspaceDegradedPage(props: {
+  loading: boolean;
+  error: string | null;
+  result: WorkspaceRouteResult | null;
+  onReturnDashboard: () => void;
+  onUnwatch: (workspace: DashboardWorkspace) => void;
+  busyWorkspaceKey?: string | null;
+}) {
+  const { loading, error, result, onReturnDashboard, onUnwatch, busyWorkspaceKey = null } = props;
+  const workspace = result?.workspace ?? null;
+  const state = workspace?.dashboard_state ?? "invalid";
+  const summary = error || result?.summary || "Workspace is not currently watched.";
+
+  return (
+    <div class="degraded-page">
+      <div class="degraded-card">
+        <div class="sidebar-label">Workspace route</div>
+        <h1>{workspace?.workspace_name || "Workspace unavailable"}</h1>
+        <p class="detail-copy">{summary}</p>
+        {workspace ? (
+          <>
+            <div class="dashboard-item-path" title={workspace.workspace_path}>
+              {workspace.workspace_path}
+            </div>
+            <div class="degraded-meta">
+              <StatusBadge tone={dashboardStateTone(state)}>{dashboardStateLabel(state)}</StatusBadge>
+              {workspace.invalid_reason ? <span class="muted">{humanizeLabel(workspace.invalid_reason)}</span> : null}
+            </div>
+          </>
+        ) : null}
+        {loading ? <div class="muted">Loading workspace route.</div> : null}
+        <div class="degraded-actions">
+          <button type="button" class="secondary-button" onClick={onReturnDashboard}>
+            Return to dashboard
+          </button>
+          {workspace ? (
+            <button
+              type="button"
+              class="secondary-button"
+              onClick={() => onUnwatch(workspace)}
+              disabled={busyWorkspaceKey === workspace.workspace_key}
+            >
+              {busyWorkspaceKey === workspace.workspace_key ? "Working..." : "Unwatch"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
