@@ -242,7 +242,7 @@ than as an isolated pre-UI backend slice.
 
 ### Step 3: Build the dashboard home, workspace route shell changes, and minimal degraded page
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -346,25 +346,21 @@ Revalidated with `pnpm --dir web test`, `pnpm --dir web build`, and
 
 #### Review Notes
 
-`review-001-full` requested six blocking findings. Correctness found that
-workspace-route changes could keep rendering stale workspace data across key
-changes and that dashboard collision rows used duplicate client keys.
-Tests found missing coverage for the `harness ui` watchlist-touch
-compatibility contract, keyed workspace `/plan|timeline|review` reads, and
-frontend-only degraded/progress behavior. Docs consistency found that the
-README and normative CLI contract still described `harness ui` as the primary
-UI surface instead of documenting `harness dashboard` plus the quiet
-compatibility role for `harness ui`.
+`review-001-full` requested six blocking findings across correctness, tests,
+and docs consistency: stale workspace-route data could survive key changes,
+dashboard collision rows used duplicate client keys, the `harness ui`
+watchlist-touch compatibility contract and keyed workspace resource reads
+lacked direct coverage, frontend-only degraded/progress behavior had no
+targeted tests, and repo-facing docs still described `harness ui` as the
+primary UI surface instead of introducing `harness dashboard`.
 
-All six findings are now repaired and revalidated. Fresh delta review is the
-next step before marking Step 3 done. `review-002-delta` then cleared tests
-and docs consistency but raised one additional correctness finding: collision
-rows still sent an ambiguous unwatch target. That repair is now in place and a
-fresh narrow delta review is the next step. `review-003-delta` then found two
-final blocking follow-ups: ambiguous degraded routes still exposed `Unwatch`,
-and the frontend lacked direct coverage for the explicit `workspace_path`
-request body. Both repairs are now in place and one last narrow delta review
-is the next step.
+Those repairs landed and `review-002-delta` then narrowed the remaining gap to
+collision-safe unwatch targeting. That repair landed, and `review-003-delta`
+then found two final follow-ups: ambiguous degraded routes still exposed
+`Unwatch`, and the frontend still lacked direct coverage for the explicit
+`workspace_path` request body. Those final repairs landed through
+`0dbc9cb`, and `review-004-delta` passed clean with no remaining findings for
+this step.
 
 ## Validation Strategy
 
