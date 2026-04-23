@@ -430,13 +430,16 @@ this step.
 
 ## Archive Summary
 
-Revision `1` is archive-ready after Step 3 closeout plus finalize review.
-The candidate has a clean worktree, the tracked plan now captures the accepted
-dashboard design baseline plus the review/repair chain, and the latest finalize
-delta review (`review-006-delta`) passed clean after the degraded-summary and
-README wording fixes. Next archive handoff work is to freeze the plan, commit
-the archive move, and continue publish/CI/sync bookkeeping until
-`harness status` reports `execution/finalize/await_merge`.
+- PR: not opened yet; publish closeout should create the PR from branch
+  `codex/issue-167-dashboard-ui`.
+- Ready: Acceptance criteria are satisfied, Step 3 closeout passed through
+  `review-004-delta`, finalize `review-005-full` requested the last degraded
+  summary and README wording fixes, and finalize-fix `review-006-delta` plus
+  the narrowed archive-summary review `review-007-delta` both passed clean.
+- Merge Handoff: Run `harness archive`, commit the tracked archive move, push
+  branch `codex/issue-167-dashboard-ui`, create the PR, and then record
+  publish/CI/sync evidence until `harness status` reaches
+  `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
