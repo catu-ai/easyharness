@@ -36,6 +36,7 @@ import {
   timelineEventTitle,
   timelineTabText,
 } from "./helpers";
+import { canUnwatchWorkspaceFromDegradedRoute } from "./workspace-actions";
 import type {
   DashboardWorkspace,
   ErrorDetail,
@@ -1409,6 +1410,7 @@ export function WorkspaceDegradedPage(props: {
   const workspace = result?.workspace ?? null;
   const state = workspace?.dashboard_state ?? "invalid";
   const summary = error || result?.summary || "Workspace is not currently watched.";
+  const canUnwatch = canUnwatchWorkspaceFromDegradedRoute(workspace);
 
   return (
     <div class="degraded-page">
@@ -1432,7 +1434,7 @@ export function WorkspaceDegradedPage(props: {
           <button type="button" class="secondary-button" onClick={onReturnDashboard}>
             Return to dashboard
           </button>
-          {workspace ? (
+          {canUnwatch && workspace ? (
             <button
               type="button"
               class="secondary-button"

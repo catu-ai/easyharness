@@ -334,6 +334,16 @@ coverage for the ambiguous collision case. Revalidated with
 `go test ./internal/ui ./internal/cli -count=1`, `pnpm --dir web test`, and
 `pnpm --dir web build`.
 
+Delta `review-003-delta` then found two final follow-ups: ambiguous degraded
+workspace routes still exposed a non-fail-safe `Unwatch` action, and the web
+test suite still lacked coverage that the client sends the selected row's
+exact `workspace_path` in the unwatch request body. The repair extracted
+explicit workspace-action helpers, made degraded routes hide `Unwatch` when
+the workspace invalid reason is `route_key_collision`, and added targeted web
+tests for both the request shape and the degraded-route fail-safe behavior.
+Revalidated with `pnpm --dir web test`, `pnpm --dir web build`, and
+`go test ./internal/ui ./internal/cli -count=1`.
+
 #### Review Notes
 
 `review-001-full` requested six blocking findings. Correctness found that
@@ -350,7 +360,11 @@ All six findings are now repaired and revalidated. Fresh delta review is the
 next step before marking Step 3 done. `review-002-delta` then cleared tests
 and docs consistency but raised one additional correctness finding: collision
 rows still sent an ambiguous unwatch target. That repair is now in place and a
-fresh narrow delta review is the next step.
+fresh narrow delta review is the next step. `review-003-delta` then found two
+final blocking follow-ups: ambiguous degraded routes still exposed `Unwatch`,
+and the frontend lacked direct coverage for the explicit `workspace_path`
+request body. Both repairs are now in place and one last narrow delta review
+is the next step.
 
 ## Validation Strategy
 

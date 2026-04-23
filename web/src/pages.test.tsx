@@ -92,5 +92,24 @@ describe("dashboard helpers and pages", () => {
 
     expect(screen.getByText("Return to dashboard")).toBeTruthy();
     expect(screen.queryByText("Unwatch")).toBeNull();
+
+    rerender(
+      <WorkspaceDegradedPage
+        loading={false}
+        error={null}
+        result={{
+          ok: true,
+          resource: "workspace",
+          summary: "Workspace route key collides.",
+          watched: true,
+          workspace: dashboardWorkspace({ invalid_reason: "route_key_collision" }),
+        }}
+        onReturnDashboard={vi.fn()}
+        onUnwatch={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Return to dashboard")).toBeTruthy();
+    expect(screen.queryByText("Unwatch")).toBeNull();
   });
 });

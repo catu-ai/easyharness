@@ -27,6 +27,7 @@ import type {
   TimelineResult,
   WorkspaceRouteResult,
 } from "./types";
+import { buildWorkspaceUnwatchRequest } from "./workspace-actions";
 import { RailIcon, TopbarFreshness, TopbarMetric } from "./workbench";
 
 const pages: Array<{ id: Page; label: string }> = [
@@ -230,13 +231,8 @@ function App() {
 
   const unwatchWorkspace = (workspace: DashboardWorkspace) => {
     setBusyWorkspaceKey(workspace.workspace_key);
-    fetch(`/api/workspace/${workspace.workspace_key}/unwatch`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ workspace_path: workspace.workspace_path }),
-    })
+    const request = buildWorkspaceUnwatchRequest(workspace);
+    fetch(request.url, request.init)
       .then(async (response) => {
         const payload = (await response.json()) as { ok?: boolean; summary?: string };
         if (!response.ok || payload.ok === false) {
