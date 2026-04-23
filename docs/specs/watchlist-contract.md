@@ -221,8 +221,9 @@ Derived at read time:
 - whether the workspace is the repository's primary checkout or a linked
   worktree
 - whether a watched workspace currently presents as `active`, `completed`,
-  `missing`, or another explicit degraded read-time state such as
-  `unreadable`
+  `idle`, `missing`, or `invalid`
+- invalid reason for degraded read failures, such as `unreadable`,
+  `not_git_workspace`, or `status_error`
 - live harness status or dashboard summary fields
 
 The contract prefers deriving these facts from the current filesystem and Git
@@ -246,25 +247,99 @@ deferred beyond this machine-local touch foundation.
 The first contract keeps dashboard lifecycle classification derived instead of
 persisted.
 
-At minimum, later read-model and UI work may classify a watched workspace as:
+The dashboard read model is a read-time projection over `watchlist.json` plus
+per-workspace harness status. It must not write the watchlist or workflow
+state while building dashboard entries.
+
+Readable dashboard entries expose the raw harness `current_node` separately
+from the dashboard lifecycle state. The lifecycle state is a compact
+dashboard classification, not a replacement for the raw workflow node.
+
+The dashboard lifecycle states are:
 
 - `active`
 - `completed`
+- `idle`
 - `missing`
-- `unreadable`
+- `invalid`
 
 These are read-time states for currently watched entries, not membership
 transitions stored in the watchlist file.
+
+Lifecycle classification:
+
+- `active`: status is readable and `current_node` is anything except `idle`
+- `completed`: status is readable, `current_node` is `idle`, and status
+  artifacts include last-landed context
+- `idle`: status is readable, `current_node` is `idle`, and no last-landed
+  context is present
+- `missing`: the watched path no longer exists
+- `invalid`: the watched path exists but cannot be treated as a valid readable
+  harness workspace
+
+Invalid entries carry a reason such as `unreadable`, `not_git_workspace`,
+`status_error`, `malformed_path`, or `route_key_collision`. The reason refines
+the `invalid` state; it does not expand the top-level lifecycle enum.
+
+## Dashboard Read Model Payload
+
+The dashboard read model should expose one compact result for the dashboard
+home. The concrete API route is implementation-owned, but the payload boundary
+should follow this shape:
+
+- `ok`: whether the dashboard read completed without a top-level watchlist
+  load failure
+- `resource`: stable UI resource label such as `dashboard`
+- `summary`: concise human-readable result summary
+- `groups`: dashboard lifecycle groups in stable order
+- `errors`: top-level watchlist or read-model errors when the watched set
+  cannot be loaded at all
+
+Each group contains:
+
+- `state`: one of `active`, `completed`, `idle`, `missing`, or `invalid`
+- `workspaces`: watched workspace entries in dashboard recency order
+
+Each workspace entry contains:
+
+- `workspace_key`: dashboard route key derived from canonical
+  `workspace_path`
+- `workspace_path`: canonical watched path from the watchlist record
+- `watched_at`: timestamp from the watchlist record
+- `last_seen_at`: timestamp from the watchlist record, used as the primary
+  dashboard recency signal
+- `dashboard_state`: same lifecycle value as the containing group
+- `invalid_reason`: present only when `dashboard_state` is `invalid`
+- `current_node`: raw harness workflow node for readable status entries
+- `summary`: compact row/card summary; for readable entries this should come
+  from harness status
+- `next_actions`: compact pass-through of the most relevant status next
+  actions for readable entries
+- `warnings`, `blockers`, and `errors`: compact pass-through or degraded-entry
+  diagnostics for the watched workspace
+- `artifacts`: stable status artifact handles needed for dashboard navigation
+  or display
+
+Readable entries should omit `invalid_reason`. Missing entries do not have
+`current_node` because there is no readable workspace status. Invalid entries
+may omit `current_node` unless a partial status result produced a trustworthy
+raw node before failing.
 
 In particular:
 
 - a harness plan moving through `archive` or back to `idle` does not remove
   the workspace from the watchlist
+- ordinary idle without last-landed context remains `idle`; it must not be
+  presented as `completed`
 - deleting the local directory does not remove the workspace from the
   watchlist by itself; it instead becomes a `missing` watched workspace until
   later explicit membership-removal behavior exists and removes it
-- a permissions or probe failure may surface as `unreadable` without removing
-  the workspace from the watchlist
+- a permissions, Git probe, or status failure may surface as `invalid` without
+  removing the workspace from the watchlist
+- a malformed non-absolute `workspace_path` must surface as `invalid` before
+  any filesystem, Git, or status probe is attempted
+- a duplicate or otherwise colliding `workspace_key` must surface explicit
+  per-entry collision diagnostics rather than silently routing to one workspace
 
 ## No Automatic GC In V1
 
@@ -272,18 +347,18 @@ This first contract does not define silent automatic garbage collection.
 
 The watchlist is a remembered local set, not an auto-pruned mirror of the
 current filesystem. The combination of `last_seen_at`, derived `missing`
-status, and deferred explicit membership-removal behavior is enough for this
-touch-foundation slice.
+or `invalid` status, and deferred explicit membership-removal behavior is
+enough for this touch-foundation slice.
 
 Later work may add user-facing cleanup or stale-item policies, but v1 should
 not silently discard watched entries just because they have gone idle,
-unreadable, or missing.
+invalid, or missing.
 
 ## Dashboard Routing Outcomes
 
 For dashboard workspace-detail routing:
 
-- a watched workspace that is now `missing` or `unreadable` should still
+- a watched workspace that is now `missing` or `invalid` should still
   resolve to an explicit degraded workspace page rather than being silently
   dropped or redirected away
 - a route key that does not match any current watched workspace should be
@@ -325,7 +400,7 @@ This spec does not:
 
 - define when or how workspaces are added to the watchlist
 - define daemon versus on-demand backend architecture
-- define a dashboard read model beyond the persisted-versus-derived boundary
+- define dashboard UI rendering beyond the persisted-versus-derived boundary
 - merge separate local clones into one project because they share a remote
 - support non-git watched directories in the first slice
 - define any dashboard-local `hidden` state or secondary visibility layer

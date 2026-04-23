@@ -43,6 +43,145 @@ func TestTouchUsesDefaultEasyharnessHome(t *testing.T) {
 	}
 }
 
+func TestReadUsesDefaultEasyharnessHome(t *testing.T) {
+	userHome := t.TempDir()
+	watchlistPath := filepath.Join(userHome, ".easyharness", "watchlist.json")
+	seed := File{
+		Version: version,
+		Workspaces: []Workspace{
+			{WorkspacePath: "/tmp/workspace-a", WatchedAt: "2026-04-19T01:00:00Z", LastSeenAt: "2026-04-19T02:00:00Z"},
+		},
+	}
+	writeWatchlistFile(t, watchlistPath, seed)
+
+	got, err := Service{UserHomeDir: func() (string, error) { return userHome, nil }}.Read()
+	if err != nil {
+		t.Fatalf("read watchlist: %v", err)
+	}
+	if got.Version != version || len(got.Workspaces) != 1 {
+		t.Fatalf("unexpected watchlist: %#v", got)
+	}
+	if got.Workspaces[0].WorkspacePath != "/tmp/workspace-a" {
+		t.Fatalf("expected persisted workspace path to survive read, got %#v", got.Workspaces[0])
+	}
+}
+
+func TestReadUsesEasyharnessHomeOverride(t *testing.T) {
+	userHome := t.TempDir()
+	customHome := filepath.Join(t.TempDir(), "custom-home")
+	writeWatchlistFile(t, filepath.Join(customHome, "watchlist.json"), File{
+		Version: version,
+		Workspaces: []Workspace{
+			{WorkspacePath: "/tmp/custom", WatchedAt: "2026-04-19T01:00:00Z", LastSeenAt: "2026-04-19T01:00:00Z"},
+		},
+	})
+
+	svc := Service{
+		LookupEnv: func(key string) (string, bool) {
+			if key == envHome {
+				return customHome, true
+			}
+			return "", false
+		},
+		UserHomeDir: func() (string, error) { return userHome, nil },
+	}
+	got, err := svc.Read()
+	if err != nil {
+		t.Fatalf("read watchlist: %v", err)
+	}
+	if len(got.Workspaces) != 1 || got.Workspaces[0].WorkspacePath != "/tmp/custom" {
+		t.Fatalf("expected custom home watchlist, got %#v", got)
+	}
+	if _, err := os.Stat(filepath.Join(userHome, ".easyharness", "watchlist.json")); !os.IsNotExist(err) {
+		t.Fatalf("expected default home to remain untouched, err=%v", err)
+	}
+}
+
+func TestReadMissingWatchlistReturnsEmptyFileWithoutCreatingIt(t *testing.T) {
+	userHome := t.TempDir()
+	watchlistPath := filepath.Join(userHome, ".easyharness", "watchlist.json")
+
+	got, err := Service{UserHomeDir: func() (string, error) { return userHome, nil }}.Read()
+	if err != nil {
+		t.Fatalf("read missing watchlist: %v", err)
+	}
+	if got.Version != version || len(got.Workspaces) != 0 {
+		t.Fatalf("expected empty watchlist file model, got %#v", got)
+	}
+	if _, err := os.Stat(watchlistPath); !os.IsNotExist(err) {
+		t.Fatalf("expected read to avoid creating watchlist, err=%v", err)
+	}
+}
+
+func TestReadExistingWatchlistDoesNotRewriteFile(t *testing.T) {
+	userHome := t.TempDir()
+	watchlistPath := filepath.Join(userHome, ".easyharness", "watchlist.json")
+	writeWatchlistFile(t, watchlistPath, File{
+		Version: version,
+		Workspaces: []Workspace{
+			{WorkspacePath: "/tmp/workspace-a", WatchedAt: "2026-04-19T01:00:00Z", LastSeenAt: "2026-04-19T02:00:00Z"},
+		},
+	})
+	fixedTime := time.Date(2026, 4, 19, 3, 0, 0, 0, time.UTC)
+	if err := os.Chtimes(watchlistPath, fixedTime, fixedTime); err != nil {
+		t.Fatalf("set watchlist timestamp: %v", err)
+	}
+	beforeInfo, err := os.Stat(watchlistPath)
+	if err != nil {
+		t.Fatalf("stat watchlist before read: %v", err)
+	}
+	beforeData, err := os.ReadFile(watchlistPath)
+	if err != nil {
+		t.Fatalf("read watchlist before read: %v", err)
+	}
+
+	if _, err := (Service{UserHomeDir: func() (string, error) { return userHome, nil }}).Read(); err != nil {
+		t.Fatalf("read watchlist: %v", err)
+	}
+
+	afterInfo, err := os.Stat(watchlistPath)
+	if err != nil {
+		t.Fatalf("stat watchlist after read: %v", err)
+	}
+	afterData, err := os.ReadFile(watchlistPath)
+	if err != nil {
+		t.Fatalf("read watchlist after read: %v", err)
+	}
+	if string(afterData) != string(beforeData) {
+		t.Fatalf("expected read to preserve watchlist bytes\nbefore:\n%s\nafter:\n%s", beforeData, afterData)
+	}
+	if !afterInfo.ModTime().Equal(beforeInfo.ModTime()) {
+		t.Fatalf("expected read to preserve watchlist mtime, got %s want %s", afterInfo.ModTime(), beforeInfo.ModTime())
+	}
+}
+
+func TestReadReturnsParseErrorForInvalidWatchlist(t *testing.T) {
+	userHome := t.TempDir()
+	watchlistPath := filepath.Join(userHome, ".easyharness", "watchlist.json")
+	if err := os.MkdirAll(filepath.Dir(watchlistPath), 0o755); err != nil {
+		t.Fatalf("mkdir watchlist dir: %v", err)
+	}
+	if err := os.WriteFile(watchlistPath, []byte(`{"version":`), 0o644); err != nil {
+		t.Fatalf("write invalid watchlist: %v", err)
+	}
+
+	_, err := Service{UserHomeDir: func() (string, error) { return userHome, nil }}.Read()
+	if err == nil || !strings.Contains(err.Error(), "parse watchlist.json") {
+		t.Fatalf("expected parse error, got %v", err)
+	}
+}
+
+func TestReadReturnsErrorForUnsupportedVersion(t *testing.T) {
+	userHome := t.TempDir()
+	watchlistPath := filepath.Join(userHome, ".easyharness", "watchlist.json")
+	writeWatchlistFile(t, watchlistPath, File{Version: version + 1})
+
+	_, err := Service{UserHomeDir: func() (string, error) { return userHome, nil }}.Read()
+	if err == nil || !strings.Contains(err.Error(), "unsupported version") {
+		t.Fatalf("expected unsupported version error, got %v", err)
+	}
+}
+
 func TestTouchUsesEasyharnessHomeOverride(t *testing.T) {
 	customHome := filepath.Join(t.TempDir(), "custom-home")
 	workdir := filepath.Join(t.TempDir(), "workspace")
@@ -377,6 +516,20 @@ func readWatchlistFile(t *testing.T, path string) File {
 		t.Fatalf("decode watchlist file: %v\n%s", err, data)
 	}
 	return decoded
+}
+
+func writeWatchlistFile(t *testing.T, path string, file File) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir watchlist dir: %v", err)
+	}
+	payload, err := json.MarshalIndent(file, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal watchlist file: %v", err)
+	}
+	if err := os.WriteFile(path, payload, 0o644); err != nil {
+		t.Fatalf("write watchlist file: %v", err)
+	}
 }
 
 func seedGitWorkspace(t *testing.T, root string) {

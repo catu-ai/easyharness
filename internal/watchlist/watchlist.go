@@ -36,6 +36,14 @@ type Workspace struct {
 	LastSeenAt    string `json:"last_seen_at"`
 }
 
+func (s Service) Read() (File, error) {
+	home, err := s.easyharnessHome()
+	if err != nil {
+		return File{}, err
+	}
+	return loadFile(filepath.Join(home, "watchlist.json"))
+}
+
 func (s Service) Touch(workdir string) error {
 	if strings.TrimSpace(workdir) == "" {
 		return fmt.Errorf("resolve workspace: empty path")

@@ -86,6 +86,16 @@ artifacts for the selected workspace. It should present those sources through
 one machine-local entrypoint and one dense document-oriented workspace surface
 instead of inventing new product-only state.
 
+The dashboard home should consume a read-only dashboard read model: a
+read-time projection over `watchlist.json` plus per-workspace harness status.
+Readable entries should expose raw `current_node` separately from the
+dashboard lifecycle state. The lifecycle states are `active`, `completed`,
+`idle`, `missing`, and `invalid`; ordinary idle without last-landed context
+stays `idle`, and invalid rows carry a reason such as `unreadable`,
+`not_git_workspace`, or `status_error`. The read model should return stable
+lifecycle groups containing compact watched workspace entries rather than
+making the frontend derive grouping or field names from raw status payloads.
+
 ## Product Shape
 
 ### Entry Point
@@ -152,7 +162,7 @@ It should:
 - list watched workspaces
 - order them by recency using watchlist data
 - let the user enter a specific watched workspace
-- surface degraded watched entries such as missing or unreadable workspaces
+- surface degraded watched entries such as missing or invalid workspaces
 
 Workspace detail should live under `/workspace/<workspace_key>`.
 
@@ -339,7 +349,7 @@ It should:
 - default to the watched-workspace list instead of a specific repo
 - sort watched workspaces by watchlist recency
 - make the current workspace easy to find without requiring direct-open flags
-- present missing or unreadable watched entries as explicit degraded rows
+- present missing or invalid watched entries as explicit degraded rows
 
 The home page does not need a second dashboard-only workspace summary shell.
 Its job is to help the user pick a watched workspace and move into the
@@ -452,10 +462,10 @@ workspace's canonical path at read time. The URL should not expose the raw
 absolute path, and the watchlist should not grow a separate persisted
 route-only ID just to support the route family.
 
-### Missing, Unreadable, and Unknown Workspace Routes
+### Missing, Invalid, and Unknown Workspace Routes
 
 If a watched workspace is still in the watchlist but is currently missing or
-unreadable, `/workspace/<workspace_key>` should render a simple degraded page
+invalid, `/workspace/<workspace_key>` should render a simple degraded page
 instead of failing hard or silently redirecting away.
 
 That degraded page may offer one local cleanup action:

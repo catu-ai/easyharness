@@ -18,6 +18,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/timeline"
+	"github.com/catu-ai/easyharness/internal/watchlist"
 )
 
 func TestNewHandlerServesStatusJSON(t *testing.T) {
@@ -103,6 +104,110 @@ func TestUIReadSurfacesDoNotTouchWatchlist(t *testing.T) {
 			t.Fatalf("expected %s to avoid watchlist writes, err=%v", path, err)
 		}
 	}
+}
+
+func TestNewHandlerServesDashboardJSON(t *testing.T) {
+	home := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	seedGitWorkspace(t, workspace)
+	writeWatchlist(t, home, []watchlist.Workspace{{
+		WorkspacePath: workspace,
+		WatchedAt:     "2026-04-22T09:00:00Z",
+		LastSeenAt:    "2026-04-22T12:00:00Z",
+	}})
+	t.Setenv("EASYHARNESS_HOME", home)
+
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Content-Type"); !strings.Contains(got, "application/json") {
+		t.Fatalf("expected JSON content type, got %q", got)
+	}
+	var payload struct {
+		OK       bool                 `json:"ok"`
+		Resource string               `json:"resource"`
+		Groups   []dashboardTestGroup `json:"groups"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v\n%s", err, recorder.Body.String())
+	}
+	if !payload.OK || payload.Resource != "dashboard" {
+		t.Fatalf("unexpected dashboard payload: %#v", payload)
+	}
+	entry := dashboardWorkspaceInGroup(t, payload.Groups, "idle", workspace)
+	if entry.DashboardState != "idle" || entry.CurrentNode != "idle" {
+		t.Fatalf("unexpected dashboard entry: %#v", entry)
+	}
+}
+
+func TestNewHandlerRejectsDashboardNonGET(t *testing.T) {
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/dashboard", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status 405, got %d", recorder.Code)
+	}
+}
+
+func TestNewHandlerDashboardDoesNotRewriteWatchlist(t *testing.T) {
+	home := t.TempDir()
+	missing := filepath.Join(t.TempDir(), "missing")
+	writeWatchlist(t, home, []watchlist.Workspace{{
+		WorkspacePath: missing,
+		WatchedAt:     "2026-04-22T09:00:00Z",
+		LastSeenAt:    "2026-04-22T12:00:00Z",
+	}})
+	t.Setenv("EASYHARNESS_HOME", home)
+	watchlistPath := filepath.Join(home, "watchlist.json")
+	fixedTime := time.Date(2026, 4, 22, 9, 0, 0, 0, time.UTC)
+	if err := os.Chtimes(watchlistPath, fixedTime, fixedTime); err != nil {
+		t.Fatalf("set watchlist timestamp: %v", err)
+	}
+	before := snapshotFile(t, watchlistPath)
+
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		OK       bool                 `json:"ok"`
+		Resource string               `json:"resource"`
+		Groups   []dashboardTestGroup `json:"groups"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v\n%s", err, recorder.Body.String())
+	}
+	if !payload.OK || payload.Resource != "dashboard" {
+		t.Fatalf("unexpected dashboard payload: %#v", payload)
+	}
+	entry := dashboardWorkspaceInGroup(t, payload.Groups, "missing", missing)
+	if entry.DashboardState != "missing" || entry.CurrentNode != "" {
+		t.Fatalf("expected missing degraded entry, got %#v", entry)
+	}
+	assertFileUnchanged(t, watchlistPath, before)
 }
 
 func TestNewHandlerFallsBackToIndexForSPAPath(t *testing.T) {
@@ -946,6 +1051,83 @@ func renderPlanFixture(t *testing.T, title string) string {
 		t.Fatalf("render plan: %v", err)
 	}
 	return strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
+}
+
+type dashboardTestGroup struct {
+	State      string                   `json:"state"`
+	Workspaces []dashboardTestWorkspace `json:"workspaces"`
+}
+
+type dashboardTestWorkspace struct {
+	WorkspacePath  string `json:"workspace_path"`
+	DashboardState string `json:"dashboard_state"`
+	CurrentNode    string `json:"current_node"`
+}
+
+func dashboardWorkspaceInGroup(t *testing.T, groups []dashboardTestGroup, state, path string) dashboardTestWorkspace {
+	t.Helper()
+	for _, group := range groups {
+		if group.State != state {
+			continue
+		}
+		for _, workspace := range group.Workspaces {
+			if workspace.WorkspacePath == path {
+				return workspace
+			}
+		}
+	}
+	t.Fatalf("missing workspace %q in dashboard state %q", path, state)
+	return dashboardTestWorkspace{}
+}
+
+type fileSnapshot struct {
+	data    []byte
+	modTime time.Time
+}
+
+func snapshotFile(t *testing.T, path string) fileSnapshot {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat file %s: %v", path, err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file %s: %v", path, err)
+	}
+	return fileSnapshot{data: data, modTime: info.ModTime()}
+}
+
+func assertFileUnchanged(t *testing.T, path string, before fileSnapshot) {
+	t.Helper()
+	after := snapshotFile(t, path)
+	if string(after.data) != string(before.data) {
+		t.Fatalf("expected %s bytes to remain unchanged", path)
+	}
+	if !after.modTime.Equal(before.modTime) {
+		t.Fatalf("expected %s mtime to remain unchanged, got %s want %s", path, after.modTime, before.modTime)
+	}
+}
+
+func writeWatchlist(t *testing.T, home string, workspaces []watchlist.Workspace) {
+	t.Helper()
+	payload := struct {
+		Version    int                   `json:"version"`
+		Workspaces []watchlist.Workspace `json:"workspaces"`
+	}{
+		Version:    1,
+		Workspaces: workspaces,
+	}
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal watchlist: %v", err)
+	}
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatalf("mkdir watchlist home: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "watchlist.json"), data, 0o644); err != nil {
+		t.Fatalf("write watchlist: %v", err)
+	}
 }
 
 type lockedBuffer struct {

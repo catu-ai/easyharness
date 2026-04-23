@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/catu-ai/easyharness/internal/dashboard"
 	"github.com/catu-ai/easyharness/internal/planui"
 	"github.com/catu-ai/easyharness/internal/reviewui"
 	"github.com/catu-ai/easyharness/internal/status"
@@ -90,6 +91,13 @@ func NewHandler(workdir string) (http.Handler, error) {
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/dashboard", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		writeDashboardJSON(w, dashboard.Service{}.Read())
+	})
 	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -178,6 +186,14 @@ func serveIndex(staticFS fs.FS, workdir string, w http.ResponseWriter) {
 }
 
 func writeStatusJSON(w http.ResponseWriter, result status.Result) {
+	statusCode := http.StatusOK
+	if !result.OK {
+		statusCode = http.StatusServiceUnavailable
+	}
+	writeJSON(w, statusCode, result)
+}
+
+func writeDashboardJSON(w http.ResponseWriter, result dashboard.Result) {
 	statusCode := http.StatusOK
 	if !result.OK {
 		statusCode = http.StatusServiceUnavailable
