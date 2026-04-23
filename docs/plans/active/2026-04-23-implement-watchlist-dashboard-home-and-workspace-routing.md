@@ -79,29 +79,29 @@ single-workspace workbench.
 
 ## Acceptance Criteria
 
-- [ ] `harness dashboard` opens the UI at `/dashboard`, and `/` redirects to
+- [x] `harness dashboard` opens the UI at `/dashboard`, and `/` redirects to
       `/dashboard`.
-- [ ] The dashboard home renders watched workspaces as one stacked list sorted
+- [x] The dashboard home renders watched workspaces as one stacked list sorted
       by `last_seen_at` descending instead of lifecycle-grouped sections.
-- [ ] Each dashboard item visibly prioritizes workspace/folder name, plan
+- [x] Each dashboard item visibly prioritizes workspace/folder name, plan
       title, status, recency, and compact path/meta information using the
       accepted design direction captured in the supplements package.
-- [ ] Dashboard items use a fixed-width progress axis whose node count varies
+- [x] Dashboard items use a fixed-width progress axis whose node count varies
       with the underlying workflow data rather than a generic fixed-slot
       template.
-- [ ] `/workspace/<workspace_key>` redirects to
+- [x] `/workspace/<workspace_key>` redirects to
       `/workspace/<workspace_key>/status`, and readable watched workspaces load
       the existing workbench under the new route family.
-- [ ] The workspace-detail rail includes `Home`, which returns the user to the
+- [x] The workspace-detail rail includes `Home`, which returns the user to the
       dashboard home.
-- [ ] `harness ui` still works in this slice, opens the current workspace via
+- [x] `harness ui` still works in this slice, opens the current workspace via
       the new route family, and does so without printing a deprecation warning.
-- [ ] Missing, invalid, and unknown workspace keys share one intentionally
+- [x] Missing, invalid, and unknown workspace keys share one intentionally
       minimal degraded page with a return path to the dashboard; `Unwatch`
       appears only when the workspace is still in the watchlist.
-- [ ] `Unwatch` removes watchlist membership only and does not call
+- [x] `Unwatch` removes watchlist membership only and does not call
       `harness archive`, mutate tracked plans, or change workflow state.
-- [ ] Tracked docs and tests capture the accepted routing, compatibility, and
+- [x] Tracked docs and tests capture the accepted routing, compatibility, and
       dashboard-home behavior without relying on discovery chat.
 
 ## Deferred Items
@@ -394,26 +394,82 @@ this step.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `git diff --check -- docs/specs/proposals/harness-ui-steering-surface.md docs/specs/watchlist-contract.md docs/plans/active/2026-04-23-implement-watchlist-dashboard-home-and-workspace-routing.md docs/plans/active/supplements/2026-04-23-implement-watchlist-dashboard-home-and-workspace-routing/dashboard-home-reference.md`
+- `harness plan lint docs/plans/active/2026-04-23-implement-watchlist-dashboard-home-and-workspace-routing.md`
+- `go test ./internal/dashboard ./internal/ui ./internal/cli -count=1`
+- `pnpm --dir web test`
+- `pnpm --dir web build`
+- `scripts/sync-contract-artifacts`
+- `scripts/sync-contract-artifacts --check`
+- `go test ./... -count=1`
+- finalize-fix validation:
+  - `go test ./internal/dashboard -count=1`
+  - `go test ./internal/ui ./internal/cli -count=1`
+  - `pnpm --dir web test`
+  - `pnpm --dir web build`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-full` requested six blocking findings across correctness, tests,
+  and docs consistency for stale route data, collision row keys, missing
+  keyed-route and compatibility coverage, missing frontend behavior coverage,
+  and stale repo-facing CLI/UI docs.
+- `review-002-delta` narrowed the remaining gap to collision-safe unwatch
+  targeting.
+- `review-003-delta` found two final step-closeout follow-ups: ambiguous
+  degraded routes still exposed `Unwatch`, and the frontend lacked direct
+  request-body coverage for the explicit `workspace_path` unwatch payload.
+- `review-004-delta` passed clean, closing Step 3 review.
+- Finalize `review-005-full` found two blocking findings: degraded workspace
+  routes surfaced a misleading generic success summary, and README still
+  described the dashboard surface as read-only despite shipping the
+  dashboard-local `Unwatch` action.
+- `review-006-delta` passed clean after reusing degraded workspace summaries at
+  the route level and updating README to describe the UI as workflow-safe with
+  one dashboard-local write action.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+Revision `1` is archive-ready after Step 3 closeout plus finalize review.
+The candidate has a clean worktree, the tracked plan now captures the accepted
+dashboard design baseline plus the review/repair chain, and the latest finalize
+delta review (`review-006-delta`) passed clean after the degraded-summary and
+README wording fixes. Next archive handoff work is to freeze the plan, commit
+the archive move, and continue publish/CI/sync bookkeeping until
+`harness status` reports `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added `harness dashboard`, `/dashboard`, and the dashboard-owned
+  `/workspace/<workspace_key>/{status|plan|timeline|review}` route family with
+  `/` and bare-workspace redirects.
+- Preserved `harness ui` as a quiet compatibility entrypoint that touches the
+  current workspace into the machine-local watchlist before opening the new
+  workspace route family.
+- Shipped the machine-local dashboard home as a recency-sorted stacked list
+  with accepted design-reference supplements, progress-axis metadata, dense
+  workbench continuity, and a `Home` rail action back to the dashboard.
+- Added shared degraded workspace handling plus dashboard-local `Unwatch`
+  behavior that removes watchlist membership without mutating tracked workflow
+  state, including collision-safe fail-safe behavior.
+- Updated specs, README, generated dashboard contract schema, and focused
+  frontend/server/CLI validation so the shipped behavior is discoverable from
+  repository files alone.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Search, filtering, or saved dashboard views.
+- Richer degraded-page recovery flows beyond the intentionally minimal page.
+- More expressive progress hover/focus UI or any stable aggregate activity
+  metric such as concurrent sessions.
+- A future decision on when `harness ui` should begin printing a deprecation
+  warning.
 
 ### Follow-Up Issues
 
-NONE
+- Existing dashboard umbrella issue `#156` remains the durable follow-up for
+  later dashboard expansion work such as search/filtering, richer degraded
+  recovery flows, richer progress affordances, and future `harness ui`
+  deprecation timing outside this shipped slice.
