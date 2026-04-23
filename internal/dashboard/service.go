@@ -147,10 +147,14 @@ func (s Service) ReadWorkspace(key string) WorkspaceResult {
 			Message: fmt.Sprintf("workspace_key %q is shared by %d watchlist records", key, len(matches)),
 		})
 	}
+	summary := fmt.Sprintf("Loaded watched workspace %s.", entry.WorkspaceName)
+	if entry.DashboardState == StateMissing || entry.DashboardState == StateInvalid {
+		summary = entry.Summary
+	}
 	return WorkspaceResult{
 		OK:        true,
 		Resource:  "workspace",
-		Summary:   fmt.Sprintf("Loaded watched workspace %s.", entry.WorkspaceName),
+		Summary:   summary,
 		Watched:   true,
 		Workspace: &entry,
 	}

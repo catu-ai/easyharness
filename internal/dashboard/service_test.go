@@ -396,6 +396,29 @@ func TestReadWorkspaceSurfacesCollisionForResolvedKey(t *testing.T) {
 	if result.Workspace.InvalidReason != InvalidRouteKeyCollision {
 		t.Fatalf("expected route key collision, got %#v", result.Workspace)
 	}
+	if result.Summary != result.Workspace.Summary {
+		t.Fatalf("expected degraded summary to surface route explanation, got result=%q workspace=%q", result.Summary, result.Workspace.Summary)
+	}
+}
+
+func TestReadWorkspaceUsesMissingSummaryForDegradedRoute(t *testing.T) {
+	home := t.TempDir()
+	missing := filepath.Join(t.TempDir(), "missing")
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(missing, "2026-04-22T12:00:00Z")})
+
+	result := Service{
+		LookupEnv: easyHome(home),
+	}.ReadWorkspace(WorkspaceKey(missing))
+
+	if !result.OK || !result.Watched || result.Workspace == nil {
+		t.Fatalf("expected degraded watched result, got %#v", result)
+	}
+	if result.Workspace.DashboardState != StateMissing {
+		t.Fatalf("expected missing dashboard state, got %#v", result.Workspace)
+	}
+	if result.Summary != result.Workspace.Summary {
+		t.Fatalf("expected route summary to preserve missing explanation, got result=%q workspace=%q", result.Summary, result.Workspace.Summary)
+	}
 }
 
 func TestReadSurfacesGitProbeFailuresAsUnreadable(t *testing.T) {

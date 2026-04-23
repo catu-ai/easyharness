@@ -62,8 +62,10 @@ When a human wants the machine-local dashboard home, use:
 harness dashboard
 ```
 
-`harness dashboard` starts the local read-only harness dashboard and lands on
-the watchlist home at `/dashboard`.
+`harness dashboard` starts the local harness dashboard and lands on the
+watchlist home at `/dashboard`. The UI stays workflow-safe: its one
+dashboard-local write action is `Unwatch`, which only removes machine-local
+watchlist membership and does not mutate tracked workflow state.
 
 When a human wants to open the current repository directly in the same UI
 family, use:
@@ -73,9 +75,9 @@ harness ui
 ```
 
 `harness ui` remains the compatibility entrypoint for the current repository.
-It starts the same local read-only harness surface, ensures the current
-workspace is present in the machine-local watchlist, and opens that workspace
-detail route directly.
+It starts the same local harness surface, ensures the current workspace is
+present in the machine-local watchlist, and opens that workspace detail route
+directly.
 
 Machine-local easyharness watchlist data defaults under `~/.easyharness`. Set
 `EASYHARNESS_HOME` to override that root when you want `watchlist.json` to
