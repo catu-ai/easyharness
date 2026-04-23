@@ -427,6 +427,15 @@ this step.
 - `review-006-delta` passed clean after reusing degraded workspace summaries at
   the route level and updating README to describe the UI as workflow-safe with
   one dashboard-local write action.
+- `review-007-delta` passed clean after the narrowed finalize-summary update
+  checked the acceptance criteria, validation/review/outcome summaries, and
+  follow-up pointer to `#156`.
+- `review-008-delta` passed clean after structuring the Archive Summary into
+  explicit `PR`, `Ready`, and `Merge Handoff` lines that `harness archive`
+  expects.
+- Finalize `review-009-full` then requested one last docs-consistency repair
+  because the closeout narrative omitted the clean pass from
+  `review-008-delta`.
 
 ## Archive Summary
 
@@ -435,7 +444,10 @@ this step.
 - Ready: Acceptance criteria are satisfied, Step 3 closeout passed through
   `review-004-delta`, finalize `review-005-full` requested the last degraded
   summary and README wording fixes, and finalize-fix `review-006-delta` plus
-  the narrowed archive-summary review `review-007-delta` both passed clean.
+  the narrowed summary/handoff follow-ups through `review-008-delta` all
+  passed clean. After the one remaining closeout-narrative repair requested by
+  `review-009-full`, the candidate is ready for the latest full finalize
+  confirmation before archive.
 - Merge Handoff: Run `harness archive`, commit the tracked archive move, push
   branch `codex/issue-167-dashboard-ui`, create the PR, and then record
   publish/CI/sync evidence until `harness status` reaches
