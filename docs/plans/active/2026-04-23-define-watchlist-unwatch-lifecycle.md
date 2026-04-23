@@ -189,7 +189,7 @@ untouched. `review-004-delta` passed with no findings.
 
 ### Step 3: Close the GitHub-facing handoff
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -220,11 +220,17 @@ The closeout note should state the final terms plainly:
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Posted the GitHub-facing #166 closeout comment documenting the accepted
+`unwatch` direction, the derived `completed` rule, the explicit
+non-relationship to `harness archive`, the absence of automatic GC, and the
+new watchlist-level `Service.Unwatch` write path:
+https://github.com/catu-ai/easyharness/issues/166#issuecomment-4301163030
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 3 only published the already-reviewed decision and
+implementation summary to issue #166; it did not change repository behavior or
+tracked specs beyond this plan note.
 
 ## Validation Strategy
 
