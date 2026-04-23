@@ -392,9 +392,11 @@ func TestDashboardAndUIUseDifferentLaunchPaths(t *testing.T) {
 	if exitCode := app.Run([]string{"dashboard", "--no-open"}); exitCode != 0 {
 		t.Fatalf("dashboard launch failed with %d: %s", exitCode, stderr.String())
 	}
+	assertWatchlistAbsent(t, home)
 	if exitCode := app.Run([]string{"ui", "--no-open"}); exitCode != 0 {
 		t.Fatalf("ui launch failed with %d: %s", exitCode, stderr.String())
 	}
+	assertWatchlistContainsWorkspace(t, home, root)
 
 	if len(launched) != 2 {
 		t.Fatalf("expected two launch paths, got %#v", launched)

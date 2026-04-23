@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import {
   buildTimelineTabs,
   dashboardStateLabel,
+  dashboardRowKey,
   dashboardStateTone,
   formatTimestamp,
   formatRelativeTimestamp,
@@ -1350,12 +1351,12 @@ export function DashboardHome(props: {
 
       {workspaces.length > 0 ? (
         <div class="dashboard-list">
-          {workspaces.map((workspace) => {
+          {workspaces.map((workspace, index) => {
             const meta = dashboardItemMeta(workspace);
             const planTitle = workspace.plan_title?.trim() || workspace.summary;
             const busy = busyWorkspaceKey === workspace.workspace_key;
             return (
-              <article key={workspace.workspace_key} class={`dashboard-item is-${workspace.dashboard_state}`}>
+              <article key={dashboardRowKey(workspace, index)} class={`dashboard-item is-${workspace.dashboard_state}`}>
                 <div class="dashboard-item-top">
                   <div class="dashboard-item-head">
                     <div class="dashboard-item-title-row">
@@ -1382,8 +1383,8 @@ export function DashboardHome(props: {
                 <DashboardProgressAxis workspace={workspace} />
                 {meta.length > 0 ? (
                   <div class="dashboard-item-meta">
-                    {meta.map((part) => (
-                      <span key={part}>{part}</span>
+                    {meta.map((part, metaIndex) => (
+                      <span key={`${workspace.workspace_key}:${metaIndex}:${part}`}>{part}</span>
                     ))}
                   </div>
                 ) : null}

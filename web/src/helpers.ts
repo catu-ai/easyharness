@@ -216,6 +216,10 @@ function compareDashboardRecency(left: string | undefined, right: string | undef
   return 0;
 }
 
+export function dashboardRowKey(workspace: DashboardWorkspace, index: number): string {
+  return `${workspace.workspace_key}:${workspace.workspace_path}:${index}`;
+}
+
 export function dashboardStateTone(state: string): Tone {
   switch (state) {
     case "active":

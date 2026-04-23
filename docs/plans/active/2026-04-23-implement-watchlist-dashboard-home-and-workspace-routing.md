@@ -301,11 +301,41 @@ fixed-width progress axis whose node count comes from actual workflow data,
 and weak `Open` / `Unwatch` actions. `web/src/workbench.tsx` now supports a
 `Home` rail icon so workspace detail can return directly to `/dashboard`.
 
-Validated with `pnpm --dir web build` and the branch-wide `go test ./... -count=1`.
+Step-closeout `review-001-full` then requested six repairs across correctness,
+tests, and repo-facing docs. The repair extracted `useLiveResource` into a
+dedicated module and resets resource state on path changes so workspace-route
+navigation cannot keep rendering the previous workspace after a missing,
+invalid, or unwatched lookup. Dashboard list rows now use a collision-safe
+client key derived from `workspace_key`, `workspace_path`, and index. CLI
+coverage now proves `harness ui` touches the current workspace into the
+machine-local watchlist before opening its keyed route. UI server coverage now
+exercises keyed `/plan`, `/timeline`, and `/review` reads in addition to
+keyed `/status`. The web package now has targeted Vitest coverage for live-
+resource path resets, dashboard progress-node rendering, degraded-page action
+behavior, and collision-safe dashboard row keys. Repo-facing docs now present
+`harness dashboard` as the dashboard home and `harness ui` as the quiet
+current-workspace compatibility entrypoint, and `scripts/sync-contract-artifacts`
+was rerun so the generated dashboard schema stays in sync with the updated Go
+contract.
+
+Validated with `go test ./internal/dashboard ./internal/ui ./internal/cli -count=1`,
+`pnpm --dir web test`, `pnpm --dir web build`,
+`scripts/sync-contract-artifacts --check`, and `go test ./... -count=1`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-full` requested six blocking findings. Correctness found that
+workspace-route changes could keep rendering stale workspace data across key
+changes and that dashboard collision rows used duplicate client keys.
+Tests found missing coverage for the `harness ui` watchlist-touch
+compatibility contract, keyed workspace `/plan|timeline|review` reads, and
+frontend-only degraded/progress behavior. Docs consistency found that the
+README and normative CLI contract still described `harness ui` as the primary
+UI surface instead of documenting `harness dashboard` plus the quiet
+compatibility role for `harness ui`.
+
+All six findings are now repaired and revalidated. Fresh delta review is the
+next step before marking Step 3 done.
 
 ## Validation Strategy
 

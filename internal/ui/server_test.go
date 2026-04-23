@@ -348,6 +348,195 @@ func TestNewHandlerServesWorkspaceStatusJSONByKey(t *testing.T) {
 	}
 }
 
+func TestNewHandlerServesWorkspacePlanJSONByKey(t *testing.T) {
+	home := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "workspace-plan")
+	seedGitWorkspace(t, workspace)
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(workspace, "2026-04-22T12:00:00Z")})
+	t.Setenv("EASYHARNESS_HOME", home)
+
+	relPlanPath := "docs/plans/active/2026-04-10-ui-plan.md"
+	path := filepath.Join(workspace, filepath.FromSlash(relPlanPath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	rendered := renderPlanFixture(t, "Workspace Plan")
+	rendered = strings.Replace(rendered, "Describe the intended outcome in one or two short paragraphs.", "Read the plan.\n", 1)
+	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	if _, err := runstate.SaveCurrentPlan(workspace, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/workspace/"+dashboard.WorkspaceKey(workspace)+"/plan", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+	var payload struct {
+		OK       bool   `json:"ok"`
+		Resource string `json:"resource"`
+		Document *struct {
+			Title string `json:"title"`
+		} `json:"document"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v\n%s", err, recorder.Body.String())
+	}
+	if !payload.OK || payload.Resource != "plan" || payload.Document == nil || payload.Document.Title != "Workspace Plan" {
+		t.Fatalf("unexpected workspace plan payload: %#v", payload)
+	}
+}
+
+func TestNewHandlerServesWorkspaceTimelineJSONByKey(t *testing.T) {
+	home := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "workspace-timeline")
+	seedGitWorkspace(t, workspace)
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(workspace, "2026-04-22T12:00:00Z")})
+	t.Setenv("EASYHARNESS_HOME", home)
+
+	relPlanPath := "docs/plans/active/2026-04-01-ui-timeline-plan.md"
+	path := filepath.Join(workspace, filepath.FromSlash(relPlanPath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	rendered := renderPlanFixture(t, "Workspace Timeline Plan")
+	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	if _, err := runstate.SaveCurrentPlan(workspace, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if _, err := runstate.SaveState(workspace, "2026-04-01-ui-timeline-plan", &runstate.State{
+		Revision: 1,
+	}); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+	if _, _, err := timeline.AppendEvent(workspace, "2026-04-01-ui-timeline-plan", timeline.Event{
+		RecordedAt: "2026-04-01T10:00:00Z",
+		Kind:       "lifecycle",
+		Command:    "execute start",
+		Summary:    "Execution started for the current active plan.",
+		PlanPath:   relPlanPath,
+		Revision:   1,
+		ToNode:     "execution/step-1/implement",
+	}); err != nil {
+		t.Fatalf("append timeline event: %v", err)
+	}
+
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/workspace/"+dashboard.WorkspaceKey(workspace)+"/timeline", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+	var payload struct {
+		OK       bool   `json:"ok"`
+		Resource string `json:"resource"`
+		Events   []struct {
+			Command string `json:"command"`
+		} `json:"events"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v\n%s", err, recorder.Body.String())
+	}
+	if !payload.OK || payload.Resource != "timeline" {
+		t.Fatalf("unexpected workspace timeline payload: %#v", payload)
+	}
+	if len(payload.Events) != 2 || payload.Events[1].Command != "execute start" {
+		t.Fatalf("unexpected timeline events: %#v", payload.Events)
+	}
+}
+
+func TestNewHandlerServesWorkspaceReviewJSONByKey(t *testing.T) {
+	home := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "workspace-review")
+	seedGitWorkspace(t, workspace)
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(workspace, "2026-04-22T12:00:00Z")})
+	t.Setenv("EASYHARNESS_HOME", home)
+
+	relPlanPath := "docs/plans/active/2026-04-02-ui-review-plan.md"
+	path := filepath.Join(workspace, filepath.FromSlash(relPlanPath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	rendered := renderPlanFixture(t, "Workspace Review Plan")
+	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	if _, err := runstate.SaveCurrentPlan(workspace, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if _, err := runstate.SaveState(workspace, "2026-04-02-ui-review-plan", &runstate.State{
+		Revision: 2,
+		ActiveReviewRound: &runstate.ReviewRound{
+			RoundID:    "review-002-full",
+			Kind:       "full",
+			Revision:   2,
+			Aggregated: false,
+		},
+	}); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+
+	reviewDir := filepath.Join(workspace, ".local", "harness", "plans", "2026-04-02-ui-review-plan", "reviews", "review-002-full")
+	if err := os.MkdirAll(filepath.Join(reviewDir, "submissions"), 0o755); err != nil {
+		t.Fatalf("mkdir review dir: %v", err)
+	}
+	manifestPath := filepath.Join(reviewDir, "manifest.json")
+	ledgerPath := filepath.Join(reviewDir, "ledger.json")
+	submissionPath := filepath.Join(reviewDir, "submissions", "ux.json")
+	if err := os.WriteFile(manifestPath, []byte(`{"round_id":"review-002-full","kind":"delta","anchor_sha":"abc123def","revision":2,"review_title":"Finalize review","plan_path":"`+relPlanPath+`","plan_stem":"2026-04-02-ui-review-plan","created_at":"2026-04-02T12:00:00Z","ledger_path":"`+ledgerPath+`","aggregate_path":"`+filepath.Join(reviewDir, "aggregate.json")+`","submissions_dir":"`+filepath.Join(reviewDir, "submissions")+`","dimensions":[{"name":"UX","slot":"ux","instructions":"Check the interface hierarchy.","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	if err := os.WriteFile(ledgerPath, []byte(`{"round_id":"review-002-full","kind":"full","updated_at":"2026-04-02T12:10:00Z","slots":[{"name":"UX","slot":"ux","status":"submitted","submitted_at":"2026-04-02T12:08:00Z","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
+		t.Fatalf("write ledger: %v", err)
+	}
+	if err := os.WriteFile(submissionPath, []byte(`{"round_id":"review-002-full","slot":"ux","dimension":"UX","submitted_at":"2026-04-02T12:08:00Z","summary":"Hierarchy is clear.","findings":[],"worklog":{"full_plan_read":true,"checked_areas":["web/src/pages.tsx"]},"coverage":{"review_kind":"delta","anchor_sha":"abc123def"}}`), 0o644); err != nil {
+		t.Fatalf("write submission: %v", err)
+	}
+
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/workspace/"+dashboard.WorkspaceKey(workspace)+"/review", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+	var payload struct {
+		OK       bool   `json:"ok"`
+		Resource string `json:"resource"`
+		Rounds   []struct {
+			RoundID string `json:"round_id"`
+		} `json:"rounds"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v\n%s", err, recorder.Body.String())
+	}
+	if !payload.OK || payload.Resource != "review" || len(payload.Rounds) != 1 || payload.Rounds[0].RoundID != "review-002-full" {
+		t.Fatalf("unexpected workspace review payload: %#v", payload)
+	}
+}
+
 func TestNewHandlerWorkspaceUnwatchRemovesEntry(t *testing.T) {
 	home := t.TempDir()
 	workspace := filepath.Join(t.TempDir(), "workspace-unwatch")
