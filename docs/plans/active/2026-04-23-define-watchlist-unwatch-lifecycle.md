@@ -82,7 +82,7 @@ state.
 
 ### Step 1: Tighten the completed and unwatch contract
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -129,11 +129,7 @@ docs/specs/proposals/harness-ui-steering-surface.md`.
 `review-001-delta` requested one docs-consistency fix: the Missing or
 Unreadable Workspaces section still used old deferred membership-removal
 wording. Reworded that section to say entries remain until explicit `unwatch`
-removes them. Follow-up validation: `git diff --check -- docs/specs/watchlist-contract.md
-docs/specs/proposals/harness-ui-steering-surface.md docs/specs/index.md`;
-`rg -n "membership-removal behavior|hidden state|dashboard-local archive|age out|age-out|automatic"
-docs/specs/watchlist-contract.md
-docs/specs/proposals/harness-ui-steering-surface.md`.
+removes them. `review-002-delta` passed with no findings.
 
 ### Step 2: Decide whether this slice needs a tiny unwatch write path
 
