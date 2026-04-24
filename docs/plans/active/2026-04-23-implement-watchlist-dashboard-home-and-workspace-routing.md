@@ -419,6 +419,7 @@ this step.
   - `harness plan lint docs/plans/active/2026-04-23-implement-watchlist-dashboard-home-and-workspace-routing.md`
   - `go test ./... -count=1`
   - Playwright visual/behavior check against `go run ./cmd/harness dashboard --no-open --port 58417`: desktop screenshot at `output/playwright/dashboard-fix-desktop.png`, mobile screenshot at `output/playwright/dashboard-fix-mobile.png`, and a runtime scroll probe confirming `.dashboard-stage` scrolls with `overflow: auto` while desktop `body` remains `overflow: hidden`.
+  - post-review focusability repair: `pnpm --dir web test`, `pnpm --dir web build`, `git diff --check`, and `harness plan lint docs/plans/active/2026-04-23-implement-watchlist-dashboard-home-and-workspace-routing.md`
 
 ## Review Summary
 
@@ -456,30 +457,26 @@ this step.
 - `review-011-delta` requested one accessibility repair: progress-node raw
   labels were still hover-only because the dots were non-focusable spans.
   The follow-up made each progress node keyboard focusable with an accessible
-  label and added frontend coverage for the focusable node contract. A fresh
-  delta review is required before re-archive.
+  label and added frontend coverage for the focusable node contract.
+- `review-012-delta` passed clean after verifying the progress-node
+  focusability repair closed the `review-011-delta` finding without regressing
+  the dashboard card layout or visible metadata contract.
 
 ## Archive Summary
 
-- Archived At: 2026-04-24T00:54:31+08:00
-- Revision: 1
-- PR: not opened yet; publish closeout should create the PR from branch
-  `codex/issue-167-dashboard-ui`.
-- Ready: Acceptance criteria are satisfied, Step 3 closeout passed through
-  `review-004-delta`, finalize `review-005-full` requested the last degraded
-  summary and README wording fixes, and finalize-fix `review-006-delta` plus
-  the narrowed summary/handoff follow-ups through `review-008-delta` all
-  passed clean. After the one remaining closeout-narrative repair requested by
-  `review-009-full`, the candidate is ready for the latest full finalize
-  confirmation before archive.
+- Archived At: pending revision 2 archive after `review-012-delta`.
+- Revision: 2
+- PR: https://github.com/catu-ai/easyharness/pull/191
+- Ready: Acceptance criteria remain satisfied after the revision 2 UI feedback
+  repair. Step 3 closeout passed through `review-004-delta`; finalize
+  follow-ups through `review-010-full` produced the original merge-ready
+  candidate; the reopened UI repair then passed the focused
+  `review-012-delta` after closing the `review-011-delta` keyboard
+  focusability finding.
 - Merge Handoff: Run `harness archive`, commit the tracked archive move, push
-  branch `codex/issue-167-dashboard-ui`, create the PR, and then record
-  publish/CI/sync evidence until `harness status` reaches
+  branch `codex/issue-167-dashboard-ui`, refresh PR #191, and then record
+  publish/CI/sync evidence until `harness status` returns to
   `execution/finalize/await_merge`.
-- Reopen Note: Revision 2 is currently in finalize-fix after human UI feedback
-  on scroll behavior, progress-axis fidelity, and redundant dashboard header
-  copy. Re-archive should replace this archive summary after the fresh
-  finalize review passes.
 
 ## Outcome Summary
 
