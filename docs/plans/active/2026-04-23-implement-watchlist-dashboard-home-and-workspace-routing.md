@@ -426,6 +426,7 @@ this step.
   - Playwright check against `go run ./cmd/harness dashboard --no-open --port 58419` confirmed the custom progress tooltip renders visible text on focus, first/last progress-node tooltip text stays within a 390px viewport, and the dashboard does not gain horizontal overflow.
   - Playwright scroll checks confirmed desktop scrolling moves `.dashboard-stage.scrollTop` while `body` remains hidden, and mobile-width scrolling moves `window.scrollY` while `.dashboard-stage` is `overflow: visible`.
   - `scripts/install-dev-harness`
+  - Follow-up scroll recheck against `go run ./cmd/harness dashboard --no-open --port 58421` confirmed the current bundle keeps desktop scrolling on `.dashboard-stage` (`scrollTop=620`, `windowY=0`) and mobile-width scrolling on the document (`windowY=620`, `stageScrollTop=0`) with no horizontal overflow (`scrollWidth == clientWidth` in both layouts).
 
 ## Review Summary
 
@@ -478,6 +479,11 @@ this step.
   also limited dashboard-stage scroll containment to desktop layouts so mobile
   scroll chains to the document instead of being swallowed by a non-scrollable
   stage.
+- `review-014-delta` passed clean after rechecking the axis-level tooltip,
+  edge-node containment, and split desktop/mobile scroll behavior. A final
+  Playwright scroll probe against the current bundle confirmed desktop wheel
+  input scrolls the dashboard stage and mobile-width wheel input scrolls the
+  document without introducing horizontal overflow.
 
 ## Archive Summary
 
@@ -488,8 +494,8 @@ this step.
   repair and the revision 3 custom tooltip fix. Step 3 closeout passed through
   `review-004-delta`; finalize follow-ups through `review-010-full` produced
   the original merge-ready candidate; revision 2 passed `review-012-delta`;
-  revision 3 now requires a focused finalize review after the edge-tooltip and
-  mobile-scroll repair before archive.
+  revision 3 passed `review-014-delta` after the edge-tooltip and mobile-scroll
+  repair.
 - Merge Handoff: Run `harness archive`, commit the tracked archive move, push
   branch `codex/issue-167-dashboard-ui`, refresh PR #191, and then record
   publish/CI/sync evidence until `harness status` returns to
