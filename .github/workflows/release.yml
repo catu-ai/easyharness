@@ -37,12 +37,12 @@ jobs:
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       - name: Check out release source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ steps.release-version.outputs.version }}
           path: dist/release-source
@@ -69,19 +69,19 @@ jobs:
           fi
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: dist/release-source/go.mod
           cache: true
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: 10.32.1
           run_install: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: pnpm
@@ -143,7 +143,7 @@ jobs:
 
       - name: Check out Homebrew tap
         if: ${{ env.EASYHARNESS_HOMEBREW_TAP_TOKEN != '' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: catu-ai/homebrew-tap
           ref: ${{ env.EASYHARNESS_HOMEBREW_TAP_BRANCH }}
@@ -184,15 +184,21 @@ jobs:
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.32.1
+          run_install: false
 
       - name: Run Homebrew tap smoke
         env:

@@ -278,7 +278,7 @@ func TestVersionTagWorkflowUsesRepositoryVersionFile(t *testing.T) {
 	support.RequireContains(t, workflow, `- "VERSION"`)
 	support.RequireContains(t, workflow, `contents: write`)
 	support.RequireContains(t, workflow, `actions: write`)
-	support.RequireContains(t, workflow, `uses: actions/checkout@v4`)
+	support.RequireContains(t, workflow, `uses: actions/checkout@v6`)
 	support.RequireContains(t, workflow, `fetch-depth: 0`)
 	support.RequireContains(t, workflow, `- name: Resolve release tag from VERSION`)
 	support.RequireContains(t, workflow, `tag="$(scripts/read-release-version --tag)"`)
@@ -288,7 +288,7 @@ func TestVersionTagWorkflowUsesRepositoryVersionFile(t *testing.T) {
 	support.RequireContains(t, workflow, `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`)
 	support.RequireContains(t, workflow, `gh workflow run release.yml --ref "${GITHUB_REF_NAME}" -f version="${{ steps.release-version.outputs.tag }}"`)
 
-	checkoutIndex := strings.Index(workflow, `uses: actions/checkout@v4`)
+	checkoutIndex := strings.Index(workflow, `uses: actions/checkout@v6`)
 	resolveIndex := strings.Index(workflow, `- name: Resolve release tag from VERSION`)
 	createIndex := strings.Index(workflow, `- name: Create release tag when missing`)
 	dispatchIndex := strings.Index(workflow, `- name: Dispatch Release workflow for resolved tag`)
