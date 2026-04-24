@@ -396,8 +396,6 @@ this step.
 
 ## Validation Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 - `git diff --check -- docs/specs/proposals/harness-ui-steering-surface.md docs/specs/watchlist-contract.md docs/plans/active/2026-04-23-implement-watchlist-dashboard-home-and-workspace-routing.md docs/plans/active/supplements/2026-04-23-implement-watchlist-dashboard-home-and-workspace-routing/dashboard-home-reference.md`
 - `harness plan lint docs/plans/active/2026-04-23-implement-watchlist-dashboard-home-and-workspace-routing.md`
 - `go test ./internal/dashboard ./internal/ui ./internal/cli -count=1`
@@ -499,7 +497,10 @@ UPDATE_REQUIRED_AFTER_REOPEN
   button surface. The repair documents the scroll model in CSS, changes
   progress tooltips to follow the hovered/focused node while clamping inside
   the axis for long labels, and resets rail item button styling to match the
-  link items. A focused finalize review is pending before archive.
+  link items.
+- `review-015-delta` passed clean after checking the follow-hover tooltip
+  placement, edge/long-label clamping, scroll-model documentation, and rail
+  `Home` button styling reset.
 
 ## Archive Summary
 
@@ -511,9 +512,8 @@ UPDATE_REQUIRED_AFTER_REOPEN
   `review-004-delta`; finalize follow-ups through `review-010-full` produced
   the original merge-ready candidate; revision 2 passed `review-012-delta`;
   revision 3 passed `review-014-delta` after the edge-tooltip and mobile-scroll
-  repair. Revision 4 now requires a focused finalize review after the
-  follow-hover tooltip placement, rail `Home` styling reset, and documented
-  scroll-model repair before archive.
+  repair; revision 4 passed `review-015-delta` after the follow-hover tooltip
+  placement, rail `Home` styling reset, and documented scroll-model repair.
 - Merge Handoff: Run `harness archive`, commit the tracked archive move, push
   branch `codex/issue-167-dashboard-ui`, refresh PR #191, and then record
   publish/CI/sync evidence until `harness status` returns to
