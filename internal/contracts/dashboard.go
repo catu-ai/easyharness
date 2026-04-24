@@ -35,6 +35,10 @@ type DashboardWorkspace struct {
 	// watched workspace path.
 	WorkspaceKey string `json:"workspace_key"`
 
+	// WorkspaceName is the human-readable folder/workspace name derived from the
+	// watched workspace path.
+	WorkspaceName string `json:"workspace_name"`
+
 	// WorkspacePath is the canonical watched path from the watchlist record.
 	WorkspacePath string `json:"workspace_path"`
 
@@ -54,6 +58,17 @@ type DashboardWorkspace struct {
 
 	// CurrentNode is the raw harness workflow node for readable status entries.
 	CurrentNode string `json:"current_node,omitempty"`
+
+	// PlanTitle is the current or last-relevant tracked plan title when one can
+	// be resolved from status artifacts.
+	PlanTitle string `json:"plan_title,omitempty"`
+
+	// Facts carries selected status facts that help the dashboard render compact
+	// progress and metadata.
+	Facts *StatusFacts `json:"facts,omitempty"`
+
+	// Progress is the compact progress model for the dashboard list item.
+	Progress *DashboardProgress `json:"progress,omitempty"`
 
 	// Summary is the compact workspace summary for dashboard rows or cards.
 	Summary string `json:"summary"`
@@ -75,4 +90,44 @@ type DashboardWorkspace struct {
 	// Artifacts points to stable status artifact handles for navigation or
 	// display.
 	Artifacts *StatusArtifacts `json:"artifacts,omitempty"`
+}
+
+// DashboardProgress is the compact progress signal rendered on the dashboard
+// home.
+type DashboardProgress struct {
+	// Nodes are the ordered progress nodes for this workspace. The node count
+	// varies with the underlying tracked plan and workflow phase structure.
+	Nodes []DashboardProgressNode `json:"nodes,omitempty"`
+}
+
+// DashboardProgressNode is one progress node in the dashboard progress signal.
+type DashboardProgressNode struct {
+	// Label is the tooltip/focus text for this node.
+	Label string `json:"label"`
+
+	// State is one of pending, current, or done.
+	State string `json:"state"`
+}
+
+// DashboardWorkspaceResult is the route-level lookup result for one watched
+// workspace key.
+type DashboardWorkspaceResult struct {
+	// OK reports whether the lookup completed without a top-level read failure.
+	OK bool `json:"ok"`
+
+	// Resource is the stable UI resource identifier.
+	Resource string `json:"resource"`
+
+	// Summary is the concise human-readable explanation of the lookup result.
+	Summary string `json:"summary"`
+
+	// Watched reports whether the route key currently resolves to a watched
+	// workspace entry.
+	Watched bool `json:"watched"`
+
+	// Workspace is the watched workspace entry when the key resolves.
+	Workspace *DashboardWorkspace `json:"workspace,omitempty"`
+
+	// Errors lists top-level lookup errors.
+	Errors []ErrorDetail `json:"errors,omitempty"`
 }

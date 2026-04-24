@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/status"
 	"github.com/catu-ai/easyharness/internal/timeline"
+	"github.com/catu-ai/easyharness/internal/ui"
 	version "github.com/catu-ai/easyharness/internal/version"
 )
 
@@ -314,8 +316,28 @@ func TestRootHelpMentionsVersionFlag(t *testing.T) {
 	if !strings.Contains(stderr.String(), "instructions    Manage easyharness instruction files and managed blocks") {
 		t.Fatalf("expected root help to mention instructions, got %q", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "dashboard       Start the local machine-local dashboard home") {
+		t.Fatalf("expected root help to mention dashboard, got %q", stderr.String())
+	}
 	if !strings.Contains(stderr.String(), "ui              Start the local read-only harness UI workbench") {
 		t.Fatalf("expected root help to mention ui, got %q", stderr.String())
+	}
+}
+
+func TestDashboardHelpExitsZero(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"dashboard", "--help"})
+	if exitCode != 0 {
+		t.Fatalf("expected dashboard help exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "Usage: harness dashboard") {
+		t.Fatalf("expected dashboard help text, got %q", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout for dashboard help, got %q", stdout.String())
 	}
 }
 
@@ -347,6 +369,43 @@ func TestUIRejectsPositionalArguments(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "Usage: harness ui") {
 		t.Fatalf("expected ui usage on positional args, got %q", stderr.String())
+	}
+}
+
+func TestDashboardAndUIUseDifferentLaunchPaths(t *testing.T) {
+	root := t.TempDir()
+	seedGitWorkspace(t, root)
+	home := t.TempDir()
+
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
+
+	var launched []string
+	app.RunUIServer = func(_ context.Context, server ui.Server) error {
+		launched = append(launched, server.OpenPath)
+		return nil
+	}
+
+	if exitCode := app.Run([]string{"dashboard", "--no-open"}); exitCode != 0 {
+		t.Fatalf("dashboard launch failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistAbsent(t, home)
+	if exitCode := app.Run([]string{"ui", "--no-open"}); exitCode != 0 {
+		t.Fatalf("ui launch failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistContainsWorkspace(t, home, root)
+
+	if len(launched) != 2 {
+		t.Fatalf("expected two launch paths, got %#v", launched)
+	}
+	if launched[0] != "/dashboard" {
+		t.Fatalf("expected dashboard open path, got %#v", launched)
+	}
+	if !strings.HasPrefix(launched[1], "/workspace/wk_") || !strings.HasSuffix(launched[1], "/status") {
+		t.Fatalf("expected ui workspace-status path, got %#v", launched[1])
 	}
 }
 
@@ -693,6 +752,20 @@ func TestUIHelpDoesNotTouchWatchlist(t *testing.T) {
 	exitCode := app.Run([]string{"ui", "--help"})
 	if exitCode != 0 {
 		t.Fatalf("ui help failed with %d: %s", exitCode, stderr.String())
+	}
+	assertWatchlistAbsent(t, home)
+}
+
+func TestDashboardHelpDoesNotTouchWatchlist(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	home := t.TempDir()
+	app.UserHomeDir = func() (string, error) { return home, nil }
+
+	exitCode := app.Run([]string{"dashboard", "--help"})
+	if exitCode != 0 {
+		t.Fatalf("dashboard help failed with %d: %s", exitCode, stderr.String())
 	}
 	assertWatchlistAbsent(t, home)
 }

@@ -33,6 +33,39 @@
       ],
       "description": "DashboardGroup is one dashboard lifecycle group."
     },
+    "DashboardProgress": {
+      "properties": {
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/DashboardProgressNode"
+          },
+          "type": "array",
+          "description": "Nodes are the ordered progress nodes for this workspace. The node count varies with the underlying tracked plan and workflow phase structure."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "DashboardProgress is the compact progress signal rendered on the dashboard home."
+    },
+    "DashboardProgressNode": {
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Label is the tooltip/focus text for this node."
+        },
+        "state": {
+          "type": "string",
+          "description": "State is one of pending, current, or done."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "label",
+        "state"
+      ],
+      "description": "DashboardProgressNode is one progress node in the dashboard progress signal."
+    },
     "DashboardResult": {
       "properties": {
         "ok": {
@@ -86,6 +119,10 @@
           "type": "string",
           "description": "WorkspaceKey is the opaque deterministic route key derived from the watched workspace path."
         },
+        "workspace_name": {
+          "type": "string",
+          "description": "WorkspaceName is the human-readable folder/workspace name derived from the watched workspace path."
+        },
         "workspace_path": {
           "type": "string",
           "description": "WorkspacePath is the canonical watched path from the watchlist record."
@@ -109,6 +146,18 @@
         "current_node": {
           "type": "string",
           "description": "CurrentNode is the raw harness workflow node for readable status entries."
+        },
+        "plan_title": {
+          "type": "string",
+          "description": "PlanTitle is the current or last-relevant tracked plan title when one can be resolved from status artifacts."
+        },
+        "facts": {
+          "$ref": "#/$defs/StatusFacts",
+          "description": "Facts carries selected status facts that help the dashboard render compact progress and metadata."
+        },
+        "progress": {
+          "$ref": "#/$defs/DashboardProgress",
+          "description": "Progress is the compact progress model for the dashboard list item."
         },
         "summary": {
           "type": "string",
@@ -151,6 +200,7 @@
       "type": "object",
       "required": [
         "workspace_key",
+        "workspace_name",
         "workspace_path",
         "dashboard_state",
         "summary"
@@ -283,6 +333,69 @@
       "additionalProperties": false,
       "type": "object",
       "description": "StatusArtifacts lists stable paths or identifiers related to the current status result."
+    },
+    "StatusFacts": {
+      "properties": {
+        "current_step": {
+          "type": "string",
+          "description": "CurrentStep is the first unfinished plan step when one exists."
+        },
+        "revision": {
+          "type": "integer",
+          "description": "Revision is the current plan-local revision number."
+        },
+        "reopen_mode": {
+          "type": "string",
+          "description": "ReopenMode is the active reopen mode when a reopen repair path is in effect."
+        },
+        "review_kind": {
+          "type": "string",
+          "description": "ReviewKind is the review kind for the active review round."
+        },
+        "review_trigger": {
+          "type": "string",
+          "description": "ReviewTrigger is the derived reason label for the active review round."
+        },
+        "review_title": {
+          "type": "string",
+          "description": "ReviewTitle is the human-readable title for the active review round when one exists."
+        },
+        "review_status": {
+          "type": "string",
+          "description": "ReviewStatus summarizes the aggregate review state for the current node."
+        },
+        "archive_blocker_count": {
+          "type": "integer",
+          "description": "ArchiveBlockerCount reports how many archive-readiness blockers are still present."
+        },
+        "publish_status": {
+          "type": "string",
+          "description": "PublishStatus summarizes the latest publish evidence state."
+        },
+        "pr_url": {
+          "type": "string",
+          "description": "PRURL is the currently known pull request URL for the candidate branch."
+        },
+        "ci_status": {
+          "type": "string",
+          "description": "CIStatus summarizes the latest CI evidence state."
+        },
+        "sync_status": {
+          "type": "string",
+          "description": "SyncStatus summarizes the latest remote-sync evidence state."
+        },
+        "land_pr_url": {
+          "type": "string",
+          "description": "LandPRURL is the pull request URL recorded for the land phase."
+        },
+        "land_commit": {
+          "type": "string",
+          "description": "LandCommit is the merge commit or landed commit recorded for the land phase."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "StatusFacts carries selected derived details that help interpret a status node without dumping the full local state model."
     }
   },
   "title": "Dashboard UI resource",

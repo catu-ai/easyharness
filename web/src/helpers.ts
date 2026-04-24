@@ -1,4 +1,6 @@
 import type {
+  DashboardGroup,
+  DashboardWorkspace,
   ErrorDetail,
   LiveFreshness,
   LiveFreshnessKind,
@@ -13,6 +15,7 @@ import type {
   TimelineEvent,
   Tone,
   ReviewResult,
+  WorkspaceRouteResult,
 } from "./types";
 
 export type TimelineTab = {
@@ -53,6 +56,22 @@ export function workdirLabel(): string {
 
 export function productNameLabel(): string {
   return metadataValue(window.__HARNESS_UI__?.productName) || "easyharness";
+}
+
+export function formatRelativeTimestamp(value: string | undefined): string {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return "unknown";
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return trimmed;
+  const diffMs = Date.now() - parsed.getTime();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diffMs < minute) return "just now";
+  if (diffMs < hour) return `${Math.max(1, Math.floor(diffMs / minute))}m ago`;
+  if (diffMs < day) return `${Math.max(1, Math.floor(diffMs / hour))}h ago`;
+  if (diffMs < 2 * day) return "yesterday";
+  return `${Math.max(2, Math.floor(diffMs / day))}d ago`;
 }
 
 export function formatValue(value: unknown): string {
@@ -174,6 +193,56 @@ export function combineLiveFreshness(states: LiveFreshness[]): LiveFreshness {
   return states.reduce((current, candidate) =>
     freshnessPriority[candidate.kind] > freshnessPriority[current.kind] ? candidate : current,
   );
+}
+
+export function dashboardWorkspaces(groups: DashboardGroup[] | null | undefined): DashboardWorkspace[] {
+  const flattened: DashboardWorkspace[] = [];
+  for (const group of groups ?? []) {
+    for (const workspace of group.workspaces ?? []) {
+      flattened.push(workspace);
+    }
+  }
+  return flattened.sort((left, right) => compareDashboardRecency(left.last_seen_at, right.last_seen_at) || left.workspace_path.localeCompare(right.workspace_path));
+}
+
+function compareDashboardRecency(left: string | undefined, right: string | undefined): number {
+  const leftTime = left ? Date.parse(left) : Number.NaN;
+  const rightTime = right ? Date.parse(right) : Number.NaN;
+  if (!Number.isNaN(leftTime) && !Number.isNaN(rightTime) && leftTime !== rightTime) {
+    return rightTime - leftTime;
+  }
+  if (!Number.isNaN(leftTime) && Number.isNaN(rightTime)) return -1;
+  if (Number.isNaN(leftTime) && !Number.isNaN(rightTime)) return 1;
+  return 0;
+}
+
+export function dashboardRowKey(workspace: DashboardWorkspace, index: number): string {
+  return `${workspace.workspace_key}:${workspace.workspace_path}:${index}`;
+}
+
+export function dashboardStateTone(state: string): Tone {
+  switch (state) {
+    case "active":
+      return "good";
+    case "completed":
+      return "good";
+    case "missing":
+    case "invalid":
+      return "danger";
+    case "idle":
+      return "muted";
+    default:
+      return "muted";
+  }
+}
+
+export function dashboardStateLabel(state: string): string {
+  return humanizeLabel(state);
+}
+
+export function formatDashboardError(result: WorkspaceRouteResult | null, statusCode?: number): string {
+  const fallback = result?.summary?.trim() || (statusCode ? `GET workspace failed with ${statusCode}` : "Unable to load workspace");
+  return fallback;
 }
 
 export function humanizeLabel(value: string): string {

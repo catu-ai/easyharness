@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import {
   buildTimelineTabs,
+  dashboardStateLabel,
+  dashboardRowKey,
+  dashboardStateTone,
   formatTimestamp,
+  formatRelativeTimestamp,
   formatValue,
   humanizeLabel,
   pickDefaultTimelineEvent,
@@ -32,7 +36,9 @@ import {
   timelineEventTitle,
   timelineTabText,
 } from "./helpers";
+import { canUnwatchWorkspaceFromDegradedRoute } from "./workspace-actions";
 import type {
+  DashboardWorkspace,
   ErrorDetail,
   NextAction,
   PlanDocument,
@@ -45,6 +51,7 @@ import type {
   ReviewReviewer,
   ReviewWorklog,
   TimelineEvent,
+  WorkspaceRouteResult,
 } from "./types";
 import {
   EmptyState,
@@ -1281,6 +1288,188 @@ export function ReviewWorkspace(props: {
         />
       ) : null}
     </WorkbenchFrame>
+  );
+}
+
+function dashboardItemMeta(workspace: DashboardWorkspace): string[] {
+  const parts: string[] = [];
+  const warningCount = Array.isArray(workspace.warnings) ? workspace.warnings.length : 0;
+  if (warningCount > 0) {
+    parts.push(`${warningCount} warning${warningCount === 1 ? "" : "s"}`);
+  }
+  return parts;
+}
+
+function DashboardProgressAxis(props: { workspace: DashboardWorkspace }) {
+  const nodes = props.workspace.progress?.nodes ?? [];
+  const axisRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [activeTooltip, setActiveTooltip] = useState<{ label: string; x: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!activeTooltip || !axisRef.current || !tooltipRef.current) return;
+    const axisWidth = axisRef.current.clientWidth;
+    const tooltipWidth = tooltipRef.current.offsetWidth;
+    const centeredLeft = activeTooltip.x - tooltipWidth / 2;
+    const clampedLeft = Math.min(Math.max(centeredLeft, 0), Math.max(axisWidth - tooltipWidth, 0));
+    if (Math.abs(clampedLeft - activeTooltip.left) > 0.5) {
+      setActiveTooltip({ ...activeTooltip, left: clampedLeft });
+    }
+  }, [activeTooltip]);
+
+  const showTooltip = (label: string, nodeElement: HTMLSpanElement) => {
+    const axisRect = axisRef.current?.getBoundingClientRect();
+    const nodeRect = nodeElement.getBoundingClientRect();
+    const x = axisRect ? nodeRect.left + nodeRect.width / 2 - axisRect.left : 0;
+    setActiveTooltip({ label, x, left: x });
+  };
+
+  if (nodes.length === 0) return null;
+  return (
+    <div class="dashboard-progress" ref={axisRef}>
+      <div class="dashboard-progress-line" aria-hidden="true" />
+      {nodes.map((node, index) => (
+        <span
+          key={`${props.workspace.workspace_key}-${node.label}-${index}`}
+          class={`dashboard-progress-node is-${node.state} is-${props.workspace.dashboard_state}`}
+          title={node.label}
+          data-label={node.label}
+          aria-label={node.label}
+          role="img"
+          tabIndex={0}
+          onMouseEnter={(event) => showTooltip(node.label, event.currentTarget)}
+          onMouseLeave={() => setActiveTooltip(null)}
+          onFocus={(event) => showTooltip(node.label, event.currentTarget)}
+          onBlur={() => setActiveTooltip(null)}
+        />
+      ))}
+      {activeTooltip ? (
+        <div
+          class="dashboard-progress-tooltip"
+          role="tooltip"
+          ref={tooltipRef}
+          style={{ left: `${activeTooltip.left}px` }}
+        >
+          {activeTooltip.label}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function DashboardHome(props: {
+  loading: boolean;
+  error: string | null;
+  workspaces: DashboardWorkspace[];
+  onOpenWorkspace: (workspaceKey: string) => void;
+  onUnwatch: (workspace: DashboardWorkspace) => void;
+  busyWorkspaceKey?: string | null;
+}) {
+  const { loading, error, workspaces, onOpenWorkspace, onUnwatch, busyWorkspaceKey = null } = props;
+
+  return (
+    <div class="dashboard-page">
+      {loading ? <EmptyState>Loading watched workspaces.</EmptyState> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      {!loading && !error && workspaces.length === 0 ? <EmptyState>No watched workspaces yet.</EmptyState> : null}
+
+      {workspaces.length > 0 ? (
+        <div class="dashboard-list">
+          {workspaces.map((workspace, index) => {
+            const meta = dashboardItemMeta(workspace);
+            const planTitle = workspace.plan_title?.trim() || workspace.summary;
+            const busy = busyWorkspaceKey === workspace.workspace_key;
+            return (
+              <article key={dashboardRowKey(workspace, index)} class={`dashboard-item is-${workspace.dashboard_state}`}>
+                <div class="dashboard-item-top">
+                  <div class="dashboard-item-head">
+                    <div class="dashboard-item-title-row">
+                      <h2 class="dashboard-item-title">{workspace.workspace_name || workspace.workspace_path}</h2>
+                      <StatusBadge tone={dashboardStateTone(workspace.dashboard_state)}>{dashboardStateLabel(workspace.dashboard_state)}</StatusBadge>
+                      <span class="dashboard-item-time">last seen {formatRelativeTimestamp(workspace.last_seen_at)}</span>
+                    </div>
+                    <p class="dashboard-item-plan" title={planTitle}>
+                      {planTitle}
+                    </p>
+                    <div class="dashboard-item-path" title={workspace.workspace_path}>
+                      {workspace.workspace_path}
+                    </div>
+                  </div>
+                  <div class="dashboard-item-actions">
+                    <button type="button" class="dashboard-action" onClick={() => onOpenWorkspace(workspace.workspace_key)}>
+                      Open
+                    </button>
+                    <button type="button" class="dashboard-action" onClick={() => onUnwatch(workspace)} disabled={busy}>
+                      {busy ? "Working..." : "Unwatch"}
+                    </button>
+                  </div>
+                </div>
+                <DashboardProgressAxis workspace={workspace} />
+                {meta.length > 0 ? (
+                  <div class="dashboard-item-meta">
+                    {meta.map((part, metaIndex) => (
+                      <span key={`${workspace.workspace_key}:${metaIndex}:${part}`}>{part}</span>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function WorkspaceDegradedPage(props: {
+  loading: boolean;
+  error: string | null;
+  result: WorkspaceRouteResult | null;
+  onReturnDashboard: () => void;
+  onUnwatch: (workspace: DashboardWorkspace) => void;
+  busyWorkspaceKey?: string | null;
+}) {
+  const { loading, error, result, onReturnDashboard, onUnwatch, busyWorkspaceKey = null } = props;
+  const workspace = result?.workspace ?? null;
+  const state = workspace?.dashboard_state ?? "invalid";
+  const summary = error || result?.summary || "Workspace is not currently watched.";
+  const canUnwatch = canUnwatchWorkspaceFromDegradedRoute(workspace);
+
+  return (
+    <div class="degraded-page">
+      <div class="degraded-card">
+        <div class="sidebar-label">Workspace route</div>
+        <h1>{workspace?.workspace_name || "Workspace unavailable"}</h1>
+        <p class="detail-copy">{summary}</p>
+        {workspace ? (
+          <>
+            <div class="dashboard-item-path" title={workspace.workspace_path}>
+              {workspace.workspace_path}
+            </div>
+            <div class="degraded-meta">
+              <StatusBadge tone={dashboardStateTone(state)}>{dashboardStateLabel(state)}</StatusBadge>
+              {workspace.invalid_reason ? <span class="muted">{humanizeLabel(workspace.invalid_reason)}</span> : null}
+            </div>
+          </>
+        ) : null}
+        {loading ? <div class="muted">Loading workspace route.</div> : null}
+        <div class="degraded-actions">
+          <button type="button" class="secondary-button" onClick={onReturnDashboard}>
+            Return to dashboard
+          </button>
+          {canUnwatch && workspace ? (
+            <button
+              type="button"
+              class="secondary-button"
+              onClick={() => onUnwatch(workspace)}
+              disabled={busyWorkspaceKey === workspace.workspace_key}
+            >
+              {busyWorkspaceKey === workspace.workspace_key ? "Working..." : "Unwatch"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }
 

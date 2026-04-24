@@ -37,6 +37,7 @@ The current command surface is:
 - `harness execute start`
 - `harness evidence submit`
 - `harness status`
+- `harness dashboard`
 - `harness ui`
 - `harness review start`
 - `harness review submit`
@@ -80,9 +81,9 @@ default to markdown or plain text instead of the JSON envelope.
 binary identity data, but it does not use the shared workflow-state envelope
 because it is a binary probe rather than a workflow-state command.
 
-`harness ui` is another plain-text exception because it starts a local
-read-only workbench server rather than returning a workflow-state JSON
-envelope.
+`harness dashboard` and `harness ui` are plain-text exceptions because they
+start the local read-only UI server rather than returning a workflow-state
+JSON envelope.
 
 The bootstrap commands described in [Bootstrap Install](./bootstrap-install.md)
 are JSON-first, but they may omit workflow `state` because they manage
@@ -281,11 +282,11 @@ Recommended next action:
 - open the target instructions file or skills directory to review the installed
   contract
 
-### `harness ui`
+### `harness dashboard`
 
 Purpose:
 
-- start the local read-only harness UI workbench for the current repository
+- start the local read-only harness dashboard home for the current machine
 
 Contract:
 
@@ -301,17 +302,49 @@ Contract:
   unless `--no-open` is set
 - expose a resource-first read-only API surface for the embedded app instead
   of introducing a second hidden product-only state store
-- render the current worktree's harness state through the UI more richly; it
-  must not fork a competing interpretation of workflow state from the CLI
+- open `/dashboard` as the canonical home route
+- render the machine-local watchlist as one dashboard-owned surface and route
+  workspace detail under `/workspace/<workspace_key>/...`
+
+Recommended next action:
+
+- open the local dashboard in a browser and inspect watched workspaces
+- use `--no-open` or a fixed `--port` when debugging or automating the local
+  server
+
+### `harness ui`
+
+Purpose:
+
+- start the local read-only harness UI for the current repository through the
+  dashboard-owned route family
+
+Contract:
+
+- keep the UI read-only; it must not mutate tracked workflow state or trigger
+  workflow commands directly in the first slice
+- support the same small local-server flag surface as `harness dashboard`:
+  - `--host`
+  - `--port`
+  - `--no-open`
+- default to binding a local interface and opening the browser automatically
+  unless `--no-open` is set
+- retain `harness ui` as a quiet compatibility entrypoint in the first
+  dashboard slice instead of printing a deprecation warning immediately
+- touch the current workdir into the machine-local watchlist before opening
+  the matching `/workspace/<workspace_key>/status` route so the dashboard-owned
+  workspace detail surface remains canonical
+- render the current worktree's harness state through the same UI family as
+  `harness dashboard`; it must not fork a competing interpretation of workflow
+  state from the CLI
 - expose `Status`, `Review`, and `Timeline` through real read-only resources
-- keep `Diff` and `Files` as explicit WIP placeholders until their data
-  surfaces are implemented
 - keep timeline data grounded in command-owned runtime artifacts rather than
   reconstructing history from ad hoc client-side state
 
 Recommended next action:
 
-- open the local UI in a browser and inspect the current `Status` view
+- open the local UI in a browser and inspect the current workspace `Status`
+  view
 - use `--no-open` or a fixed `--port` when debugging or automating the local
   server
 

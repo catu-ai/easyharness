@@ -316,6 +316,114 @@ func TestReadUsesDefaultStatusServiceForActiveWorkspaceWithoutMutatingState(t *t
 	}
 }
 
+func TestReadDerivesWorkspaceNamePlanTitleAndProgressFromPlan(t *testing.T) {
+	home := t.TempDir()
+	workspace := seedGitWorkspace(t, "issue-167-dashboard-ui")
+	relPlanPath := writeCustomActivePlan(t, workspace, "Ship a minimal watchlist dashboard UI with workspace navigation and unwatch support")
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(workspace, "2026-04-22T12:00:00Z")})
+
+	result := Service{
+		LookupEnv: easyHome(home),
+		ReadStatus: func(path string) contracts.StatusResult {
+			if path != workspace {
+				t.Fatalf("unexpected status path %q", path)
+			}
+			return contracts.StatusResult{
+				OK:      true,
+				Command: "status",
+				Summary: "Review is in flight.",
+				State:   contracts.StatusState{CurrentNode: "execution/step-2/review"},
+				Facts:   &contracts.StatusFacts{CurrentStep: "Step 2: Replace with second step title"},
+				Artifacts: &contracts.StatusArtifacts{
+					PlanPath: relPlanPath,
+				},
+			}
+		},
+	}.Read()
+
+	entry := findWorkspace(t, result, StateActive, workspace)
+	if entry.WorkspaceName != "issue-167-dashboard-ui" {
+		t.Fatalf("expected workspace name, got %#v", entry)
+	}
+	if entry.PlanTitle != "Ship a minimal watchlist dashboard UI with workspace navigation and unwatch support" {
+		t.Fatalf("expected plan title, got %#v", entry)
+	}
+	if entry.Facts == nil || entry.Facts.CurrentStep == "" {
+		t.Fatalf("expected status facts to be preserved, got %#v", entry)
+	}
+	if entry.Progress == nil || len(entry.Progress.Nodes) != 9 {
+		t.Fatalf("expected implement/review nodes for 2 steps plus finalize phase nodes, got %#v", entry.Progress)
+	}
+	if entry.Progress.Nodes[0].State != progressStateDone || entry.Progress.Nodes[3].State != progressStateCurrent {
+		t.Fatalf("expected phase progress state to reflect current review node, got %#v", entry.Progress.Nodes)
+	}
+	if entry.Progress.Nodes[2].Label != "execution/step-2/implement · Step 2: Replace with second step title" {
+		t.Fatalf("expected raw step phase label for hover text, got %#v", entry.Progress.Nodes[2])
+	}
+	if entry.Progress.Nodes[4].Label != "execution/finalize/review" || entry.Progress.Nodes[8].Label != "execution/finalize/await_merge" {
+		t.Fatalf("unexpected finalize progress labels: %#v", entry.Progress.Nodes)
+	}
+}
+
+func TestReadWorkspaceReturnsUnknownForMissingKey(t *testing.T) {
+	home := t.TempDir()
+	workspace := seedGitWorkspace(t, "idle")
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(workspace, "2026-04-22T12:00:00Z")})
+
+	result := Service{
+		LookupEnv:  easyHome(home),
+		ReadStatus: func(string) contracts.StatusResult { return statusResult("idle", "No current plan", nil) },
+	}.ReadWorkspace("wk_missing")
+
+	if !result.OK || result.Watched || result.Workspace != nil {
+		t.Fatalf("expected not-currently-watched result, got %#v", result)
+	}
+}
+
+func TestReadWorkspaceSurfacesCollisionForResolvedKey(t *testing.T) {
+	home := t.TempDir()
+	workspace := seedGitWorkspace(t, "duplicate")
+	writeWatchlist(t, home, []watchlist.Workspace{
+		workspaceRecord(workspace, "2026-04-22T12:00:00Z"),
+		workspaceRecord(workspace, "2026-04-22T11:00:00Z"),
+	})
+
+	result := Service{
+		LookupEnv:  easyHome(home),
+		ReadStatus: func(string) contracts.StatusResult { return statusResult("execution/step-1/implement", "Active", nil) },
+	}.ReadWorkspace(WorkspaceKey(workspace))
+
+	if !result.OK || !result.Watched || result.Workspace == nil {
+		t.Fatalf("expected watched collision result, got %#v", result)
+	}
+	if result.Workspace.InvalidReason != InvalidRouteKeyCollision {
+		t.Fatalf("expected route key collision, got %#v", result.Workspace)
+	}
+	if result.Summary != result.Workspace.Summary {
+		t.Fatalf("expected degraded summary to surface route explanation, got result=%q workspace=%q", result.Summary, result.Workspace.Summary)
+	}
+}
+
+func TestReadWorkspaceUsesMissingSummaryForDegradedRoute(t *testing.T) {
+	home := t.TempDir()
+	missing := filepath.Join(t.TempDir(), "missing")
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(missing, "2026-04-22T12:00:00Z")})
+
+	result := Service{
+		LookupEnv: easyHome(home),
+	}.ReadWorkspace(WorkspaceKey(missing))
+
+	if !result.OK || !result.Watched || result.Workspace == nil {
+		t.Fatalf("expected degraded watched result, got %#v", result)
+	}
+	if result.Workspace.DashboardState != StateMissing {
+		t.Fatalf("expected missing dashboard state, got %#v", result.Workspace)
+	}
+	if result.Summary != result.Workspace.Summary {
+		t.Fatalf("expected route summary to preserve missing explanation, got result=%q workspace=%q", result.Summary, result.Workspace.Summary)
+	}
+}
+
 func TestReadSurfacesGitProbeFailuresAsUnreadable(t *testing.T) {
 	home := t.TempDir()
 	workspace := filepath.Join(t.TempDir(), "workspace")
@@ -409,8 +517,13 @@ func assertFileUnchanged(t *testing.T, path string, before fileSnapshot) {
 
 func writeActivePlan(t *testing.T, root string) string {
 	t.Helper()
+	return writeCustomActivePlan(t, root, "Dashboard Active Plan")
+}
+
+func writeCustomActivePlan(t *testing.T, root, title string) string {
+	t.Helper()
 	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
-		Title:      "Dashboard Active Plan",
+		Title:      title,
 		Timestamp:  time.Date(2026, 4, 22, 9, 0, 0, 0, time.UTC),
 		SourceType: "direct_request",
 		Size:       "M",

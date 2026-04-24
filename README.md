@@ -56,15 +56,28 @@ When you or the agent need the current workflow position, use:
 harness status
 ```
 
-When a human wants the main built-in steering surface, use:
+When a human wants the machine-local dashboard home, use:
+
+```bash
+harness dashboard
+```
+
+`harness dashboard` starts the local harness dashboard and lands on the
+watchlist home at `/dashboard`. The UI stays workflow-safe: its one
+dashboard-local write action is `Unwatch`, which only removes machine-local
+watchlist membership and does not mutate tracked workflow state.
+
+When a human wants to open the current repository directly in the same UI
+family, use:
 
 ```bash
 harness ui
 ```
 
-`harness ui` starts the local read-only harness workbench. It is the primary
-UI for human steering: the place to inspect the current plan, workflow status,
-and execution summaries without reconstructing the story from shell history.
+`harness ui` remains the compatibility entrypoint for the current repository.
+It starts the same local harness surface, ensures the current workspace is
+present in the machine-local watchlist, and opens that workspace detail route
+directly.
 
 Machine-local easyharness watchlist data defaults under `~/.easyharness`. Set
 `EASYHARNESS_HOME` to override that root when you want `watchlist.json` to
@@ -124,7 +137,8 @@ The current v0.2 harness surface centers on a few core ideas:
 - command-owned runtime state, reviews, and evidence live under
   `.local/harness/`
 - the CLI reports one canonical `state.current_node`
-- `harness ui` is the main built-in human steering surface for the workflow
+- `harness dashboard` is the built-in machine-local home for watched workspaces
+- `harness ui` opens the current repository in that same dashboard-owned UI family
 - agents use repo-local skills instead of reconstructing workflow from shell
   history
 
@@ -140,6 +154,7 @@ The root CLI currently ships:
 - `harness execute start`
 - `harness evidence submit`
 - `harness status`
+- `harness dashboard`
 - `harness ui`
 - `harness review start`
 - `harness review submit`

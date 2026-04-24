@@ -24,6 +24,23 @@ export type ErrorDetail = {
   message: string;
 };
 
+export type StatusFacts = {
+  current_step?: string;
+  revision?: number;
+  reopen_mode?: string;
+  review_kind?: string;
+  review_trigger?: string;
+  review_title?: string;
+  review_status?: string;
+  archive_blocker_count?: number;
+  publish_status?: string;
+  pr_url?: string;
+  ci_status?: string;
+  sync_status?: string;
+  land_pr_url?: string;
+  land_commit?: string;
+};
+
 export type StatusResult = {
   ok: boolean;
   command: string;
@@ -31,7 +48,7 @@ export type StatusResult = {
   state?: {
     current_node?: string;
   };
-  facts?: Record<string, unknown> | null;
+  facts?: StatusFacts | null;
   artifacts?: Record<string, unknown> | null;
   next_actions?: NextAction[] | null;
   blockers?: ErrorDetail[] | null;
@@ -213,6 +230,62 @@ export type ReviewResult = {
   } | null;
   rounds?: ReviewRound[] | null;
   warnings?: string[] | null;
+  errors?: ErrorDetail[] | null;
+};
+
+export type DashboardProgressNode = {
+  label: string;
+  state: "pending" | "current" | "done";
+};
+
+export type DashboardProgress = {
+  nodes?: DashboardProgressNode[] | null;
+};
+
+export type DashboardWorkspace = {
+  workspace_key: string;
+  workspace_name?: string;
+  workspace_path: string;
+  watched_at?: string;
+  last_seen_at?: string;
+  dashboard_state: "active" | "completed" | "idle" | "missing" | "invalid" | string;
+  invalid_reason?: string;
+  current_node?: string;
+  plan_title?: string;
+  facts?: StatusFacts | null;
+  progress?: DashboardProgress | null;
+  summary: string;
+  next_actions?: NextAction[] | null;
+  warnings?: string[] | null;
+  blockers?: ErrorDetail[] | null;
+  errors?: ErrorDetail[] | null;
+  artifacts?: {
+    plan_path?: string;
+    supplements_path?: string;
+    review_round_id?: string;
+    last_landed_at?: string;
+  } | null;
+};
+
+export type DashboardGroup = {
+  state: string;
+  workspaces?: DashboardWorkspace[] | null;
+};
+
+export type DashboardResult = {
+  ok: boolean;
+  resource: string;
+  summary: string;
+  groups?: DashboardGroup[] | null;
+  errors?: ErrorDetail[] | null;
+};
+
+export type WorkspaceRouteResult = {
+  ok: boolean;
+  resource: string;
+  summary: string;
+  watched: boolean;
+  workspace?: DashboardWorkspace | null;
   errors?: ErrorDetail[] | null;
 };
 
