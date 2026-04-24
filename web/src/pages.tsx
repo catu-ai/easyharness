@@ -1302,10 +1302,31 @@ function dashboardItemMeta(workspace: DashboardWorkspace): string[] {
 
 function DashboardProgressAxis(props: { workspace: DashboardWorkspace }) {
   const nodes = props.workspace.progress?.nodes ?? [];
-  const [activeLabel, setActiveLabel] = useState<string | null>(null);
+  const axisRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [activeTooltip, setActiveTooltip] = useState<{ label: string; x: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!activeTooltip || !axisRef.current || !tooltipRef.current) return;
+    const axisWidth = axisRef.current.clientWidth;
+    const tooltipWidth = tooltipRef.current.offsetWidth;
+    const centeredLeft = activeTooltip.x - tooltipWidth / 2;
+    const clampedLeft = Math.min(Math.max(centeredLeft, 0), Math.max(axisWidth - tooltipWidth, 0));
+    if (Math.abs(clampedLeft - activeTooltip.left) > 0.5) {
+      setActiveTooltip({ ...activeTooltip, left: clampedLeft });
+    }
+  }, [activeTooltip]);
+
+  const showTooltip = (label: string, nodeElement: HTMLSpanElement) => {
+    const axisRect = axisRef.current?.getBoundingClientRect();
+    const nodeRect = nodeElement.getBoundingClientRect();
+    const x = axisRect ? nodeRect.left + nodeRect.width / 2 - axisRect.left : 0;
+    setActiveTooltip({ label, x, left: x });
+  };
+
   if (nodes.length === 0) return null;
   return (
-    <div class="dashboard-progress">
+    <div class="dashboard-progress" ref={axisRef}>
       <div class="dashboard-progress-line" aria-hidden="true" />
       {nodes.map((node, index) => (
         <span
@@ -1316,15 +1337,20 @@ function DashboardProgressAxis(props: { workspace: DashboardWorkspace }) {
           aria-label={node.label}
           role="img"
           tabIndex={0}
-          onMouseEnter={() => setActiveLabel(node.label)}
-          onMouseLeave={() => setActiveLabel(null)}
-          onFocus={() => setActiveLabel(node.label)}
-          onBlur={() => setActiveLabel(null)}
+          onMouseEnter={(event) => showTooltip(node.label, event.currentTarget)}
+          onMouseLeave={() => setActiveTooltip(null)}
+          onFocus={(event) => showTooltip(node.label, event.currentTarget)}
+          onBlur={() => setActiveTooltip(null)}
         />
       ))}
-      {activeLabel ? (
-        <div class="dashboard-progress-tooltip" role="tooltip">
-          {activeLabel}
+      {activeTooltip ? (
+        <div
+          class="dashboard-progress-tooltip"
+          role="tooltip"
+          ref={tooltipRef}
+          style={{ left: `${activeTooltip.left}px` }}
+        >
+          {activeTooltip.label}
         </div>
       ) : null}
     </div>

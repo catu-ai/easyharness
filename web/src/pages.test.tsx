@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { dashboardRowKey } from "./helpers";
@@ -28,6 +28,7 @@ function dashboardWorkspace(overrides: Partial<DashboardWorkspace> = {}): Dashbo
 describe("dashboard helpers and pages", () => {
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   test("dashboard row keys stay unique for route-key collisions", () => {
@@ -37,7 +38,7 @@ describe("dashboard helpers and pages", () => {
     expect(dashboardRowKey(left, 0)).not.toBe(dashboardRowKey(right, 1));
   });
 
-  test("dashboard home renders one progress node per workflow node", () => {
+  test("dashboard home renders one progress node per workflow node", async () => {
     render(
       <DashboardHome
         loading={false}
@@ -57,7 +58,18 @@ describe("dashboard helpers and pages", () => {
     expect(screen.getByText("alpha")).toBeTruthy();
     expect(screen.getByText("Open")).toBeTruthy();
     expect(screen.queryByText("execution/step-2/implement")).toBeNull();
+    const progress = document.querySelector(".dashboard-progress") as HTMLElement;
+    const firstNode = document.querySelector(".dashboard-progress-node") as HTMLElement;
+    Object.defineProperty(progress, "clientWidth", { value: 300, configurable: true });
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", { value: 120, configurable: true });
+    progress.getBoundingClientRect = () => ({ left: 20, right: 320, width: 300, top: 0, bottom: 20, height: 20, x: 20, y: 0, toJSON: () => ({}) });
+    firstNode.getBoundingClientRect = () => ({ left: 20, right: 32, width: 12, top: 0, bottom: 12, height: 12, x: 20, y: 0, toJSON: () => ({}) });
+    (currentNode as HTMLElement).getBoundingClientRect = () => ({ left: 214, right: 226, width: 12, top: 0, bottom: 12, height: 12, x: 214, y: 0, toJSON: () => ({}) });
+    fireEvent.mouseEnter(firstNode);
+    await waitFor(() => expect((screen.getByRole("tooltip") as HTMLElement).style.left).toBe("0px"));
+    fireEvent.mouseLeave(firstNode);
     fireEvent.mouseEnter(currentNode as Element);
+    await waitFor(() => expect((screen.getByRole("tooltip") as HTMLElement).style.left).toBe("140px"));
     expect(screen.getByRole("tooltip").textContent).toBe("execution/step-2/implement · Build UI");
     fireEvent.mouseLeave(currentNode as Element);
     expect(screen.queryByRole("tooltip")).toBeNull();

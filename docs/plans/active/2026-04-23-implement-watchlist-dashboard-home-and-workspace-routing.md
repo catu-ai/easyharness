@@ -396,6 +396,8 @@ this step.
 
 ## Validation Summary
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 - `git diff --check -- docs/specs/proposals/harness-ui-steering-surface.md docs/specs/watchlist-contract.md docs/plans/active/2026-04-23-implement-watchlist-dashboard-home-and-workspace-routing.md docs/plans/active/supplements/2026-04-23-implement-watchlist-dashboard-home-and-workspace-routing/dashboard-home-reference.md`
 - `harness plan lint docs/plans/active/2026-04-23-implement-watchlist-dashboard-home-and-workspace-routing.md`
 - `go test ./internal/dashboard ./internal/ui ./internal/cli -count=1`
@@ -427,6 +429,13 @@ this step.
   - Playwright scroll checks confirmed desktop scrolling moves `.dashboard-stage.scrollTop` while `body` remains hidden, and mobile-width scrolling moves `window.scrollY` while `.dashboard-stage` is `overflow: visible`.
   - `scripts/install-dev-harness`
   - Follow-up scroll recheck against `go run ./cmd/harness dashboard --no-open --port 58421` confirmed the current bundle keeps desktop scrolling on `.dashboard-stage` (`scrollTop=620`, `windowY=0`) and mobile-width scrolling on the document (`windowY=620`, `stageScrollTop=0`) with no horizontal overflow (`scrollWidth == clientWidth` in both layouts).
+- Reopen revision 4 validation:
+  - `pnpm --dir web test`
+  - `pnpm --dir web build`
+  - `git diff --check`
+  - Playwright check against `go run ./cmd/harness dashboard --no-open --port 58422` confirmed short progress tooltip text is centered near the hovered current node, long edge tooltip text is clamped to the progress-axis boundary without horizontal overflow, and the workspace rail `Home` button now computes to the same transparent, borderless rail-item styling as the link items.
+  - `scripts/install-dev-harness`
+  - `go test ./internal/ui ./internal/cli -count=1`
 
 ## Review Summary
 
@@ -484,18 +493,27 @@ this step.
   Playwright scroll probe against the current bundle confirmed desktop wheel
   input scrolls the dashboard stage and mobile-width wheel input scrolls the
   document without introducing horizontal overflow.
+- Revision 4 reopened after human visual feedback questioned the split scroll
+  model, noted that tooltip placement still felt too far left for short labels,
+  and caught the workspace rail `Home` button using the browser's default gray
+  button surface. The repair documents the scroll model in CSS, changes
+  progress tooltips to follow the hovered/focused node while clamping inside
+  the axis for long labels, and resets rail item button styling to match the
+  link items. A focused finalize review is pending before archive.
 
 ## Archive Summary
 
-- Archived At: 2026-04-24T09:28:52+08:00
-- Revision: 3
+- Archived At: pending revision 4 archive.
+- Revision: 4
 - PR: https://github.com/catu-ai/easyharness/pull/191
 - Ready: Acceptance criteria remain satisfied after the revision 2 UI feedback
   repair and the revision 3 custom tooltip fix. Step 3 closeout passed through
   `review-004-delta`; finalize follow-ups through `review-010-full` produced
   the original merge-ready candidate; revision 2 passed `review-012-delta`;
   revision 3 passed `review-014-delta` after the edge-tooltip and mobile-scroll
-  repair.
+  repair. Revision 4 now requires a focused finalize review after the
+  follow-hover tooltip placement, rail `Home` styling reset, and documented
+  scroll-model repair before archive.
 - Merge Handoff: Run `harness archive`, commit the tracked archive move, push
   branch `codex/issue-167-dashboard-ui`, refresh PR #191, and then record
   publish/CI/sync evidence until `harness status` returns to
@@ -532,6 +550,10 @@ this step.
   tooltip placement and scroll containment so edge nodes remain readable and
   mobile-width scrolling uses the document rather than a non-scrollable
   dashboard stage.
+- In revision 4, refined the progress tooltip into a follow-hover/focus
+  placement model that clamps within the progress axis for long or edge labels,
+  made the rail `Home` button visually consistent with neighboring rail links,
+  and documented the intended wide-vs-narrow scroll ownership in CSS.
 
 ### Not Delivered
 
