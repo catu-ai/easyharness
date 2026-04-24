@@ -1311,6 +1311,7 @@ function DashboardProgressAxis(props: { workspace: DashboardWorkspace }) {
           key={`${props.workspace.workspace_key}-${node.label}-${index}`}
           class={`dashboard-progress-node is-${node.state} is-${props.workspace.dashboard_state}`}
           title={node.label}
+          data-label={node.label}
           aria-label={node.label}
           role="img"
           tabIndex={0}

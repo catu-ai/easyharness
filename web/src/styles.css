@@ -451,6 +451,41 @@ code {
   box-shadow: 0 0 0 3px rgba(14, 99, 156, 0.2);
 }
 
+.dashboard-progress-node:focus {
+  outline: 1px solid rgba(212, 212, 212, 0.75);
+  outline-offset: 0.26rem;
+}
+
+.dashboard-progress-node::after {
+  content: attr(data-label);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.65rem);
+  z-index: 8;
+  width: max-content;
+  max-width: min(26rem, 72vw);
+  padding: 0.34rem 0.48rem;
+  border: 1px solid var(--border);
+  background: #252728;
+  color: var(--text-strong);
+  font-size: 0.66rem;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-shadow: 0 0.5rem 1.2rem rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 0.18rem);
+  transition: opacity 90ms ease, transform 90ms ease;
+}
+
+.dashboard-progress-node:hover::after,
+.dashboard-progress-node:focus::after,
+.dashboard-progress-node:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .dashboard-progress-node.is-invalid,
 .dashboard-progress-node.is-missing {
   border-color: rgba(244, 135, 113, 0.34);

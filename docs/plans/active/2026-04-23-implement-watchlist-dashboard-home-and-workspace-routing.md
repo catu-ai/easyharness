@@ -420,6 +420,11 @@ this step.
   - `go test ./... -count=1`
   - Playwright visual/behavior check against `go run ./cmd/harness dashboard --no-open --port 58417`: desktop screenshot at `output/playwright/dashboard-fix-desktop.png`, mobile screenshot at `output/playwright/dashboard-fix-mobile.png`, and a runtime scroll probe confirming `.dashboard-stage` scrolls with `overflow: auto` while desktop `body` remains `overflow: hidden`.
   - post-review focusability repair: `pnpm --dir web test`, `pnpm --dir web build`, `git diff --check`, and `harness plan lint docs/plans/active/2026-04-23-implement-watchlist-dashboard-home-and-workspace-routing.md`
+- Reopen revision 3 validation:
+  - `pnpm --dir web test`
+  - `pnpm --dir web build`
+  - Playwright check against `go run ./cmd/harness dashboard --no-open --port 58419` confirmed the custom progress tooltip pseudo-element renders visible text (`::after` opacity `1`) on focus.
+  - `scripts/install-dev-harness`
 
 ## Review Summary
 
@@ -461,18 +466,21 @@ this step.
 - `review-012-delta` passed clean after verifying the progress-node
   focusability repair closed the `review-011-delta` finding without regressing
   the dashboard card layout or visible metadata contract.
+- Revision 3 reopened after human browser testing showed the raw node text was
+  still not visibly appearing on hover in the running app. The repair replaced
+  reliance on browser-native `title` behavior with a custom CSS tooltip backed
+  by each progress node's `data-label`, shown on hover and focus.
 
 ## Archive Summary
 
-- Archived At: 2026-04-24T08:34:55+08:00
-- Revision: 2
+- Archived At: pending revision 3 archive.
+- Revision: 3
 - PR: https://github.com/catu-ai/easyharness/pull/191
 - Ready: Acceptance criteria remain satisfied after the revision 2 UI feedback
-  repair. Step 3 closeout passed through `review-004-delta`; finalize
-  follow-ups through `review-010-full` produced the original merge-ready
-  candidate; the reopened UI repair then passed the focused
-  `review-012-delta` after closing the `review-011-delta` keyboard
-  focusability finding.
+  repair and the revision 3 custom tooltip fix. Step 3 closeout passed through
+  `review-004-delta`; finalize follow-ups through `review-010-full` produced
+  the original merge-ready candidate; revision 2 passed `review-012-delta`;
+  revision 3 now requires a focused finalize review before archive.
 - Merge Handoff: Run `harness archive`, commit the tracked archive move, push
   branch `codex/issue-167-dashboard-ui`, refresh PR #191, and then record
   publish/CI/sync evidence until `harness status` returns to
@@ -504,6 +512,8 @@ this step.
   and raw workflow node text is available from node hover/focus affordances
   instead of always-visible card metadata. The post-review accessibility
   follow-up also makes those progress nodes keyboard focusable.
+- In revision 3, replaced the unreliable browser-native `title` tooltip with a
+  visible custom tooltip that appears on hover and focus.
 
 ### Not Delivered
 

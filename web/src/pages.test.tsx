@@ -51,6 +51,7 @@ describe("dashboard helpers and pages", () => {
     expect(document.querySelectorAll(".dashboard-progress-node")).toHaveLength(3);
     const currentNode = document.querySelector(".dashboard-progress-node.is-current");
     expect(currentNode?.getAttribute("title")).toBe("execution/step-2/implement · Build UI");
+    expect(currentNode?.getAttribute("data-label")).toBe("execution/step-2/implement · Build UI");
     expect(currentNode?.getAttribute("tabindex")).toBe("0");
     expect(currentNode?.getAttribute("role")).toBe("img");
     expect(screen.getByText("alpha")).toBeTruthy();
