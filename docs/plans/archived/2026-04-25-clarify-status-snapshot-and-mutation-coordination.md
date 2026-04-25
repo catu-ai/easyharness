@@ -375,8 +375,8 @@ findings.
 
 ## Archive Summary
 
-- Archived At: 2026-04-26T00:01:44+08:00
-- Revision: 2 after post-archive CI repair.
+- Archived At: 2026-04-26T00:17:44+08:00
+- Revision: 2
 - PR: https://github.com/catu-ai/easyharness/pull/196
 - Ready: The tracked steps are complete, the revision `1` post-archive CI
   failure has been repaired in revision `2`, full local validation is green,
