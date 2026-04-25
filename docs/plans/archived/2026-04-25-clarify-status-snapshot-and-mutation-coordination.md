@@ -366,6 +366,8 @@ findings.
 
 ## Archive Summary
 
+- Archived At: 2026-04-26T00:01:44+08:00
+- Revision: 1
 - PR: To be created after archive from this candidate branch.
 - Ready: The tracked steps are complete, the repair finalize review passed,
   focused validation is green, and no follow-up issues are required.
