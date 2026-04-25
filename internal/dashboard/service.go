@@ -289,7 +289,7 @@ func (s Service) readStatus(path string) contracts.StatusResult {
 	if s.ReadStatus != nil {
 		return s.ReadStatus(path)
 	}
-	return status.Service{Workdir: path}.ReadUnlocked()
+	return status.Service{Workdir: path}.Snapshot()
 }
 
 func dashboardState(result contracts.StatusResult) string {

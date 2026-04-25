@@ -150,7 +150,7 @@ and CLI contract. `review-002-delta` passed with no findings.
 
 ### Step 2: Refactor status snapshot APIs
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -187,7 +187,13 @@ rather than keeping wrappers that invite future misuse.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Replaced the ambiguous status `Read()`/`ReadUnlocked()` pair with a single
+read-only `status.Service.Snapshot()` API, removed the status-level
+`AfterSuccess` hook, and updated CLI timeline snapshots, dashboard status
+aggregation, UI status endpoints, and direct tests/callers. Validation:
+`rg` confirmed no status `Read()`/`ReadUnlocked()` callers remain; `go test
+./internal/status ./internal/cli ./internal/ui ./internal/dashboard
+./internal/lifecycle ./internal/review`.
 
 #### Review Notes
 

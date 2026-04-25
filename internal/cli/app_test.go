@@ -1605,7 +1605,7 @@ func TestReopenNewStepCommandReturnsJSON(t *testing.T) {
 		t.Fatalf("expected reopened current-plan pointer to move back to active path, got %#v", current)
 	}
 
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK {
 		t.Fatalf("expected status after reopen, got %#v", statusResult)
 	}
@@ -1665,7 +1665,7 @@ func TestReopenFinalizeFixCommandReturnsJSON(t *testing.T) {
 		t.Fatalf("expected finalize-fix reopen mode to persist, got %#v", state)
 	}
 
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK {
 		t.Fatalf("expected status after reopen, got %#v", statusResult)
 	}
@@ -1841,7 +1841,7 @@ func TestReopenCommandRejectsLandCleanupInProgress(t *testing.T) {
 		t.Fatalf("expected reopen failure during land cleanup, got %#v", payload)
 	}
 
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK || statusResult.State.CurrentNode != "land" {
 		t.Fatalf("expected land status to remain after failed reopen, got %#v", statusResult)
 	}
@@ -1886,7 +1886,7 @@ func TestLandCompleteCommandReturnsJSON(t *testing.T) {
 	}
 	assertLifecycleEnvelope(t, payload, "idle", 1)
 
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK || statusResult.State.CurrentNode != "idle" {
 		t.Fatalf("expected idle status after land complete, got %#v", statusResult)
 	}
@@ -1947,7 +1947,7 @@ func TestLandCommandRejectsActivePlanWithoutWritingLandedMarker(t *testing.T) {
 		t.Fatalf("expected no landed marker on failed command, got %#v", current)
 	}
 
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK {
 		t.Fatalf("expected active-plan status after failed land, got %#v", statusResult)
 	}

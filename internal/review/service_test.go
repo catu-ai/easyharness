@@ -141,7 +141,7 @@ func TestStartAcceptsExplicitEarlierStepFromFinalizeContext(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("save finalize-fix state: %v", err)
 	}
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if statusResult.State.CurrentNode != "execution/finalize/fix" {
 		t.Fatalf("expected fixture to resolve the real finalize-fix node before explicit repair, got %#v", statusResult.State)
 	}

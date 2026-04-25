@@ -759,7 +759,7 @@ func (a *App) runStatus(args []string) int {
 		return 1
 	}
 
-	result := status.Service{Workdir: workdir}.Read()
+	result := status.Service{Workdir: workdir}.Snapshot()
 	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
@@ -837,7 +837,7 @@ func (a *App) runReviewSubmit(args []string) int {
 		return 1
 	}
 	recordedAt := a.Now().Format(time.RFC3339)
-	beforeStatus := readUnlockedStatusSnapshot(workdir)
+	beforeStatus := readStatusSnapshot(workdir)
 	result := review.Service{
 		Workdir: workdir,
 		Now:     a.Now,
