@@ -89,7 +89,7 @@ the machine-local watchlist according to the existing watchlist contract.
 
 ### Step 1: Specify read and mutation coordination boundaries
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -136,10 +136,17 @@ Updated `docs/specs/state-model.md`, `docs/specs/cli-contract.md`, and
 and the CLI-only watchlist refresh boundary. Validation: `git diff --check`
 for the edited specs and plan; `harness plan lint
 docs/plans/active/2026-04-25-clarify-status-snapshot-and-mutation-coordination.md`.
+Follow-up repair after `review-001-delta` clarified that the status settle
+check must be passive and non-destructive: no missing lock-file creation, no
+mutation-lock ownership as a quiescence probe, and no mutation lock held while
+resolving the snapshot.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` found one blocking correctness issue: the initial settle
+contract did not explicitly forbid lock-owning or lock-file-creating probes.
+The repair added passive/non-destructive settle requirements to the state model
+and CLI contract. `review-002-delta` passed with no findings.
 
 ### Step 2: Refactor status snapshot APIs
 
