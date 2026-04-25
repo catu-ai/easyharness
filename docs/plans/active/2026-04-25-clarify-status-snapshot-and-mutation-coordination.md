@@ -61,24 +61,24 @@ the machine-local watchlist according to the existing watchlist contract.
 
 ## Acceptance Criteria
 
-- [ ] Specs state that read-model services are snapshot reads: they do not
+- [x] Specs state that read-model services are snapshot reads: they do not
       acquire mutation locks, write workflow state, append timeline events, or
       touch the watchlist.
-- [ ] Specs state that CLI `harness status` may wait briefly for a currently
+- [x] Specs state that CLI `harness status` may wait briefly for a currently
       held state mutation lock before resolving a snapshot, and reports a clear
       busy/error result if the lock remains held after the timeout.
-- [ ] Specs preserve the distinction that mutation commands fail fast on
+- [x] Specs preserve the distinction that mutation commands fail fast on
       mutation-lock contention, while status checkpoint reads may wait because
       harness commands are not expected to be long-running.
-- [ ] `status` package exposes a clearly named read-only snapshot API, and
+- [x] `status` package exposes a clearly named read-only snapshot API, and
       callers no longer rely on a lock-acquiring `Read()`/`ReadUnlocked()` pair.
-- [ ] UI and dashboard status reads use the snapshot API and have regression
+- [x] UI and dashboard status reads use the snapshot API and have regression
       coverage proving they do not create `.state-mutation.lock`, mutate
       workflow state, or touch the watchlist.
-- [ ] CLI `harness status` has regression coverage for the settle behavior:
+- [x] CLI `harness status` has regression coverage for the settle behavior:
       it waits through a short held lock when the lock releases, and returns a
       clear contention result when the lock stays held past the timeout.
-- [ ] Successful core CLI command watchlist registration still works, including
+- [x] Successful core CLI command watchlist registration still works, including
       `harness status`, while UI/API/dashboard polling remains excluded.
 
 ## Deferred Items
@@ -345,25 +345,56 @@ findings.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `git diff --check`
+- `harness plan lint
+  docs/plans/active/2026-04-25-clarify-status-snapshot-and-mutation-coordination.md`
+- `go test ./internal/status ./internal/runstate ./internal/cli ./internal/ui
+  ./internal/dashboard ./internal/watchlist -count=1`
+- Step-focused validation also covered `./internal/lifecycle` and
+  `./internal/review` after the status snapshot API rename.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step reviews: `review-001-delta` found and `review-002-delta` verified the
+  passive/non-destructive settle-contract repair; `review-003-delta`,
+  `review-004-delta`, and `review-005-delta` passed with no findings.
+- Finalize reviews: `review-006-full` found one blocking tests gap in the
+  positive CLI settle test. The repair made the test prove `harness status`
+  stays blocked while the state mutation lock is held and succeeds after
+  release. `review-007-full` passed with correctness and tests slots, both
+  with no findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: To be created after archive from this candidate branch.
+- Ready: The tracked steps are complete, the repair finalize review passed,
+  focused validation is green, and no follow-up issues are required.
+- Merge Handoff: After archive, commit the archive move, push the branch, open
+  the PR, record publish/CI/sync evidence, and wait for explicit human merge
+  approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Defined the durable read/write contract for status snapshots, CLI status
+  settlement, mutation-command lock contention, and watchlist ownership in the
+  state, CLI, and watchlist specs.
+- Replaced the ambiguous `status.Service.Read()`/`ReadUnlocked()` API with
+  read-only `status.Service.Snapshot()` callers and removed the status-level
+  success hook.
+- Added passive runstate lock probing and bounded CLI `harness status` settle
+  behavior that waits briefly for held mutation locks and reports a clear busy
+  status on timeout.
+- Added regression coverage for snapshot read purity, CLI settle wait/busy
+  behavior, UI/API/dashboard no-mutation reads, and intentional CLI
+  watchlist refresh.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No compatibility wrappers for the removed internal status read API.
+- No redesign of review, evidence, timeline, watchlist artifact formats, or
+  long-running command coordination.
 
 ### Follow-Up Issues
 
