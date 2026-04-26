@@ -84,6 +84,48 @@ func TestNewHandlerStatusDoesNotTouchWatchlist(t *testing.T) {
 	}
 }
 
+func TestNewHandlerStatusForActivePlanDoesNotMutateWorkflowOrWatchlist(t *testing.T) {
+	workdir := filepath.Join(t.TempDir(), "workspace-active-status")
+	seedGitWorkspace(t, workdir)
+	home := t.TempDir()
+	t.Setenv("EASYHARNESS_HOME", home)
+	relPlanPath, planStem := writeUIActivePlan(t, workdir, "UI Active Status")
+	currentPlanPath, statePath, lockPath := seedUIActiveState(t, workdir, relPlanPath, planStem)
+	before := snapshotStateFiles(t, currentPlanPath, statePath)
+
+	handler, err := NewHandler(workdir)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		OK    bool `json:"ok"`
+		State struct {
+			CurrentNode string `json:"current_node"`
+		} `json:"state"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v\n%s", err, recorder.Body.String())
+	}
+	if !payload.OK || payload.State.CurrentNode != "execution/step-1/implement" {
+		t.Fatalf("unexpected status payload: %#v", payload)
+	}
+	assertStateFilesUnchanged(t, before)
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Fatalf("expected UI status request to avoid creating state lock, err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "watchlist.json")); !os.IsNotExist(err) {
+		t.Fatalf("expected UI status request to avoid watchlist writes, err=%v", err)
+	}
+}
+
 func TestUIReadSurfacesDoNotTouchWatchlist(t *testing.T) {
 	workdir := filepath.Join(t.TempDir(), "workspace")
 	seedGitWorkspace(t, workdir)
@@ -304,8 +346,8 @@ func TestNewHandlerServesWorkspaceLookupJSON(t *testing.T) {
 		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
 	}
 	var payload struct {
-		OK       bool `json:"ok"`
-		Watched  bool `json:"watched"`
+		OK        bool `json:"ok"`
+		Watched   bool `json:"watched"`
 		Workspace *struct {
 			WorkspacePath string `json:"workspace_path"`
 		} `json:"workspace"`
@@ -338,7 +380,7 @@ func TestNewHandlerServesWorkspaceStatusJSONByKey(t *testing.T) {
 		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
 	}
 	var payload struct {
-		OK      bool `json:"ok"`
+		OK      bool   `json:"ok"`
 		Command string `json:"command"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
@@ -346,6 +388,53 @@ func TestNewHandlerServesWorkspaceStatusJSONByKey(t *testing.T) {
 	}
 	if !payload.OK || payload.Command != "status" {
 		t.Fatalf("unexpected status payload: %#v", payload)
+	}
+}
+
+func TestNewHandlerWorkspaceStatusForActivePlanDoesNotMutateWorkflowOrWatchlist(t *testing.T) {
+	home := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "workspace-status-active")
+	seedGitWorkspace(t, workspace)
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(workspace, "2026-04-22T12:00:00Z")})
+	t.Setenv("EASYHARNESS_HOME", home)
+	relPlanPath, planStem := writeUIActivePlan(t, workspace, "Workspace Active Status")
+	currentPlanPath, statePath, lockPath := seedUIActiveState(t, workspace, relPlanPath, planStem)
+	watchlistPath := filepath.Join(home, "watchlist.json")
+	fixedTime := time.Date(2026, 4, 22, 8, 0, 0, 0, time.UTC)
+	if err := os.Chtimes(watchlistPath, fixedTime, fixedTime); err != nil {
+		t.Fatalf("set watchlist timestamp: %v", err)
+	}
+	before := snapshotStateFiles(t, currentPlanPath, statePath)
+	watchlistBefore := snapshotFile(t, watchlistPath)
+
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/workspace/"+dashboard.WorkspaceKey(workspace)+"/status", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		OK    bool `json:"ok"`
+		State struct {
+			CurrentNode string `json:"current_node"`
+		} `json:"state"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v\n%s", err, recorder.Body.String())
+	}
+	if !payload.OK || payload.State.CurrentNode != "execution/step-1/implement" {
+		t.Fatalf("unexpected status payload: %#v", payload)
+	}
+	assertStateFilesUnchanged(t, before)
+	assertFileUnchanged(t, watchlistPath, watchlistBefore)
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Fatalf("expected workspace status request to avoid creating state lock, err=%v", err)
 	}
 }
 
@@ -1434,6 +1523,59 @@ func renderPlanFixture(t *testing.T, title string) string {
 		t.Fatalf("render plan: %v", err)
 	}
 	return strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
+}
+
+func writeUIActivePlan(t *testing.T, root, title string) (string, string) {
+	t.Helper()
+	planStem := strings.ToLower(strings.ReplaceAll(title, " ", "-"))
+	relPath := filepath.ToSlash(filepath.Join("docs", "plans", "active", "2026-04-22-"+planStem+".md"))
+	path := filepath.Join(root, filepath.FromSlash(relPath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(renderPlanFixture(t, title)), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	return relPath, "2026-04-22-" + planStem
+}
+
+func seedUIActiveState(t *testing.T, root, relPlanPath, planStem string) (string, string, string) {
+	t.Helper()
+	currentPlanPath, err := runstate.SaveCurrentPlan(root, relPlanPath)
+	if err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	statePath, err := runstate.SaveState(root, planStem, &runstate.State{
+		ExecutionStartedAt: "2026-04-22T09:00:00Z",
+		Revision:           1,
+	})
+	if err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+	fixedTime := time.Date(2026, 4, 22, 8, 0, 0, 0, time.UTC)
+	for _, path := range []string{currentPlanPath, statePath} {
+		if err := os.Chtimes(path, fixedTime, fixedTime); err != nil {
+			t.Fatalf("set state timestamp %s: %v", path, err)
+		}
+	}
+	lockPath := filepath.Join(root, ".local", "harness", "plans", planStem, ".state-mutation.lock")
+	return currentPlanPath, statePath, lockPath
+}
+
+func snapshotStateFiles(t *testing.T, paths ...string) map[string]fileSnapshot {
+	t.Helper()
+	before := make(map[string]fileSnapshot, len(paths))
+	for _, path := range paths {
+		before[path] = snapshotFile(t, path)
+	}
+	return before
+}
+
+func assertStateFilesUnchanged(t *testing.T, before map[string]fileSnapshot) {
+	t.Helper()
+	for path, snapshot := range before {
+		assertFileUnchanged(t, path, snapshot)
+	}
 }
 
 type dashboardTestGroup struct {

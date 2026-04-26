@@ -103,6 +103,13 @@ routine successful workflow confirmations such as `harness status`,
 `harness review start`, or lifecycle/evidence commands can keep the recency
 signal fresh when they pass through one shared watchlist writer.
 
+Watchlist refresh is a CLI command success side effect, not a read-model side
+effect. UI/API/dashboard resource reads, including status polling, must not
+touch `watchlist.json` or inflate `last_seen_at`. The dashboard may read the
+watchlist and derive workspace status at request time, but recency changes
+belong to explicit watchlist-management actions or successful core CLI
+workflow commands.
+
 ## Path Normalization and Uniqueness
 
 Writers must normalize `workspace_path` before comparing or persisting records.

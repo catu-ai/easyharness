@@ -19,8 +19,7 @@ import (
 )
 
 type Service struct {
-	Workdir      string
-	AfterSuccess func(Result)
+	Workdir string
 }
 
 type Result = contracts.StatusResult
@@ -57,15 +56,7 @@ type missingStepCloseoutReminder struct {
 
 type latestStepCloseoutRound = stepcloseout.RoundRecord
 
-func (s Service) Read() Result {
-	return s.read(true)
-}
-
-func (s Service) ReadUnlocked() Result {
-	return s.read(false)
-}
-
-func (s Service) read(acquireLock bool) Result {
+func (s Service) Snapshot() Result {
 	currentPlan, err := runstate.LoadCurrentPlan(s.Workdir)
 	if err != nil {
 		return Result{
@@ -79,7 +70,7 @@ func (s Service) read(acquireLock bool) Result {
 	planPath, err := plan.DetectCurrentPath(s.Workdir)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoCurrentPlan) {
-			return s.finalizeRead(idleResult(s.Workdir, currentPlan))
+			return idleResult(s.Workdir, currentPlan)
 		}
 		return Result{
 			OK:      false,
@@ -90,34 +81,6 @@ func (s Service) read(acquireLock bool) Result {
 	}
 
 	planStem := strings.TrimSuffix(filepath.Base(planPath), filepath.Ext(planPath))
-	release := func() {}
-	if acquireLock {
-		release, err = runstate.AcquireStateMutationLock(s.Workdir, planStem)
-		if err != nil {
-			return Result{
-				OK:      false,
-				Command: "status",
-				Summary: "Another local state mutation is already in progress.",
-				Artifacts: &Artifacts{
-					ProjectRoot: s.Workdir,
-					PlanPath:    repoFacingPath(s.Workdir, planPath),
-				},
-				Errors: []StatusError{{Path: "state", Message: "Another local state mutation is already in progress."}},
-			}
-		}
-		defer release()
-
-		planPath, err = plan.DetectCurrentPathLocked(s.Workdir, planStem)
-		if err != nil {
-			return Result{
-				OK:      false,
-				Command: "status",
-				Summary: "Unable to determine the current plan.",
-				Errors:  []StatusError{{Path: "plan", Message: "Unable to determine the current plan."}},
-			}
-		}
-	}
-
 	doc, err := plan.LoadFile(planPath)
 	if err != nil {
 		return Result{
@@ -279,14 +242,6 @@ func (s Service) read(acquireLock bool) Result {
 		result.Artifacts = nil
 	}
 
-	return s.finalizeRead(result)
-}
-
-func (s Service) finalizeRead(result Result) Result {
-	if !result.OK || s.AfterSuccess == nil {
-		return result
-	}
-	s.AfterSuccess(result)
 	return result
 }
 

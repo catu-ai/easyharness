@@ -27,7 +27,7 @@ func TestStatusPlanNodeForActivePlan(t *testing.T) {
 		return content
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected OK status result, got %#v", result)
 	}
@@ -64,7 +64,7 @@ func TestStatusPlanNodeForApprovedActivePlan(t *testing.T) {
 		return approvePlanContent(content, "2026-03-18T10:05:00+08:00")
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected OK status result, got %#v", result)
 	}
@@ -84,7 +84,7 @@ func TestStatusPlanNodeForTrackedLightweightPlan(t *testing.T) {
 		return strings.Replace(content, "size: M", "size: XXS", 1)
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected OK status result, got %#v", result)
 	}
@@ -113,7 +113,7 @@ func TestStatusSurfacesSupplementsDirectoryForCurrentPlanPackage(t *testing.T) {
 		t.Fatalf("write supplements file: %v", err)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected OK status result, got %#v", result)
 	}
@@ -140,7 +140,7 @@ func TestStatusSurfacesSupplementsDirectoryForArchivedPlanPackage(t *testing.T) 
 		t.Fatalf("write archived supplements file: %v", err)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected OK status result, got %#v", result)
 	}
@@ -162,7 +162,7 @@ func TestStatusLightweightPublishPromptsForBreadcrumb(t *testing.T) {
 		"revision": 1,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -207,7 +207,7 @@ func TestStatusLightweightArchivedPlanSurfacesSupplementsDirectory(t *testing.T)
 		t.Fatalf("write lightweight supplements file: %v", err)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected OK status result, got %#v", result)
 	}
@@ -225,7 +225,7 @@ func TestStatusExecutionStepImplementNode(t *testing.T) {
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-1/implement" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -243,7 +243,7 @@ func TestStatusExecutionStepImplementNode(t *testing.T) {
 	assertStateJSONLacksKeys(t, root, "2026-03-18-status-plan", "current_node")
 }
 
-func TestStatusRejectsWhenStateMutationLockIsHeld(t *testing.T) {
+func TestStatusSnapshotDoesNotCompeteForStateMutationLock(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
 		return content
@@ -255,18 +255,12 @@ func TestStatusRejectsWhenStateMutationLockIsHeld(t *testing.T) {
 	}
 	defer release()
 
-	result := status.Service{Workdir: root}.Read()
-	if result.OK {
-		t.Fatalf("expected status failure while state lock is held, got %#v", result)
+	result := status.Service{Workdir: root}.Snapshot()
+	if !result.OK {
+		t.Fatalf("expected status snapshot to remain read-only while state lock is held, got %#v", result)
 	}
-	if result.Summary != "Another local state mutation is already in progress." {
-		t.Fatalf("unexpected summary: %#v", result)
-	}
-	if len(result.Errors) != 1 || result.Errors[0].Path != "state" {
-		t.Fatalf("unexpected errors: %#v", result.Errors)
-	}
-	if result.Artifacts == nil || result.Artifacts.ProjectRoot != root || result.Artifacts.PlanPath != "docs/plans/active/2026-03-18-status-plan.md" {
-		t.Fatalf("expected repo-facing locked-status artifacts, got %#v", result.Artifacts)
+	if result.State.CurrentNode != "plan" {
+		t.Fatalf("unexpected node: %#v", result.State)
 	}
 }
 
@@ -285,7 +279,7 @@ func TestStatusIgnoresNonStructuralReviewFactsForCurrentStep(t *testing.T) {
 		},
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-1/implement" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -324,7 +318,7 @@ func TestStatusExecutionStepReviewNode(t *testing.T) {
 		},
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-1/review" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -358,7 +352,7 @@ func TestStatusStepReviewMatchesTargetWithoutMarkdownPunctuation(t *testing.T) {
 		"revision":     1,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-1/review" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -391,7 +385,7 @@ func TestStatusDoesNotWarnForEarlierCompletedStepWithCleanFullReview(t *testing.
 		"decision": "pass",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected clean full step-closeout review to allow step 2, got %#v", result.State)
 	}
@@ -409,7 +403,7 @@ func TestStatusWarnsWhenEarlierCompletedStepLacksReviewCompleteCloseout(t *testi
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected later-step node to stay stable, got %#v", result.State)
 	}
@@ -449,7 +443,7 @@ func TestStatusWarnsWhenLatestHistoricalStepCloseoutRoundIsNotClean(t *testing.T
 		"decision": "changes_requested",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
 	}
@@ -483,7 +477,7 @@ func TestStatusDoesNotWarnWhenLatestHistoricalStepCloseoutRepairsEarlierFailure(
 		"decision": "pass",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected clean latest historical closeout to allow step 2, got %#v", result.State)
 	}
@@ -514,7 +508,7 @@ func TestStatusWarnsWhenLatestHistoricalStepCloseoutRoundIsStillInFlight(t *test
 		"revision":     1,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
 	}
@@ -552,7 +546,7 @@ func TestStatusWarnsWhenLatestHistoricalStepCloseoutManifestIsUnreadable(t *test
 		"decision":     "changes_requested",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
 	}
@@ -591,7 +585,7 @@ func TestStatusWarnsWhenLatestUnreadableHistoricalCloseoutCannotBeMapped(t *test
 		"decision":     "changes_requested",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
 	}
@@ -641,7 +635,7 @@ func TestStatusWarnsWhenHistoricalCloseoutMissingRevisionIsIgnored(t *testing.T)
 		"decision":     "changes_requested",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
 	}
@@ -688,7 +682,7 @@ func TestStatusWarnsWhenHistoricalCloseoutStepIsOutOfRangeIsIgnored(t *testing.T
 		"decision":     "changes_requested",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
 	}
@@ -745,7 +739,7 @@ func TestStatusFinalizeArchiveSuppressesArchiveActionForUnscopedUnreadableHistor
 		"decision":     "changes_requested",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/archive" {
 		t.Fatalf("expected archive node to stay stable, got %#v", result.State)
 	}
@@ -804,7 +798,7 @@ func TestStatusDoesNotLetUnreadableHistoryForOneStepUnsatisfyAnother(t *testing.
 		"decision":     "changes_requested",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("expected finalize node to stay stable, got %#v", result.State)
 	}
@@ -839,7 +833,7 @@ func TestStatusWarnsInFinalizeWhenCompletedStepStillLacksCloseout(t *testing.T) 
 		"decision": "pass",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("expected finalize node to stay stable, got %#v", result.State)
 	}
@@ -887,7 +881,7 @@ func TestStatusFinalizeArchiveSummaryAndActionsDoNotPretendReadyWhenCloseoutDebt
 		"decision": "pass",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/archive" {
 		t.Fatalf("expected archive node to stay stable, got %#v", result.State)
 	}
@@ -934,7 +928,7 @@ func TestStatusFinalizeArchiveKeepsBlockerGuidanceWhenCloseoutDebtAndArchiveBloc
 		"decision": "pass",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/archive" {
 		t.Fatalf("expected archive node to stay stable, got %#v", result.State)
 	}
@@ -983,7 +977,7 @@ func TestStatusDoesNotSuggestSecondReviewWhileStepReviewIsInFlight(t *testing.T)
 		"revision":     1,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/review" {
 		t.Fatalf("expected in-flight step review node, got %#v", result.State)
 	}
@@ -1033,7 +1027,7 @@ func TestStatusShowsExplicitEarlierStepRepairAsInFlightReview(t *testing.T) {
 		"revision":     1,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-1/review" {
 		t.Fatalf("expected explicit earlier-step repair to show step 1 review in flight, got %#v", result.State)
 	}
@@ -1082,7 +1076,7 @@ func TestStatusDoesNotSuggestSecondReviewWhileFinalizeReviewIsInFlight(t *testin
 		"revision":     1,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("expected in-flight finalize review node, got %#v", result.State)
 	}
@@ -1115,7 +1109,7 @@ func TestStatusSuppressesMissingReviewWarningWithNoReviewNeededMarker(t *testing
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected step 2 node with suppressed warning, got %#v", result.State)
 	}
@@ -1142,7 +1136,7 @@ func TestStatusNoReviewNeededMarkerDoesNotHideLaterFailedCloseout(t *testing.T) 
 		"decision": "changes_requested",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
 	}
@@ -1166,7 +1160,7 @@ func TestStatusNoReviewNeededMarkerDoesNotHideLaterInFlightCloseout(t *testing.T
 		"revision":     1,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
 	}
@@ -1193,7 +1187,7 @@ func TestStatusNoReviewNeededMarkerAllowsLaterCleanCloseoutToStaySatisfied(t *te
 		"decision": "pass",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected step 2 node to stay stable, got %#v", result.State)
 	}
@@ -1243,7 +1237,7 @@ func TestStatusUnreadableFinalizeManifestDoesNotMasqueradeAsStepDebt(t *testing.
 		t.Fatalf("write unreadable finalize manifest: %v", err)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("expected finalize review node to stay stable, got %#v", result.State)
 	}
@@ -1300,7 +1294,7 @@ func TestStatusFinalizeReviewUsesAggregateFirstGuidanceForUnscopedUnreadableHist
 		"revision":     1,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("expected finalize review node to stay stable, got %#v", result.State)
 	}
@@ -1347,7 +1341,7 @@ func TestStatusFinalizeReviewSummaryForUnscopedUnreadableHistoryWithoutActiveRou
 		"decision":     "changes_requested",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("expected finalize review node to stay stable, got %#v", result.State)
 	}
@@ -1396,7 +1390,7 @@ func TestStatusFinalizeFixSummaryForUnscopedUnreadableHistory(t *testing.T) {
 		"decision":     "changes_requested",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/fix" {
 		t.Fatalf("expected finalize fix node to stay stable, got %#v", result.State)
 	}
@@ -1437,7 +1431,7 @@ func TestStatusFailedStepReviewUsesActiveReviewRoundWhenManifestIsMissing(t *tes
 		},
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-1/implement" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -1470,7 +1464,7 @@ func TestStatusUnknownAggregatedReviewDecisionStaysConservative(t *testing.T) {
 		"revision":     1,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-1/implement" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -1502,7 +1496,7 @@ func TestStatusFailedStepReviewPinsReviewedStep(t *testing.T) {
 		"revision":     1,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-1/implement" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -1534,7 +1528,7 @@ func TestStatusAdvancesToNextStepAfterCleanStepReview(t *testing.T) {
 		"revision":     1,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -1552,7 +1546,7 @@ func TestStatusFinalizeReviewNode(t *testing.T) {
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -1581,7 +1575,7 @@ func TestStatusFinalizeReviewClearsPriorStepReviewFacts(t *testing.T) {
 		"revision":     1,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -1608,7 +1602,7 @@ func TestStatusFinalizeReviewInFlightIncludesReviewFacts(t *testing.T) {
 		},
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -1633,7 +1627,7 @@ func TestStatusFinalizeFixNodeAfterFailedFinalizeReview(t *testing.T) {
 		},
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/fix" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -1658,7 +1652,7 @@ func TestStatusFinalizeArchiveNodeAfterCleanFinalizeReview(t *testing.T) {
 		},
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/archive" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -1677,7 +1671,7 @@ func TestStatusArchivedPlanNeedsPublishEvidence(t *testing.T) {
 	})
 	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -1708,7 +1702,7 @@ func TestStatusWarnsInArchivedPublishWhenCompletedStepStillLacksCloseout(t *test
 		"decision": "pass",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected publish node to stay stable, got %#v", result.State)
 	}
@@ -1757,7 +1751,7 @@ func TestStatusLightweightPublishPrioritizesRepairDebtBeforeBreadcrumb(t *testin
 		"decision": "pass",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected publish node to stay stable, got %#v", result.State)
 	}
@@ -1829,7 +1823,7 @@ func TestStatusArchivedNodesRequireReopenForUnscopedUnreadableHistory(t *testing
 				}
 			}
 
-			result := status.Service{Workdir: root}.Read()
+			result := status.Service{Workdir: root}.Snapshot()
 			if result.State.CurrentNode != tc.expectedNode {
 				t.Fatalf("expected archived node %q, got %#v", tc.expectedNode, result.State)
 			}
@@ -1902,7 +1896,7 @@ func TestStatusArchivedPlanReadyForAwaitMerge(t *testing.T) {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -1945,7 +1939,7 @@ func TestStatusWarnsInAwaitMergeWhenCompletedStepStillLacksCloseout(t *testing.T
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("expected await_merge node to stay stable, got %#v", result.State)
 	}
@@ -2002,7 +1996,7 @@ func TestStatusArchivedPlanReadyForAwaitMergeFromEvidenceArtifacts(t *testing.T)
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("expected evidence artifacts to reach await_merge, got %#v", result.State)
 	}
@@ -2044,7 +2038,7 @@ func TestStatusArchivedPlanIgnoresOlderRevisionEvidenceArtifacts(t *testing.T) {
 		"revision": 2,
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected older revision evidence to keep publish state, got %#v", result.State)
 	}
@@ -2076,7 +2070,7 @@ func TestStatusArchivedPlanReadyForAwaitMergeWithSyncNotApplied(t *testing.T) {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -2108,7 +2102,7 @@ func TestStatusArchivedPlanReadyForAwaitMergeWhenCIAndSyncAreBothNotApplied(t *t
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -2143,7 +2137,7 @@ func TestStatusArchivedPlanStaysInPublishFromEvidenceArtifactsWhenDirty(t *testi
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected dirty evidence artifacts to stay in publish, got %#v", result.State)
 	}
@@ -2186,7 +2180,7 @@ func TestStatusArchivedPlanStaysInPublishWhenEvidenceIsDirty(t *testing.T) {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected dirty evidence to stay in publish, got %#v", result.State)
 	}
@@ -2228,7 +2222,7 @@ func TestStatusArchivedPlanStaysInPublishWhenSyncIsDirty(t *testing.T) {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected dirty sync evidence to stay in publish, got %#v", result.State)
 	}
@@ -2261,7 +2255,7 @@ func TestStatusLandNode(t *testing.T) {
 		},
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "land" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -2298,7 +2292,7 @@ func TestStatusIdleNodeAfterLand(t *testing.T) {
 		"last_landed_at":        "2026-03-19T12:00:00Z",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected idle result, got %#v", result)
 	}
@@ -2320,7 +2314,7 @@ func TestStatusIdleSurfacesNonBlockingBootstrapReminderWhenManagedAssetsAreStale
 	staleManagedInstructions(t, root)
 	staleManagedSkill(t, root, "harness-discovery")
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected idle result, got %#v", result)
 	}
@@ -2350,7 +2344,7 @@ func TestStatusIdleSurfacesReminderWhenManagedInstructionsAreStale(t *testing.T)
 
 	staleManagedInstructions(t, root)
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected idle result, got %#v", result)
 	}
@@ -2368,7 +2362,7 @@ func TestStatusIdleSurfacesReminderWhenManagedSkillsAreStale(t *testing.T) {
 
 	staleManagedSkill(t, root, "harness-discovery")
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected idle result, got %#v", result)
 	}
@@ -2384,7 +2378,7 @@ func TestStatusIdleSkipsBootstrapReminderWhenManagedAssetsAreFresh(t *testing.T)
 		t.Fatalf("init failed: %#v", result)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected idle result, got %#v", result)
 	}
@@ -2409,7 +2403,7 @@ func TestStatusActivePlanDoesNotSurfaceIdleBootstrapReminder(t *testing.T) {
 		return content
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected plan result, got %#v", result)
 	}
@@ -2439,7 +2433,7 @@ func TestStatusActiveExecutionDoesNotSurfaceIdleBootstrapReminder(t *testing.T) 
 		"execution_started_at": "2026-03-18T10:05:00+08:00",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if !result.OK {
 		t.Fatalf("expected execution result, got %#v", result)
 	}
@@ -2467,7 +2461,7 @@ func TestStatusReopenedFinalizeFixNeedsReview(t *testing.T) {
 		},
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/fix" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -2490,7 +2484,7 @@ func TestStatusReopenedNewStepPendingPromptsForNewStep(t *testing.T) {
 		},
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/fix" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -2516,7 +2510,7 @@ func TestStatusReopenedNewStepPendingKeepsNewStepCueEvenWithMissingCloseoutWarni
 		},
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/fix" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -2546,7 +2540,7 @@ func TestStatusReopenedNewStepContinuesOnceStepExists(t *testing.T) {
 		},
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-3/implement" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
@@ -2578,7 +2572,7 @@ func TestStatusReopenedNewStepKeepsLaterFrontierWhileEarlierCloseoutDebtExists(t
 		"decision": "changes_requested",
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-3/implement" {
 		t.Fatalf("expected reopened step 3 frontier to stay stable, got %#v", result.State)
 	}
@@ -2663,7 +2657,7 @@ func TestStatusReentersReviewedStepAfterFailedExplicitEarlierStepRepair(t *testi
 		t.Fatalf("expected failed explicit earlier-step repair aggregate, got %#v", aggregate)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-1/implement" {
 		t.Fatalf("expected failed explicit earlier-step repair to reenter step 1, got %#v", result.State)
 	}
@@ -2734,7 +2728,7 @@ func TestStatusReturnsToLaterFrontierAfterCleanExplicitEarlierStepRepair(t *test
 		t.Fatalf("expected clean explicit earlier-step repair aggregate, got %#v", aggregate)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/step-3/implement" {
 		t.Fatalf("expected clean explicit earlier-step repair to return to the later frontier, got %#v", result.State)
 	}
@@ -2804,7 +2798,7 @@ func TestStatusReturnsToFinalizeReviewAfterCleanExplicitEarlierStepRepair(t *tes
 		t.Fatalf("expected clean explicit earlier-step repair aggregate from finalize review, got %#v", aggregate)
 	}
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("expected clean explicit earlier-step repair to return to finalize review, got %#v", result.State)
 	}
@@ -2847,7 +2841,7 @@ func TestStatusConsumedReopenedNewStepDoesNotForceAnotherStepAfterLaterFinding(t
 		},
 	})
 
-	result := status.Service{Workdir: root}.Read()
+	result := status.Service{Workdir: root}.Snapshot()
 	if result.State.CurrentNode != "execution/finalize/fix" {
 		t.Fatalf("expected finalize fix node, got %#v", result.State)
 	}

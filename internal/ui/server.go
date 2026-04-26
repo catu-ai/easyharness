@@ -218,7 +218,7 @@ func NewHandler(workdir string) (http.Handler, error) {
 		workspacePath := workspaceResult.Workspace.WorkspacePath
 		switch resource {
 		case "status":
-			writeStatusJSON(w, status.Service{Workdir: workspacePath}.Read())
+			writeStatusJSON(w, status.Service{Workdir: workspacePath}.Snapshot())
 		case "plan":
 			writePlanJSON(w, planui.Service{Workdir: workspacePath}.Read())
 		case "timeline":
@@ -234,7 +234,7 @@ func NewHandler(workdir string) (http.Handler, error) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		writeStatusJSON(w, status.Service{Workdir: workdir}.Read())
+		writeStatusJSON(w, status.Service{Workdir: workdir}.Snapshot())
 	})
 	mux.HandleFunc("/api/plan", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -262,7 +262,7 @@ func NewHandler(workdir string) (http.Handler, error) {
 }
 
 var (
-	errWorkspaceActionTargetNotFound = errors.New("workspace action target is not currently watched")
+	errWorkspaceActionTargetNotFound  = errors.New("workspace action target is not currently watched")
 	errWorkspaceActionTargetAmbiguous = errors.New("workspace route key is ambiguous; specify the exact workspace_path")
 )
 

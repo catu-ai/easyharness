@@ -20,6 +20,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/lifecycle"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/review"
+	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/status"
 	"github.com/catu-ai/easyharness/internal/ui"
 	versioninfo "github.com/catu-ai/easyharness/internal/version"
@@ -36,6 +37,9 @@ type App struct {
 	UserHomeDir func() (string, error)
 	Version     func() versioninfo.Info
 	RunUIServer func(context.Context, ui.Server) error
+
+	StatusSettleTimeout      time.Duration
+	StatusSettlePollInterval time.Duration
 }
 
 func New(stdout, stderr io.Writer) *App {
@@ -759,8 +763,53 @@ func (a *App) runStatus(args []string) int {
 		return 1
 	}
 
-	result := status.Service{Workdir: workdir}.Read()
+	if result, settled := a.settleStatusSnapshot(workdir); !settled {
+		return a.writeJSONResultForWorkdir(workdir, result)
+	}
+	result := status.Service{Workdir: workdir}.Snapshot()
 	return a.writeJSONResultForWorkdir(workdir, result)
+}
+
+func (a *App) settleStatusSnapshot(workdir string) (status.Result, bool) {
+	planPath, err := plan.DetectCurrentPath(workdir)
+	if err != nil {
+		return status.Result{}, true
+	}
+	planStem := strings.TrimSuffix(filepath.Base(planPath), filepath.Ext(planPath))
+	timeout := a.StatusSettleTimeout
+	if timeout == 0 {
+		timeout = 2 * time.Second
+	}
+	pollInterval := a.StatusSettlePollInterval
+	if pollInterval == 0 {
+		pollInterval = 25 * time.Millisecond
+	}
+	held, err := runstate.WaitForStateMutationLockRelease(workdir, planStem, timeout, pollInterval)
+	if err != nil {
+		return status.Result{
+			OK:      false,
+			Command: "status",
+			Summary: "Unable to inspect local state mutation lock.",
+			Artifacts: &status.Artifacts{
+				ProjectRoot: workdir,
+				PlanPath:    normalizeRepoPath(workdir, planPath),
+			},
+			Errors: []status.StatusError{{Path: "state", Message: "Unable to inspect local state mutation lock."}},
+		}, false
+	}
+	if held {
+		return status.Result{
+			OK:      false,
+			Command: "status",
+			Summary: "Another local state mutation is still in progress.",
+			Artifacts: &status.Artifacts{
+				ProjectRoot: workdir,
+				PlanPath:    normalizeRepoPath(workdir, planPath),
+			},
+			Errors: []status.StatusError{{Path: "state", Message: "Another local state mutation is still in progress."}},
+		}, false
+	}
+	return status.Result{}, true
 }
 
 func (a *App) runReviewStart(args []string) int {
@@ -837,7 +886,7 @@ func (a *App) runReviewSubmit(args []string) int {
 		return 1
 	}
 	recordedAt := a.Now().Format(time.RFC3339)
-	beforeStatus := readUnlockedStatusSnapshot(workdir)
+	beforeStatus := readStatusSnapshot(workdir)
 	result := review.Service{
 		Workdir: workdir,
 		Now:     a.Now,

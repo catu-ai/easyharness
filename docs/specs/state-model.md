@@ -65,6 +65,29 @@ together or a process exits during persistence.
 - if the per-plan state lock is already held, the command should fail with a
   clear error rather than waiting silently or risking a stale overwrite
 
+### Read-Model Purity
+
+Read-model services resolve snapshots from the current tracked plan,
+CLI-owned runtime artifacts, and append-only evidence or review records. They
+must not acquire mutation locks, create lock files, rewrite workflow state,
+append timeline events, or refresh machine-local watchlist recency.
+
+This rule applies to status resolution as a library/read-model operation and
+to UI/API/dashboard resource reads. A read-model caller may observe a momentary
+multi-file transition while another command is mutating local artifacts. The
+reader should surface a conservative degraded result, warning, or error from
+the files it can read rather than hiding the possibility behind a read lock.
+
+Agent-facing CLI commands may add command-level coordination around a
+read-model snapshot when their public contract calls for it. In particular,
+`harness status` may briefly wait for a state mutation lock to settle before
+resolving a snapshot, as defined in [CLI Contract](./cli-contract.md). That
+settle behavior belongs to the CLI checkpoint command, not to the underlying
+status read model. The settle check must be passive and non-destructive: it
+must not create a missing lock file, must not use the ordinary mutation-lock
+acquisition helper as its probe, and must not hold any mutation lock while
+resolving the snapshot.
+
 ### Durable Plan, Disposable Runtime
 
 Tracked active plans remain the durable source of scope, step closeout, and
@@ -199,6 +222,12 @@ acquire the review mutation lock before the state mutation lock. Commands that
 only submit reviewer output should stay on the review-artifact path and should
 not acquire the state mutation lock just because the round also has local
 state.
+
+Mutation commands should remain fail-fast on mutation-lock contention unless a
+more specific command contract says otherwise. Waiting for a mutation lock is
+reserved for checkpoint reads such as `harness status`, where a short wait can
+avoid reporting an in-flight snapshot without letting two mutation commands
+silently queue behind each other.
 
 ## High-Level Resolution Order
 

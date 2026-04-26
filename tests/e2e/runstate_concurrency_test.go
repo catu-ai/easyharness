@@ -104,7 +104,7 @@ func TestArchivedRunstateInterleavingsIgnoreStaleEvidenceAndFailClearlyUnderLock
 	support.RequireExitCode(t, lockedStatus, 1)
 	support.RequireNoStderr(t, lockedStatus)
 	lockedStatusPayload := support.RequireJSONResult[statusResult](t, lockedStatus)
-	if lockedStatusPayload.OK || lockedStatusPayload.Summary != "Another local state mutation is already in progress." {
+	if lockedStatusPayload.OK || lockedStatusPayload.Summary != "Another local state mutation is still in progress." {
 		t.Fatalf("expected locked status failure, got %#v", lockedStatusPayload)
 	}
 	if lockedStatusPayload.Artifacts.ProjectRoot == "" || lockedStatusPayload.Artifacts.PlanPath != postRearchiveStatus.Artifacts.PlanPath {

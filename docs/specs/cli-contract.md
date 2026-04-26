@@ -119,6 +119,31 @@ interrupted or overlapping writes.
 - fail with a clear contention error when that state lock is already held
   instead of waiting silently or risking a stale overwrite
 
+### Snapshot Reads and Checkpoint Settle
+
+Read-model services are side-effect-free snapshots as defined in
+[State Model](./state-model.md). They must not create mutation locks, rewrite
+workflow state, append timeline events, or refresh the watchlist merely because
+a UI/API/dashboard resource was polled.
+
+The CLI command boundary may add extra checkpoint behavior on top of a pure
+snapshot. `harness status` is the primary agent-facing checkpoint, so it may
+wait briefly for a currently held state mutation lock to release before
+resolving and returning the snapshot. If the lock remains held after the
+bounded wait, `harness status` should return a clear contention result instead
+of reading a likely in-flight state.
+
+The status settle check must be passive and non-destructive. It must not create
+`.state-mutation.lock` when the file is absent, must not use the ordinary
+mutation-lock acquisition helper as its probe, and must not hold any mutation
+lock while resolving the status snapshot. After the bounded settle check
+completes, `harness status` should call the same pure snapshot resolver used by
+UI/API read surfaces.
+
+This wait rule does not apply to ordinary mutation commands. Commands that
+mutate workflow state should continue to fail fast on mutation-lock contention
+unless their own command contract explicitly defines a different behavior.
+
 ## Shared Output Envelope
 
 Stateful commands share a common JSON envelope vocabulary, but not every
@@ -442,11 +467,20 @@ Contract:
 
 - detect the current plan artifact, whether it is a tracked active plan, a
   tracked standard archive, or a lightweight local archive
+- before resolving the status snapshot for a current plan, briefly wait for an
+  actively held state mutation lock to settle; if the lock remains held beyond
+  the bounded wait, return a clear local-mutation-in-progress result
+- perform that settle wait with a passive, non-destructive advisory-lock check
+  that does not create a missing lock file and does not hold any mutation lock
+  while resolving the snapshot
 - resolve the canonical `state.current_node` from the current plan,
   execute-start milestones, review artifacts, append-only evidence, reopen
   milestones, archive state, and land milestones
 - return pure v0.2 JSON centered on `state.current_node`, selected `facts`,
   `artifacts`, `summary`, and `next_actions`
+- keep the underlying status snapshot read-only: the snapshot resolver must
+  not acquire mutation locks, rewrite `state.json`, append timeline events, or
+  touch watchlist recency
 - never emit legacy v0.1 fields such as `lifecycle`, `step_state`, or
   `handoff_state`
 - surface aggregated review failures as a concrete repair signal rather than

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -679,6 +680,134 @@ func TestStatusCommandIgnoresWatchlistWriteFailure(t *testing.T) {
 	}
 	if ok, _ := payload["ok"].(bool); !ok {
 		t.Fatalf("expected status success payload, got %#v", payload)
+	}
+}
+
+func TestStatusCommandDoesNotCreateStateMutationLock(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+
+	outputPath := filepath.Join(root, "docs/plans/active/2026-03-18-test-plan.md")
+	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Status Passive Probe Plan", "--output", outputPath}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
+
+	stdout.Reset()
+	stderr.Reset()
+	if exitCode := app.Run([]string{"status"}); exitCode != 0 {
+		t.Fatalf("status command failed with %d: %s", exitCode, stderr.String())
+	}
+
+	lockPath := filepath.Join(root, ".local", "harness", "plans", "2026-03-18-test-plan", ".state-mutation.lock")
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Fatalf("expected status settle probe not to create state lock, err=%v", err)
+	}
+}
+
+func TestStatusCommandWaitsForStateMutationLockRelease(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.StatusSettleTimeout = 500 * time.Millisecond
+	app.StatusSettlePollInterval = time.Millisecond
+
+	outputPath := filepath.Join(root, "docs/plans/active/2026-03-18-test-plan.md")
+	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Status Wait Plan", "--output", outputPath}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
+
+	release, err := runstate.AcquireStateMutationLock(root, "2026-03-18-test-plan")
+	if err != nil {
+		t.Fatalf("acquire state lock: %v", err)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	statusStarted := make(chan struct{})
+	var closeStatusStarted sync.Once
+	app.Getwd = func() (string, error) {
+		closeStatusStarted.Do(func() {
+			close(statusStarted)
+		})
+		return root, nil
+	}
+	done := make(chan int, 1)
+	go func() {
+		done <- app.Run([]string{"status"})
+	}()
+
+	<-statusStarted
+	select {
+	case exitCode := <-done:
+		t.Fatalf("expected status to keep waiting while state lock is held, got exit code %d", exitCode)
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	release()
+	if exitCode := <-done; exitCode != 0 {
+		t.Fatalf("expected status to wait for released state lock, got %d: %s", exitCode, stderr.String())
+	}
+
+	var payload struct {
+		OK bool `json:"ok"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode status payload: %v\n%s", err, stdout.String())
+	}
+	if !payload.OK {
+		t.Fatalf("expected OK status payload, got %s", stdout.String())
+	}
+}
+
+func TestStatusCommandReturnsBusyWhenStateMutationLockStaysHeld(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.StatusSettleTimeout = time.Millisecond
+	app.StatusSettlePollInterval = time.Millisecond
+
+	outputPath := filepath.Join(root, "docs/plans/active/2026-03-18-test-plan.md")
+	if exitCode := app.Run([]string{"plan", "template", "--title", "CLI Status Busy Plan", "--output", outputPath}); exitCode != 0 {
+		t.Fatalf("template command failed with %d: %s", exitCode, stderr.String())
+	}
+	approvePlanInFile(t, outputPath, "2026-03-18T14:55:00+08:00")
+
+	release, err := runstate.AcquireStateMutationLock(root, "2026-03-18-test-plan")
+	if err != nil {
+		t.Fatalf("acquire state lock: %v", err)
+	}
+	defer release()
+
+	stdout.Reset()
+	stderr.Reset()
+	if exitCode := app.Run([]string{"status"}); exitCode == 0 {
+		t.Fatalf("expected busy status to fail while state lock remains held, stdout=%s", stdout.String())
+	}
+
+	var payload struct {
+		OK      bool   `json:"ok"`
+		Summary string `json:"summary"`
+		Errors  []struct {
+			Path string `json:"path"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode status payload: %v\n%s", err, stdout.String())
+	}
+	if payload.OK || payload.Summary != "Another local state mutation is still in progress." {
+		t.Fatalf("unexpected busy status payload: %#v", payload)
+	}
+	if len(payload.Errors) != 1 || payload.Errors[0].Path != "state" {
+		t.Fatalf("expected state error, got %#v", payload.Errors)
 	}
 }
 
@@ -1605,7 +1734,7 @@ func TestReopenNewStepCommandReturnsJSON(t *testing.T) {
 		t.Fatalf("expected reopened current-plan pointer to move back to active path, got %#v", current)
 	}
 
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK {
 		t.Fatalf("expected status after reopen, got %#v", statusResult)
 	}
@@ -1665,7 +1794,7 @@ func TestReopenFinalizeFixCommandReturnsJSON(t *testing.T) {
 		t.Fatalf("expected finalize-fix reopen mode to persist, got %#v", state)
 	}
 
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK {
 		t.Fatalf("expected status after reopen, got %#v", statusResult)
 	}
@@ -1841,7 +1970,7 @@ func TestReopenCommandRejectsLandCleanupInProgress(t *testing.T) {
 		t.Fatalf("expected reopen failure during land cleanup, got %#v", payload)
 	}
 
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK || statusResult.State.CurrentNode != "land" {
 		t.Fatalf("expected land status to remain after failed reopen, got %#v", statusResult)
 	}
@@ -1886,7 +2015,7 @@ func TestLandCompleteCommandReturnsJSON(t *testing.T) {
 	}
 	assertLifecycleEnvelope(t, payload, "idle", 1)
 
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK || statusResult.State.CurrentNode != "idle" {
 		t.Fatalf("expected idle status after land complete, got %#v", statusResult)
 	}
@@ -1947,7 +2076,7 @@ func TestLandCommandRejectsActivePlanWithoutWritingLandedMarker(t *testing.T) {
 		t.Fatalf("expected no landed marker on failed command, got %#v", current)
 	}
 
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK {
 		t.Fatalf("expected active-plan status after failed land, got %#v", statusResult)
 	}

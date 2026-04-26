@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/catu-ai/easyharness/internal/contracts"
 )
@@ -119,6 +120,35 @@ func AcquireStateMutationLock(workdir, planStem string) (func(), error) {
 		fmt.Sprintf("another command is already mutating local state for plan %q; retry after it finishes", planStem))
 }
 
+func StateMutationLockHeld(workdir, planStem string) (bool, error) {
+	return planFileLockHeld(workdir, planStem, ".state-mutation.lock")
+}
+
+func WaitForStateMutationLockRelease(workdir, planStem string, timeout, pollInterval time.Duration) (bool, error) {
+	if timeout <= 0 {
+		return StateMutationLockHeld(workdir, planStem)
+	}
+	if pollInterval <= 0 {
+		pollInterval = 25 * time.Millisecond
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		held, err := StateMutationLockHeld(workdir, planStem)
+		if err != nil || !held {
+			return held, err
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return true, nil
+		}
+		sleepFor := pollInterval
+		if remaining < sleepFor {
+			sleepFor = remaining
+		}
+		time.Sleep(sleepFor)
+	}
+}
+
 func AcquireTimelineMutationLock(workdir, planStem string) (func(), error) {
 	return acquirePlanFileLock(workdir, planStem, ".timeline-mutation.lock",
 		fmt.Sprintf("another command is already appending timeline events for plan %q; retry after it finishes", planStem))
@@ -186,6 +216,27 @@ func acquirePlanFileLock(workdir, planStem, lockFileName, contentionMessage stri
 		_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 		_ = file.Close()
 	}, nil
+}
+
+func planFileLockHeld(workdir, planStem, lockFileName string) (bool, error) {
+	lockPath := filepath.Join(workdir, ".local", "harness", "plans", planStem, lockFileName)
+	file, err := os.OpenFile(lockPath, os.O_RDWR, 0)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	defer file.Close()
+
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+			return true, nil
+		}
+		return false, err
+	}
+	_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+	return false, nil
 }
 
 func CurrentRevision(state *State) int {

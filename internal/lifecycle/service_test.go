@@ -1284,7 +1284,7 @@ func TestReopenNewStepRecordsModeAndStatusCue(t *testing.T) {
 		t.Fatalf("expected reopen to capture original step count, got %#v", state.Reopen)
 	}
 
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK {
 		t.Fatalf("expected status after reopen, got %#v", statusResult)
 	}
@@ -1510,7 +1510,7 @@ func TestLandCompleteWritesIdleMarkerForStatus(t *testing.T) {
 		t.Fatalf("unexpected current plan marker: %#v", current)
 	}
 
-	statusResult := status.Service{Workdir: root}.Read()
+	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK {
 		t.Fatalf("expected idle-after-land status, got %#v", statusResult)
 	}

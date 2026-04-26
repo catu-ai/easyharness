@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestSaveCurrentPlanWritesExactJSON(t *testing.T) {
@@ -135,5 +136,91 @@ func TestWriteJSONAtomicPreservesOriginalFileWhenRenameFails(t *testing.T) {
 	}
 	if len(entries) != 1 || entries[0].Name() != "current-plan.json" {
 		t.Fatalf("expected failed atomic write to clean up temp files, got %#v", entries)
+	}
+}
+
+func TestStateMutationLockHeldDoesNotCreateMissingLockFile(t *testing.T) {
+	root := t.TempDir()
+	planStem := "2026-04-25-passive-lock-probe"
+	lockPath := filepath.Join(root, ".local", "harness", "plans", planStem, ".state-mutation.lock")
+
+	held, err := StateMutationLockHeld(root, planStem)
+	if err != nil {
+		t.Fatalf("StateMutationLockHeld: %v", err)
+	}
+	if held {
+		t.Fatal("expected missing lock to report not held")
+	}
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Fatalf("expected passive probe not to create lock file, err=%v", err)
+	}
+}
+
+func TestStateMutationLockHeldDetectsHeldAndReleasedLock(t *testing.T) {
+	root := t.TempDir()
+	planStem := "2026-04-25-held-lock-probe"
+	release, err := AcquireStateMutationLock(root, planStem)
+	if err != nil {
+		t.Fatalf("AcquireStateMutationLock: %v", err)
+	}
+
+	held, err := StateMutationLockHeld(root, planStem)
+	if err != nil {
+		t.Fatalf("StateMutationLockHeld while held: %v", err)
+	}
+	if !held {
+		t.Fatal("expected held lock to report held")
+	}
+
+	release()
+	held, err = StateMutationLockHeld(root, planStem)
+	if err != nil {
+		t.Fatalf("StateMutationLockHeld after release: %v", err)
+	}
+	if held {
+		t.Fatal("expected released lock to report not held")
+	}
+}
+
+func TestWaitForStateMutationLockReleaseWaitsUntilReleased(t *testing.T) {
+	root := t.TempDir()
+	planStem := "2026-04-25-wait-lock-release"
+	release, err := AcquireStateMutationLock(root, planStem)
+	if err != nil {
+		t.Fatalf("AcquireStateMutationLock: %v", err)
+	}
+
+	released := make(chan struct{})
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		release()
+		close(released)
+	}()
+
+	held, err := WaitForStateMutationLockRelease(root, planStem, 500*time.Millisecond, time.Millisecond)
+	if err != nil {
+		t.Fatalf("WaitForStateMutationLockRelease: %v", err)
+	}
+	if held {
+		t.Fatal("expected wait to observe released lock")
+	}
+	<-released
+}
+
+func TestWaitForStateMutationLockReleaseReportsHeldAfterTimeout(t *testing.T) {
+	root := t.TempDir()
+	planStem := "2026-04-25-wait-lock-timeout"
+	release, err := AcquireStateMutationLock(root, planStem)
+	if err != nil {
+		t.Fatalf("AcquireStateMutationLock: %v", err)
+	}
+	defer release()
+
+	held, err := WaitForStateMutationLockRelease(root, planStem, time.Millisecond, time.Millisecond)
+	if err != nil {
+		t.Fatalf("WaitForStateMutationLockRelease: %v", err)
+	}
+	if !held {
+		t.Fatal("expected timeout to report lock still held")
 	}
 }

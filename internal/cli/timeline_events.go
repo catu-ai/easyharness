@@ -15,15 +15,7 @@ import (
 )
 
 func readStatusSnapshot(workdir string) *status.Result {
-	result := status.Service{Workdir: workdir}.Read()
-	if !result.OK {
-		return nil
-	}
-	return &result
-}
-
-func readUnlockedStatusSnapshot(workdir string) *status.Result {
-	result := status.Service{Workdir: workdir}.ReadUnlocked()
+	result := status.Service{Workdir: workdir}.Snapshot()
 	if !result.OK {
 		return nil
 	}
@@ -77,7 +69,7 @@ func lifecycleTimelineHook(workdir string, before *status.Result, recordedAt str
 		return appendTimelineEvent(
 			workdir,
 			before,
-			readUnlockedStatusSnapshot(workdir),
+			readStatusSnapshot(workdir),
 			attachRawPayloads(timelineEventFromLifecycle(result), input, result, result.Artifacts),
 			recordedAt,
 		)
@@ -89,7 +81,7 @@ func reviewStartTimelineHook(workdir string, before *status.Result, recordedAt s
 		return appendTimelineEvent(
 			workdir,
 			before,
-			readUnlockedStatusSnapshot(workdir),
+			readStatusSnapshot(workdir),
 			attachRawPayloads(timelineEventFromReviewStart(result), input, result, result.Artifacts),
 			recordedAt,
 		)
@@ -101,7 +93,7 @@ func reviewSubmitTimelineHook(workdir string, before *status.Result, recordedAt 
 		return appendTimelineEvent(
 			workdir,
 			before,
-			readUnlockedStatusSnapshot(workdir),
+			readStatusSnapshot(workdir),
 			attachRawPayloads(timelineEventFromReviewSubmit(result), input, result, result.Artifacts),
 			recordedAt,
 		)
@@ -113,7 +105,7 @@ func reviewAggregateTimelineHook(workdir string, before *status.Result, recorded
 		return appendTimelineEvent(
 			workdir,
 			before,
-			readUnlockedStatusSnapshot(workdir),
+			readStatusSnapshot(workdir),
 			attachRawPayloads(timelineEventFromReviewAggregate(result), input, result, result.Artifacts),
 			recordedAt,
 		)
@@ -125,7 +117,7 @@ func evidenceTimelineHook(workdir string, before *status.Result, recordedAt, kin
 		return appendTimelineEvent(
 			workdir,
 			before,
-			readUnlockedStatusSnapshot(workdir),
+			readStatusSnapshot(workdir),
 			attachRawPayloads(timelineEventFromEvidence(result, kind), input, result, result.Artifacts),
 			recordedAt,
 		)
