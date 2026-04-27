@@ -40,15 +40,15 @@ managed bootstrap instructions and skill packages continue to use the stable
 
 ## Acceptance Criteria
 
-- [ ] A dev binary with `mode: dev` and `version: v0.2.5-dev` keeps rendering
+- [x] A dev binary with `mode: dev` and `version: v0.2.5-dev` keeps rendering
       managed bootstrap version markers as `dev`.
-- [ ] Release binaries still render managed bootstrap markers from their
+- [x] Release binaries still render managed bootstrap markers from their
       concrete release version.
-- [ ] `harness init --dry-run` is all noop for the current clean dogfood
+- [x] `harness init --dry-run` is all noop for the current clean dogfood
       bootstrap outputs after reinstalling the dev binary.
-- [ ] `harness status` no longer emits the false stale bootstrap warning in the
+- [x] `harness status` no longer emits the false stale bootstrap warning in the
       current idle worktree after reinstalling the dev binary.
-- [ ] Focused tests cover the dev-build-with-version regression.
+- [x] Focused tests cover the dev-build-with-version regression.
 
 ## Deferred Items
 
@@ -101,7 +101,7 @@ Step-closeout delta review `review-001-delta` passed with no findings across
 
 ### Step 2: Verify Real Dev Binary Behavior
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -132,11 +132,17 @@ direct command on PATH.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Reinstalled the repo-local dev binary with `scripts/install-dev-harness`.
+Verified the real `harness` command still reports `version: v0.2.5-dev` and
+`mode: dev`, while `harness init --dry-run` reports all noop actions and
+`harness status` no longer emits the stale bootstrap warning. Validation also
+passed with `go test ./internal/status ./internal/install -count=1` and
+`go test ./... -count=1`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 2 only rebuilt and validated the dev binary after
+the Step 1 code change, and introduced no additional code or contract edits.
 
 ## Validation Strategy
 
