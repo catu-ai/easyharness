@@ -187,6 +187,8 @@ Follow-up finalize full review `review-003-full` passed with no findings.
 
 ## Archive Summary
 
+- Archived At: 2026-04-27T09:42:59+08:00
+- Revision: 1
 The candidate is ready to archive as a standard tracked plan after clean
 follow-up finalize review `review-003-full`. There are no deferred items or
 follow-up issues for this slice.
