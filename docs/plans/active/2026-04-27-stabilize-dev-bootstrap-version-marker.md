@@ -165,25 +165,48 @@ warning.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+Validation covered the marker-selection unit path, the status/init drift path,
+the installed development binary, and the full Go test suite:
+
+- `go test ./internal/install -run 'TestInitUsesStableDevVersionMarkerWhenDevBuildHasVersion|TestInitUsesStableDevVersionMarkerAcrossCommitChanges|TestInitRefreshesVersionMarkersAcrossVersionChanges' -count=1`
+- `go test ./internal/status ./internal/install -count=1`
+- `scripts/install-dev-harness`
+- `harness --version`
+- `harness init --dry-run`
+- `harness status`
+- `go test ./... -count=1`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Step-closeout delta review `review-001-delta` passed with no findings across
+`correctness` and `tests`. Finalize full review `review-002-full` passed
+`correctness` and `tests`, and found one docs-consistency archive-readiness
+issue: the durable archive summary sections still contained placeholders. This
+revision removes those placeholders and records the closeout summaries.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+The candidate is intended to archive as a standard tracked plan after the
+summary-placeholder repair receives a clean finalize review. There are no
+deferred items or follow-up issues for this slice.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Dev-mode bootstrap marker rendering now returns the stable `dev` marker even
+  when the dev binary exposes a diagnostic version such as `v0.2.5-dev`.
+- Release-mode bootstrap marker rendering continues to use concrete release
+  versions.
+- Regression coverage now proves the dev-build-with-version case remains noop
+  for managed bootstrap assets.
+- The repo-local dev binary was rebuilt and verified to keep `harness
+  --version` diagnostics while clearing the false `harness status` bootstrap
+  drift warning.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+No planned scope was left undelivered.
 
 ### Follow-Up Issues
 
