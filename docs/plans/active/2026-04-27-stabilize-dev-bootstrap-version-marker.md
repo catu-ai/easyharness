@@ -182,13 +182,24 @@ Step-closeout delta review `review-001-delta` passed with no findings across
 `correctness` and `tests`. Finalize full review `review-002-full` passed
 `correctness` and `tests`, and found one docs-consistency archive-readiness
 issue: the durable archive summary sections still contained placeholders. This
-revision removes those placeholders and records the closeout summaries.
+revision removed those placeholders and recorded the closeout summaries.
+Follow-up finalize full review `review-003-full` passed with no findings.
 
 ## Archive Summary
 
-The candidate is intended to archive as a standard tracked plan after the
-summary-placeholder repair receives a clean finalize review. There are no
-deferred items or follow-up issues for this slice.
+The candidate is ready to archive as a standard tracked plan after clean
+follow-up finalize review `review-003-full`. There are no deferred items or
+follow-up issues for this slice.
+
+- PR: pending post-archive publish handoff from branch
+  `codex/stabilize-dev-bootstrap-version-marker`.
+- Ready: Acceptance criteria are satisfied, step-closeout review
+  `review-001-delta` passed, finalize repair review `review-003-full` passed,
+  and validation includes the installed dev binary plus `go test ./... -count=1`.
+- Merge Handoff: Archive the active plan, commit the tracked archive move, push
+  branch `codex/stabilize-dev-bootstrap-version-marker`, open a PR, and record
+  publish/CI/sync evidence until `harness status` reaches
+  `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
