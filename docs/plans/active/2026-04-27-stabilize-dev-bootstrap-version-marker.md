@@ -58,7 +58,7 @@ managed bootstrap instructions and skill packages continue to use the stable
 
 ### Step 1: Separate Dev Build Metadata From Bootstrap Markers
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -96,7 +96,8 @@ validation passed with `go test ./internal/install -run
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Step-closeout delta review `review-001-delta` passed with no findings across
+`correctness` and `tests`.
 
 ### Step 2: Verify Real Dev Binary Behavior
 
