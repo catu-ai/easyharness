@@ -689,6 +689,9 @@ func (s Service) versionTag() string {
 	if info.Mode == "" && info.Commit == "" && info.Version == "" {
 		info = versioninfo.Current()
 	}
+	if strings.TrimSpace(info.Mode) == "dev" {
+		return "dev"
+	}
 	if strings.TrimSpace(info.Version) != "" {
 		return strings.TrimSpace(info.Version)
 	}
