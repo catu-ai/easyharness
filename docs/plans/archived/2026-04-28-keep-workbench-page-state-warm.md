@@ -242,22 +242,40 @@ clicked its artifact tab through the UI, and verified that selected artifact
 state survives remount. Review `review-004-full` tightened that assertion
 because the tab label could satisfy the old text check; the fourth repair now
 asserts both the selected artifact tab and the selected artifact body. Full
-validation passed again.
+validation passed again. Finalize review `review-005-full` passed with no
+findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-04-29T00:24:09+08:00
+- Revision: 1
+- PR: pending post-archive publish handoff from branch
+  `codex/keep-workbench-page-state-warm`.
+- Ready: Acceptance criteria satisfied; full validation passed; finalize review
+  `review-005-full` passed clean after repairs.
+- Merge Handoff: Archive the plan, commit archive closeout, push the branch,
+  open a PR for issue #172, record publish/CI/sync evidence, then wait for
+  human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+Plan, Timeline, and Review now keep page-local UI state warm across workbench
+tab switches/remounts while continuing to refetch live data. Remembered
+selection, expanded branches, detail tabs, and review artifact panel choices
+fall back cleanly when refreshed data no longer contains the remembered item.
+Focused tests cover continuity, fallback, user-driven state updates, and live
+Plan refetch behavior.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+Browser reload persistence, new-tab persistence, cross-workspace persistence,
+broader live-resource refresh redesign, and new Plan/Timeline/Review
+navigation/search/filter features stayed out of scope.
 
 ### Follow-Up Issues
 
-NONE
+No new GitHub issue opened. Deferred items remain intentionally out of scope
+for this issue: browser reload persistence, broader live refresh policy
+redesign, and Plan/Timeline/Review search/filter/navigation improvements.
