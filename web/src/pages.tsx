@@ -509,6 +509,7 @@ export function PlanWorkspace(props: {
   useEffect(() => {
     if (loading) return;
     if (!document) {
+      if (state.selectedNodeId && supplements && findSupplementNodeBySelectionId(supplements, state.selectedNodeId)) return;
       setSelectedNodeId(supplements ? planSupplementSelectionId(supplements) : "document");
       return;
     }

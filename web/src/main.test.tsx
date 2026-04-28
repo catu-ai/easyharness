@@ -47,6 +47,34 @@ const planResult: PlanResult = {
   supplements: null,
 };
 
+const supplementsOnlyPlanResult: PlanResult = {
+  ok: true,
+  resource: "plan",
+  summary: "Plan supplements loaded.",
+  warnings: [],
+  document: null,
+  supplements: {
+    id: "supplements",
+    kind: "directory",
+    label: "supplements",
+    path: "docs/plans/active/supplements",
+    children: [
+      {
+        id: "notes",
+        kind: "file",
+        label: "notes.md",
+        path: "docs/plans/active/supplements/notes.md",
+        preview: {
+          status: "supported",
+          content_type: "text",
+          content: "supplement notes",
+          byte_size: 16,
+        },
+      },
+    ],
+  },
+};
+
 const timelineResult: TimelineResult = {
   ok: true,
   resource: "timeline",
@@ -103,6 +131,8 @@ const reviewResult: ReviewResult = {
   ],
 };
 
+let currentPlanResult: PlanResult = planResult;
+
 function mockApi() {
   vi.stubGlobal(
     "fetch",
@@ -111,7 +141,7 @@ function mockApi() {
       const payloadByPath: Record<string, unknown> = {
         "/api/workspace/wk_alpha": workspaceResult,
         "/api/workspace/wk_alpha/status": statusResult,
-        "/api/workspace/wk_alpha/plan": planResult,
+        "/api/workspace/wk_alpha/plan": currentPlanResult,
         "/api/workspace/wk_alpha/timeline": timelineResult,
         "/api/workspace/wk_alpha/review": reviewResult,
       };
@@ -128,6 +158,10 @@ function activePlanTreeText(): string {
   return document.querySelector(".plan-tree-row.is-active .plan-tree-text")?.textContent ?? "";
 }
 
+function planFetchCount(): number {
+  return vi.mocked(fetch).mock.calls.filter(([input]) => String(input) === "/api/workspace/wk_alpha/plan").length;
+}
+
 function activeInspectorTabText(): string {
   return document.querySelector(".inspector-tab.is-active")?.textContent ?? "";
 }
@@ -142,6 +176,7 @@ function explorerHasTitle(title: string): boolean {
 
 describe("workbench page state continuity", () => {
   beforeEach(() => {
+    currentPlanResult = planResult;
     mockApi();
   });
 
@@ -163,6 +198,7 @@ describe("workbench page state continuity", () => {
     );
 
     await waitFor(() => expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Warm Plan"));
+    const initialPlanFetches = planFetchCount();
     await waitFor(() => expect(activePlanTreeText()).toBe("Scope"));
 
     fireEvent.click(screen.getByLabelText("Timeline"));
@@ -170,8 +206,30 @@ describe("workbench page state continuity", () => {
     fireEvent.click(screen.getByLabelText("Plan"));
 
     await waitFor(() => expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Warm Plan"));
+    await waitFor(() => expect(planFetchCount()).toBeGreaterThan(initialPlanFetches));
     await waitFor(() => expect(activePlanTreeText()).toBe("Scope"));
-    expect(fetch).toHaveBeenCalledWith("/api/workspace/wk_alpha/plan", expect.any(Object));
+  });
+
+  test("keeps supplements-only Plan child selection warm across tab switches", async () => {
+    currentPlanResult = supplementsOnlyPlanResult;
+    window.history.pushState({}, "", "/workspace/wk_alpha/plan");
+    render(
+      <App
+        initialPlanWorkspaceState={{
+          selectedNodeId: "file:docs/plans/active/supplements/notes.md",
+          expandedNodeIds: ["directory:docs/plans/active/supplements"],
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(document.querySelector(".plan-tree-text")?.textContent).toBe("supplements"));
+    await waitFor(() => expect(activePlanTreeText()).toBe("notes.md"));
+
+    fireEvent.click(screen.getByLabelText("Timeline"));
+    await waitFor(() => expect(explorerHasTitle("new event")).toBe(true));
+    fireEvent.click(screen.getByLabelText("Plan"));
+
+    await waitFor(() => expect(activePlanTreeText()).toBe("notes.md"));
   });
 
   test("keeps Timeline event and detail tab warm across tab switches", async () => {
@@ -225,7 +283,38 @@ describe("workbench page state continuity", () => {
     expect(screen.getAllByText("notes").length).toBeGreaterThan(0);
   });
 
-  test("falls back cleanly when remembered page ids are no longer present", async () => {
+  test("falls back cleanly when remembered Plan ids are no longer present", async () => {
+    window.history.pushState({}, "", "/workspace/wk_alpha/plan");
+    render(
+      <App
+        initialPlanWorkspaceState={{
+          selectedNodeId: "heading:missing",
+          expandedNodeIds: ["document:docs/plans/active/warm.md", "heading:missing"],
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Warm Plan"));
+    await waitFor(() => expect(activePlanTreeText()).toBe("Warm Plan"));
+  });
+
+  test("falls back cleanly when remembered Timeline ids are no longer present", async () => {
+    window.history.pushState({}, "", "/workspace/wk_alpha/timeline");
+    render(
+      <App
+        initialTimelineWorkspaceState={{
+          selectedEventId: "missing-event",
+          selectedTab: "missing-tab",
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(explorerHasTitle("new event")).toBe(true));
+    await waitFor(() => expect(activeExplorerTitleText()).toBe("new event"));
+    await waitFor(() => expect(activeInspectorTabText()).toBe("Event"));
+  });
+
+  test("falls back cleanly when remembered Review ids are no longer present", async () => {
     window.history.pushState({}, "", "/workspace/wk_alpha/review");
     render(
       <App

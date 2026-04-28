@@ -186,7 +186,9 @@ behavior clearly.
 
 Added `web/src/main.test.tsx` coverage for Plan, Timeline, and Review tab
 switch continuity, plus fallback behavior for missing remembered review ids and
-artifact ids. Focused and full frontend validation passed.
+artifact ids. Review repair added Plan fallback, Timeline fallback,
+supplements-only Plan selection, and post-return Plan refetch coverage. Focused
+and full frontend validation passed.
 
 #### Review Notes
 
@@ -223,7 +225,12 @@ Passed:
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Finalize review `review-001-full` requested changes: preserve supplements-only
+Plan child selections and expand fallback/refetch test coverage. The repair
+fixed the supplements-only Plan fallback path and added focused regression
+coverage for Plan, Timeline, and Review fallback plus the Plan refetch claim.
+Fresh validation passed; a follow-up finalize review will verify the repaired
+candidate.
 
 ## Archive Summary
 
