@@ -236,7 +236,10 @@ candidate. Follow-up review `review-002-full` found one remaining blocking
 test gap: continuity tests still relied on seeded state. The second repair
 added user-control remount tests for Plan, Timeline, and Review and reran
 `pnpm --dir web test`, `pnpm --dir web check`, and `pnpm --dir web build`
-successfully.
+successfully. Follow-up review `review-003-full` found that Review artifact
+selection still used default state; the third repair added a second artifact,
+clicked its artifact tab through the UI, and verified that selected artifact
+state survives remount. Full validation passed again.
 
 ## Archive Summary
 

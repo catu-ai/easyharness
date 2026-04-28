@@ -137,7 +137,10 @@ const reviewResult: ReviewResult = {
       status: "passed",
       status_summary: "Passed.",
       reviewers: [{ slot: "ui", name: "UI", status: "submitted", summary: "Looks good." }],
-      artifacts: [{ label: "notes", path: ".local/review/notes.md", content_type: "text", content: "notes" }],
+      artifacts: [
+        { label: "notes", path: ".local/review/notes.md", content_type: "text", content: "notes" },
+        { label: "trace", path: ".local/review/trace.md", content_type: "text", content: "trace" },
+      ],
     },
   ],
 };
@@ -417,6 +420,8 @@ describe("workbench page state continuity", () => {
     await waitFor(() => expect(activeInspectorTabText()).toBe("UI"));
     fireEvent.click(screen.getByRole("button", { name: "Artifacts" }));
     await waitFor(() => expect(screen.getAllByText("notes").length).toBeGreaterThan(0));
+    fireEvent.click(screen.getByRole("tab", { name: "trace" }));
+    await waitFor(() => expect(screen.getAllByText("trace").length).toBeGreaterThan(0));
 
     fireEvent.click(screen.getByRole("button", { name: "Toggle Review" }));
     await waitFor(() => expect(document.querySelector(".explorer-list")).toBeNull());
@@ -424,7 +429,7 @@ describe("workbench page state continuity", () => {
 
     await waitFor(() => expect(activeExplorerTitleText()).toBe("First review"));
     expect(activeInspectorTabText()).toBe("UI");
-    expect(screen.getAllByText("notes").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("trace").length).toBeGreaterThan(0);
   });
 
   test("falls back cleanly when remembered Plan ids are no longer present", async () => {
