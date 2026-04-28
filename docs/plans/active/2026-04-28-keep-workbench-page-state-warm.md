@@ -188,7 +188,9 @@ Added `web/src/main.test.tsx` coverage for Plan, Timeline, and Review tab
 switch continuity, plus fallback behavior for missing remembered review ids and
 artifact ids. Review repair added Plan fallback, Timeline fallback,
 supplements-only Plan selection, and post-return Plan refetch coverage. Focused
-and full frontend validation passed.
+and full frontend validation passed. A second repair added component-level
+control tests proving Plan, Timeline, and Review controls write lifted state
+through their actual UI handlers before remount continuity is asserted.
 
 #### Review Notes
 
@@ -230,7 +232,11 @@ Plan child selections and expand fallback/refetch test coverage. The repair
 fixed the supplements-only Plan fallback path and added focused regression
 coverage for Plan, Timeline, and Review fallback plus the Plan refetch claim.
 Fresh validation passed; a follow-up finalize review will verify the repaired
-candidate.
+candidate. Follow-up review `review-002-full` found one remaining blocking
+test gap: continuity tests still relied on seeded state. The second repair
+added user-control remount tests for Plan, Timeline, and Review and reran
+`pnpm --dir web test`, `pnpm --dir web check`, and `pnpm --dir web build`
+successfully.
 
 ## Archive Summary
 

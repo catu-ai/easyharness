@@ -1,8 +1,19 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
+import { useState } from "preact/hooks";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { App } from "./main";
-import type { PlanResult, ReviewResult, StatusResult, TimelineResult, WorkspaceRouteResult } from "./types";
+import { PlanWorkspace, ReviewWorkspace, TimelineWorkspace } from "./pages";
+import type {
+  PlanResult,
+  PlanWorkspaceState,
+  ReviewResult,
+  ReviewWorkspaceState,
+  StatusResult,
+  TimelineResult,
+  TimelineWorkspaceState,
+  WorkspaceRouteResult,
+} from "./types";
 
 const workspaceResult: WorkspaceRouteResult = {
   ok: true,
@@ -162,6 +173,14 @@ function planFetchCount(): number {
   return vi.mocked(fetch).mock.calls.filter(([input]) => String(input) === "/api/workspace/wk_alpha/plan").length;
 }
 
+function clickPlanTreeLabel(label: string) {
+  const target = Array.from(document.querySelectorAll<HTMLButtonElement>(".plan-tree-label")).find(
+    (nextElement) => nextElement.querySelector(".plan-tree-text")?.textContent === label,
+  );
+  if (!target) throw new Error(`Missing plan tree label ${label}`);
+  fireEvent.click(target);
+}
+
 function activeInspectorTabText(): string {
   return document.querySelector(".inspector-tab.is-active")?.textContent ?? "";
 }
@@ -172,6 +191,80 @@ function activeExplorerTitleText(): string {
 
 function explorerHasTitle(title: string): boolean {
   return Array.from(document.querySelectorAll(".explorer-item-title")).some((nextElement) => nextElement.textContent === title);
+}
+
+function clickExplorerItem(title: string) {
+  const target = Array.from(document.querySelectorAll<HTMLButtonElement>(".explorer-item")).find(
+    (nextElement) => nextElement.querySelector(".explorer-item-title")?.textContent === title,
+  );
+  if (!target) throw new Error(`Missing explorer item ${title}`);
+  fireEvent.click(target);
+}
+
+function PlanStateHarness() {
+  const [mounted, setMounted] = useState(true);
+  const [state, setState] = useState<PlanWorkspaceState>({ selectedNodeId: null, expandedNodeIds: null });
+  return (
+    <>
+      <button type="button" onClick={() => setMounted((current) => !current)}>
+        Toggle Plan
+      </button>
+      {mounted ? (
+        <PlanWorkspace
+          loading={false}
+          error={null}
+          summary={planResult.summary}
+          document={planResult.document ?? null}
+          supplements={planResult.supplements ?? null}
+          warnings={planResult.warnings ?? []}
+          state={state}
+          onStateChange={setState}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function TimelineStateHarness() {
+  const [mounted, setMounted] = useState(true);
+  const [state, setState] = useState<TimelineWorkspaceState>({ selectedEventId: null, selectedTab: "event" });
+  return (
+    <>
+      <button type="button" onClick={() => setMounted((current) => !current)}>
+        Toggle Timeline
+      </button>
+      {mounted ? <TimelineWorkspace loading={false} error={null} events={timelineResult.events ?? []} state={state} onStateChange={setState} /> : null}
+    </>
+  );
+}
+
+function ReviewStateHarness() {
+  const [mounted, setMounted] = useState(true);
+  const [state, setState] = useState<ReviewWorkspaceState>({
+    selectedRoundId: null,
+    selectedDetailTab: "summary",
+    selectedArtifactKey: null,
+    showArtifacts: false,
+  });
+  return (
+    <>
+      <button type="button" onClick={() => setMounted((current) => !current)}>
+        Toggle Review
+      </button>
+      {mounted ? (
+        <ReviewWorkspace
+          loading={false}
+          error={null}
+          summary={reviewResult.summary}
+          rounds={reviewResult.rounds ?? []}
+          warnings={reviewResult.warnings ?? []}
+          artifacts={[]}
+          state={state}
+          onStateChange={setState}
+        />
+      ) : null}
+    </>
+  );
 }
 
 describe("workbench page state continuity", () => {
@@ -278,6 +371,57 @@ describe("workbench page state continuity", () => {
     fireEvent.click(screen.getByLabelText("Review"));
 
     await waitFor(() => expect(explorerHasTitle("First review")).toBe(true));
+    await waitFor(() => expect(activeExplorerTitleText()).toBe("First review"));
+    expect(activeInspectorTabText()).toBe("UI");
+    expect(screen.getAllByText("notes").length).toBeGreaterThan(0);
+  });
+
+  test("Plan controls write lifted state that survives page remount", async () => {
+    render(<PlanStateHarness />);
+
+    await waitFor(() => expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Warm Plan"));
+    clickPlanTreeLabel("Scope");
+    await waitFor(() => expect(activePlanTreeText()).toBe("Scope"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Plan" }));
+    await waitFor(() => expect(document.querySelector(".plan-tree")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Plan" }));
+
+    await waitFor(() => expect(activePlanTreeText()).toBe("Scope"));
+  });
+
+  test("Timeline controls write lifted state that survives page remount", async () => {
+    render(<TimelineStateHarness />);
+
+    await waitFor(() => expect(explorerHasTitle("old event")).toBe(true));
+    clickExplorerItem("old event");
+    await waitFor(() => expect(activeExplorerTitleText()).toBe("old event"));
+    fireEvent.click(screen.getByRole("tab", { name: "Input" }));
+    await waitFor(() => expect(activeInspectorTabText()).toBe("Input"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Timeline" }));
+    await waitFor(() => expect(document.querySelector(".explorer-list")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Timeline" }));
+
+    await waitFor(() => expect(activeExplorerTitleText()).toBe("old event"));
+    expect(activeInspectorTabText()).toBe("Input");
+  });
+
+  test("Review controls write lifted state that survives page remount", async () => {
+    render(<ReviewStateHarness />);
+
+    await waitFor(() => expect(explorerHasTitle("First review")).toBe(true));
+    clickExplorerItem("First review");
+    await waitFor(() => expect(activeExplorerTitleText()).toBe("First review"));
+    fireEvent.click(screen.getByRole("tab", { name: "UI" }));
+    await waitFor(() => expect(activeInspectorTabText()).toBe("UI"));
+    fireEvent.click(screen.getByRole("button", { name: "Artifacts" }));
+    await waitFor(() => expect(screen.getAllByText("notes").length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Review" }));
+    await waitFor(() => expect(document.querySelector(".explorer-list")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Review" }));
+
     await waitFor(() => expect(activeExplorerTitleText()).toBe("First review"));
     expect(activeInspectorTabText()).toBe("UI");
     expect(screen.getAllByText("notes").length).toBeGreaterThan(0);
