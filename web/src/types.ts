@@ -103,6 +103,11 @@ export type PlanResult = {
   errors?: ErrorDetail[] | null;
 };
 
+export type PlanWorkspaceState = {
+  selectedNodeId: string | null;
+  expandedNodeIds: string[] | null;
+};
+
 export type TimelineDetail = {
   key: string;
   value: string;
@@ -150,6 +155,11 @@ export type TimelineResult = {
   } | null;
   events?: TimelineEvent[] | null;
   errors?: ErrorDetail[] | null;
+};
+
+export type TimelineWorkspaceState = {
+  selectedEventId: string | null;
+  selectedTab: string;
 };
 
 export type ReviewArtifact = {
@@ -231,6 +241,13 @@ export type ReviewResult = {
   rounds?: ReviewRound[] | null;
   warnings?: string[] | null;
   errors?: ErrorDetail[] | null;
+};
+
+export type ReviewWorkspaceState = {
+  selectedRoundId: string | null;
+  selectedDetailTab: string;
+  selectedArtifactKey: string | null;
+  showArtifacts: boolean;
 };
 
 export type DashboardProgressNode = {

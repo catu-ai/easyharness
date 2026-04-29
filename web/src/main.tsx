@@ -22,9 +22,12 @@ import type {
   DashboardWorkspace,
   Page,
   PlanResult,
+  PlanWorkspaceState,
   ReviewResult,
+  ReviewWorkspaceState,
   StatusResult,
   TimelineResult,
+  TimelineWorkspaceState,
   WorkspaceRouteResult,
 } from "./types";
 import { buildWorkspaceUnwatchRequest } from "./workspace-actions";
@@ -44,6 +47,23 @@ type AppRoute =
       workspaceKey: string;
       page: Page;
     };
+
+const emptyPlanWorkspaceState = (): PlanWorkspaceState => ({
+  selectedNodeId: null,
+  expandedNodeIds: null,
+});
+
+const emptyTimelineWorkspaceState = (): TimelineWorkspaceState => ({
+  selectedEventId: null,
+  selectedTab: "event",
+});
+
+const emptyReviewWorkspaceState = (): ReviewWorkspaceState => ({
+  selectedRoundId: null,
+  selectedDetailTab: "summary",
+  selectedArtifactKey: null,
+  showArtifacts: false,
+});
 
 function isPage(value: string | null): value is Page {
   return value === "status" || value === "plan" || value === "timeline" || value === "review";
@@ -79,10 +99,21 @@ function formatTimelineResourceError(result: TimelineResult | null, statusCode?:
   return formatTimelineError(result?.summary, result?.errors, statusCode);
 }
 
-function App() {
+export function App(props: {
+  initialPlanWorkspaceState?: PlanWorkspaceState;
+  initialTimelineWorkspaceState?: TimelineWorkspaceState;
+  initialReviewWorkspaceState?: ReviewWorkspaceState;
+} = {}) {
   const [route, setRoute] = useState<AppRoute>(() => readRouteFromLocation());
   const [section, setSection] = useState<string>(() => readSectionFromLocation(readRouteFromLocation()));
   const [busyWorkspaceKey, setBusyWorkspaceKey] = useState<string | null>(null);
+  const [stateWorkspaceKey, setStateWorkspaceKey] = useState<string | null>(() => {
+    const initialRoute = readRouteFromLocation();
+    return initialRoute.kind === "workspace" ? initialRoute.workspaceKey : null;
+  });
+  const [planWorkspaceState, setPlanWorkspaceState] = useState<PlanWorkspaceState>(() => props.initialPlanWorkspaceState ?? emptyPlanWorkspaceState());
+  const [timelineWorkspaceState, setTimelineWorkspaceState] = useState<TimelineWorkspaceState>(() => props.initialTimelineWorkspaceState ?? emptyTimelineWorkspaceState());
+  const [reviewWorkspaceState, setReviewWorkspaceState] = useState<ReviewWorkspaceState>(() => props.initialReviewWorkspaceState ?? emptyReviewWorkspaceState());
 
   useEffect(() => {
     const onLocationChange = () => {
@@ -103,6 +134,15 @@ function App() {
       window.history.replaceState({}, "", `${workspacePageHref(route.workspaceKey, route.page)}#${sectionIDsForPage(route.page)[0]}`);
     }
   }, [route]);
+
+  useEffect(() => {
+    const nextWorkspaceKey = route.kind === "workspace" ? route.workspaceKey : null;
+    if (nextWorkspaceKey === stateWorkspaceKey) return;
+    setStateWorkspaceKey(nextWorkspaceKey);
+    setPlanWorkspaceState(emptyPlanWorkspaceState());
+    setTimelineWorkspaceState(emptyTimelineWorkspaceState());
+    setReviewWorkspaceState(emptyReviewWorkspaceState());
+  }, [route, stateWorkspaceKey]);
 
   const navigateToDashboard = () => {
     if (window.location.pathname !== "/dashboard") {
@@ -166,6 +206,9 @@ function App() {
   const { data: plan, error: planError, loading: planLoading, freshness: planFreshness } = planResource;
   const { data: timeline, error: timelineError, loading: timelineLoading, freshness: timelineFreshness } = timelineResource;
   const { data: review, error: reviewError, loading: reviewLoading, freshness: reviewFreshness } = reviewResource;
+  const planPageLoading = planLoading || (route.kind === "workspace" && route.page === "plan" && !plan && !planError);
+  const timelinePageLoading = timelineLoading || (route.kind === "workspace" && route.page === "timeline" && !timeline && !timelineError);
+  const reviewPageLoading = reviewLoading || (route.kind === "workspace" && route.page === "review" && !review && !reviewError);
 
   const activeStatus = useMemo(
     () => ({
@@ -344,23 +387,33 @@ function App() {
           <main class="main-stage">
             {route.page === "plan" ? (
               <PlanWorkspace
-                loading={planLoading}
+                loading={planPageLoading}
                 error={planError}
                 summary={activePlan.summary}
                 document={activePlan.document}
                 supplements={activePlan.supplements}
                 warnings={activePlan.warnings}
+                state={planWorkspaceState}
+                onStateChange={setPlanWorkspaceState}
               />
             ) : route.page === "timeline" ? (
-              <TimelineWorkspace loading={timelineLoading} error={timelineError} events={activeTimeline.events} />
+              <TimelineWorkspace
+                loading={timelinePageLoading}
+                error={timelineError}
+                events={activeTimeline.events}
+                state={timelineWorkspaceState}
+                onStateChange={setTimelineWorkspaceState}
+              />
             ) : route.page === "review" ? (
               <ReviewWorkspace
-                loading={reviewLoading}
+                loading={reviewPageLoading}
                 error={reviewError}
                 summary={activeReview.summary}
                 rounds={activeReview.rounds}
                 warnings={activeReview.warnings}
                 artifacts={activeReview.artifacts}
+                state={reviewWorkspaceState}
+                onStateChange={setReviewWorkspaceState}
               />
             ) : (
               <StatusWorkspace
@@ -406,4 +459,7 @@ function workspacePageHref(workspaceKey: string, page: Page): string {
   return `/workspace/${workspaceKey}/${page}`;
 }
 
-render(<App />, document.getElementById("app") as HTMLElement);
+const appElement = document.getElementById("app");
+if (appElement) {
+  render(<App />, appElement);
+}

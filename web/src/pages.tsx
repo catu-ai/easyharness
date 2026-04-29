@@ -44,13 +44,16 @@ import type {
   PlanDocument,
   PlanHeading,
   PlanNode,
+  PlanWorkspaceState,
   ReviewAggregateFinding,
   ReviewArtifact,
   ReviewFinding,
   ReviewRound,
   ReviewReviewer,
+  ReviewWorkspaceState,
   ReviewWorklog,
   TimelineEvent,
+  TimelineWorkspaceState,
   WorkspaceRouteResult,
 } from "./types";
 import {
@@ -454,6 +457,11 @@ export function StatusWorkspace(props: {
 }
 
 type FlattenedPlanHeading = PlanHeading & { nodeId: string };
+type StatePatch<T> = Partial<T> | ((current: T) => Partial<T>);
+
+function applyStatePatch<T>(current: T, patch: StatePatch<T>): T {
+  return { ...current, ...(typeof patch === "function" ? patch(current) : patch) };
+}
 
 export function PlanWorkspace(props: {
   loading: boolean;
@@ -462,33 +470,55 @@ export function PlanWorkspace(props: {
   document: PlanDocument | null;
   supplements: PlanNode | null;
   warnings: string[];
+  state: PlanWorkspaceState;
+  onStateChange: (updater: (current: PlanWorkspaceState) => PlanWorkspaceState) => void;
 }) {
-  const { loading, error, summary, document, supplements, warnings } = props;
+  const { loading, error, summary, document, supplements, warnings, state, onStateChange } = props;
   const documentRootId = document ? `document:${document.path}` : "document";
-  const [selectedNodeId, setSelectedNodeId] = useState<string>(documentRootId);
-  const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
   const readerRef = useRef<HTMLDivElement | null>(null);
 
   const flattenedHeadings = useMemo(() => flattenPlanHeadings(document?.headings ?? []), [document?.headings]);
   const documentHTML = useMemo(() => (document ? markdownRenderer.render(document.markdown) : ""), [document]);
+  const defaultExpandedNodeIds = useMemo(() => buildDefaultPlanExpanded(documentRootId, document?.headings ?? [], supplements), [documentRootId, document?.headings, supplements]);
+  const defaultSelectedNodeId = document ? documentRootId : supplements ? planSupplementSelectionId(supplements) : "document";
+  const selectedNodeId = state.selectedNodeId ?? defaultSelectedNodeId;
+  const expandedNodeIds = useMemo(() => new Set(state.expandedNodeIds ?? Array.from(defaultExpandedNodeIds)), [defaultExpandedNodeIds, state.expandedNodeIds]);
+  const setPlanState = (patch: StatePatch<PlanWorkspaceState>) => onStateChange((current) => applyStatePatch(current, patch));
+  const setSelectedNodeId = (nextSelectedNodeId: string) => setPlanState({ selectedNodeId: nextSelectedNodeId });
+  const setExpandedNodeIds = (nextExpandedNodeIds: Set<string> | ((current: Set<string>) => Set<string>)) => {
+    setPlanState((current) => {
+      const currentSet = new Set(current.expandedNodeIds ?? Array.from(defaultExpandedNodeIds));
+      const nextSet = typeof nextExpandedNodeIds === "function" ? nextExpandedNodeIds(currentSet) : nextExpandedNodeIds;
+      return { expandedNodeIds: Array.from(nextSet) };
+    });
+  };
 
   useEffect(() => {
-    setExpandedNodeIds(buildDefaultPlanExpanded(documentRootId, document?.headings ?? [], supplements));
-  }, [documentRootId, document?.headings, supplements]);
+    if (loading || (!document && !supplements)) return;
+
+    const validExpandableNodeIds = collectPlanExpandableNodeIds(documentRootId, document?.headings ?? [], supplements);
+    setPlanState((current) => {
+      if (current.expandedNodeIds === null) {
+        return { expandedNodeIds: Array.from(defaultExpandedNodeIds) };
+      }
+      const nextExpandedNodeIds = current.expandedNodeIds.filter((nodeId) => validExpandableNodeIds.has(nodeId));
+      return nextExpandedNodeIds.length === current.expandedNodeIds.length ? {} : { expandedNodeIds: nextExpandedNodeIds };
+    });
+  }, [defaultExpandedNodeIds, document, documentRootId, loading, supplements]);
 
   useEffect(() => {
+    if (loading) return;
     if (!document) {
+      if (state.selectedNodeId && supplements && findSupplementNodeBySelectionId(supplements, state.selectedNodeId)) return;
       setSelectedNodeId(supplements ? planSupplementSelectionId(supplements) : "document");
       return;
     }
 
-    setSelectedNodeId((current) => {
-      if (current === documentRootId) return current;
-      if (flattenedHeadings.some((heading) => heading.nodeId === current)) return current;
-      if (supplements && findSupplementNodeBySelectionId(supplements, current)) return current;
-      return documentRootId;
-    });
-  }, [document, documentRootId, flattenedHeadings, supplements]);
+    if (state.selectedNodeId === documentRootId) return;
+    if (state.selectedNodeId && flattenedHeadings.some((heading) => heading.nodeId === state.selectedNodeId)) return;
+    if (state.selectedNodeId && supplements && findSupplementNodeBySelectionId(supplements, state.selectedNodeId)) return;
+    setSelectedNodeId(documentRootId);
+  }, [document, documentRootId, flattenedHeadings, loading, state.selectedNodeId, supplements]);
 
   const selectedHeading = flattenedHeadings.find((heading) => heading.nodeId === selectedNodeId) ?? null;
   const selectedSupplementNode = supplements ? findSupplementNodeBySelectionId(supplements, selectedNodeId) : null;
@@ -799,6 +829,32 @@ function buildDefaultPlanExpanded(documentRootId: string, headings: PlanHeading[
   return expanded;
 }
 
+function collectPlanExpandableNodeIds(documentRootId: string, headings: PlanHeading[], supplements: PlanNode | null): Set<string> {
+  const nodeIds = new Set<string>();
+  if (headings.length > 0) {
+    nodeIds.add(documentRootId);
+  }
+  const visitHeadings = (items: PlanHeading[]) => {
+    items.forEach((item) => {
+      if (Array.isArray(item.children) && item.children.length > 0) {
+        nodeIds.add(planHeadingSelectionId(item));
+        visitHeadings(item.children);
+      }
+    });
+  };
+  const visitSupplements = (node: PlanNode) => {
+    if (Array.isArray(node.children) && node.children.length > 0) {
+      nodeIds.add(planSupplementSelectionId(node));
+      node.children.forEach(visitSupplements);
+    }
+  };
+  visitHeadings(headings);
+  if (supplements) {
+    visitSupplements(supplements);
+  }
+  return nodeIds;
+}
+
 function planHeadingSelectionId(heading: PlanHeading): string {
   return `heading:${heading.id}`;
 }
@@ -926,47 +982,49 @@ export function TimelineWorkspace(props: {
   loading: boolean;
   error: string | null;
   events: TimelineEvent[];
+  state: TimelineWorkspaceState;
+  onStateChange: (updater: (current: TimelineWorkspaceState) => TimelineWorkspaceState) => void;
 }) {
-  const { loading, error, events } = props;
+  const { loading, error, events, state, onStateChange } = props;
   const sortedEvents = useMemo(() => sortTimelineEvents(events), [events]);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const setTimelineState = (patch: StatePatch<TimelineWorkspaceState>) => onStateChange((current) => applyStatePatch(current, patch));
+  const setSelectedEventId = (selectedEventId: string | null) => setTimelineState({ selectedEventId });
+  const setSelectedTab = (selectedTab: string) => setTimelineState({ selectedTab });
   const selectedEvent = useMemo(() => {
     if (sortedEvents.length === 0) return null;
-    if (selectedEventId) {
-      const found = sortedEvents.find((event) => event.event_id === selectedEventId);
+    if (state.selectedEventId) {
+      const found = sortedEvents.find((event) => event.event_id === state.selectedEventId);
       if (found) return found;
     }
     return pickDefaultTimelineEvent(sortedEvents);
-  }, [selectedEventId, sortedEvents]);
-  const [selectedTab, setSelectedTab] = useState<string>("event");
+  }, [state.selectedEventId, sortedEvents]);
   const timelineTabs = useMemo(() => buildTimelineTabs(selectedEvent), [selectedEvent]);
 
   useEffect(() => {
+    if (loading) return;
     if (sortedEvents.length === 0) {
       setSelectedEventId(null);
       return;
     }
-    setSelectedEventId((current) => {
-      if (current && sortedEvents.some((event) => event.event_id === current)) {
-        return current;
-      }
-      return pickDefaultTimelineEvent(sortedEvents)?.event_id ?? null;
-    });
-  }, [sortedEvents]);
+    if (state.selectedEventId && sortedEvents.some((event) => event.event_id === state.selectedEventId)) return;
+    setSelectedEventId(pickDefaultTimelineEvent(sortedEvents)?.event_id ?? null);
+  }, [loading, sortedEvents, state.selectedEventId]);
 
   useEffect(() => {
+    if (loading) return;
     if (timelineTabs.length === 0) {
       setSelectedTab("event");
       return;
     }
-    setSelectedTab((current) => (timelineTabs.some((tab) => tab.id === current) ? current : timelineTabs[0].id));
-  }, [timelineTabs]);
+    if (timelineTabs.some((tab) => tab.id === state.selectedTab)) return;
+    setSelectedTab(timelineTabs[0].id);
+  }, [loading, state.selectedTab, timelineTabs]);
 
   const transitionLabel =
     selectedEvent && (selectedEvent.from_node || selectedEvent.to_node)
       ? `${selectedEvent.from_node || "unknown"} → ${selectedEvent.to_node || "unknown"}`
       : null;
-  const selectedTimelineTab = timelineTabs.find((tab) => tab.id === selectedTab) ?? timelineTabs[0];
+  const selectedTimelineTab = timelineTabs.find((tab) => tab.id === state.selectedTab) ?? timelineTabs[0];
 
   return (
     <WorkbenchFrame
@@ -1019,7 +1077,7 @@ export function TimelineWorkspace(props: {
             {transitionLabel ? <div class="inspector-transition">{transitionLabel}</div> : null}
             <InspectorTabs ariaLabel="Timeline event payloads">
               {timelineTabs.map((tab) => (
-                <InspectorTab key={tab.id} selected={selectedTab === tab.id} onSelect={() => setSelectedTab(tab.id)}>
+                <InspectorTab key={tab.id} selected={state.selectedTab === tab.id} onSelect={() => setSelectedTab(tab.id)}>
                   {tab.label}
                 </InspectorTab>
               ))}
@@ -1043,64 +1101,63 @@ export function ReviewWorkspace(props: {
   rounds: ReviewRound[];
   warnings: string[];
   artifacts: Array<[string, unknown]>;
+  state: ReviewWorkspaceState;
+  onStateChange: (updater: (current: ReviewWorkspaceState) => ReviewWorkspaceState) => void;
 }) {
-  const { loading, error, summary, rounds, warnings, artifacts } = props;
-  const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
-  const [selectedDetailTab, setSelectedDetailTab] = useState<string>("summary");
-  const [selectedArtifactKey, setSelectedArtifactKey] = useState<string | null>(null);
-  const [showArtifacts, setShowArtifacts] = useState(false);
+  const { loading, error, summary, rounds, warnings, artifacts, state, onStateChange } = props;
+  const setReviewState = (patch: StatePatch<ReviewWorkspaceState>) => onStateChange((current) => applyStatePatch(current, patch));
+  const setSelectedRoundId = (selectedRoundId: string | null) =>
+    setReviewState({ selectedRoundId, selectedDetailTab: "summary", showArtifacts: false });
+  const setSelectedDetailTab = (selectedDetailTab: string) => setReviewState({ selectedDetailTab });
+  const setSelectedArtifactKey = (selectedArtifactKey: string | null) => setReviewState({ selectedArtifactKey });
+  const setShowArtifacts = (showArtifacts: boolean) => setReviewState({ showArtifacts });
 
   const selectedRound = useMemo(() => {
     if (rounds.length === 0) return null;
-    if (selectedRoundId) {
-      const found = rounds.find((round) => round.round_id === selectedRoundId);
+    if (state.selectedRoundId) {
+      const found = rounds.find((round) => round.round_id === state.selectedRoundId);
       if (found) return found;
     }
     return rounds[0];
-  }, [rounds, selectedRoundId]);
+  }, [rounds, state.selectedRoundId]);
 
   const reviewers = Array.isArray(selectedRound?.reviewers) ? selectedRound.reviewers ?? [] : [];
   const supportArtifacts = Array.isArray(selectedRound?.artifacts) ? selectedRound.artifacts ?? [] : [];
   const selectedReviewer = useMemo(() => {
-    if (reviewers.length === 0 || selectedDetailTab === "summary") return null;
-    return reviewers.find((reviewer) => reviewer.slot === selectedDetailTab) ?? null;
-  }, [reviewers, selectedDetailTab]);
+    if (reviewers.length === 0 || state.selectedDetailTab === "summary") return null;
+    return reviewers.find((reviewer) => reviewer.slot === state.selectedDetailTab) ?? null;
+  }, [reviewers, state.selectedDetailTab]);
 
   const blockingFindings = Array.isArray(selectedRound?.blocking_findings) ? selectedRound.blocking_findings ?? [] : [];
   const nonBlockingFindings = Array.isArray(selectedRound?.non_blocking_findings) ? selectedRound.non_blocking_findings ?? [] : [];
   const selectedRoundWarnings = Array.isArray(selectedRound?.warnings) ? selectedRound.warnings ?? [] : [];
 
   useEffect(() => {
+    if (loading) return;
     if (rounds.length === 0) {
       setSelectedRoundId(null);
       return;
     }
-    setSelectedRoundId((current) => (current && rounds.some((round) => round.round_id === current) ? current : rounds[0]?.round_id ?? null));
-  }, [rounds]);
+    if (state.selectedRoundId && rounds.some((round) => round.round_id === state.selectedRoundId)) return;
+    setSelectedRoundId(rounds[0]?.round_id ?? null);
+  }, [loading, rounds, state.selectedRoundId]);
 
   useEffect(() => {
-    setSelectedDetailTab("summary");
-    setShowArtifacts(false);
-  }, [selectedRound?.round_id]);
+    if (loading) return;
+    if (state.selectedDetailTab === "summary") return;
+    if (reviewers.some((reviewer) => reviewer.slot === state.selectedDetailTab)) return;
+    setSelectedDetailTab(reviewers[0]?.slot ?? "summary");
+  }, [loading, reviewers, state.selectedDetailTab]);
 
   useEffect(() => {
-    setSelectedDetailTab((current) => {
-      if (current === "summary") return "summary";
-      return reviewers.some((reviewer) => reviewer.slot === current) ? current : reviewers[0]?.slot ?? "summary";
-    });
-  }, [reviewers]);
-
-  useEffect(() => {
+    if (loading) return;
     if (supportArtifacts.length === 0) {
       setSelectedArtifactKey(null);
       return;
     }
-    setSelectedArtifactKey((current) =>
-      current && supportArtifacts.some((artifact, index) => reviewArtifactKey(artifact, index) === current)
-        ? current
-        : reviewArtifactKey(supportArtifacts[0], 0),
-    );
-  }, [supportArtifacts]);
+    if (state.selectedArtifactKey && supportArtifacts.some((artifact, index) => reviewArtifactKey(artifact, index) === state.selectedArtifactKey)) return;
+    setSelectedArtifactKey(reviewArtifactKey(supportArtifacts[0], 0));
+  }, [loading, state.selectedArtifactKey, supportArtifacts]);
 
   return (
     <WorkbenchFrame
@@ -1167,17 +1224,17 @@ export function ReviewWorkspace(props: {
           />
 
           <InspectorTabs ariaLabel="Review content tabs">
-            <InspectorTab selected={selectedDetailTab === "summary"} onSelect={() => setSelectedDetailTab("summary")}>
+            <InspectorTab selected={state.selectedDetailTab === "summary"} onSelect={() => setSelectedDetailTab("summary")}>
               Summary
             </InspectorTab>
             {reviewers.map((reviewer) => (
-              <InspectorTab key={reviewer.slot} selected={selectedDetailTab === reviewer.slot} onSelect={() => setSelectedDetailTab(reviewer.slot)}>
+              <InspectorTab key={reviewer.slot} selected={state.selectedDetailTab === reviewer.slot} onSelect={() => setSelectedDetailTab(reviewer.slot)}>
                 {reviewReviewerLabel(reviewer)}
               </InspectorTab>
             ))}
           </InspectorTabs>
 
-          {selectedDetailTab === "summary" ? (
+          {state.selectedDetailTab === "summary" ? (
             <div class="review-tab-panel">
               <section class="content-section">
                 <div class="section-head">
@@ -1277,12 +1334,12 @@ export function ReviewWorkspace(props: {
         <EmptyState>{summary || "No review rounds recorded yet for the current plan."}</EmptyState>
       )}
 
-      {selectedRound && showArtifacts ? (
+      {selectedRound && state.showArtifacts ? (
         <RoundArtifactsOverlay
           title={`${reviewRoundTitle(selectedRound)} artifacts`}
           artifacts={supportArtifacts}
           metadata={artifacts}
-          selectedArtifactKey={selectedArtifactKey}
+          selectedArtifactKey={state.selectedArtifactKey}
           onSelectArtifact={setSelectedArtifactKey}
           onClose={() => setShowArtifacts(false)}
         />
