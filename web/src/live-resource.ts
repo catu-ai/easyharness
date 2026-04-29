@@ -13,20 +13,28 @@ export type LiveResourceResult<T> = {
   freshness: LiveFreshness;
 };
 
-export function useLiveResource<T>(options: {
-  enabled: boolean;
+export type LiveResourceDescriptor = {
+  key: string;
   path: string;
+};
+
+export function useLiveResource<T>(options: {
+  resource: LiveResourceDescriptor | null;
+  mode?: "live" | "paused";
   formatError: (result: T | null, statusCode?: number) => string;
   intervalMs?: number;
 }): LiveResourceResult<T> {
-  const { enabled, path, formatError, intervalMs = LIVE_REFRESH_INTERVAL_MS } = options;
+  const { resource, mode = "live", formatError, intervalMs = LIVE_REFRESH_INTERVAL_MS } = options;
+  const resourceKey = resource?.key ?? null;
+  const resourcePath = resource?.path ?? null;
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [freshness, setFreshness] = useState<LiveFreshness>(() => describeLiveFreshness(enabled ? "connecting" : "idle"));
+  const [freshness, setFreshness] = useState<LiveFreshness>(() => describeLiveFreshness(resource && mode === "live" ? "connecting" : "idle"));
   const inFlightRef = useRef(false);
   const lastSuccessAtRef = useRef<string | null>(null);
   const hasSuccessfulLoadRef = useRef(false);
+  const resourceKeyRef = useRef<string | null>(null);
   const formatErrorRef = useRef(formatError);
 
   useEffect(() => {
@@ -34,7 +42,8 @@ export function useLiveResource<T>(options: {
   }, [formatError]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!resourceKey) {
+      resourceKeyRef.current = null;
       hasSuccessfulLoadRef.current = false;
       lastSuccessAtRef.current = null;
       setData(null);
@@ -44,12 +53,18 @@ export function useLiveResource<T>(options: {
       return;
     }
 
+    if (resourceKeyRef.current === resourceKey) return;
+    resourceKeyRef.current = resourceKey;
     hasSuccessfulLoadRef.current = false;
     lastSuccessAtRef.current = null;
     setData(null);
     setError(null);
-    setLoading(true);
-    setFreshness(describeLiveFreshness("connecting"));
+    setLoading(mode === "live");
+    setFreshness(describeLiveFreshness(mode === "live" ? "connecting" : "idle"));
+  }, [mode, resourceKey]);
+
+  useEffect(() => {
+    if (!resourcePath || mode !== "live") return;
 
     let disposed = false;
     let activeController: AbortController | null = null;
@@ -80,16 +95,20 @@ export function useLiveResource<T>(options: {
       inFlightRef.current = true;
       clearUpdatingIndicator();
       if (hasLiveData) {
-        updatingIndicatorTimeoutID = window.setTimeout(() => {
-          updatingIndicatorTimeoutID = null;
-          if (disposed || controller.signal.aborted) return;
+        if (trigger === "initial") {
           setFreshness(describeLiveFreshness("updating", lastSuccessAtRef.current));
-        }, LIVE_REFRESH_ACTIVITY_BUFFER_MS);
+        } else {
+          updatingIndicatorTimeoutID = window.setTimeout(() => {
+            updatingIndicatorTimeoutID = null;
+            if (disposed || controller.signal.aborted) return;
+            setFreshness(describeLiveFreshness("updating", lastSuccessAtRef.current));
+          }, LIVE_REFRESH_ACTIVITY_BUFFER_MS);
+        }
       } else {
         setFreshness(describeLiveFreshness("connecting", lastSuccessAtRef.current));
       }
 
-      fetch(path, { signal: controller.signal })
+      fetch(resourcePath, { signal: controller.signal })
         .then(async (response) => {
           const payload = (await response.json()) as T & { ok?: boolean };
           if (!response.ok || payload.ok === false) {
@@ -111,7 +130,7 @@ export function useLiveResource<T>(options: {
         .catch((nextError: unknown) => {
           if (disposed || controller.signal.aborted) return;
           clearUpdatingIndicator();
-          const message = nextError instanceof Error ? nextError.message : `Unable to load ${path}`;
+          const message = nextError instanceof Error ? nextError.message : `Unable to load ${resourcePath}`;
           setError(message);
           setLoading(false);
           if (!hasSuccessfulLoadRef.current) {
@@ -150,7 +169,7 @@ export function useLiveResource<T>(options: {
       activeController?.abort();
       inFlightRef.current = false;
     };
-  }, [enabled, intervalMs, path]);
+  }, [intervalMs, mode, resourceKey, resourcePath]);
 
   return { data, error, loading, freshness };
 }

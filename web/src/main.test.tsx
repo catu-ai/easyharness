@@ -176,6 +176,48 @@ function planFetchCount(): number {
   return vi.mocked(fetch).mock.calls.filter(([input]) => String(input) === "/api/workspace/wk_alpha/plan").length;
 }
 
+function apiFetchCount(path: string): number {
+  return vi.mocked(fetch).mock.calls.filter(([input]) => String(input) === path).length;
+}
+
+function mockApiWithPendingRefresh(pathWithPendingRefresh: string) {
+  let fetchesForPendingPath = 0;
+  let resolveRefresh: ((response: Response) => void) | null = null;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL) => {
+      const path = String(input);
+      const payloadByPath: Record<string, unknown> = {
+        "/api/workspace/wk_alpha": workspaceResult,
+        "/api/workspace/wk_alpha/status": statusResult,
+        "/api/workspace/wk_alpha/plan": currentPlanResult,
+        "/api/workspace/wk_alpha/timeline": timelineResult,
+        "/api/workspace/wk_alpha/review": reviewResult,
+      };
+      const payload = payloadByPath[path];
+      if (!payload) {
+        return Promise.reject(new Error(`unexpected path ${path}`));
+      }
+      if (path === pathWithPendingRefresh) {
+        fetchesForPendingPath += 1;
+        if (fetchesForPendingPath > 1) {
+          return new Promise<Response>((resolve) => {
+            resolveRefresh = resolve;
+          });
+        }
+      }
+      return Promise.resolve({ ok: true, json: async () => payload } as Response);
+    }),
+  );
+
+  return {
+    resolveRefresh(payload: unknown) {
+      if (!resolveRefresh) throw new Error(`No pending refresh for ${pathWithPendingRefresh}`);
+      resolveRefresh({ ok: true, json: async () => payload } as Response);
+    },
+  };
+}
+
 function clickPlanTreeLabel(label: string) {
   const target = Array.from(document.querySelectorAll<HTMLButtonElement>(".plan-tree-label")).find(
     (nextElement) => nextElement.querySelector(".plan-tree-text")?.textContent === label,
@@ -314,6 +356,28 @@ describe("workbench page state continuity", () => {
     await waitFor(() => expect(activePlanTreeText()).toBe("Scope"));
   });
 
+  test("keeps Plan payload visible while the return refresh is pending", async () => {
+    const pending = mockApiWithPendingRefresh("/api/workspace/wk_alpha/plan");
+    window.history.pushState({}, "", "/workspace/wk_alpha/plan");
+    render(<App />);
+
+    await waitFor(() => expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Warm Plan"));
+
+    fireEvent.click(screen.getByLabelText("Timeline"));
+    await waitFor(() => expect(explorerHasTitle("new event")).toBe(true));
+    fireEvent.click(screen.getByLabelText("Plan"));
+
+    await waitFor(() => expect(apiFetchCount("/api/workspace/wk_alpha/plan")).toBe(2));
+    expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Warm Plan");
+    expect(document.querySelector(".topbar-freshness-label")?.textContent).toBe("Updating");
+
+    pending.resolveRefresh({
+      ...planResult,
+      document: planResult.document ? { ...planResult.document, title: "Refreshed Plan", markdown: "# Refreshed Plan" } : null,
+    });
+    await waitFor(() => expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Refreshed Plan"));
+  });
+
   test("keeps supplements-only Plan child selection warm across tab switches", async () => {
     currentPlanResult = supplementsOnlyPlanResult;
     window.history.pushState({}, "", "/workspace/wk_alpha/plan");
@@ -360,6 +424,23 @@ describe("workbench page state continuity", () => {
     expect(activeInspectorTabText()).toBe("Input");
   });
 
+  test("keeps Timeline payload visible while the return refresh is pending", async () => {
+    mockApiWithPendingRefresh("/api/workspace/wk_alpha/timeline");
+    window.history.pushState({}, "", "/workspace/wk_alpha/timeline");
+    render(<App />);
+
+    await waitFor(() => expect(explorerHasTitle("new event")).toBe(true));
+
+    fireEvent.click(screen.getByLabelText("Plan"));
+    await waitFor(() => expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Warm Plan"));
+    fireEvent.click(screen.getByLabelText("Timeline"));
+
+    await waitFor(() => expect(apiFetchCount("/api/workspace/wk_alpha/timeline")).toBe(2));
+    expect(explorerHasTitle("new event")).toBe(true);
+    expect(activeExplorerTitleText()).toBe("new event");
+    expect(document.querySelector(".topbar-freshness-label")?.textContent).toBe("Updating");
+  });
+
   test("keeps Review round, detail tab, and artifacts panel warm across tab switches", async () => {
     window.history.pushState({}, "", "/workspace/wk_alpha/review");
     render(
@@ -385,6 +466,23 @@ describe("workbench page state continuity", () => {
     await waitFor(() => expect(activeExplorerTitleText()).toBe("First review"));
     expect(activeInspectorTabText()).toBe("UI");
     expect(screen.getAllByText("notes").length).toBeGreaterThan(0);
+  });
+
+  test("keeps Review payload visible while the return refresh is pending", async () => {
+    mockApiWithPendingRefresh("/api/workspace/wk_alpha/review");
+    window.history.pushState({}, "", "/workspace/wk_alpha/review");
+    render(<App />);
+
+    await waitFor(() => expect(explorerHasTitle("Second review")).toBe(true));
+
+    fireEvent.click(screen.getByLabelText("Plan"));
+    await waitFor(() => expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Warm Plan"));
+    fireEvent.click(screen.getByLabelText("Review"));
+
+    await waitFor(() => expect(apiFetchCount("/api/workspace/wk_alpha/review")).toBe(2));
+    expect(explorerHasTitle("Second review")).toBe(true);
+    expect(activeExplorerTitleText()).toBe("Second review");
+    expect(document.querySelector(".topbar-freshness-label")?.textContent).toBe("Updating");
   });
 
   test("Plan controls write lifted state that survives page remount", async () => {

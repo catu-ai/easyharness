@@ -161,14 +161,13 @@ export function App(props: {
     setSection(nextSection);
   };
 
+  const workspaceKey = route.kind === "workspace" ? route.workspaceKey : null;
   const dashboardResource = useLiveResource<DashboardResult>({
-    enabled: route.kind === "dashboard",
-    path: "/api/dashboard",
+    resource: route.kind === "dashboard" ? { key: "dashboard", path: "/api/dashboard" } : null,
     formatError: (result, statusCode) => result?.summary?.trim() || (statusCode ? `GET /api/dashboard failed with ${statusCode}` : "Unable to load dashboard"),
   });
   const workspaceResource = useLiveResource<WorkspaceRouteResult>({
-    enabled: route.kind === "workspace",
-    path: route.kind === "workspace" ? `/api/workspace/${route.workspaceKey}` : "/api/workspace/_",
+    resource: workspaceKey ? { key: `workspace:${workspaceKey}`, path: `/api/workspace/${workspaceKey}` } : null,
     formatError: formatDashboardError,
   });
 
@@ -181,23 +180,22 @@ export function App(props: {
     selectedWorkspace.dashboard_state !== "invalid";
 
   const statusResource = useLiveResource<StatusResult>({
-    enabled: workspaceReadable,
-    path: route.kind === "workspace" ? `/api/workspace/${route.workspaceKey}/status` : "/api/workspace/_/status",
+    resource: workspaceReadable && workspaceKey ? { key: `workspace:${workspaceKey}:status`, path: `/api/workspace/${workspaceKey}/status` } : null,
     formatError: formatStatusError,
   });
   const planResource = useLiveResource<PlanResult>({
-    enabled: workspaceReadable && route.kind === "workspace" && route.page === "plan",
-    path: route.kind === "workspace" ? `/api/workspace/${route.workspaceKey}/plan` : "/api/workspace/_/plan",
+    resource: workspaceReadable && workspaceKey ? { key: `workspace:${workspaceKey}:plan`, path: `/api/workspace/${workspaceKey}/plan` } : null,
+    mode: route.kind === "workspace" && route.page === "plan" ? "live" : "paused",
     formatError: formatPlanError,
   });
   const timelineResource = useLiveResource<TimelineResult>({
-    enabled: workspaceReadable && route.kind === "workspace" && route.page === "timeline",
-    path: route.kind === "workspace" ? `/api/workspace/${route.workspaceKey}/timeline` : "/api/workspace/_/timeline",
+    resource: workspaceReadable && workspaceKey ? { key: `workspace:${workspaceKey}:timeline`, path: `/api/workspace/${workspaceKey}/timeline` } : null,
+    mode: route.kind === "workspace" && route.page === "timeline" ? "live" : "paused",
     formatError: formatTimelineResourceError,
   });
   const reviewResource = useLiveResource<ReviewResult>({
-    enabled: workspaceReadable && route.kind === "workspace" && route.page === "review",
-    path: route.kind === "workspace" ? `/api/workspace/${route.workspaceKey}/review` : "/api/workspace/_/review",
+    resource: workspaceReadable && workspaceKey ? { key: `workspace:${workspaceKey}:review`, path: `/api/workspace/${workspaceKey}/review` } : null,
+    mode: route.kind === "workspace" && route.page === "review" ? "live" : "paused",
     formatError: formatReviewError,
   });
 
