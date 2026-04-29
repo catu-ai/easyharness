@@ -204,26 +204,59 @@ candidate will receive full finalize review.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `pnpm --dir web test -- live-resource.test.tsx main.test.tsx` passed with
+  25 tests.
+- `pnpm --dir web test` passed with 25 tests across 4 files.
+- `pnpm --dir web build` passed, including TypeScript and Vite production
+  build.
+- Finalize reviewers independently reran the same targeted, full, and build
+  validation commands.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-full` passed with 0 blocking findings and 0 non-blocking
+  findings.
+- Correctness review found no lifecycle, stale-data leak, transition, or
+  freshness/error regressions.
+- Tests review found the hook and App coverage focused and sufficient for the
+  inactive payload retention behavior.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-04-30T00:30:39+08:00
+- Revision: 1
+- PR: NONE. The candidate has not been pushed or opened as a PR yet.
+- Ready: Acceptance criteria are satisfied locally, both tracked steps are done,
+  validation is green, and `review-001-full` passed cleanly.
+- Merge Handoff: Archive the plan, commit the tracked archive move, push branch
+  `codex/keep-workbench-page-payloads-warm`, open a PR for issue #205, then
+  record publish, CI, and sync evidence before waiting for human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- `useLiveResource` now models resource identity separately from refresh
+  activity with `resource` plus `live`/`paused` mode.
+- Plan, Timeline, and Review workbench payloads stay warm across tab switches
+  within the same readable workspace and refresh in the background on return.
+- Stale/error behavior keeps retained data visible after failed resumed
+  refreshes, while first-load failures still use disconnected empty behavior.
+- Resource invalidation and key changes clear retained data to prevent
+  cross-workspace payload bleed.
+- Tests now cover hook lifecycle edges and App-level pending-refresh tab
+  switches for Plan, Timeline, and Review.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No websocket/SSE or broader live-refresh policy redesign was added.
+- No payload persistence across reloads, browser tabs, or sessions was added.
+- No backend API contract changed.
 
 ### Follow-Up Issues
 
-NONE
+- #179 tracks broader workbench live-refresh policy tuning and any future
+  transport or stale-state UX expansion.
+- #206 tracks persistence of workbench page position across reloads and new
+  tabs; payload persistence remains out of scope for this slice unless that
+  future issue expands to include it.
