@@ -216,7 +216,11 @@ candidate will receive full finalize review.
 
 ## Review Summary
 
-- Revision 2 finalize-fix review is pending.
+- Revision 2 `review-002-delta` passed with 0 blocking findings and 0
+  non-blocking findings.
+- Revision 2 correctness review found the return-refresh buffer, preserved
+  stale/disconnected behavior, updated App expectations, and stable freshness
+  pill width to be low-risk.
 - Revision 1 `review-001-full` passed with 0 blocking findings and 0 non-blocking
   findings.
 - Correctness review found no lifecycle, stale-data leak, transition, or
@@ -226,16 +230,15 @@ candidate will receive full finalize review.
 
 ## Archive Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
-- Archived At: 2026-04-30T00:30:39+08:00
-- Revision: 1
-- PR: NONE. The candidate has not been pushed or opened as a PR yet.
-- Ready: Acceptance criteria are satisfied locally, both tracked steps are done,
-  validation is green, and `review-001-full` passed cleanly.
-- Merge Handoff: Archive the plan, commit the tracked archive move, push branch
-  `codex/keep-workbench-page-payloads-warm`, open a PR for issue #205, then
-  record publish, CI, and sync evidence before waiting for human merge approval.
+- Archived At: 2026-04-30T23:04:10+08:00
+- Revision: 2
+- PR: https://github.com/catu-ai/easyharness/pull/207
+- Ready: Acceptance criteria are satisfied locally, revision 2 validation is
+  green, `review-001-full` passed for the original candidate, and
+  `review-002-delta` passed for the finalize-fix repair.
+- Merge Handoff: Archive revision 2, commit and push the archive move plus
+  finalize-fix commit to PR #207, then record fresh publish, CI, and sync
+  evidence before waiting for human merge approval.
 
 ## Outcome Summary
 
