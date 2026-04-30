@@ -115,6 +115,39 @@ describe("useLiveResource", () => {
     await waitFor(() => expect(screen.getByTestId("value").textContent).toBe("alpha refreshed"));
   });
 
+  test("buffers updating freshness when paused data returns to live mode", async () => {
+    vi.useFakeTimers();
+    const refresh = { resolve: null as ((response: Response) => void) | null };
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, value: "alpha" }) } as Response)
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            refresh.resolve = resolve;
+          }),
+      );
+
+    const rendered = render(<ResourceProbe resource={{ key: "workspace:alpha", path: "/api/workspace/alpha" }} />);
+    await waitFor(() => expect(screen.getByTestId("freshness").textContent).toBe("live"));
+
+    rendered.rerender(<ResourceProbe resource={{ key: "workspace:alpha", path: "/api/workspace/alpha" }} mode="paused" />);
+    rendered.rerender(<ResourceProbe resource={{ key: "workspace:alpha", path: "/api/workspace/alpha" }} />);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("freshness").textContent).toBe("live");
+
+    await vi.advanceTimersByTimeAsync(249);
+    expect(screen.getByTestId("freshness").textContent).toBe("live");
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(screen.getByTestId("freshness").textContent).toBe("updating");
+
+    if (!refresh.resolve) throw new Error("Expected pending refresh");
+    refresh.resolve({ ok: true, json: async () => ({ ok: true, value: "alpha refreshed" }) } as Response);
+    await waitFor(() => expect(screen.getByTestId("freshness").textContent).toBe("live"));
+  });
+
   test("keeps retained data and reports stale when a resumed refresh fails", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock

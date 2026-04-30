@@ -95,15 +95,11 @@ export function useLiveResource<T>(options: {
       inFlightRef.current = true;
       clearUpdatingIndicator();
       if (hasLiveData) {
-        if (trigger === "initial") {
+        updatingIndicatorTimeoutID = window.setTimeout(() => {
+          updatingIndicatorTimeoutID = null;
+          if (disposed || controller.signal.aborted) return;
           setFreshness(describeLiveFreshness("updating", lastSuccessAtRef.current));
-        } else {
-          updatingIndicatorTimeoutID = window.setTimeout(() => {
-            updatingIndicatorTimeoutID = null;
-            if (disposed || controller.signal.aborted) return;
-            setFreshness(describeLiveFreshness("updating", lastSuccessAtRef.current));
-          }, LIVE_REFRESH_ACTIVITY_BUFFER_MS);
-        }
+        }, LIVE_REFRESH_ACTIVITY_BUFFER_MS);
       } else {
         setFreshness(describeLiveFreshness("connecting", lastSuccessAtRef.current));
       }

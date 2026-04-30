@@ -204,17 +204,20 @@ candidate will receive full finalize review.
 
 ## Validation Summary
 
-- `pnpm --dir web test -- live-resource.test.tsx main.test.tsx` passed with
-  25 tests.
-- `pnpm --dir web test` passed with 25 tests across 4 files.
-- `pnpm --dir web build` passed, including TypeScript and Vite production
-  build.
-- Finalize reviewers independently reran the same targeted, full, and build
-  validation commands.
+- Revision 2 finalize-fix validation:
+  `pnpm --dir web test -- live-resource.test.tsx main.test.tsx` passed with
+  26 tests.
+- Revision 2 finalize-fix validation: `pnpm --dir web test` passed with 26
+  tests across 4 files.
+- Revision 2 finalize-fix validation: `pnpm --dir web build` passed, including
+  TypeScript and Vite production build.
+- Revision 1 validation also passed the targeted front-end tests, full
+  front-end tests, and build before the initial archive.
 
 ## Review Summary
 
-- `review-001-full` passed with 0 blocking findings and 0 non-blocking
+- Revision 2 finalize-fix review is pending.
+- Revision 1 `review-001-full` passed with 0 blocking findings and 0 non-blocking
   findings.
 - Correctness review found no lifecycle, stale-data leak, transition, or
   freshness/error regressions.
@@ -222,6 +225,8 @@ candidate will receive full finalize review.
   inactive payload retention behavior.
 
 ## Archive Summary
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - Archived At: 2026-04-30T00:30:39+08:00
 - Revision: 1
@@ -240,6 +245,10 @@ candidate will receive full finalize review.
   activity with `resource` plus `live`/`paused` mode.
 - Plan, Timeline, and Review workbench payloads stay warm across tab switches
   within the same readable workspace and refresh in the background on return.
+- Fast return refreshes with retained payloads now keep the freshness pill on
+  `Live` through the existing update buffer instead of flashing `Updating`.
+- The topbar freshness pill now reserves stable width so `Live`/`Updating`
+  label changes do not shift the workspace path or summary metrics.
 - Stale/error behavior keeps retained data visible after failed resumed
   refreshes, while first-load failures still use disconnected empty behavior.
 - Resource invalidation and key changes clear retained data to prevent

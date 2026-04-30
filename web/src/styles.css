@@ -119,7 +119,9 @@ code {
 .topbar-freshness {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.38rem;
+  min-width: 6.75rem;
   min-height: 1.55rem;
   padding: 0 0.45rem;
   border: 1px solid var(--border-soft);

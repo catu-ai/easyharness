@@ -369,7 +369,7 @@ describe("workbench page state continuity", () => {
 
     await waitFor(() => expect(apiFetchCount("/api/workspace/wk_alpha/plan")).toBe(2));
     expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Warm Plan");
-    expect(document.querySelector(".topbar-freshness-label")?.textContent).toBe("Updating");
+    expect(document.querySelector(".topbar-freshness-label")?.textContent).toBe("Live");
 
     pending.resolveRefresh({
       ...planResult,
@@ -438,7 +438,7 @@ describe("workbench page state continuity", () => {
     await waitFor(() => expect(apiFetchCount("/api/workspace/wk_alpha/timeline")).toBe(2));
     expect(explorerHasTitle("new event")).toBe(true);
     expect(activeExplorerTitleText()).toBe("new event");
-    expect(document.querySelector(".topbar-freshness-label")?.textContent).toBe("Updating");
+    expect(document.querySelector(".topbar-freshness-label")?.textContent).toBe("Live");
   });
 
   test("keeps Review round, detail tab, and artifacts panel warm across tab switches", async () => {
@@ -482,7 +482,7 @@ describe("workbench page state continuity", () => {
     await waitFor(() => expect(apiFetchCount("/api/workspace/wk_alpha/review")).toBe(2));
     expect(explorerHasTitle("Second review")).toBe(true);
     expect(activeExplorerTitleText()).toBe("Second review");
-    expect(document.querySelector(".topbar-freshness-label")?.textContent).toBe("Updating");
+    expect(document.querySelector(".topbar-freshness-label")?.textContent).toBe("Live");
   });
 
   test("Plan controls write lifted state that survives page remount", async () => {
