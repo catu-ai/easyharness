@@ -134,26 +134,56 @@ will still receive finalize review before archive.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `scripts/read-release-version` returned `0.3.0`.
+- `scripts/read-release-version --tag` returned `v0.3.0`.
+- `harness plan lint docs/plans/active/2026-05-01-prepare-0-3-0-release-bump.md`
+  passed before execution and again before archive.
+- Final diff review confirmed the release surface change is limited to the
+  `VERSION` bump plus tracked harness lifecycle updates.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step review was skipped with `NO_STEP_REVIEW_NEEDED` because the
+  implementation was a one-line `VERSION` bump validated through the existing
+  release-version helper.
+- Finalize review `review-001-full` passed on 2026-05-01 with 0 blocking and 0
+  non-blocking findings.
+- Reviewer slots covered `correctness` and `release_scope`; both reported no
+  findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-05-01T22:08:11+08:00
+- Revision: 1
+- PR: pending archive publication. After archive, push branch
+  `codex/release-0-3-0` and open the dedicated release PR for `0.3.0`.
+- Ready: the candidate is ready for PR publication; `VERSION` is `0.3.0`, the
+  helper resolves `v0.3.0`, and finalize review passed with no findings.
+- Merge Handoff: after the PR exists and CI/CD readiness is recorded, stop at
+  `execution/finalize/await_merge` for explicit human merge approval.
+- The release publication path itself remains CI/CD-owned after merge to
+  `main`; no manual tag or release publish work was performed in this slice.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Root `VERSION` bumped from `0.2.6` to `0.3.0`.
+- Focused helper validation confirmed the raw version and matching release tag
+  resolve to `0.3.0` and `v0.3.0`.
+- The tracked plan records the approved release-PR-only scope, validation, and
+  finalize review outcome.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No release workflow, tag automation, package build, release notes, changelog,
+  announcement, or Homebrew behavior was changed.
+- No manual `v0.3.0` tag or GitHub Release was created; CI/CD owns that after
+  the release PR merges.
 
 ### Follow-Up Issues
 
-NONE
+- No GitHub issues were created. Deferred items are operational release
+  follow-ups rather than repository backlog: verify the published `v0.3.0`
+  GitHub Release and Homebrew formula after CI/CD publishes them, and handle
+  any future changelog or announcement packaging outside this release-bump PR.
