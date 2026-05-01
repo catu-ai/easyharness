@@ -198,6 +198,8 @@ handoff and does not change code beyond the already reviewed Step 1 fix.
 
 ## Archive Summary
 
+- Archived At: 2026-05-01T23:26:35+08:00
+- Revision: 1
 - PR: pending archive publication. After archive, push branch
   `codex/fix-release-namespace-working-dir` and open the dedicated fix PR.
 - Ready: the candidate is ready for PR publication; it narrowly adds
