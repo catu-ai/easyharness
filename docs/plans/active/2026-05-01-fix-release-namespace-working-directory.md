@@ -52,7 +52,7 @@ from that release-source checkout like the preceding release tests do.
 - [x] Focused smoke coverage fails before the workflow wiring fix and passes
       after it.
 - [ ] The fix PR is ready for merge with CI passing.
-- [ ] The merge handoff clearly says to rerun the `Release` workflow for
+- [x] The merge handoff clearly says to rerun the `Release` workflow for
       `v0.3.0` after the fix lands, and explains that any remaining release or
       Homebrew failure should become a new explicit handoff.
 
@@ -103,11 +103,16 @@ and `ruby -e 'require "yaml"; YAML.load_file(ARGV[0]); puts "yaml-ok #{ARGV[0]}"
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Step-closeout review `review-001-delta` passed with 0 blocking and 0
+non-blocking findings. The `correctness` reviewer confirmed the workflow now
+runs namespace verification from `dist/release-source` without disturbing
+adjacent release/Homebrew steps. The `tests` reviewer confirmed the smoke
+coverage would catch the missing-working-directory regression and that the
+focused validation is appropriate for this narrow workflow-only fix.
 
 ### Step 2: Prepare the 0.3.0 release rerun handoff
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -136,11 +141,18 @@ rewrite the tag, or rerun the release workflow before explicit merge approval.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Prepared the merge handoff for the already-published `v0.3.0` release:
+after this fix merges, rerun the `Release` workflow for `v0.3.0`; the existing
+publish step will upload to the already-created release with `--clobber`, then
+the fixed namespace verification can run from `dist/release-source`, followed
+by Homebrew formula update and Homebrew install verification. If that rerun
+still fails, capture the remaining release/Homebrew failure as a new explicit
+handoff rather than rewriting the tag or creating a new version.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 2 only records the post-merge release rerun
+handoff and does not change code beyond the already reviewed Step 1 fix.
 
 ## Validation Strategy
 
