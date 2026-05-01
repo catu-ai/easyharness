@@ -51,7 +51,8 @@ from that release-source checkout like the preceding release tests do.
       `dist/release-source`.
 - [x] Focused smoke coverage fails before the workflow wiring fix and passes
       after it.
-- [ ] The fix PR is ready for merge with CI passing.
+- [x] The fix candidate is ready for a dedicated PR; post-archive PR CI must
+      pass before the candidate is treated as waiting for merge approval.
 - [x] The merge handoff clearly says to rerun the `Release` workflow for
       `v0.3.0` after the fix lands, and explains that any remaining release or
       Homebrew failure should become a new explicit handoff.
@@ -177,25 +178,56 @@ handoff and does not change code beyond the already reviewed Step 1 fix.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- Red/green validation proved the focused workflow smoke test failed before
+  the workflow fix and passed after it:
+  `go test ./tests/smoke -run TestReleaseWorkflowWiresHomebrewTapPublishing -count=1`.
+- `.github/workflows/release.yml` parsed successfully with
+  `ruby -e 'require "yaml"; YAML.load_file(ARGV[0]); puts "yaml-ok #{ARGV[0]}"' .github/workflows/release.yml`.
+- `harness plan lint docs/plans/active/2026-05-01-fix-release-namespace-working-directory.md`
+  passed before approval and again before archive.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step-closeout review `review-001-delta` passed with 0 blocking and 0
+  non-blocking findings across `correctness` and `tests`.
+- Finalize review `review-002-full` passed with 0 blocking and 0 non-blocking
+  findings across `release_safety` and `handoff_quality`.
+- Reviewers confirmed the workflow fix keeps release recovery on the
+  already-published `v0.3.0` tag/assets and that the post-merge rerun handoff
+  is clear.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: pending archive publication. After archive, push branch
+  `codex/fix-release-namespace-working-dir` and open the dedicated fix PR.
+- Ready: the candidate is ready for PR publication; it narrowly adds
+  `working-directory: dist/release-source` to the live namespace verification
+  step and anchors that wiring with focused smoke coverage.
+- Merge Handoff: after the fix PR merges, rerun the `Release` workflow for
+  `v0.3.0`. Do not rewrite `v0.3.0` or delete the already-published release
+  assets; rely on the workflow's existing `--clobber` upload path. If that
+  rerun still fails in release or Homebrew verification, capture the remaining
+  failure as a new explicit handoff.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- `.github/workflows/release.yml` now runs `Verify published release namespace`
+  from `dist/release-source`, matching the tagged checkout and Go toolchain
+  configured earlier in the release job.
+- `tests/smoke/homebrew_formula_test.go` now asserts that release workflow
+  wiring so the missing-working-directory regression is caught by focused
+  smoke coverage.
+- The plan records the `v0.3.0` recovery path without manual tag rewriting or
+  asset deletion.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- The `Release` workflow for `v0.3.0` was not rerun before merge approval;
+  rerun is intentionally post-merge handoff work for this fix.
+- No release assets, Homebrew formula rendering logic, release tag, or release
+  version policy changed.
 
 ### Follow-Up Issues
 
