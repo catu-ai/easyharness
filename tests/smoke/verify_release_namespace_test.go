@@ -167,7 +167,7 @@ func TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled(t *testing.T) {
 			t,
 			support.RepoRoot(t),
 			envWithOverrides(t, map[string]string{
-				"PATH": strings.Join([]string{filepath.Dir(ghPath), installerPath(t)}, string(os.PathListSeparator)),
+				"PATH": releaseSmokePath(t, ghPath),
 			}),
 			"/bin/bash",
 			filepath.Join(support.RepoRoot(t), "scripts", "verify-release-namespace"),
@@ -209,6 +209,35 @@ func TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled(t *testing.T) {
 	}
 	if got := requireVersionField(t, string(versionOutput), "mode"); got != "release" {
 		t.Fatalf("expected downloaded harness mode release, got %q\noutput:\n%s", got, versionOutput)
+	}
+}
+
+func TestReleaseSmokePathKeepsSetupGoAheadOfExternalTools(t *testing.T) {
+	setupGoDir := filepath.Join(t.TempDir(), "setup-go", "bin")
+	pnpmDir := filepath.Join(t.TempDir(), "pnpm", "bin")
+	ghDir := filepath.Join(t.TempDir(), "system", "bin")
+	brewDir := filepath.Join(t.TempDir(), "homebrew", "bin")
+	originalPath := strings.Join([]string{ghDir, setupGoDir, brewDir}, string(os.PathListSeparator))
+
+	got := releaseSmokePathFromToolPaths(
+		originalPath,
+		filepath.Join(setupGoDir, "go"),
+		filepath.Join(pnpmDir, "pnpm"),
+		filepath.Join(ghDir, "gh"),
+		filepath.Join(brewDir, "brew"),
+	)
+	parts := strings.Split(got, string(os.PathListSeparator))
+	wantPrefix := []string{setupGoDir, pnpmDir, ghDir, brewDir}
+	if len(parts) < len(wantPrefix) {
+		t.Fatalf("release smoke PATH %q has fewer entries than expected prefix %v", got, wantPrefix)
+	}
+	for i, want := range wantPrefix {
+		if parts[i] != want {
+			t.Fatalf("expected PATH entry %d to be %q, got %q in %q", i, want, parts[i], got)
+		}
+	}
+	if strings.Count(got, setupGoDir) != 1 {
+		t.Fatalf("expected setup-go dir to appear exactly once in PATH %q", got)
 	}
 }
 

@@ -224,7 +224,10 @@ func TestReleaseWorkflowWiresHomebrewTapPublishing(t *testing.T) {
 	support.RequireContains(t, workflow, `--checksums dist/release-source/dist/release/SHA256SUMS`)
 	support.RequireContains(t, workflow, `--output dist/homebrew/easyharness.rb`)
 	support.RequireContains(t, workflow, "- name: Verify published release namespace\n        env:")
-	support.RequireContains(t, workflow, "working-directory: dist/release-source\n        run: go test ./tests/smoke -run TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled -count=1")
+	support.RequireContains(t, workflow, "run: go test ./tests/smoke -run TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled -count=1")
+	if strings.Contains(workflow, "working-directory: dist/release-source\n        run: go test ./tests/smoke -run TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled -count=1") {
+		t.Fatalf("expected namespace verification to run from the root checkout so main-branch smoke fixes apply to release reruns")
+	}
 	support.RequireContains(t, workflow, `scripts/update-homebrew-tap \`)
 	support.RequireContains(t, workflow, `--formula dist/homebrew/easyharness.rb`)
 	support.RequireContains(t, workflow, `--tap-dir dist/homebrew-tap`)
@@ -268,7 +271,7 @@ func TestVerifyHomebrewTapInstallAgainstGitHubWhenEnabled(t *testing.T) {
 
 	repoRoot := support.RepoRoot(t)
 	env := envWithOverrides(t, map[string]string{
-		"PATH": strings.Join([]string{filepath.Dir(brewPath), filepath.Dir(ghPath), installerPath(t)}, string(os.PathListSeparator)),
+		"PATH": releaseSmokePath(t, brewPath, ghPath),
 	})
 	if previousTag == "" {
 		previousTag = resolvePreviousHomebrewReleaseTag(t, repoRoot, env, repo, tag)
