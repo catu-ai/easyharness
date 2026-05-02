@@ -81,7 +81,7 @@ future main-branch test fix would not affect a rerun for the already-created
 
 ### Step 1: Correct live verification PATH and checkout wiring
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -126,11 +126,15 @@ and `go test ./tests/smoke -count=1`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` passed with 0 blocking and 0 non-blocking findings across
+the `release_correctness` and `tests` slots. Reviewers confirmed the workflow
+keeps tag-based build/publish behavior while root checkout verification applies
+main-branch smoke fixes, and that the smoke coverage catches the old PATH
+shadowing and checkout-wiring behavior.
 
 ### Step 2: Prepare release rerun handoff
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -156,11 +160,17 @@ existing upload path may clobber assets during the rerun.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Prepared the release rerun handoff in this plan: keep the existing `v0.3.0`
+tag and release assets, merge the workflow/test fix to `main`, then rerun
+`gh workflow run release.yml --ref main -f version=v0.3.0`. The rerun may
+clobber existing release assets through the workflow's existing upload behavior.
+Do not run the live `Release` workflow before the fix lands on `main`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 2 only records the release rerun handoff. The
+handoff will be included in archive/publish notes and covered by finalize
+review.
 
 ## Validation Strategy
 
