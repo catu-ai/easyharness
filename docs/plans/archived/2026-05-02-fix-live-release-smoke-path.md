@@ -57,19 +57,20 @@ future main-branch test fix would not affect a rerun for the already-created
 
 ## Acceptance Criteria
 
-- [ ] The namespace live smoke test preserves the setup-go PATH and cannot
+- [x] The namespace live smoke test preserves the setup-go PATH and cannot
       accidentally choose an older system `go` solely because `gh` lives in
       that directory.
-- [ ] The Homebrew live smoke test uses the same PATH-preserving approach for
+- [x] The Homebrew live smoke test uses the same PATH-preserving approach for
       `brew` and `gh`.
-- [ ] The `Release` workflow runs namespace verification from the main/root
+- [x] The `Release` workflow runs namespace verification from the main/root
       checkout test logic while still targeting the requested release version
       and uploaded assets.
-- [ ] Focused tests or smoke assertions cover the PATH-ordering and workflow
+- [x] Focused tests or smoke assertions cover the PATH-ordering and workflow
       checkout expectations.
-- [ ] PR CI passes, the candidate is archived, and the workflow is ready to
-      wait for human merge approval.
-- [ ] The merge handoff records that the post-merge action is to rerun
+- [x] The candidate passes local validation and finalize review, is ready for
+      archive/publish, and PR CI remains the publish gate before waiting for
+      human merge approval.
+- [x] The merge handoff records that the post-merge action is to rerun
       `Release` on `main` with `version=v0.3.0` and inspect any remaining live
       failure separately.
 
@@ -203,25 +204,55 @@ gh workflow run release.yml --ref main -f version=v0.3.0
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `ruby -e 'require "yaml"; YAML.load_file(ARGV[0]); puts "ok"' .github/workflows/release.yml`
+  passed.
+- `go test ./tests/smoke -run 'TestReleaseWorkflowWiresHomebrewTapPublishing|TestReleaseSmokePathKeepsSetupGoAheadOfExternalTools' -count=1`
+  passed.
+- `go test ./tests/smoke -count=1` passed in 458.638s.
+- `git diff --check origin/main...HEAD` passed.
+- `harness plan lint docs/plans/active/2026-05-02-fix-live-release-smoke-path.md`
+  passed after closeout updates.
+- The live `Release` workflow was intentionally not rerun before merge; the
+  workflow/test fix must land on `main` first.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step-closeout `review-001-delta` passed with 0 blocking and 0 non-blocking
+  findings across `release_correctness` and `tests`.
+- Finalize `review-002-full` passed with 0 blocking and 0 non-blocking
+  findings across `release_safety` and `handoff_quality`.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-05-02T23:14:24+08:00
+- Revision: 1
+- PR: Open from branch `codex/fix-live-release-smoke-path` after archive; the
+  PR body should include the `v0.3.0` rerun handoff below.
+- Ready: Local validation, step delta review, and finalize full review passed;
+  the candidate is ready for publish, CI, and sync evidence.
+- Merge Handoff: After this branch is merged to `main`, rerun
+  `gh workflow run release.yml --ref main -f version=v0.3.0`. Keep the
+  existing `v0.3.0` tag and release assets; the workflow may clobber uploaded
+  assets. Treat any remaining live release failure as separate evidence.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Release namespace verification now runs from the root/main checkout, so a
+  `v0.3.0` rerun uses the current smoke test logic while build and publish
+  still use the requested tag checkout.
+- Namespace and Homebrew live smoke tests now use a shared release smoke PATH
+  helper that preserves setup-go Go and pnpm ahead of external `gh`/`brew`
+  directories.
+- Smoke coverage now catches the old PATH ordering and wrong checkout wiring.
+- The post-merge `v0.3.0` Release rerun handoff is recorded for PR and land
+  follow-up.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- The live `Release` workflow rerun for `v0.3.0` was not attempted before
+  merge because the fix must first be present on `main`.
 
 ### Follow-Up Issues
 
