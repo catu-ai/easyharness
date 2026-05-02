@@ -223,6 +223,8 @@ func TestReleaseWorkflowWiresHomebrewTapPublishing(t *testing.T) {
 	support.RequireContains(t, workflow, `--tag "${{ steps.release-version.outputs.version }}"`)
 	support.RequireContains(t, workflow, `--checksums dist/release-source/dist/release/SHA256SUMS`)
 	support.RequireContains(t, workflow, `--output dist/homebrew/easyharness.rb`)
+	support.RequireContains(t, workflow, "- name: Verify published release namespace\n        env:")
+	support.RequireContains(t, workflow, "working-directory: dist/release-source\n        run: go test ./tests/smoke -run TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled -count=1")
 	support.RequireContains(t, workflow, `scripts/update-homebrew-tap \`)
 	support.RequireContains(t, workflow, `--formula dist/homebrew/easyharness.rb`)
 	support.RequireContains(t, workflow, `--tap-dir dist/homebrew-tap`)
