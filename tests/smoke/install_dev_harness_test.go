@@ -1085,6 +1085,49 @@ func installerPath(t *testing.T, extraDirs ...string) string {
 	return strings.Join(dirs, string(os.PathListSeparator))
 }
 
+func releaseSmokePath(t *testing.T, extraToolPaths ...string) string {
+	t.Helper()
+
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		t.Fatalf("find go on PATH: %v", err)
+	}
+	pnpmPath, err := exec.LookPath("pnpm")
+	if err != nil {
+		t.Fatalf("find pnpm on PATH: %v", err)
+	}
+
+	toolPaths := make([]string, 0, len(extraToolPaths)+2)
+	toolPaths = append(toolPaths, goPath, pnpmPath)
+	toolPaths = append(toolPaths, extraToolPaths...)
+	return releaseSmokePathFromToolPaths(os.Getenv("PATH"), toolPaths...)
+}
+
+func releaseSmokePathFromToolPaths(currentPath string, toolPaths ...string) string {
+	seen := map[string]bool{}
+	dirs := make([]string, 0, len(toolPaths)+len(filepath.SplitList(currentPath))+4)
+	addDir := func(dir string) {
+		if dir == "" || seen[dir] {
+			return
+		}
+		seen[dir] = true
+		dirs = append(dirs, dir)
+	}
+
+	for _, toolPath := range toolPaths {
+		addDir(filepath.Dir(toolPath))
+	}
+	for _, dir := range filepath.SplitList(currentPath) {
+		addDir(dir)
+	}
+	addDir("/usr/bin")
+	addDir("/bin")
+	addDir("/usr/sbin")
+	addDir("/sbin")
+
+	return strings.Join(dirs, string(os.PathListSeparator))
+}
+
 func runCommand(t *testing.T, workdir string, env []string, argv ...string) commandResult {
 	t.Helper()
 
