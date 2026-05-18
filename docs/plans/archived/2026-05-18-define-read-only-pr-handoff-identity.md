@@ -312,6 +312,8 @@ Finalize review:
 
 ## Archive Summary
 
+- Archived At: 2026-05-19T00:17:47+08:00
+- Revision: 1
 - PR: NONE
 - Ready: The candidate satisfies the approved issue #203 scope and passed
   repaired full finalize review.
