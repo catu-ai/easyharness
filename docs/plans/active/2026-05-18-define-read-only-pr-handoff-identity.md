@@ -199,7 +199,7 @@ passed with no findings after the repair.
 
 ### Step 3: Add read-only `gh` observation with degraded paths
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -243,7 +243,10 @@ snapshot remains local/recorded-evidence only and does not implicitly call
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-003-delta` passed with no findings. The reviewer verified the provider
+uses explicit `gh pr view <recorded-pr-url>`, does not discover PRs from the
+current branch, keeps snapshots local/recorded-only, and validates degraded
+paths through fake command execution.
 
 ## Validation Strategy
 
