@@ -140,7 +140,7 @@ contract in specs; implementation and behavior tests begin in Step 2.
 
 ### Step 2: Add the local and recorded-PR identity skeleton
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -194,8 +194,8 @@ being accepted as recorded or supported identity. Validation:
 `review-001-delta` found one important correctness issue: malformed GitHub PR
 or remote URLs with empty repo segments could be accepted as valid identity.
 The repair adds negative tests for empty repo PR and remote URLs and rejects
-empty owner/repo segments before recording GitHub identity. Follow-up review is
-pending.
+empty owner/repo segments before recording GitHub identity. `review-002-delta`
+passed with no findings after the repair.
 
 ### Step 3: Add read-only `gh` observation with degraded paths
 
