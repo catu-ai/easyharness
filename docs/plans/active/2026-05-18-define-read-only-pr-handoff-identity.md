@@ -239,14 +239,20 @@ identity. The provider is mockable through `Service.RunCommand`, classifies
 missing `gh`, missing auth, unreadable PR, invalid JSON, and generic command
 failure as degraded observations, and never runs `gh pr list`. The identity
 snapshot remains local/recorded-evidence only and does not implicitly call
-`gh`. Validation: `go test ./internal/remote`.
+`gh`. Validation: `go test ./internal/remote`. After `review-004-full`, added
+a regression test and parser guard so scp-style GitHub remotes with extra repo
+path segments, such as `git@github.com:catu-ai/easyharness/extra.git`,
+degrade as unsupported remote context. Validation: `go test ./internal/remote`.
 
 #### Review Notes
 
 `review-003-delta` passed with no findings. The reviewer verified the provider
 uses explicit `gh pr view <recorded-pr-url>`, does not discover PRs from the
 current branch, keeps snapshots local/recorded-only, and validates degraded
-paths through fake command execution.
+paths through fake command execution. `review-004-full` later found one
+important finalize issue: scp-style GitHub remotes with extra path segments
+could be accepted as supported context. The repair rejects multi-segment
+scp-like repo paths and adds regression coverage; follow-up review is pending.
 
 ## Validation Strategy
 

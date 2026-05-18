@@ -280,7 +280,7 @@ func parseGitHubRemote(name, raw string) Remote {
 
 	if match := scpLikeGitHubRemote.FindStringSubmatch(trimmed); len(match) == 3 {
 		repo := strings.TrimSuffix(match[2], ".git")
-		if match[1] == "" || repo == "" {
+		if match[1] == "" || repo == "" || strings.Contains(repo, "/") {
 			return remote
 		}
 		remote.Host = "github.com"

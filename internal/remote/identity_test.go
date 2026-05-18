@@ -100,6 +100,20 @@ func TestLocalContextDegradesForUnsupportedRemote(t *testing.T) {
 	}
 }
 
+func TestLocalContextDegradesForScpLikeGitHubRemoteWithExtraPath(t *testing.T) {
+	root := seedGitRepo(t)
+	runGit(t, root, "remote", "add", "origin", "git@github.com:catu-ai/easyharness/extra.git")
+
+	local := InspectLocal(root)
+
+	if local.Remote == nil || local.Remote.Supported {
+		t.Fatalf("expected unsupported multi-segment scp-like remote context, got %#v", local.Remote)
+	}
+	if !hasDegradation(local.Degraded, DegradedUnsupportedRemote) {
+		t.Fatalf("expected unsupported remote degradation, got %#v", local.Degraded)
+	}
+}
+
 func TestLocalContextDegradesForEmptyGitHubRemoteRepo(t *testing.T) {
 	root := seedGitRepo(t)
 	runGit(t, root, "remote", "add", "origin", "https://github.com/catu-ai/.git")
