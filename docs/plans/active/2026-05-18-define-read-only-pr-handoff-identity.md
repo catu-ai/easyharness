@@ -234,7 +234,12 @@ as the fallback path.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added explicit `gh pr view <recorded-pr-url>` observation for recorded PR
+identity. The provider is mockable through `Service.RunCommand`, classifies
+missing `gh`, missing auth, unreadable PR, invalid JSON, and generic command
+failure as degraded observations, and never runs `gh pr list`. The identity
+snapshot remains local/recorded-evidence only and does not implicitly call
+`gh`. Validation: `go test ./internal/remote`.
 
 #### Review Notes
 

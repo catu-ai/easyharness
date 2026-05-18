@@ -1,6 +1,8 @@
 package remote
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os/exec"
@@ -15,6 +17,9 @@ const (
 	PRStatusMissing     = "missing"
 	PRStatusUnsupported = "unsupported"
 
+	PRObservationAvailable   = "available"
+	PRObservationUnavailable = "unavailable"
+
 	DegradedMissingPRURL      = "missing_pr_url"
 	DegradedUnsupportedPRURL  = "unsupported_pr_url"
 	DegradedNotGitRepository  = "not_git_repository"
@@ -22,12 +27,26 @@ const (
 	DegradedMissingRemote     = "missing_remote"
 	DegradedUnsupportedRemote = "unsupported_remote"
 	DegradedAmbiguousRemote   = "ambiguous_remote"
+	DegradedGhMissing         = "gh_missing"
+	DegradedGhAuthUnavailable = "gh_auth_unavailable"
+	DegradedPRUnreadable      = "pr_unreadable"
+	DegradedGhInvalidJSON     = "gh_invalid_json"
+	DegradedGhCommandFailed   = "gh_command_failed"
 )
 
 var scpLikeGitHubRemote = regexp.MustCompile(`^git@github\.com:([^/]+)/(.+?)(?:\.git)?$`)
 
 type Service struct {
-	Workdir string
+	Workdir    string
+	RunCommand CommandRunner
+}
+
+type CommandRunner func(name string, args ...string) CommandResult
+
+type CommandResult struct {
+	Stdout string
+	Stderr string
+	Err    error
 }
 
 type Snapshot struct {
@@ -63,6 +82,17 @@ type PRIdentity struct {
 	Degraded Degradation `json:"degraded,omitempty"`
 }
 
+type PRObservation struct {
+	Status      string      `json:"status"`
+	URL         string      `json:"url,omitempty"`
+	Number      int         `json:"number,omitempty"`
+	State       string      `json:"state,omitempty"`
+	HeadRefName string      `json:"head_ref_name,omitempty"`
+	HeadRefOID  string      `json:"head_ref_oid,omitempty"`
+	BaseRefName string      `json:"base_ref_name,omitempty"`
+	Degraded    Degradation `json:"degraded,omitempty"`
+}
+
 type Degradation struct {
 	Code    string `json:"code"`
 	Message string `json:"message,omitempty"`
@@ -72,6 +102,51 @@ func (s Service) Snapshot(recordedPRURL string) Snapshot {
 	return Snapshot{
 		Local: InspectLocal(s.Workdir),
 		PR:    ParseRecordedPRURL(recordedPRURL),
+	}
+}
+
+func (s Service) ObserveRecordedPR(identity PRIdentity) PRObservation {
+	if identity.Status != PRStatusRecorded {
+		return PRObservation{
+			Status:   PRObservationUnavailable,
+			Degraded: identity.Degraded,
+		}
+	}
+
+	result := s.run("gh", "pr", "view", identity.URL, "--json", "url,number,state,headRefName,headRefOid,baseRefName")
+	if result.Err != nil {
+		return PRObservation{
+			Status:   PRObservationUnavailable,
+			Degraded: classifyGhFailure(result),
+		}
+	}
+
+	var parsed struct {
+		URL         string `json:"url"`
+		Number      int    `json:"number"`
+		State       string `json:"state"`
+		HeadRefName string `json:"headRefName"`
+		HeadRefOID  string `json:"headRefOid"`
+		BaseRefName string `json:"baseRefName"`
+	}
+	if err := json.Unmarshal([]byte(result.Stdout), &parsed); err != nil {
+		return PRObservation{
+			Status: PRObservationUnavailable,
+			Degraded: Degradation{
+				Code:    DegradedGhInvalidJSON,
+				Message: "gh returned invalid JSON for recorded PR observation",
+			},
+		}
+	}
+
+	return PRObservation{
+		Status:      PRObservationAvailable,
+		URL:         parsed.URL,
+		Number:      parsed.Number,
+		State:       parsed.State,
+		HeadRefName: parsed.HeadRefName,
+		HeadRefOID:  parsed.HeadRefOID,
+		BaseRefName: parsed.BaseRefName,
 	}
 }
 
@@ -252,6 +327,49 @@ func gitOutput(workdir string, args ...string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+func (s Service) run(name string, args ...string) CommandResult {
+	if s.RunCommand != nil {
+		return s.RunCommand(name, args...)
+	}
+	cmd := exec.Command(name, args...)
+	output, err := cmd.Output()
+	stderr := ""
+	if exitErr := new(exec.ExitError); errors.As(err, &exitErr) {
+		stderr = string(exitErr.Stderr)
+	}
+	return CommandResult{
+		Stdout: string(output),
+		Stderr: stderr,
+		Err:    err,
+	}
+}
+
+func classifyGhFailure(result CommandResult) Degradation {
+	text := strings.ToLower(result.Stderr + "\n" + result.Err.Error())
+	switch {
+	case errors.Is(result.Err, exec.ErrNotFound):
+		return Degradation{
+			Code:    DegradedGhMissing,
+			Message: "gh is not available",
+		}
+	case strings.Contains(text, "auth") || strings.Contains(text, "authentication") || strings.Contains(text, "401"):
+		return Degradation{
+			Code:    DegradedGhAuthUnavailable,
+			Message: "gh authentication is unavailable",
+		}
+	case strings.Contains(text, "could not resolve to a pullrequest") || strings.Contains(text, "not found"):
+		return Degradation{
+			Code:    DegradedPRUnreadable,
+			Message: "recorded PR could not be read through gh",
+		}
+	default:
+		return Degradation{
+			Code:    DegradedGhCommandFailed,
+			Message: "gh failed while observing the recorded PR",
+		}
+	}
 }
 
 func splitPath(path string) []string {
