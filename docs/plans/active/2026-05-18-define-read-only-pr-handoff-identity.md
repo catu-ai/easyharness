@@ -180,7 +180,11 @@ can produce warnings without turning context into authority.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added `internal/remote` local identity skeleton and tests. The package now
+parses recorded GitHub PR URLs, reports missing or unsupported recorded PR
+identity, inspects current worktree git context, records detached HEAD and
+remote degradation, and treats branch/remote facts as context only. Validation:
+`go test ./internal/remote`.
 
 #### Review Notes
 
