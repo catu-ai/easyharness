@@ -61,19 +61,19 @@ guessing system.
 
 ## Acceptance Criteria
 
-- [ ] Specs identify recorded publish `pr_url` as the remote handoff anchor for
+- [x] Specs identify recorded publish `pr_url` as the remote handoff anchor for
       later PR and CI reads.
-- [ ] Specs clearly distinguish authoritative harness evidence from contextual
+- [x] Specs clearly distinguish authoritative harness evidence from contextual
       local git/remote observations.
-- [ ] The implementation does not perform branch-based PR discovery when no
+- [x] The implementation does not perform branch-based PR discovery when no
       recorded PR URL exists; it degrades to manual publish evidence fallback.
-- [ ] The read model uses `gh` only for read-only observation of a recorded PR
+- [x] The read model uses `gh` only for read-only observation of a recorded PR
       URL and treats missing `gh`, missing auth, network/API failure, and
       unreadable PRs as degraded observations rather than workflow failures.
-- [ ] Tests cover recorded PR URL parsing, local git context success and
+- [x] Tests cover recorded PR URL parsing, local git context success and
       detached/missing-remote degradation, `gh` success, and `gh` degraded
       paths using fake command execution.
-- [ ] Existing manual `harness evidence submit --kind publish|ci|sync` flows
+- [x] Existing manual `harness evidence submit --kind publish|ci|sync` flows
       continue to work unchanged.
 
 ## Deferred Items
@@ -252,7 +252,9 @@ current branch, keeps snapshots local/recorded-only, and validates degraded
 paths through fake command execution. `review-004-full` later found one
 important finalize issue: scp-style GitHub remotes with extra path segments
 could be accepted as supported context. The repair rejects multi-segment
-scp-like repo paths and adds regression coverage; follow-up review is pending.
+scp-like repo paths and adds regression coverage. `review-005-delta` passed
+with no findings for that repair, and `review-006-full` passed with no
+findings for the repaired full candidate.
 
 ## Validation Strategy
 
@@ -283,26 +285,63 @@ scp-like repo paths and adds regression coverage; follow-up review is pending.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `go test ./internal/remote`
+- `go test -count=1 ./internal/remote`
+- `go test ./...`
+- `harness plan lint docs/plans/active/2026-05-18-define-read-only-pr-handoff-identity.md`
+- `git diff --check`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Step review:
+
+- Step 1 recorded `NO_STEP_REVIEW_NEEDED` because it only wrote the approved
+  contract into specs before behavior implementation began.
+- `review-001-delta` found one important issue: empty GitHub owner/repo path
+  segments could be accepted as recorded or supported identity.
+- `review-002-delta` passed after the empty-path repair.
+- `review-003-delta` passed for the explicit read-only `gh` observation
+  provider.
+
+Finalize review:
+
+- `review-004-full` found one important issue: scp-style GitHub remotes with
+  extra path segments could be accepted as supported context.
+- `review-005-delta` passed after the scp-style remote repair.
+- `review-006-full` passed with no findings for the repaired full candidate.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: NONE
+- Ready: The candidate satisfies the approved issue #203 scope and passed
+  repaired full finalize review.
+- Merge Handoff: Commit the archive move, push
+  `codex/read-only-pr-handoff-identity`, open or update the PR, then record
+  publish, CI, and sync evidence until `harness status` reaches
+  `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Specs now define recorded publish `pr_url` as the authoritative remote
+  handoff anchor and local git/remote facts as contextual observations.
+- Added `internal/remote` for local git context, recorded GitHub PR URL
+  parsing, and degraded identity states without branch-based PR discovery.
+- Added explicit mockable `gh pr view <recorded-pr-url>` observation that
+  degrades cleanly when `gh`, auth, provider output, or the PR read is
+  unavailable.
+- Added focused tests for supported and degraded PR URL parsing, git context,
+  malformed GitHub remote shapes, and fake-command `gh` observation paths.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- `.harness` customization, branch-based PR discovery, CI/check reads,
+  `harness status` remote fact surfacing, PR creation/update, GitHub writes,
+  and workflow-node progression changes remain out of scope.
 
 ### Follow-Up Issues
 
-NONE
+- #199: Add PR and CI fact reading for a recorded PR URL.
+- #200: Surface remote handoff facts and next actions through `harness status`.
+- #71: Add repo-level `.harness` customization for complex remote mappings.
