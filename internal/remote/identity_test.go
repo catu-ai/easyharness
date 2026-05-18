@@ -31,6 +31,11 @@ func TestParseRecordedPRURLDegradesWhenMissingOrUnsupported(t *testing.T) {
 	if unsupported.Status != PRStatusUnsupported || unsupported.Degraded.Code != DegradedUnsupportedPRURL {
 		t.Fatalf("expected unsupported PR URL degradation, got %#v", unsupported)
 	}
+
+	emptyRepo := ParseRecordedPRURL("https://github.com/catu-ai//pull/203")
+	if emptyRepo.Status != PRStatusUnsupported || emptyRepo.Degraded.Code != DegradedUnsupportedPRURL {
+		t.Fatalf("expected empty repo PR URL degradation, got %#v", emptyRepo)
+	}
 }
 
 func TestSnapshotReportsBranchAndGitHubRemoteContext(t *testing.T) {
@@ -89,6 +94,20 @@ func TestLocalContextDegradesForUnsupportedRemote(t *testing.T) {
 
 	if local.Remote == nil || local.Remote.Supported {
 		t.Fatalf("expected unsupported remote context, got %#v", local.Remote)
+	}
+	if !hasDegradation(local.Degraded, DegradedUnsupportedRemote) {
+		t.Fatalf("expected unsupported remote degradation, got %#v", local.Degraded)
+	}
+}
+
+func TestLocalContextDegradesForEmptyGitHubRemoteRepo(t *testing.T) {
+	root := seedGitRepo(t)
+	runGit(t, root, "remote", "add", "origin", "https://github.com/catu-ai/.git")
+
+	local := InspectLocal(root)
+
+	if local.Remote == nil || local.Remote.Supported {
+		t.Fatalf("expected unsupported empty-repo remote context, got %#v", local.Remote)
 	}
 	if !hasDegradation(local.Degraded, DegradedUnsupportedRemote) {
 		t.Fatalf("expected unsupported remote degradation, got %#v", local.Degraded)

@@ -95,6 +95,9 @@ func ParseRecordedPRURL(raw string) PRIdentity {
 	if len(parts) != 4 || parts[2] != "pull" {
 		return unsupportedPRURL(trimmed)
 	}
+	if parts[0] == "" || parts[1] == "" {
+		return unsupportedPRURL(trimmed)
+	}
 	number, err := strconv.Atoi(parts[3])
 	if err != nil || number <= 0 {
 		return unsupportedPRURL(trimmed)
@@ -201,9 +204,13 @@ func parseGitHubRemote(name, raw string) Remote {
 	remote := Remote{Name: name, URL: trimmed}
 
 	if match := scpLikeGitHubRemote.FindStringSubmatch(trimmed); len(match) == 3 {
+		repo := strings.TrimSuffix(match[2], ".git")
+		if match[1] == "" || repo == "" {
+			return remote
+		}
 		remote.Host = "github.com"
 		remote.Owner = match[1]
-		remote.Repo = strings.TrimSuffix(match[2], ".git")
+		remote.Repo = repo
 		remote.Supported = true
 		return remote
 	}
@@ -216,9 +223,13 @@ func parseGitHubRemote(name, raw string) Remote {
 	if len(parts) != 2 {
 		return remote
 	}
+	repo := strings.TrimSuffix(parts[1], ".git")
+	if parts[0] == "" || repo == "" {
+		return remote
+	}
 	remote.Host = "github.com"
 	remote.Owner = parts[0]
-	remote.Repo = strings.TrimSuffix(parts[1], ".git")
+	remote.Repo = repo
 	remote.Supported = true
 	return remote
 }

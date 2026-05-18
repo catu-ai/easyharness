@@ -184,11 +184,18 @@ Added `internal/remote` local identity skeleton and tests. The package now
 parses recorded GitHub PR URLs, reports missing or unsupported recorded PR
 identity, inspects current worktree git context, records detached HEAD and
 remote degradation, and treats branch/remote facts as context only. Validation:
+`go test ./internal/remote`. After `review-001-delta`, added negative coverage
+and parsing guards so empty GitHub owner/repo path segments degrade instead of
+being accepted as recorded or supported identity. Validation:
 `go test ./internal/remote`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` found one important correctness issue: malformed GitHub PR
+or remote URLs with empty repo segments could be accepted as valid identity.
+The repair adds negative tests for empty repo PR and remote URLs and rejects
+empty owner/repo segments before recording GitHub identity. Follow-up review is
+pending.
 
 ### Step 3: Add read-only `gh` observation with degraded paths
 
