@@ -1715,22 +1715,25 @@ func TestStatusArchivedPlanWithRecordedPRSuggestsEvidenceRefresh(t *testing.T) {
 
 func TestStatusArchivedPlanKeepsEvidenceRefreshForNonReadyRecordedPR(t *testing.T) {
 	tests := []struct {
-		name       string
-		ciInput    string
-		syncInput  string
-		wantStatus string
+		name            string
+		ciInput         string
+		syncInput       string
+		wantStatus      string
+		fallbackCommand string
 	}{
 		{
-			name:       "pending CI",
-			ciInput:    `{"status":"pending","provider":"github-actions","url":"https://ci.example/run"}`,
-			syncInput:  `{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`,
-			wantStatus: "pending",
+			name:            "pending CI",
+			ciInput:         `{"status":"pending","provider":"github-actions","url":"https://ci.example/run"}`,
+			syncInput:       `{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`,
+			wantStatus:      "pending",
+			fallbackCommand: "harness evidence submit --kind ci --input <json>",
 		},
 		{
-			name:       "stale sync",
-			ciInput:    `{"status":"success","provider":"github-actions","url":"https://ci.example/run"}`,
-			syncInput:  `{"status":"stale","base_ref":"main","head_ref":"codex/test"}`,
-			wantStatus: "stale",
+			name:            "stale sync",
+			ciInput:         `{"status":"success","provider":"github-actions","url":"https://ci.example/run"}`,
+			syncInput:       `{"status":"stale","base_ref":"main","head_ref":"codex/test"}`,
+			wantStatus:      "stale",
+			fallbackCommand: "harness evidence submit --kind sync --input <json>",
 		},
 	}
 
@@ -1759,6 +1762,9 @@ func TestStatusArchivedPlanKeepsEvidenceRefreshForNonReadyRecordedPR(t *testing.
 			}
 			if !statusNextActionsContain(result, "harness evidence refresh") {
 				t.Fatalf("expected evidence refresh guidance for %s handoff, got %#v", tt.wantStatus, result.NextAction)
+			}
+			if !statusNextActionsContain(result, tt.fallbackCommand) {
+				t.Fatalf("expected manual fallback command for %s handoff, got %#v", tt.wantStatus, result.NextAction)
 			}
 		})
 	}

@@ -939,8 +939,8 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 		})
 	case facts.CIStatus == "pending":
 		actions = append(actions, NextAction{
-			Command:     nil,
-			Description: "Wait for the relevant post-archive CI to finish, then record the updated result if it changes.",
+			Command:     strPtr("harness evidence submit --kind ci --input <json>"),
+			Description: "Wait for the relevant post-archive CI to finish, then manually record the updated result if refresh is unavailable.",
 		})
 	case facts.CIStatus == "failed":
 		actions = append(actions, NextAction{
@@ -957,8 +957,8 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 		})
 	case facts.SyncStatus == "stale":
 		actions = append(actions, NextAction{
-			Command:     nil,
-			Description: "Refresh the branch against the merge base, then record a fresh sync result before merge approval.",
+			Command:     strPtr("harness evidence submit --kind sync --input <json>"),
+			Description: "Refresh the branch against the merge base, then manually record a fresh sync result if refresh is unavailable.",
 		})
 	case facts.SyncStatus == "conflicted":
 		actions = append(actions, NextAction{
