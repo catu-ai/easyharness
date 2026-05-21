@@ -150,7 +150,10 @@ docs/plans/active/2026-05-21-refresh-remote-handoff-evidence.md`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 1 closeout was covered by `review-001-delta`
+and the clean repair follow-up `review-002-delta`; those rounds were recorded
+after the plan frontier advanced, so no additional duplicate step-local review
+is needed.
 
 ### Step 2: Add `harness evidence refresh`
 
