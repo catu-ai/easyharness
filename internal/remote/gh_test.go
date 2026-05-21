@@ -89,6 +89,47 @@ func TestObserveHandoffMapsPassingChecksAndCleanMergeState(t *testing.T) {
 	if len(calls) != 2 {
 		t.Fatalf("expected pr view and pr checks calls, got %#v", calls)
 	}
+	want := []commandCall{{
+		Name: "gh",
+		Args: []string{
+			"pr", "view", "https://github.com/catu-ai/easyharness/pull/199",
+			"--json", "url,number,state,isDraft,mergeStateStatus,mergeable,reviewDecision,headRefName,headRefOid,baseRefName",
+		},
+	}, {
+		Name: "gh",
+		Args: []string{
+			"pr", "checks", "https://github.com/catu-ai/easyharness/pull/199",
+			"--json", "name,workflow,bucket,state,link",
+		},
+	}}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("unexpected gh calls:\nwant %#v\ngot  %#v", want, calls)
+	}
+}
+
+func TestObserveHandoffDoesNotCallGhWhenNoRecordedPR(t *testing.T) {
+	called := false
+	svc := Service{
+		RunCommand: func(name string, args ...string) CommandResult {
+			called = true
+			return CommandResult{}
+		},
+	}
+
+	observation := svc.ObserveHandoff(ParseRecordedPRURL(""))
+
+	if called {
+		t.Fatal("did not expect gh to run without a recorded PR URL")
+	}
+	if observation.Status != HandoffObservationUnavailable {
+		t.Fatalf("expected unavailable handoff observation, got %#v", observation)
+	}
+	if observation.CI.Status != RemoteCIUnavailable || observation.CI.Degraded.Code != DegradedMissingPRURL {
+		t.Fatalf("expected CI missing PR degradation, got %#v", observation.CI)
+	}
+	if observation.Sync.Status != RemoteSyncUnavailable || observation.Sync.Degraded.Code != DegradedMissingPRURL {
+		t.Fatalf("expected sync missing PR degradation, got %#v", observation.Sync)
+	}
 }
 
 func TestObserveHandoffMapsPendingChecks(t *testing.T) {
@@ -162,6 +203,21 @@ func TestObserveHandoffDegradesWhenChecksAreUnreadableButMergeIsClear(t *testing
 	}
 	if observation.Sync.Status != RemoteSyncAvailable || observation.Sync.EvidenceStatus != "fresh" {
 		t.Fatalf("expected sync to remain refreshable, got %#v", observation.Sync)
+	}
+}
+
+func TestObserveHandoffDegradesWhenMergeIsUnreadableButChecksAreClear(t *testing.T) {
+	svc := Service{RunCommand: fakePRAndChecks(`{"mergeStateStatus":""}`, `[
+		{"name":"Go Test","bucket":"pass","state":"SUCCESS"}
+	]`)}
+
+	observation := svc.ObserveHandoff(ParseRecordedPRURL("https://github.com/catu-ai/easyharness/pull/199"))
+
+	if observation.CI.Status != RemoteCIAvailable || observation.CI.EvidenceStatus != "success" {
+		t.Fatalf("expected CI to remain refreshable, got %#v", observation.CI)
+	}
+	if observation.Sync.Status != RemoteSyncUnavailable || observation.Sync.Degraded.Code != DegradedMergeUnreadable {
+		t.Fatalf("expected degraded sync observation, got %#v", observation.Sync)
 	}
 }
 

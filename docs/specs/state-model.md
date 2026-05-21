@@ -371,7 +371,8 @@ The repository standardizes three command-owned evidence domains:
 
 Rules:
 
-- all three domains are recorded through `harness evidence submit`
+- all three domains may be recorded manually through
+  `harness evidence submit`
 - when publish evidence already records a supported PR URL,
   `harness evidence refresh` may observe that PR through a read-only provider
   and record derived `ci` and `sync` evidence
