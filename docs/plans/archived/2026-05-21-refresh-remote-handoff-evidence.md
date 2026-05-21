@@ -62,21 +62,21 @@ unavailable.
 
 ## Acceptance Criteria
 
-- [ ] A remote read model can classify recorded GitHub PR observation,
+- [x] A remote read model can classify recorded GitHub PR observation,
       aggregate check status, and merge freshness/conflict state using mockable
       command execution.
-- [ ] `harness evidence refresh` reads the latest publish evidence PR URL and
+- [x] `harness evidence refresh` reads the latest publish evidence PR URL and
       appends both `ci` and `sync` evidence when remote facts are clear.
-- [ ] Refresh maps passing checks to `ci: success`, pending checks to
+- [x] Refresh maps passing checks to `ci: success`, pending checks to
       `ci: pending`, failing/cancelled checks to `ci: failed`, clean/current
       merge state to `sync: fresh`, stale/behind/unknown-but-readable merge
       state to `sync: stale`, and conflict state to `sync: conflicted`.
-- [ ] Missing recorded PR URL, unsupported PR URL, missing `gh`, missing auth,
+- [x] Missing recorded PR URL, unsupported PR URL, missing `gh`, missing auth,
       unreadable PRs, network/API failures, and invalid provider output degrade
       without writing misleading success evidence.
-- [ ] Existing manual `harness evidence submit --kind publish|ci|sync` flows
+- [x] Existing manual `harness evidence submit --kind publish|ci|sync` flows
       continue to work unchanged and remain the documented fallback.
-- [ ] Tests cover success and degraded refresh paths, including the no-guess
+- [x] Tests cover success and degraded refresh paths, including the no-guess
       missing-PR case and partial evidence behavior when only one domain can be
       refreshed confidently.
 
@@ -301,25 +301,72 @@ progression indirectly through existing evidence reads.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+Validation passed for the archive candidate.
+
+- Reinstalled the dev harness after CLI changes with
+  `scripts/install-dev-harness`.
+- Ran focused package validation:
+  `go test -count=1 ./internal/remote ./internal/evidence ./internal/cli ./internal/status ./internal/contractsync`.
+- Ran full validation: `go test ./...`, including the slower smoke package.
+- Verified generated contracts with `scripts/sync-contract-artifacts --check`.
+- Verified whitespace/diff health with `git diff --check`.
+- Verified plan shape with
+  `harness plan lint docs/plans/active/2026-05-21-refresh-remote-handoff-evidence.md`.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Reviewed through step and finalize harness rounds.
+
+- Step 1 was covered by `review-001-delta`; `review-002-delta` passed after
+  remote observation test and contract repairs.
+- Step 2 was covered by `review-003-delta`; `review-004-delta` passed after
+  refresh rollback, publish-status, command-list, and degraded CLI coverage
+  repairs.
+- Finalize `review-005-full` requested fallback/status guidance repairs;
+  `review-006-delta` passed after missing/unsupported PR, partial refresh, and
+  status refresh guidance repairs.
+- Finalize `review-007-full` requested refresh guidance for non-ready
+  recorded-PR handoffs; `review-008-delta` passed after pending-CI and
+  stale-sync refresh guidance repairs.
+- Finalize `review-009-full` requested explicit manual fallback commands for
+  non-ready recorded-PR handoffs; `review-010-delta` passed after preserving
+  CI/sync submit fallback commands in those states.
+- Final archive-candidate `review-011-full` passed with zero blocking and zero
+  non-blocking findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-05-22T01:21:23+08:00
+- Revision: 1
+- PR: To be opened after archive commit and push.
+- Ready: The tracked plan has completed implementation, validation, and final
+  full review; archive is ready once this closeout update is frozen.
+- Merge Handoff: After PR creation, record publish evidence with the PR URL,
+  then use `harness evidence refresh` to record CI and sync evidence from that
+  recorded PR when checks and merge state are ready.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added a recorded-PR-only GitHub handoff observation model that classifies PR
+  checks and merge state through injectable `gh` command execution.
+- Added `harness evidence refresh` to append CI and sync evidence from the
+  latest recorded publish PR URL without guessing from the current branch.
+- Preserved manual `harness evidence submit --kind publish|ci|sync` fallback
+  for missing identity, unsupported providers, missing `gh`/auth, unreadable
+  remote data, partial refresh, and non-ready handoff states.
+- Updated CLI contracts, state-model docs, generated command schema registry,
+  CLI help, timeline/watchlist handling, status next actions, and regression
+  tests for successful and degraded refresh paths.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No `.harness` customization was introduced.
+- No non-GitHub provider support was added.
+- No PR creation/update, check rerun, commenting, labeling, reviewing, merging,
+  or CI-log fetching was added.
+- Rich live remote facts in `harness status` remain deferred to issue #200.
 
 ### Follow-Up Issues
 
