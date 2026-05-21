@@ -119,6 +119,15 @@ func SchemaRegistry() []SchemaEntry {
 			Type:        reflect.TypeFor[EvidenceSubmitResult](),
 		},
 		{
+			Key:         "commands.evidence.refresh.result",
+			Group:       "command_results",
+			Path:        "schema/commands/evidence.refresh.result.schema.json",
+			Title:       "Evidence refresh command result",
+			Description: "JSON output for `harness evidence refresh`.",
+			Shape:       "output",
+			Type:        reflect.TypeFor[EvidenceRefreshResult](),
+		},
+		{
 			Key:         "inputs.review.spec",
 			Group:       "command_inputs",
 			Path:        "schema/inputs/review.spec.schema.json",

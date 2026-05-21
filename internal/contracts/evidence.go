@@ -22,6 +22,32 @@ type EvidenceSubmitResult struct {
 	Errors []ErrorDetail `json:"errors,omitempty"`
 }
 
+// EvidenceRefreshResult is the JSON result returned by `harness evidence
+// refresh`.
+type EvidenceRefreshResult struct {
+	// OK reports whether at least one evidence domain was refreshed.
+	OK bool `json:"ok"`
+
+	// Command is the stable command identifier for the result payload.
+	Command string `json:"command"`
+
+	// Summary is the concise human-readable outcome description.
+	Summary string `json:"summary"`
+
+	// Artifacts points to the evidence records created by the command.
+	Artifacts *EvidenceRefreshArtifacts `json:"artifacts,omitempty"`
+
+	// NextAction lists the most relevant follow-up steps in priority order.
+	NextAction []NextAction `json:"next_actions"`
+
+	// Warnings lists degraded domains that did not prevent other evidence from
+	// being refreshed.
+	Warnings []string `json:"warnings,omitempty"`
+
+	// Errors lists hard failures that prevented any evidence refresh.
+	Errors []ErrorDetail `json:"errors,omitempty"`
+}
+
 // EvidenceArtifacts lists the evidence-related paths and identifiers touched by
 // `harness evidence submit`.
 type EvidenceArtifacts struct {
@@ -33,6 +59,24 @@ type EvidenceArtifacts struct {
 
 	// Kind is the evidence kind such as ci, publish, or sync.
 	Kind string `json:"kind"`
+}
+
+// EvidenceRefreshArtifacts lists evidence records touched by `harness evidence
+// refresh`.
+type EvidenceRefreshArtifacts struct {
+	// PlanPath is the archived plan path associated with the evidence records.
+	PlanPath string `json:"plan_path"`
+
+	// PRURL is the recorded pull request URL used for remote observation.
+	PRURL string `json:"pr_url,omitempty"`
+
+	// CIRecordID is the created CI evidence record identifier when CI was
+	// refreshed.
+	CIRecordID string `json:"ci_record_id,omitempty"`
+
+	// SyncRecordID is the created sync evidence record identifier when sync was
+	// refreshed.
+	SyncRecordID string `json:"sync_record_id,omitempty"`
 }
 
 // EvidenceCIInput is the JSON input consumed by `harness evidence submit --kind

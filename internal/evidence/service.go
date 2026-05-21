@@ -13,6 +13,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/inputschema"
 	"github.com/catu-ai/easyharness/internal/plan"
+	"github.com/catu-ai/easyharness/internal/remote"
 	"github.com/catu-ai/easyharness/internal/runstate"
 )
 
@@ -23,11 +24,15 @@ type Service struct {
 	Workdir       string
 	Now           func() time.Time
 	AfterMutation func(Result) error
+	AfterRefresh  func(RefreshResult) error
 	AfterSuccess  func(Result)
+	RunCommand    remote.CommandRunner
 }
 
 type Result = contracts.EvidenceSubmitResult
+type RefreshResult = contracts.EvidenceRefreshResult
 type Artifacts = contracts.EvidenceArtifacts
+type RefreshArtifacts = contracts.EvidenceRefreshArtifacts
 type NextAction = contracts.NextAction
 type CommandError = contracts.ErrorDetail
 type CIInput = contracts.EvidenceCIInput
@@ -146,6 +151,121 @@ func (s Service) Submit(kind string, inputBytes []byte) Result {
 			Message: "kind must be one of: ci, publish, sync",
 		}})
 	}
+}
+
+func (s Service) Refresh() RefreshResult {
+	now := s.now().Format(time.RFC3339)
+	_, relPlanPath, planStem, state, _, release, result := s.loadCurrentArchivedPlan()
+	if result != nil {
+		return refreshErrorResult("Evidence refresh requires the current archived candidate.", result.Errors)
+	}
+	defer release()
+
+	revision := runstate.CurrentRevision(state)
+	publish, err := LoadLatestPublish(s.Workdir, planStem, revision)
+	if err != nil {
+		return refreshErrorResult("Unable to read publish evidence for refresh.", []CommandError{{Path: "publish", Message: err.Error()}})
+	}
+	if publish == nil || strings.TrimSpace(publish.PRURL) == "" {
+		return refreshErrorResult("Publish evidence has no recorded PR URL to refresh from.", []CommandError{{
+			Path:    "publish.pr_url",
+			Message: "record publish evidence with a PR URL before refreshing CI and sync evidence",
+		}})
+	}
+
+	identity := remote.ParseRecordedPRURL(publish.PRURL)
+	if identity.Status != remote.PRStatusRecorded {
+		return refreshErrorResult("Publish evidence PR URL is not supported for refresh.", []CommandError{{
+			Path:    "publish.pr_url",
+			Message: identity.Degraded.Message,
+		}})
+	}
+
+	observation := remote.Service{Workdir: s.Workdir, RunCommand: s.RunCommand}.ObserveHandoff(identity)
+	artifacts := &RefreshArtifacts{
+		PlanPath: relPlanPath,
+		PRURL:    identity.URL,
+	}
+	warnings := make([]string, 0, 2)
+	rollbackPaths := make([]string, 0, 2)
+
+	if observation.CI.Status == remote.RemoteCIAvailable {
+		recordID, recordPath, err := nextRecordLocation(s.Workdir, planStem, "ci")
+		if err != nil {
+			return refreshErrorResult("Unable to determine the next CI evidence record ID.", []CommandError{{Path: "ci.record_id", Message: err.Error()}})
+		}
+		record := CIRecord{
+			RecordID:   recordID,
+			Kind:       "ci",
+			PlanPath:   relPlanPath,
+			PlanStem:   planStem,
+			Revision:   revision,
+			RecordedAt: now,
+			Status:     observation.CI.EvidenceStatus,
+			Provider:   "github-actions",
+			URL:        firstCheckURL(observation.CI.Checks),
+			Reason:     "Refreshed from recorded pull request checks.",
+		}
+		if err := writeJSONFile(recordPath, record); err != nil {
+			return refreshErrorResult("Unable to persist CI evidence refresh.", []CommandError{{Path: "ci.record", Message: err.Error()}})
+		}
+		artifacts.CIRecordID = recordID
+		rollbackPaths = append(rollbackPaths, recordPath)
+	} else {
+		warnings = append(warnings, degradedWarning("CI refresh unavailable", observation.CI.Degraded))
+	}
+
+	if observation.Sync.Status == remote.RemoteSyncAvailable {
+		recordID, recordPath, err := nextRecordLocation(s.Workdir, planStem, "sync")
+		if err != nil {
+			return refreshErrorResult("Unable to determine the next sync evidence record ID.", []CommandError{{Path: "sync.record_id", Message: err.Error()}})
+		}
+		record := SyncRecord{
+			RecordID:   recordID,
+			Kind:       "sync",
+			PlanPath:   relPlanPath,
+			PlanStem:   planStem,
+			Revision:   revision,
+			RecordedAt: now,
+			Status:     observation.Sync.EvidenceStatus,
+			BaseRef:    observation.PR.BaseRefName,
+			HeadRef:    observation.PR.HeadRefName,
+			Reason:     "Refreshed from recorded pull request merge state.",
+		}
+		if err := writeJSONFile(recordPath, record); err != nil {
+			return refreshErrorResult("Unable to persist sync evidence refresh.", []CommandError{{Path: "sync.record", Message: err.Error()}})
+		}
+		artifacts.SyncRecordID = recordID
+		rollbackPaths = append(rollbackPaths, recordPath)
+	} else {
+		warnings = append(warnings, degradedWarning("Sync refresh unavailable", observation.Sync.Degraded))
+	}
+
+	if artifacts.CIRecordID == "" && artifacts.SyncRecordID == "" {
+		return RefreshResult{
+			OK:       false,
+			Command:  "evidence refresh",
+			Summary:  "Remote evidence refresh could not write CI or sync evidence.",
+			Warnings: warnings,
+			Errors: []CommandError{{
+				Path:    "remote",
+				Message: "remote PR facts were unavailable; use manual harness evidence submit fallback",
+			}},
+			NextAction: manualRefreshFallbackActions(),
+		}
+	}
+
+	resultOut := RefreshResult{
+		OK:        true,
+		Command:   "evidence refresh",
+		Summary:   refreshSummary(artifacts),
+		Artifacts: artifacts,
+		Warnings:  warnings,
+		NextAction: []NextAction{
+			{Command: nil, Description: "Run harness status to refresh the archived candidate summary and next actions."},
+		},
+	}
+	return s.finalizeRefreshMutation(resultOut, rollbackPaths)
 }
 
 func LoadLatestCI(workdir, planStem string, revision int) (*CIRecord, error) {
@@ -344,6 +464,16 @@ func errorResult(command, summary string, errors []CommandError) Result {
 	}
 }
 
+func refreshErrorResult(summary string, errors []CommandError) RefreshResult {
+	return RefreshResult{
+		OK:         false,
+		Command:    "evidence refresh",
+		Summary:    summary,
+		Errors:     errors,
+		NextAction: manualRefreshFallbackActions(),
+	}
+}
+
 func (s Service) finalizeMutation(result Result, rollback func() []CommandError) Result {
 	if !result.OK || s.AfterMutation == nil {
 		if result.OK && s.AfterSuccess != nil {
@@ -362,6 +492,64 @@ func (s Service) finalizeMutation(result Result, rollback func() []CommandError)
 		s.AfterSuccess(result)
 	}
 	return result
+}
+
+func (s Service) finalizeRefreshMutation(result RefreshResult, rollbackPaths []string) RefreshResult {
+	if !result.OK || s.AfterRefresh == nil {
+		return result
+	}
+	if err := s.AfterRefresh(result); err != nil {
+		issues := []CommandError{{Path: "timeline", Message: err.Error()}}
+		for _, path := range rollbackPaths {
+			issues = append(issues, rollbackEvidenceMutation(path)...)
+		}
+		return refreshErrorResult("Unable to record the timeline event for the successful evidence refresh.", issues)
+	}
+	return result
+}
+
+func firstCheckURL(checks []remote.CheckRun) string {
+	for _, check := range checks {
+		if strings.TrimSpace(check.Link) != "" {
+			return strings.TrimSpace(check.Link)
+		}
+	}
+	return ""
+}
+
+func degradedWarning(prefix string, degradation remote.Degradation) string {
+	message := strings.TrimSpace(degradation.Message)
+	if message == "" {
+		message = strings.TrimSpace(degradation.Code)
+	}
+	if message == "" {
+		message = "remote facts are unavailable"
+	}
+	return prefix + ": " + message
+}
+
+func refreshSummary(artifacts *RefreshArtifacts) string {
+	switch {
+	case artifacts != nil && artifacts.CIRecordID != "" && artifacts.SyncRecordID != "":
+		return "Refreshed CI and sync evidence from the recorded pull request."
+	case artifacts != nil && artifacts.CIRecordID != "":
+		return "Refreshed CI evidence from the recorded pull request; sync evidence still needs manual follow-up."
+	case artifacts != nil && artifacts.SyncRecordID != "":
+		return "Refreshed sync evidence from the recorded pull request; CI evidence still needs manual follow-up."
+	default:
+		return "Remote evidence refresh did not write evidence."
+	}
+}
+
+func manualRefreshFallbackActions() []NextAction {
+	return []NextAction{
+		{Command: strPtr("harness evidence submit --kind ci --input <json>"), Description: "Manually record CI evidence when remote checks cannot be refreshed."},
+		{Command: strPtr("harness evidence submit --kind sync --input <json>"), Description: "Manually record sync evidence when remote merge state cannot be refreshed."},
+	}
+}
+
+func strPtr(value string) *string {
+	return &value
 }
 
 func writeJSONFile(path string, value any) error {

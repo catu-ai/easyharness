@@ -19,6 +19,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/install"
 	"github.com/catu-ai/easyharness/internal/lifecycle"
 	"github.com/catu-ai/easyharness/internal/plan"
+	"github.com/catu-ai/easyharness/internal/remote"
 	"github.com/catu-ai/easyharness/internal/review"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/status"
@@ -37,6 +38,7 @@ type App struct {
 	UserHomeDir func() (string, error)
 	Version     func() versioninfo.Info
 	RunUIServer func(context.Context, ui.Server) error
+	RunCommand  remote.CommandRunner
 
 	StatusSettleTimeout      time.Duration
 	StatusSettlePollInterval time.Duration
@@ -203,6 +205,8 @@ func (a *App) runEvidence(args []string) int {
 	switch args[0] {
 	case "submit":
 		return a.runEvidenceSubmit(args[1:])
+	case "refresh":
+		return a.runEvidenceRefresh(args[1:])
 	case "-h", "--help", "help":
 		a.printEvidenceUsage()
 		return 0
@@ -279,6 +283,40 @@ func (a *App) runEvidenceSubmit(args []string) int {
 			"input": json.RawMessage(inputBytes),
 		}),
 	}.Submit(*kind, inputBytes)
+	return a.writeJSONResultForWorkdir(workdir, result)
+}
+
+func (a *App) runEvidenceRefresh(args []string) int {
+	fs := flag.NewFlagSet("harness evidence refresh", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness evidence refresh")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Observe the recorded PR URL and append CI and sync evidence when remote facts are clear.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	recordedAt := a.Now().Format(time.RFC3339)
+	beforeStatus := readStatusSnapshot(workdir)
+	result := evidence.Service{
+		Workdir:      workdir,
+		Now:          a.Now,
+		RunCommand:   a.RunCommand,
+		AfterRefresh: evidenceRefreshTimelineHook(workdir, beforeStatus, recordedAt),
+	}.Refresh()
 	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
@@ -1097,6 +1135,7 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "  plan approve    Record explicit human approval for the current plan")
 	fmt.Fprintln(a.Stderr, "  execute start   Record the execution-start milestone")
 	fmt.Fprintln(a.Stderr, "  evidence submit Record append-only CI, publish, or sync evidence")
+	fmt.Fprintln(a.Stderr, "  evidence refresh Refresh CI and sync evidence from a recorded PR")
 	fmt.Fprintln(a.Stderr, "  review start    Create a deterministic review round")
 	fmt.Fprintln(a.Stderr, "  review submit   Record one reviewer submission")
 	fmt.Fprintln(a.Stderr, "  review aggregate Aggregate reviewer submissions")
@@ -1142,6 +1181,7 @@ func (a *App) printEvidenceUsage() {
 	fmt.Fprintln(a.Stderr)
 	fmt.Fprintln(a.Stderr, "Subcommands:")
 	fmt.Fprintln(a.Stderr, "  submit     Record append-only CI, publish, or sync evidence")
+	fmt.Fprintln(a.Stderr, "  refresh    Refresh CI and sync evidence from a recorded PR")
 }
 
 func (a *App) printSkillsUsage() {
@@ -1240,6 +1280,10 @@ func (a *App) writeJSONResult(value any) int {
 		if result.OK {
 			return 0
 		}
+	case evidence.RefreshResult:
+		if result.OK {
+			return 0
+		}
 	case lifecycle.Result:
 		if result.OK {
 			return 0
@@ -1254,7 +1298,7 @@ func (a *App) writeJSONResult(value any) int {
 
 func watchlistTouchEnabled(value any) bool {
 	switch value.(type) {
-	case evidence.Result, lifecycle.Result, review.AggregateResult, review.StartResult, review.SubmitResult, status.Result:
+	case evidence.Result, evidence.RefreshResult, lifecycle.Result, review.AggregateResult, review.StartResult, review.SubmitResult, status.Result:
 		return true
 	default:
 		return false

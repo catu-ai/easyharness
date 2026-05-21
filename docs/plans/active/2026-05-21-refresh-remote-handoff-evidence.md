@@ -157,7 +157,7 @@ is needed.
 
 ### Step 2: Add `harness evidence refresh`
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -200,7 +200,18 @@ workflow state outside the normal evidence append and timeline mechanics.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added `harness evidence refresh` as an explicit mutating command. The command
+loads the latest publish evidence PR URL, observes that recorded PR through the
+remote read model, and appends `ci` and `sync` evidence independently when
+the corresponding remote facts are clear. Manual `harness evidence submit`
+fallback remains available for missing PR URLs, unsupported PR URLs, missing
+`gh`/auth, unreadable remote data, or per-domain degraded facts. Added
+service-level and CLI-level tests for full refresh, missing recorded PR, and
+partial domain refresh; wired help text, timeline events, watchlist touch, and
+generated contract schema output for the new result shape. Validation:
+`go test ./internal/evidence ./internal/cli`; `go test ./internal/remote
+./internal/evidence ./internal/cli ./internal/contractsync`;
+`scripts/sync-contract-artifacts`.
 
 #### Review Notes
 

@@ -124,6 +124,18 @@ func evidenceTimelineHook(workdir string, before *status.Result, recordedAt, kin
 	}
 }
 
+func evidenceRefreshTimelineHook(workdir string, before *status.Result, recordedAt string) func(evidence.RefreshResult) error {
+	return func(result evidence.RefreshResult) error {
+		return appendTimelineEvent(
+			workdir,
+			before,
+			readStatusSnapshot(workdir),
+			attachRawPayloads(timelineEventFromEvidenceRefresh(result), nil, result, result.Artifacts),
+			recordedAt,
+		)
+	}
+}
+
 func timelineEventFromLifecycle(result lifecycle.Result) timeline.Event {
 	event := timeline.Event{
 		Kind:    "lifecycle",
@@ -233,6 +245,27 @@ func timelineEventFromEvidence(result evidence.Result, kind string) timeline.Eve
 		event.ArtifactRefs = append(event.ArtifactRefs,
 			pathRef("plan_path", result.Artifacts.PlanPath),
 			valueRef("record_id", result.Artifacts.RecordID),
+		)
+	}
+	return pruneTimelineEvent(event)
+}
+
+func timelineEventFromEvidenceRefresh(result evidence.RefreshResult) timeline.Event {
+	event := timeline.Event{
+		Kind:    "evidence",
+		Command: result.Command,
+		Summary: result.Summary,
+		Details: []timeline.Detail{
+			{Key: "evidence_kind", Value: "refresh"},
+		},
+	}
+	if result.Artifacts != nil {
+		event.PlanPath = result.Artifacts.PlanPath
+		event.ArtifactRefs = append(event.ArtifactRefs,
+			pathRef("plan_path", result.Artifacts.PlanPath),
+			valueRef("pr_url", result.Artifacts.PRURL),
+			valueRef("ci_record_id", result.Artifacts.CIRecordID),
+			valueRef("sync_record_id", result.Artifacts.SyncRecordID),
 		)
 	}
 	return pruneTimelineEvent(event)
