@@ -166,7 +166,7 @@ func (s Service) Refresh() RefreshResult {
 	if err != nil {
 		return refreshErrorResult("Unable to read publish evidence for refresh.", []CommandError{{Path: "publish", Message: err.Error()}})
 	}
-	if publish == nil || strings.TrimSpace(publish.PRURL) == "" {
+	if publish == nil || publish.Status != "recorded" || strings.TrimSpace(publish.PRURL) == "" {
 		return refreshErrorResult("Publish evidence has no recorded PR URL to refresh from.", []CommandError{{
 			Path:    "publish.pr_url",
 			Message: "record publish evidence with a PR URL before refreshing CI and sync evidence",
@@ -188,13 +188,17 @@ func (s Service) Refresh() RefreshResult {
 	}
 	warnings := make([]string, 0, 2)
 	rollbackPaths := make([]string, 0, 2)
+	var ciRecord *CIRecord
+	ciRecordPath := ""
+	var syncRecord *SyncRecord
+	syncRecordPath := ""
 
 	if observation.CI.Status == remote.RemoteCIAvailable {
 		recordID, recordPath, err := nextRecordLocation(s.Workdir, planStem, "ci")
 		if err != nil {
 			return refreshErrorResult("Unable to determine the next CI evidence record ID.", []CommandError{{Path: "ci.record_id", Message: err.Error()}})
 		}
-		record := CIRecord{
+		ciRecord = &CIRecord{
 			RecordID:   recordID,
 			Kind:       "ci",
 			PlanPath:   relPlanPath,
@@ -206,11 +210,7 @@ func (s Service) Refresh() RefreshResult {
 			URL:        firstCheckURL(observation.CI.Checks),
 			Reason:     "Refreshed from recorded pull request checks.",
 		}
-		if err := writeJSONFile(recordPath, record); err != nil {
-			return refreshErrorResult("Unable to persist CI evidence refresh.", []CommandError{{Path: "ci.record", Message: err.Error()}})
-		}
-		artifacts.CIRecordID = recordID
-		rollbackPaths = append(rollbackPaths, recordPath)
+		ciRecordPath = recordPath
 	} else {
 		warnings = append(warnings, degradedWarning("CI refresh unavailable", observation.CI.Degraded))
 	}
@@ -220,7 +220,7 @@ func (s Service) Refresh() RefreshResult {
 		if err != nil {
 			return refreshErrorResult("Unable to determine the next sync evidence record ID.", []CommandError{{Path: "sync.record_id", Message: err.Error()}})
 		}
-		record := SyncRecord{
+		syncRecord = &SyncRecord{
 			RecordID:   recordID,
 			Kind:       "sync",
 			PlanPath:   relPlanPath,
@@ -232,13 +232,28 @@ func (s Service) Refresh() RefreshResult {
 			HeadRef:    observation.PR.HeadRefName,
 			Reason:     "Refreshed from recorded pull request merge state.",
 		}
-		if err := writeJSONFile(recordPath, record); err != nil {
-			return refreshErrorResult("Unable to persist sync evidence refresh.", []CommandError{{Path: "sync.record", Message: err.Error()}})
-		}
-		artifacts.SyncRecordID = recordID
-		rollbackPaths = append(rollbackPaths, recordPath)
+		syncRecordPath = recordPath
 	} else {
 		warnings = append(warnings, degradedWarning("Sync refresh unavailable", observation.Sync.Degraded))
+	}
+
+	if ciRecord != nil {
+		if err := writeJSONFile(ciRecordPath, *ciRecord); err != nil {
+			return refreshErrorResult("Unable to persist CI evidence refresh.", []CommandError{{Path: "ci.record", Message: err.Error()}})
+		}
+		artifacts.CIRecordID = ciRecord.RecordID
+		rollbackPaths = append(rollbackPaths, ciRecordPath)
+	}
+	if syncRecord != nil {
+		if err := writeJSONFile(syncRecordPath, *syncRecord); err != nil {
+			issues := []CommandError{{Path: "sync.record", Message: err.Error()}}
+			for _, path := range rollbackPaths {
+				issues = append(issues, rollbackEvidenceMutation(path)...)
+			}
+			return refreshErrorResult("Unable to persist sync evidence refresh.", issues)
+		}
+		artifacts.SyncRecordID = syncRecord.RecordID
+		rollbackPaths = append(rollbackPaths, syncRecordPath)
 	}
 
 	if artifacts.CIRecordID == "" && artifacts.SyncRecordID == "" {

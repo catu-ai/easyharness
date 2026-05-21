@@ -125,6 +125,37 @@ func TestRefreshRejectsMissingRecordedPRWithoutGuessing(t *testing.T) {
 	}
 }
 
+func TestRefreshRejectsNotAppliedPublishPRURL(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{
+		"status":"not_applied",
+		"pr_url":"https://github.com/catu-ai/easyharness/pull/99",
+		"reason":"remote handoff is not available"
+	}`)); !result.OK {
+		t.Fatalf("seed not_applied publish evidence: %#v", result)
+	}
+	called := false
+
+	result := evidence.Service{
+		Workdir: root,
+		RunCommand: func(name string, args ...string) remote.CommandResult {
+			called = true
+			return remote.CommandResult{}
+		},
+	}.Refresh()
+
+	if result.OK {
+		t.Fatalf("expected not_applied publish refresh failure, got %#v", result)
+	}
+	if called {
+		t.Fatal("refresh should not call gh for publish status not_applied")
+	}
+}
+
 func TestRefreshWritesOnlyClearDomainEvidence(t *testing.T) {
 	root := t.TempDir()
 	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
@@ -152,6 +183,36 @@ func TestRefreshWritesOnlyClearDomainEvidence(t *testing.T) {
 	}
 	if sync, err := evidence.LoadLatestSync(root, "2026-03-21-evidence-plan", 1); err != nil || sync != nil {
 		t.Fatalf("expected no sync evidence, got %#v err=%v", sync, err)
+	}
+}
+
+func TestRefreshDoesNotLeaveCIWhenSyncRecordLocationFails(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+		t.Fatalf("seed publish evidence: %#v", result)
+	}
+	syncPath := filepath.Join(root, ".local", "harness", "plans", "2026-03-21-evidence-plan", "evidence", "sync")
+	if err := os.MkdirAll(filepath.Dir(syncPath), 0o755); err != nil {
+		t.Fatalf("mkdir evidence dir: %v", err)
+	}
+	if err := os.WriteFile(syncPath, []byte("not a directory"), 0o644); err != nil {
+		t.Fatalf("write sync path blocker: %v", err)
+	}
+
+	result := evidence.Service{
+		Workdir:    root,
+		RunCommand: fakeRefreshCommands(`"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Refresh()
+
+	if result.OK {
+		t.Fatalf("expected sync record-location failure, got %#v", result)
+	}
+	if ci, err := evidence.LoadLatestCI(root, "2026-03-21-evidence-plan", 1); err != nil || ci != nil {
+		t.Fatalf("expected no unreported CI evidence, got %#v err=%v", ci, err)
 	}
 }
 

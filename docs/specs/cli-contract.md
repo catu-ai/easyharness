@@ -36,6 +36,7 @@ The current command surface is:
 - `harness instructions uninstall`
 - `harness execute start`
 - `harness evidence submit`
+- `harness evidence refresh`
 - `harness status`
 - `harness dashboard`
 - `harness ui`
