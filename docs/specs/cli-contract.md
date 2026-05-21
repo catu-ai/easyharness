@@ -495,6 +495,16 @@ Contract:
   instead of making the controller learn them only from `harness archive`
 - surface stale or unknown remote freshness as warnings and next actions rather
   than as a derived state layer
+- treat recorded publish evidence as the authoritative remote handoff identity:
+  when the latest publish evidence has a PR URL, later read-only remote
+  observation should anchor on that PR URL; when it does not, status should
+  steer the controller to open or update the PR and record publish evidence
+  rather than guessing a PR from the current branch
+- keep live remote observation optional and read-only: `gh` may be used to
+  observe a recorded PR URL when available, but missing `gh`, missing auth,
+  network/API failure, an unreadable PR, or mismatched local git context should
+  degrade to warnings or manual evidence guidance instead of failing local
+  workflow state
 - if no current plan is active but `.local/harness/current-plan.json` records a
   landed candidate, return `state.current_node: idle` with landed context in
   `artifacts`
@@ -796,6 +806,21 @@ Post-archive merge readiness additionally requires:
 - publish evidence with a PR URL
 - CI good enough or explicit `not_applied`
 - sync freshness or explicit `not_applied`
+
+The PR URL recorded in publish evidence is the remote handoff anchor for later
+read-only PR and CI observation. Local branch, commit, upstream, and remote
+repository facts are context only; they may explain why a controller needs to
+repair or refresh evidence, but they must not replace the explicit PR URL or
+trigger branch-based PR discovery. If no PR URL has been recorded, the
+controller should continue the existing manual publish path and record evidence
+once the PR or handoff target exists.
+
+When a future status implementation observes a recorded PR through `gh`, it
+must treat `gh` as an optional read-through provider rather than a hard
+workflow dependency. Missing `gh`, missing auth, network or API errors, invalid
+provider output, and unreadable PRs should produce degraded remote facts or
+next-action guidance while preserving the local status result and the manual
+`harness evidence submit --kind publish|ci|sync` fallback.
 
 ### `harness execute start`
 

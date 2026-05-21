@@ -377,6 +377,25 @@ Rules:
 - freshness belongs to `execution/finalize/publish`, not to pre-archive
   readiness
 
+### Remote Handoff Identity
+
+The recorded `publish` evidence is the authoritative identity source for the
+remote handoff candidate. When the latest applicable publish evidence records
+a PR URL, that URL is the candidate's remote handoff anchor for later PR and
+CI reads.
+
+Local git and remote facts are contextual observations, not replacement
+identity. The current worktree branch, HEAD commit, upstream, `origin`, and
+derived GitHub owner/repo can help explain warnings or guide manual follow-up,
+but they must not be used to guess a PR when publish evidence has not recorded
+one.
+
+If publish evidence has no PR URL, the workflow remains in manual handoff:
+open or update the PR outside harness, then record publish evidence. Harness
+should not infer a PR from the current branch as a substitute for that explicit
+handoff record. Future repository customization may define more complex remote
+mapping, but the core model stays evidence-first.
+
 ## Reopen Rules
 
 `harness reopen` is the mechanical reversal of archive-time assumptions and
