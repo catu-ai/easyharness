@@ -215,11 +215,18 @@ generated contract schema output for the new result shape. Validation:
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-003-delta` found four important findings: refresh could leave
+unreported CI evidence if a later sync write failed, refresh accepted
+non-`recorded` publish evidence with a `pr_url`, the top-level CLI contract
+command list omitted `harness evidence refresh`, and CLI-level degraded/help
+coverage was too narrow. The repair requires publish status `recorded`,
+preallocates/rolls back evidence writes, updates the command list, and expands
+CLI degraded/non-success/help coverage. `review-004-delta` passed with no
+findings after the repair.
 
 ### Step 3: Close contracts, generated surfaces, and regression coverage
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -255,11 +262,18 @@ should not build the richer status remote-facts surface.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Completed the contract and regression closeout for the refresh command. The
+dev harness was reinstalled after CLI changes, contract artifacts were checked
+with `scripts/sync-contract-artifacts --check`, focused packages passed with
+`go test -count=1 ./internal/remote ./internal/evidence ./internal/cli
+./internal/contractsync`, and full validation passed with `go test ./...`
+including `tests/smoke` after a long smoke run.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 3 is validation and contract closeout for the
+candidate and will be covered by the required full finalize review before
+archive.
 
 ## Validation Strategy
 
