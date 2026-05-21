@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os/exec"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -35,11 +36,132 @@ func TestObserveRecordedPRUsesGhView(t *testing.T) {
 		Name: "gh",
 		Args: []string{
 			"pr", "view", "https://github.com/catu-ai/easyharness/pull/203",
-			"--json", "url,number,state,headRefName,headRefOid,baseRefName",
+			"--json", "url,number,state,isDraft,mergeStateStatus,mergeable,reviewDecision,headRefName,headRefOid,baseRefName",
 		},
 	}}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("unexpected gh calls:\nwant %#v\ngot  %#v", want, calls)
+	}
+}
+
+func TestObserveHandoffMapsPassingChecksAndCleanMergeState(t *testing.T) {
+	var calls []commandCall
+	svc := Service{
+		RunCommand: func(name string, args ...string) CommandResult {
+			calls = append(calls, commandCall{Name: name, Args: args})
+			switch {
+			case len(args) >= 3 && args[0] == "pr" && args[1] == "view":
+				return CommandResult{Stdout: `{
+					"url": "https://github.com/catu-ai/easyharness/pull/199",
+					"number": 199,
+					"state": "OPEN",
+					"isDraft": false,
+					"mergeStateStatus": "CLEAN",
+					"mergeable": "MERGEABLE",
+					"reviewDecision": "APPROVED",
+					"headRefName": "codex/refresh",
+					"headRefOid": "abc123",
+					"baseRefName": "main"
+				}`}
+			case len(args) >= 3 && args[0] == "pr" && args[1] == "checks":
+				return CommandResult{Stdout: `[
+					{"name":"Go Test","workflow":"Go Test","bucket":"pass","state":"SUCCESS","link":"https://ci.example/1"},
+					{"name":"Lint","workflow":"Go Test","bucket":"skipping","state":"SKIPPED"}
+				]`}
+			default:
+				t.Fatalf("unexpected command %s %v", name, args)
+				return CommandResult{}
+			}
+		},
+	}
+
+	observation := svc.ObserveHandoff(ParseRecordedPRURL("https://github.com/catu-ai/easyharness/pull/199"))
+
+	if observation.Status != HandoffObservationAvailable {
+		t.Fatalf("expected available handoff observation, got %#v", observation)
+	}
+	if observation.CI.Status != RemoteCIAvailable || observation.CI.EvidenceStatus != "success" {
+		t.Fatalf("expected successful CI observation, got %#v", observation.CI)
+	}
+	if observation.Sync.Status != RemoteSyncAvailable || observation.Sync.EvidenceStatus != "fresh" {
+		t.Fatalf("expected fresh sync observation, got %#v", observation.Sync)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("expected pr view and pr checks calls, got %#v", calls)
+	}
+}
+
+func TestObserveHandoffMapsPendingChecks(t *testing.T) {
+	svc := Service{RunCommand: fakePRAndChecks(`{"mergeStateStatus":"CLEAN"}`, `[
+		{"name":"Go Test","bucket":"pass","state":"SUCCESS"},
+		{"name":"Smoke","bucket":"pending","state":"IN_PROGRESS"}
+	]`)}
+
+	observation := svc.ObserveHandoff(ParseRecordedPRURL("https://github.com/catu-ai/easyharness/pull/199"))
+
+	if observation.CI.Status != RemoteCIAvailable || observation.CI.EvidenceStatus != "pending" {
+		t.Fatalf("expected pending CI observation, got %#v", observation.CI)
+	}
+}
+
+func TestObserveHandoffMapsFailingAndCancelledChecks(t *testing.T) {
+	for _, bucket := range []string{"fail", "cancel"} {
+		t.Run(bucket, func(t *testing.T) {
+			svc := Service{RunCommand: fakePRAndChecks(`{"mergeStateStatus":"CLEAN"}`, `[
+				{"name":"Go Test","bucket":"`+bucket+`","state":"FAILURE"}
+			]`)}
+
+			observation := svc.ObserveHandoff(ParseRecordedPRURL("https://github.com/catu-ai/easyharness/pull/199"))
+
+			if observation.CI.Status != RemoteCIAvailable || observation.CI.EvidenceStatus != "failed" {
+				t.Fatalf("expected failed CI observation, got %#v", observation.CI)
+			}
+		})
+	}
+}
+
+func TestObserveHandoffMapsMergeStateToSyncEvidence(t *testing.T) {
+	tests := []struct {
+		name       string
+		mergeState string
+		want       string
+	}{
+		{name: "clean", mergeState: "CLEAN", want: "fresh"},
+		{name: "behind", mergeState: "BEHIND", want: "stale"},
+		{name: "blocked", mergeState: "BLOCKED", want: "stale"},
+		{name: "unknown", mergeState: "UNKNOWN", want: "stale"},
+		{name: "dirty", mergeState: "DIRTY", want: "conflicted"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := Service{RunCommand: fakePRAndChecks(`{"mergeStateStatus":"`+tt.mergeState+`"}`, `[
+				{"name":"Go Test","bucket":"pass","state":"SUCCESS"}
+			]`)}
+
+			observation := svc.ObserveHandoff(ParseRecordedPRURL("https://github.com/catu-ai/easyharness/pull/199"))
+
+			if observation.Sync.Status != RemoteSyncAvailable || observation.Sync.EvidenceStatus != tt.want {
+				t.Fatalf("expected sync %q, got %#v", tt.want, observation.Sync)
+			}
+		})
+	}
+}
+
+func TestObserveHandoffDegradesWhenChecksAreUnreadableButMergeIsClear(t *testing.T) {
+	svc := Service{RunCommand: func(name string, args ...string) CommandResult {
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
+			return CommandResult{Stdout: `{"mergeStateStatus":"CLEAN"}`}
+		}
+		return CommandResult{Err: exec.ErrNotFound}
+	}}
+
+	observation := svc.ObserveHandoff(ParseRecordedPRURL("https://github.com/catu-ai/easyharness/pull/199"))
+
+	if observation.CI.Status != RemoteCIUnavailable || observation.CI.Degraded.Code != DegradedGhMissing {
+		t.Fatalf("expected degraded CI observation, got %#v", observation.CI)
+	}
+	if observation.Sync.Status != RemoteSyncAvailable || observation.Sync.EvidenceStatus != "fresh" {
+		t.Fatalf("expected sync to remain refreshable, got %#v", observation.Sync)
 	}
 }
 
@@ -165,4 +287,30 @@ func TestObserveRecordedPRDegradesForGenericGhFailure(t *testing.T) {
 type commandCall struct {
 	Name string
 	Args []string
+}
+
+func fakePRAndChecks(prFields, checksJSON string) CommandRunner {
+	return func(name string, args ...string) CommandResult {
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
+			fields := strings.TrimSpace(prFields)
+			fields = strings.TrimPrefix(fields, "{")
+			fields = strings.TrimSuffix(fields, "}")
+			return CommandResult{Stdout: `{
+				"url": "https://github.com/catu-ai/easyharness/pull/199",
+				"number": 199,
+				"state": "OPEN",
+				"isDraft": false,
+				"mergeable": "MERGEABLE",
+				"reviewDecision": "APPROVED",
+				"headRefName": "codex/refresh",
+				"headRefOid": "abc123",
+				"baseRefName": "main",
+				` + fields + `
+			}`}
+		}
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
+			return CommandResult{Stdout: checksJSON}
+		}
+		return CommandResult{Err: errors.New("unexpected command")}
+	}
 }
