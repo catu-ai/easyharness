@@ -170,7 +170,7 @@ func (s Service) Refresh() RefreshResult {
 		return refreshErrorResult("Publish evidence has no recorded PR URL to refresh from.", []CommandError{{
 			Path:    "publish.pr_url",
 			Message: "record publish evidence with a PR URL before refreshing CI and sync evidence",
-		}})
+		}}, publishRefreshFallbackActions())
 	}
 
 	identity := remote.ParseRecordedPRURL(publish.PRURL)
@@ -178,7 +178,7 @@ func (s Service) Refresh() RefreshResult {
 		return refreshErrorResult("Publish evidence PR URL is not supported for refresh.", []CommandError{{
 			Path:    "publish.pr_url",
 			Message: identity.Degraded.Message,
-		}})
+		}}, publishRefreshFallbackActions())
 	}
 
 	observation := remote.Service{Workdir: s.Workdir, RunCommand: s.RunCommand}.ObserveHandoff(identity)
@@ -270,15 +270,23 @@ func (s Service) Refresh() RefreshResult {
 		}
 	}
 
+	nextActions := []NextAction{
+		{Command: nil, Description: "Run harness status to refresh the archived candidate summary and next actions."},
+	}
+	if artifacts.CIRecordID == "" {
+		nextActions = append(nextActions, ciRefreshFallbackAction())
+	}
+	if artifacts.SyncRecordID == "" {
+		nextActions = append(nextActions, syncRefreshFallbackAction())
+	}
+
 	resultOut := RefreshResult{
-		OK:        true,
-		Command:   "evidence refresh",
-		Summary:   refreshSummary(artifacts),
-		Artifacts: artifacts,
-		Warnings:  warnings,
-		NextAction: []NextAction{
-			{Command: nil, Description: "Run harness status to refresh the archived candidate summary and next actions."},
-		},
+		OK:         true,
+		Command:    "evidence refresh",
+		Summary:    refreshSummary(artifacts),
+		Artifacts:  artifacts,
+		Warnings:   warnings,
+		NextAction: nextActions,
 	}
 	return s.finalizeRefreshMutation(resultOut, rollbackPaths)
 }
@@ -479,13 +487,17 @@ func errorResult(command, summary string, errors []CommandError) Result {
 	}
 }
 
-func refreshErrorResult(summary string, errors []CommandError) RefreshResult {
+func refreshErrorResult(summary string, errors []CommandError, actions ...[]NextAction) RefreshResult {
+	nextActions := manualRefreshFallbackActions()
+	if len(actions) > 0 {
+		nextActions = actions[0]
+	}
 	return RefreshResult{
 		OK:         false,
 		Command:    "evidence refresh",
 		Summary:    summary,
 		Errors:     errors,
-		NextAction: manualRefreshFallbackActions(),
+		NextAction: nextActions,
 	}
 }
 
@@ -558,8 +570,30 @@ func refreshSummary(artifacts *RefreshArtifacts) string {
 
 func manualRefreshFallbackActions() []NextAction {
 	return []NextAction{
-		{Command: strPtr("harness evidence submit --kind ci --input <json>"), Description: "Manually record CI evidence when remote checks cannot be refreshed."},
-		{Command: strPtr("harness evidence submit --kind sync --input <json>"), Description: "Manually record sync evidence when remote merge state cannot be refreshed."},
+		ciRefreshFallbackAction(),
+		syncRefreshFallbackAction(),
+	}
+}
+
+func publishRefreshFallbackActions() []NextAction {
+	return []NextAction{
+		{Command: strPtr("harness evidence submit --kind publish --input <json>"), Description: "Record publish evidence with a PR URL before refreshing remote CI and sync facts."},
+		ciRefreshFallbackAction(),
+		syncRefreshFallbackAction(),
+	}
+}
+
+func ciRefreshFallbackAction() NextAction {
+	return NextAction{
+		Command:     strPtr("harness evidence submit --kind ci --input <json>"),
+		Description: "Manually record CI evidence when remote checks cannot be refreshed.",
+	}
+}
+
+func syncRefreshFallbackAction() NextAction {
+	return NextAction{
+		Command:     strPtr("harness evidence submit --kind sync --input <json>"),
+		Description: "Manually record sync evidence when remote merge state cannot be refreshed.",
 	}
 }
 

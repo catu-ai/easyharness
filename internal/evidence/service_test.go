@@ -120,6 +120,9 @@ func TestRefreshRejectsMissingRecordedPRWithoutGuessing(t *testing.T) {
 	if len(result.Errors) == 0 || result.Errors[0].Path != "publish.pr_url" {
 		t.Fatalf("expected publish.pr_url error, got %#v", result.Errors)
 	}
+	if !refreshResultHasNextAction(result, "harness evidence submit --kind publish --input <json>") {
+		t.Fatalf("expected publish fallback guidance, got %#v", result.NextAction)
+	}
 	if ci, err := evidence.LoadLatestCI(root, "2026-03-21-evidence-plan", 1); err != nil || ci != nil {
 		t.Fatalf("expected no CI evidence, got %#v err=%v", ci, err)
 	}
@@ -180,6 +183,9 @@ func TestRefreshWritesOnlyClearDomainEvidence(t *testing.T) {
 	}
 	if len(result.Warnings) == 0 {
 		t.Fatalf("expected degraded sync warning, got %#v", result)
+	}
+	if !refreshResultHasNextAction(result, "harness evidence submit --kind sync --input <json>") {
+		t.Fatalf("expected sync fallback guidance, got %#v", result.NextAction)
 	}
 	if sync, err := evidence.LoadLatestSync(root, "2026-03-21-evidence-plan", 1); err != nil || sync != nil {
 		t.Fatalf("expected no sync evidence, got %#v err=%v", sync, err)
@@ -648,6 +654,15 @@ func fakeRefreshCommands(mergeStateJSON, checksJSON string) remote.CommandRunner
 		}
 		return remote.CommandResult{}
 	}
+}
+
+func refreshResultHasNextAction(result evidence.RefreshResult, command string) bool {
+	for _, action := range result.NextAction {
+		if action.Command != nil && *action.Command == command {
+			return true
+		}
+	}
+	return false
 }
 
 func writeArchivedPlan(t *testing.T, root, relPath string) string {

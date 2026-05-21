@@ -1687,6 +1687,32 @@ func TestStatusArchivedPlanNeedsPublishEvidence(t *testing.T) {
 	}
 }
 
+func TestStatusArchivedPlanWithRecordedPRSuggestsEvidenceRefresh(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+
+	result := status.Service{Workdir: root}.Snapshot()
+	if result.State.CurrentNode != "execution/finalize/publish" {
+		t.Fatalf("unexpected node: %#v", result.State)
+	}
+	if !statusNextActionsContain(result, "harness evidence refresh") {
+		t.Fatalf("expected evidence refresh guidance after recorded PR, got %#v", result.NextAction)
+	}
+	if !statusNextActionsContain(result, "harness evidence submit --kind ci --input <json>") {
+		t.Fatalf("expected manual CI fallback guidance to remain, got %#v", result.NextAction)
+	}
+	if !statusNextActionsContain(result, "harness evidence submit --kind sync --input <json>") {
+		t.Fatalf("expected manual sync fallback guidance to remain, got %#v", result.NextAction)
+	}
+}
+
 func TestStatusWarnsInArchivedPublishWhenCompletedStepStillLacksCloseout(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
@@ -2980,6 +3006,15 @@ func assertStateJSONLacksKeys(t *testing.T, root, planStem string, keys ...strin
 			t.Fatalf("expected state.json to omit %q, got %#v", key, payload)
 		}
 	}
+}
+
+func statusNextActionsContain(result status.Result, command string) bool {
+	for _, action := range result.NextAction {
+		if action.Command != nil && *action.Command == command {
+			return true
+		}
+	}
+	return false
 }
 
 func mustJSONBytes(t *testing.T, value any) []byte {

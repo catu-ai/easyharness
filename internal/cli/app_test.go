@@ -1188,12 +1188,18 @@ func TestEvidenceRefreshCommandDegradesWithoutRecordedPR(t *testing.T) {
 		Errors []struct {
 			Path string `json:"path"`
 		} `json:"errors"`
+		NextActions []struct {
+			Command *string `json:"command"`
+		} `json:"next_actions"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("expected JSON evidence refresh output: %v\n%s", err, stdout.String())
 	}
 	if payload.OK || len(payload.Errors) == 0 || payload.Errors[0].Path != "publish.pr_url" {
 		t.Fatalf("expected publish.pr_url error, got %#v", payload)
+	}
+	if !jsonNextActionsContain(payload.NextActions, "harness evidence submit --kind publish --input <json>") {
+		t.Fatalf("expected publish fallback guidance, got %#v", payload.NextActions)
 	}
 }
 
@@ -1258,6 +1264,19 @@ func TestEvidenceRefreshCommandDegradesForRemoteFailures(t *testing.T) {
 			exitCode := app.Run([]string{"evidence", "refresh"})
 			if exitCode != 1 {
 				t.Fatalf("expected degraded refresh failure, got %d stdout=%s stderr=%s", exitCode, stdout.String(), stderr.String())
+			}
+			if tt.name == "unsupported PR URL" {
+				var payload struct {
+					NextActions []struct {
+						Command *string `json:"command"`
+					} `json:"next_actions"`
+				}
+				if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+					t.Fatalf("expected JSON evidence refresh output: %v\n%s", err, stdout.String())
+				}
+				if !jsonNextActionsContain(payload.NextActions, "harness evidence submit --kind publish --input <json>") {
+					t.Fatalf("expected publish fallback guidance, got %#v", payload.NextActions)
+				}
 			}
 			if ci, err := evidence.LoadLatestCI(root, "2026-03-18-landed-plan", 1); err != nil || ci != nil {
 				t.Fatalf("expected no CI evidence, got %#v err=%v", ci, err)
@@ -2579,6 +2598,17 @@ func assertWatchlistContainsWorkspace(t *testing.T, home, root string) {
 	if len(payload.Workspaces) != 1 || payload.Workspaces[0].WorkspacePath != canonicalRoot {
 		t.Fatalf("unexpected watchlist payload: %#v", payload)
 	}
+}
+
+func jsonNextActionsContain(actions []struct {
+	Command *string `json:"command"`
+}, command string) bool {
+	for _, action := range actions {
+		if action.Command != nil && *action.Command == command {
+			return true
+		}
+	}
+	return false
 }
 
 func seedGitWorkspace(t *testing.T, root string) {

@@ -924,6 +924,11 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 			Command:     nil,
 			Description: "Publish was marked not_applied, but v0.2 land still requires a PR URL; record publish evidence with a PR URL or reopen if the workflow changed.",
 		})
+	case strings.TrimSpace(facts.PRURL) != "" && (facts.CIStatus == "" || facts.SyncStatus == ""):
+		actions = append(actions, NextAction{
+			Command:     strPtr("harness evidence refresh"),
+			Description: "Refresh CI and sync evidence from the recorded PR URL.",
+		})
 	}
 
 	switch {
