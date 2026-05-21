@@ -1713,6 +1713,57 @@ func TestStatusArchivedPlanWithRecordedPRSuggestsEvidenceRefresh(t *testing.T) {
 	}
 }
 
+func TestStatusArchivedPlanKeepsEvidenceRefreshForNonReadyRecordedPR(t *testing.T) {
+	tests := []struct {
+		name       string
+		ciInput    string
+		syncInput  string
+		wantStatus string
+	}{
+		{
+			name:       "pending CI",
+			ciInput:    `{"status":"pending","provider":"github-actions","url":"https://ci.example/run"}`,
+			syncInput:  `{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`,
+			wantStatus: "pending",
+		},
+		{
+			name:       "stale sync",
+			ciInput:    `{"status":"success","provider":"github-actions","url":"https://ci.example/run"}`,
+			syncInput:  `{"status":"stale","base_ref":"main","head_ref":"codex/test"}`,
+			wantStatus: "stale",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+				return completeAllSteps(content, true)
+			})
+			writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+			svc := evidence.Service{Workdir: root}
+			if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+				t.Fatalf("publish evidence: %#v", result)
+			}
+			if result := svc.Submit("ci", []byte(tt.ciInput)); !result.OK {
+				t.Fatalf("ci evidence: %#v", result)
+			}
+			if result := svc.Submit("sync", []byte(tt.syncInput)); !result.OK {
+				t.Fatalf("sync evidence: %#v", result)
+			}
+
+			result := status.Service{Workdir: root}.Snapshot()
+			if result.State.CurrentNode != "execution/finalize/publish" {
+				t.Fatalf("unexpected node: %#v", result.State)
+			}
+			if !statusNextActionsContain(result, "harness evidence refresh") {
+				t.Fatalf("expected evidence refresh guidance for %s handoff, got %#v", tt.wantStatus, result.NextAction)
+			}
+		})
+	}
+}
+
 func TestStatusWarnsInArchivedPublishWhenCompletedStepStillLacksCloseout(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {

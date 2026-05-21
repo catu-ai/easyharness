@@ -924,10 +924,10 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 			Command:     nil,
 			Description: "Publish was marked not_applied, but v0.2 land still requires a PR URL; record publish evidence with a PR URL or reopen if the workflow changed.",
 		})
-	case strings.TrimSpace(facts.PRURL) != "" && (facts.CIStatus == "" || facts.SyncStatus == ""):
+	case shouldSuggestEvidenceRefresh(facts):
 		actions = append(actions, NextAction{
 			Command:     strPtr("harness evidence refresh"),
-			Description: "Refresh CI and sync evidence from the recorded PR URL.",
+			Description: "Refresh CI and sync evidence from the recorded PR URL, including re-checking pending CI or non-fresh sync state.",
 		})
 	}
 
@@ -973,6 +973,16 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 	})
 
 	return actions
+}
+
+func shouldSuggestEvidenceRefresh(facts *Facts) bool {
+	if facts == nil || facts.PublishStatus != "recorded" || strings.TrimSpace(facts.PRURL) == "" {
+		return false
+	}
+	return facts.CIStatus == "" ||
+		facts.CIStatus == "pending" ||
+		facts.SyncStatus == "" ||
+		facts.SyncStatus == "stale"
 }
 
 func idleResult(workdir string, currentPlan *runstate.CurrentPlan) Result {

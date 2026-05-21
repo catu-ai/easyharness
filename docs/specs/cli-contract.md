@@ -508,9 +508,10 @@ Contract:
   workflow state
 - never append evidence from `harness status`; automatic remote-to-evidence
   updates belong to the explicit `harness evidence refresh` command
-- when recorded publish evidence has a PR URL but CI or sync evidence is still
-  missing, include `harness evidence refresh` in status next actions while
-  preserving manual `harness evidence submit` fallback commands
+- when recorded publish evidence has a PR URL but CI or sync evidence is
+  missing or still non-ready (`ci: pending` or `sync: stale`), include
+  `harness evidence refresh` in status next actions while preserving manual
+  `harness evidence submit` fallback commands
 - if no current plan is active but `.local/harness/current-plan.json` records a
   landed candidate, return `state.current_node: idle` with landed context in
   `artifacts`
