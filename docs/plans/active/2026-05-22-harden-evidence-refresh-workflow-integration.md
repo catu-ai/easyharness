@@ -146,7 +146,7 @@ non-empty stdout path. The repair addressed all three findings, and
 
 ### Step 2: Return refreshed statuses from the command result
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -203,7 +203,7 @@ omits the unwritten status key. Validation:
 
 `review-003-delta` found a missing CLI assertion for partial refresh JSON
 omitting unwritten status keys. The repair added that coverage; follow-up
-delta review is pending.
+`review-004-delta` passed clean.
 
 ### Step 3: Refresh controller guidance
 
