@@ -236,7 +236,14 @@ not the first path for routine evidence refresh.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Updated the managed `harness-execute` publish/CI/sync guidance so archived
+candidate handoff records publish evidence first, then prefers
+`harness evidence refresh`, then runs `harness status`, with manual
+`harness evidence submit --kind publish|ci|sync` as fallback for degraded or
+unavailable refresh paths. Clarified direct `gh` inspection as a diagnostic
+fallback rather than the routine refresh path. Refreshed materialized
+`.agents/skills/` output from `assets/bootstrap/`. Validation:
+`scripts/sync-bootstrap-assets --check`.
 
 #### Review Notes
 
