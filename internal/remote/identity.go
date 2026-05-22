@@ -51,6 +51,7 @@ const (
 
 var scpLikeGitHubRemote = regexp.MustCompile(`^git@github\.com:([^/]+)/(.+?)(?:\.git)?$`)
 var defaultCommandTimeout = 30 * time.Second
+var defaultCommandWaitDelay = 2 * time.Second
 
 type Service struct {
 	Workdir    string
@@ -246,6 +247,9 @@ func (s Service) ObserveHandoff(identity PRIdentity) HandoffObservation {
 
 func (s Service) observeChecks(prURL string) RemoteCIObservation {
 	result := s.run("gh", "pr", "checks", prURL, "--json", "name,workflow,bucket,state,link")
+	if errors.Is(result.Err, context.DeadlineExceeded) || errors.Is(result.Err, exec.ErrWaitDelay) {
+		return unavailableCI(classifyGhFailure(result))
+	}
 	if result.Err != nil && strings.TrimSpace(result.Stdout) == "" {
 		return unavailableCI(classifyGhFailure(result))
 	}
@@ -543,6 +547,7 @@ func (s Service) run(name string, args ...string) CommandResult {
 		defer cancel()
 	}
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.WaitDelay = defaultCommandWaitDelay
 	output, err := cmd.Output()
 	stderr := ""
 	if exitErr := new(exec.ExitError); errors.As(err, &exitErr) {
@@ -559,7 +564,7 @@ func (s Service) run(name string, args ...string) CommandResult {
 }
 
 func classifyGhFailure(result CommandResult) Degradation {
-	if errors.Is(result.Err, context.DeadlineExceeded) {
+	if errors.Is(result.Err, context.DeadlineExceeded) || errors.Is(result.Err, exec.ErrWaitDelay) {
 		return Degradation{
 			Code:    DegradedGhTimeout,
 			Message: "gh timed out while observing the recorded PR",

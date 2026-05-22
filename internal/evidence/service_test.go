@@ -255,7 +255,10 @@ func TestRefreshWritesSyncOnlyWhenChecksTimeOut(t *testing.T) {
 				}`}
 			}
 			if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
-				return remote.CommandResult{Err: context.DeadlineExceeded}
+				return remote.CommandResult{
+					Stdout: `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
+					Err:    context.DeadlineExceeded,
+				}
 			}
 			return remote.CommandResult{}
 		},

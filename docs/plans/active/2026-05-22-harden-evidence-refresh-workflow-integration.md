@@ -132,9 +132,17 @@ for slow commands, PR observation timeout writes no evidence, and checks
 timeout can still write sync evidence when merge state is clear. Validation:
 `go test ./internal/remote ./internal/evidence`.
 
+After `review-001-delta`, tightened timeout handling so `gh pr checks`
+timeouts degrade even when stdout is non-empty, added a finite `WaitDelay` for
+held-pipe cases, and added focused regression coverage. Validation:
+`go test ./internal/remote ./internal/evidence -count=1`.
+
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` found timeout reads with non-empty stdout could still write
+CI evidence, the default runner lacked `WaitDelay`, and tests missed the
+non-empty stdout path. The repair addresses all three findings; follow-up
+delta review is pending.
 
 ### Step 2: Return refreshed statuses from the command result
 
