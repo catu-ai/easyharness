@@ -245,9 +245,17 @@ fallback rather than the routine refresh path. Refreshed materialized
 `.agents/skills/` output from `assets/bootstrap/`. Validation:
 `scripts/sync-bootstrap-assets --check`.
 
+After `review-005-delta`, also updated the managed closeout/archive handoff
+checklist so it no longer presents manual CI/sync submit as the ordinary path.
+The checklist now records publish evidence, runs `harness evidence refresh`,
+runs `harness status`, and keeps manual submit as fallback for degraded or
+unavailable refresh paths. Validation: `scripts/sync-bootstrap-assets --check`.
+
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-005-delta` found the managed closeout/archive checklist still taught
+manual evidence submit as the ordinary handoff path. The repair aligned that
+checklist with refresh-first guidance; follow-up delta review is pending.
 
 ## Validation Strategy
 

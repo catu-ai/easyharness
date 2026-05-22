@@ -47,10 +47,18 @@ Archive still needs an explicit handoff flow:
    merge approval.
 5. Run `harness status` again to confirm the archived candidate entered
    `execution/finalize/publish` for this worktree.
-6. Record publish, CI, and sync facts through `harness evidence submit`.
-7. Run `harness status` again after that handoff work and confirm the candidate
+6. Record publish evidence with the PR URL or handoff target through
+   `harness evidence submit --kind publish`.
+7. If publish evidence records a supported PR URL, run
+   `harness evidence refresh` to record CI and sync facts from that PR.
+8. Run `harness status` after refresh so the archived candidate summary and
+   next actions reflect the evidence that was just written.
+9. If refresh degrades, is unavailable, or publish evidence lacks a recorded
+   PR URL, manually record the affected domains with
+   `harness evidence submit --kind publish|ci|sync`.
+10. Run `harness status` again after that handoff work and confirm the candidate
    is now genuinely ready to report `execution/finalize/await_merge`.
-8. Wait for human merge approval or switch to `harness-land` only when asked
+11. Wait for human merge approval or switch to `harness-land` only when asked
    once status reaches `execution/finalize/await_merge`.
 
 If new feedback or remote changes invalidate the archived candidate, use:
