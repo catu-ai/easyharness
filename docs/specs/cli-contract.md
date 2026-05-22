@@ -36,6 +36,7 @@ The current command surface is:
 - `harness instructions uninstall`
 - `harness execute start`
 - `harness evidence submit`
+- `harness evidence refresh`
 - `harness status`
 - `harness dashboard`
 - `harness ui`
@@ -505,6 +506,12 @@ Contract:
   network/API failure, an unreadable PR, or mismatched local git context should
   degrade to warnings or manual evidence guidance instead of failing local
   workflow state
+- never append evidence from `harness status`; automatic remote-to-evidence
+  updates belong to the explicit `harness evidence refresh` command
+- when recorded publish evidence has a PR URL but CI or sync evidence is
+  missing or still non-ready (`ci: pending` or `sync: stale`), include
+  `harness evidence refresh` in status next actions while preserving manual
+  `harness evidence submit` fallback commands
 - if no current plan is active but `.local/harness/current-plan.json` records a
   landed candidate, return `state.current_node: idle` with landed context in
   `artifacts`
@@ -998,6 +1005,36 @@ Contract:
   `state.json`
 - preserve trajectory by never editing older evidence artifacts in place
 - accept explicit `not_applied` payloads when a domain truly does not apply
+
+### `harness evidence refresh`
+
+Purpose:
+
+- observe the recorded PR URL from latest publish evidence and append derived
+  `ci` and `sync` evidence for the current archived candidate
+
+Contract:
+
+- require the current plan to already be archived before refreshing evidence
+- require latest publish evidence to record a supported PR URL; if it does not,
+  do not infer a PR from the current branch and steer the controller to
+  publish or manual evidence submit
+- use `gh` only for read operations against the recorded PR URL
+- classify readable PR checks into `ci` evidence: passing checks become
+  `success`, pending checks become `pending`, and failing or cancelled checks
+  become `failed`
+- classify readable PR merge state into `sync` evidence: clean/current state
+  becomes `fresh`, stale/behind/blocked/unknown-but-readable state becomes
+  `stale`, and conflict state becomes `conflicted`
+- append evidence independently per domain: if CI facts are clear but sync
+  facts degrade, write only CI evidence and return clear degraded sync
+  guidance, and vice versa
+- never write misleading success evidence when `gh`, auth, network/API access,
+  provider output, checks, or merge state are unavailable
+- preserve `harness evidence submit --kind publish|ci|sync` as the manual
+  fallback for every degraded refresh path
+- never create or update PRs, rerun checks, comment, label, review, merge, or
+  perform GitHub writes
 
 ### `harness land --pr <url> [--commit <sha>]`
 

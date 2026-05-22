@@ -371,7 +371,11 @@ The repository standardizes three command-owned evidence domains:
 
 Rules:
 
-- all three domains are recorded through `harness evidence submit`
+- all three domains may be recorded manually through
+  `harness evidence submit`
+- when publish evidence already records a supported PR URL,
+  `harness evidence refresh` may observe that PR through a read-only provider
+  and record derived `ci` and `sync` evidence
 - missing evidence never means success or not-applicable
 - `not_applied` must be recorded explicitly when a domain truly does not apply
 - freshness belongs to `execution/finalize/publish`, not to pre-archive
@@ -395,6 +399,25 @@ open or update the PR outside harness, then record publish evidence. Harness
 should not infer a PR from the current branch as a substitute for that explicit
 handoff record. Future repository customization may define more complex remote
 mapping, but the core model stays evidence-first.
+
+### Remote Evidence Refresh
+
+`harness evidence refresh` is the explicit mutating bridge from remote
+observation to local evidence. It may use `gh` to read the PR recorded in
+publish evidence, classify PR checks as `ci` evidence, and classify merge
+freshness or conflicts as `sync` evidence. It must not create or update PRs,
+rerun checks, comment, label, review, merge, or perform other GitHub writes.
+
+Refresh writes evidence only for domains whose remote facts are clear enough.
+If checks are unreadable but merge state is clear, refresh may write `sync`
+evidence while degrading `ci`; the reverse is also allowed. If a domain is
+unavailable, ambiguous, or unsupported, refresh should leave that evidence
+domain untouched and guide the controller back to manual
+`harness evidence submit`.
+
+`harness status` remains a read-only snapshot resolver. Status may recommend a
+refresh or manual evidence submit, but it must not append evidence merely
+because it can observe remote facts.
 
 ## Reopen Rules
 

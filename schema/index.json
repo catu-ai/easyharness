@@ -133,6 +133,16 @@
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.BootstrapResult"
     },
     {
+      "key": "commands.evidence.refresh.result",
+      "group": "command_results",
+      "surface": "public",
+      "title": "Evidence refresh command result",
+      "description": "JSON output for `harness evidence refresh`.",
+      "path": "schema/commands/evidence.refresh.result.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/evidence.refresh.result.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.EvidenceRefreshResult"
+    },
+    {
       "key": "commands.evidence.submit.result",
       "group": "command_results",
       "surface": "public",

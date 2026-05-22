@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/evidence.refresh.result.schema.json",
+  "$ref": "#/$defs/EvidenceRefreshResult",
+  "$defs": {
+    "ErrorDetail": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path identifies the field, section, or artifact path associated with the error."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message is the human-readable explanation of the problem."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "message"
+      ],
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+    },
+    "EvidenceRefreshArtifacts": {
+      "properties": {
+        "plan_path": {
+          "type": "string",
+          "description": "PlanPath is the archived plan path associated with the evidence records."
+        },
+        "pr_url": {
+          "type": "string",
+          "description": "PRURL is the recorded pull request URL used for remote observation."
+        },
+        "ci_record_id": {
+          "type": "string",
+          "description": "CIRecordID is the created CI evidence record identifier when CI was refreshed."
+        },
+        "sync_record_id": {
+          "type": "string",
+          "description": "SyncRecordID is the created sync evidence record identifier when sync was refreshed."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "plan_path"
+      ],
+      "description": "EvidenceRefreshArtifacts lists evidence records touched by `harness evidence refresh`."
+    },
+    "EvidenceRefreshResult": {
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "OK reports whether at least one evidence domain was refreshed."
+        },
+        "command": {
+          "type": "string",
+          "description": "Command is the stable command identifier for the result payload."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary is the concise human-readable outcome description."
+        },
+        "artifacts": {
+          "$ref": "#/$defs/EvidenceRefreshArtifacts",
+          "description": "Artifacts points to the evidence records created by the command."
+        },
+        "next_actions": {
+          "oneOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/NextAction"
+              },
+              "type": "array",
+              "description": "NextAction lists the most relevant follow-up steps in priority order."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "NextAction lists the most relevant follow-up steps in priority order."
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Warnings lists degraded domains that did not prevent other evidence from being refreshed."
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/ErrorDetail"
+          },
+          "type": "array",
+          "description": "Errors lists hard failures that prevented any evidence refresh."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ok",
+        "command",
+        "summary",
+        "next_actions"
+      ],
+      "description": "EvidenceRefreshResult is the JSON result returned by `harness evidence refresh`."
+    },
+    "NextAction": {
+      "properties": {
+        "command": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description explains the suggested next step in plain language."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "command",
+        "description"
+      ],
+      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
+    }
+  },
+  "title": "Evidence refresh command result",
+  "description": "JSON output for `harness evidence refresh`."
+}

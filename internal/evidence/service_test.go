@@ -9,6 +9,7 @@ import (
 
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/plan"
+	"github.com/catu-ai/easyharness/internal/remote"
 	"github.com/catu-ai/easyharness/internal/runstate"
 )
 
@@ -47,6 +48,177 @@ func TestSubmitCIEvidenceWritesArtifactWithoutStateCache(t *testing.T) {
 	}
 	if record == nil || record.Status != "success" || record.Provider != "buildkite" {
 		t.Fatalf("unexpected CI record: %#v", record)
+	}
+}
+
+func TestRefreshWritesCIAndSyncEvidenceFromRecordedPR(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	svc := evidence.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
+		},
+	}
+	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+		t.Fatalf("seed publish evidence: %#v", result)
+	}
+
+	refresh := evidence.Service{
+		Workdir:    root,
+		Now:        svc.Now,
+		RunCommand: fakeRefreshCommands(`"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS","link":"https://ci.example/run"}]`),
+	}.Refresh()
+
+	if !refresh.OK {
+		t.Fatalf("expected refresh success, got %#v", refresh)
+	}
+	if refresh.Artifacts == nil || refresh.Artifacts.CIRecordID != "ci-001" || refresh.Artifacts.SyncRecordID != "sync-001" {
+		t.Fatalf("unexpected refresh artifacts: %#v", refresh.Artifacts)
+	}
+	ci, err := evidence.LoadLatestCI(root, "2026-03-21-evidence-plan", 1)
+	if err != nil {
+		t.Fatalf("load CI: %v", err)
+	}
+	if ci == nil || ci.Status != "success" || ci.Provider != "github-actions" || ci.URL != "https://ci.example/run" {
+		t.Fatalf("unexpected CI record: %#v", ci)
+	}
+	sync, err := evidence.LoadLatestSync(root, "2026-03-21-evidence-plan", 1)
+	if err != nil {
+		t.Fatalf("load sync: %v", err)
+	}
+	if sync == nil || sync.Status != "fresh" || sync.BaseRef != "main" || sync.HeadRef != "codex/test" {
+		t.Fatalf("unexpected sync record: %#v", sync)
+	}
+}
+
+func TestRefreshRejectsMissingRecordedPRWithoutGuessing(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	called := false
+
+	result := evidence.Service{
+		Workdir: root,
+		RunCommand: func(name string, args ...string) remote.CommandResult {
+			called = true
+			return remote.CommandResult{}
+		},
+	}.Refresh()
+
+	if result.OK {
+		t.Fatalf("expected missing PR refresh failure, got %#v", result)
+	}
+	if called {
+		t.Fatal("refresh should not call gh without recorded publish PR URL")
+	}
+	if len(result.Errors) == 0 || result.Errors[0].Path != "publish.pr_url" {
+		t.Fatalf("expected publish.pr_url error, got %#v", result.Errors)
+	}
+	if !refreshResultHasNextAction(result, "harness evidence submit --kind publish --input <json>") {
+		t.Fatalf("expected publish fallback guidance, got %#v", result.NextAction)
+	}
+	if ci, err := evidence.LoadLatestCI(root, "2026-03-21-evidence-plan", 1); err != nil || ci != nil {
+		t.Fatalf("expected no CI evidence, got %#v err=%v", ci, err)
+	}
+}
+
+func TestRefreshRejectsNotAppliedPublishPRURL(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{
+		"status":"not_applied",
+		"pr_url":"https://github.com/catu-ai/easyharness/pull/99",
+		"reason":"remote handoff is not available"
+	}`)); !result.OK {
+		t.Fatalf("seed not_applied publish evidence: %#v", result)
+	}
+	called := false
+
+	result := evidence.Service{
+		Workdir: root,
+		RunCommand: func(name string, args ...string) remote.CommandResult {
+			called = true
+			return remote.CommandResult{}
+		},
+	}.Refresh()
+
+	if result.OK {
+		t.Fatalf("expected not_applied publish refresh failure, got %#v", result)
+	}
+	if called {
+		t.Fatal("refresh should not call gh for publish status not_applied")
+	}
+}
+
+func TestRefreshWritesOnlyClearDomainEvidence(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	svc := evidence.Service{Workdir: root}
+	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+		t.Fatalf("seed publish evidence: %#v", result)
+	}
+
+	result := evidence.Service{
+		Workdir:    root,
+		RunCommand: fakeRefreshCommands(`""`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Refresh()
+
+	if !result.OK {
+		t.Fatalf("expected partial refresh success, got %#v", result)
+	}
+	if result.Artifacts == nil || result.Artifacts.CIRecordID != "ci-001" || result.Artifacts.SyncRecordID != "" {
+		t.Fatalf("unexpected partial refresh artifacts: %#v", result.Artifacts)
+	}
+	if len(result.Warnings) == 0 {
+		t.Fatalf("expected degraded sync warning, got %#v", result)
+	}
+	if !refreshResultHasNextAction(result, "harness evidence submit --kind sync --input <json>") {
+		t.Fatalf("expected sync fallback guidance, got %#v", result.NextAction)
+	}
+	if sync, err := evidence.LoadLatestSync(root, "2026-03-21-evidence-plan", 1); err != nil || sync != nil {
+		t.Fatalf("expected no sync evidence, got %#v err=%v", sync, err)
+	}
+}
+
+func TestRefreshDoesNotLeaveCIWhenSyncRecordLocationFails(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+		t.Fatalf("seed publish evidence: %#v", result)
+	}
+	syncPath := filepath.Join(root, ".local", "harness", "plans", "2026-03-21-evidence-plan", "evidence", "sync")
+	if err := os.MkdirAll(filepath.Dir(syncPath), 0o755); err != nil {
+		t.Fatalf("mkdir evidence dir: %v", err)
+	}
+	if err := os.WriteFile(syncPath, []byte("not a directory"), 0o644); err != nil {
+		t.Fatalf("write sync path blocker: %v", err)
+	}
+
+	result := evidence.Service{
+		Workdir:    root,
+		RunCommand: fakeRefreshCommands(`"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Refresh()
+
+	if result.OK {
+		t.Fatalf("expected sync record-location failure, got %#v", result)
+	}
+	if ci, err := evidence.LoadLatestCI(root, "2026-03-21-evidence-plan", 1); err != nil || ci != nil {
+		t.Fatalf("expected no unreported CI evidence, got %#v err=%v", ci, err)
 	}
 }
 
@@ -459,6 +631,38 @@ func assertStateFileAbsent(t *testing.T, root, planStem string) {
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("expected state.json to stay absent, got %v", err)
 	}
+}
+
+func fakeRefreshCommands(mergeStateJSON, checksJSON string) remote.CommandRunner {
+	return func(name string, args ...string) remote.CommandResult {
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
+			return remote.CommandResult{Stdout: `{
+				"url":"https://github.com/catu-ai/easyharness/pull/99",
+				"number":99,
+				"state":"OPEN",
+				"isDraft":false,
+				"mergeStateStatus":` + mergeStateJSON + `,
+				"mergeable":"MERGEABLE",
+				"reviewDecision":"APPROVED",
+				"headRefName":"codex/test",
+				"headRefOid":"abc123",
+				"baseRefName":"main"
+			}`}
+		}
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
+			return remote.CommandResult{Stdout: checksJSON}
+		}
+		return remote.CommandResult{}
+	}
+}
+
+func refreshResultHasNextAction(result evidence.RefreshResult, command string) bool {
+	for _, action := range result.NextAction {
+		if action.Command != nil && *action.Command == command {
+			return true
+		}
+	}
+	return false
 }
 
 func writeArchivedPlan(t *testing.T, root, relPath string) string {

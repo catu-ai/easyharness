@@ -16,6 +16,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/cli"
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/plan"
+	"github.com/catu-ai/easyharness/internal/remote"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/status"
 	"github.com/catu-ai/easyharness/internal/timeline"
@@ -1116,6 +1117,244 @@ func TestEvidenceSubmitIgnoresWatchlistWriteFailure(t *testing.T) {
 	}
 }
 
+func TestEvidenceRefreshCommandWritesEvidenceAndUpdatesStatus(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	home := t.TempDir()
+	seedGitWorkspace(t, root)
+	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return home, nil }
+	app.Now = func() time.Time {
+		return time.Date(2026, 3, 18, 6, 0, 0, 0, time.UTC)
+	}
+	app.RunCommand = fakeCLIRefreshCommands(`"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS","link":"https://ci.example/run"}]`)
+
+	writeArchivedPlanForCLI(t, root, "docs/plans/archived/2026-03-18-landed-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-landed-plan.md"); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+		t.Fatalf("seed publish evidence: %#v", result)
+	}
+
+	exitCode := app.Run([]string{"evidence", "refresh"})
+	if exitCode != 0 {
+		t.Fatalf("evidence refresh command failed with %d: %s", exitCode, stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON evidence refresh output: %v\n%s", err, stdout.String())
+	}
+	if payload["command"] != "evidence refresh" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+	statusResult := status.Service{Workdir: root}.Snapshot()
+	if !statusResult.OK || statusResult.State.CurrentNode != "execution/finalize/await_merge" {
+		t.Fatalf("expected refresh to satisfy merge-ready evidence, got %#v", statusResult)
+	}
+	assertLastTimelineEventCommand(t, root, "evidence refresh")
+	assertWatchlistContainsWorkspace(t, home, root)
+}
+
+func TestEvidenceRefreshCommandDegradesWithoutRecordedPR(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	called := false
+	app.RunCommand = func(name string, args ...string) remote.CommandResult {
+		called = true
+		return remote.CommandResult{}
+	}
+
+	writeArchivedPlanForCLI(t, root, "docs/plans/archived/2026-03-18-landed-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-landed-plan.md"); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+
+	exitCode := app.Run([]string{"evidence", "refresh"})
+	if exitCode != 1 {
+		t.Fatalf("expected evidence refresh failure without PR, got %d: %s", exitCode, stderr.String())
+	}
+	if called {
+		t.Fatal("refresh should not call gh without recorded publish PR URL")
+	}
+	var payload struct {
+		OK     bool `json:"ok"`
+		Errors []struct {
+			Path string `json:"path"`
+		} `json:"errors"`
+		NextActions []struct {
+			Command *string `json:"command"`
+		} `json:"next_actions"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON evidence refresh output: %v\n%s", err, stdout.String())
+	}
+	if payload.OK || len(payload.Errors) == 0 || payload.Errors[0].Path != "publish.pr_url" {
+		t.Fatalf("expected publish.pr_url error, got %#v", payload)
+	}
+	if !jsonNextActionsContain(payload.NextActions, "harness evidence submit --kind publish --input <json>") {
+		t.Fatalf("expected publish fallback guidance, got %#v", payload.NextActions)
+	}
+}
+
+func TestEvidenceRefreshCommandDegradesForRemoteFailures(t *testing.T) {
+	tests := []struct {
+		name       string
+		prURL      string
+		runCommand remote.CommandRunner
+	}{
+		{
+			name:  "unsupported PR URL",
+			prURL: "https://gitlab.com/catu-ai/easyharness/-/merge_requests/99",
+		},
+		{
+			name:  "gh missing",
+			prURL: "https://github.com/catu-ai/easyharness/pull/99",
+			runCommand: func(name string, args ...string) remote.CommandResult {
+				return remote.CommandResult{Err: exec.ErrNotFound}
+			},
+		},
+		{
+			name:  "auth unavailable",
+			prURL: "https://github.com/catu-ai/easyharness/pull/99",
+			runCommand: func(name string, args ...string) remote.CommandResult {
+				return remote.CommandResult{Stderr: "authentication required", Err: errors.New("exit status 4")}
+			},
+		},
+		{
+			name:  "unreadable PR",
+			prURL: "https://github.com/catu-ai/easyharness/pull/99",
+			runCommand: func(name string, args ...string) remote.CommandResult {
+				return remote.CommandResult{Stderr: "GraphQL: Could not resolve to a PullRequest", Err: errors.New("exit status 1")}
+			},
+		},
+		{
+			name:  "invalid PR JSON",
+			prURL: "https://github.com/catu-ai/easyharness/pull/99",
+			runCommand: func(name string, args ...string) remote.CommandResult {
+				return remote.CommandResult{Stdout: "{not-json"}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout := new(bytes.Buffer)
+			stderr := new(bytes.Buffer)
+			app := cli.New(stdout, stderr)
+			root := t.TempDir()
+			app.Getwd = func() (string, error) { return root, nil }
+			app.RunCommand = tt.runCommand
+
+			writeArchivedPlanForCLI(t, root, "docs/plans/archived/2026-03-18-landed-plan.md")
+			if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-landed-plan.md"); err != nil {
+				t.Fatalf("save current plan: %v", err)
+			}
+			input := `{"status":"recorded","pr_url":"` + tt.prURL + `"}`
+			if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(input)); !result.OK {
+				t.Fatalf("seed publish evidence: %#v", result)
+			}
+
+			exitCode := app.Run([]string{"evidence", "refresh"})
+			if exitCode != 1 {
+				t.Fatalf("expected degraded refresh failure, got %d stdout=%s stderr=%s", exitCode, stdout.String(), stderr.String())
+			}
+			if tt.name == "unsupported PR URL" {
+				var payload struct {
+					NextActions []struct {
+						Command *string `json:"command"`
+					} `json:"next_actions"`
+				}
+				if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+					t.Fatalf("expected JSON evidence refresh output: %v\n%s", err, stdout.String())
+				}
+				if !jsonNextActionsContain(payload.NextActions, "harness evidence submit --kind publish --input <json>") {
+					t.Fatalf("expected publish fallback guidance, got %#v", payload.NextActions)
+				}
+			}
+			if ci, err := evidence.LoadLatestCI(root, "2026-03-18-landed-plan", 1); err != nil || ci != nil {
+				t.Fatalf("expected no CI evidence, got %#v err=%v", ci, err)
+			}
+			if sync, err := evidence.LoadLatestSync(root, "2026-03-18-landed-plan", 1); err != nil || sync != nil {
+				t.Fatalf("expected no sync evidence, got %#v err=%v", sync, err)
+			}
+		})
+	}
+}
+
+func TestEvidenceRefreshCommandMapsNonSuccessRemoteStates(t *testing.T) {
+	tests := []struct {
+		name       string
+		mergeState string
+		checks     string
+		wantCI     string
+		wantSync   string
+	}{
+		{name: "pending checks", mergeState: `"CLEAN"`, checks: `[{"name":"Go Test","bucket":"pending","state":"IN_PROGRESS"}]`, wantCI: "pending", wantSync: "fresh"},
+		{name: "failing checks", mergeState: `"CLEAN"`, checks: `[{"name":"Go Test","bucket":"fail","state":"FAILURE"}]`, wantCI: "failed", wantSync: "fresh"},
+		{name: "stale merge", mergeState: `"BEHIND"`, checks: `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`, wantCI: "success", wantSync: "stale"},
+		{name: "conflicted merge", mergeState: `"DIRTY"`, checks: `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`, wantCI: "success", wantSync: "conflicted"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout := new(bytes.Buffer)
+			stderr := new(bytes.Buffer)
+			app := cli.New(stdout, stderr)
+			root := t.TempDir()
+			app.Getwd = func() (string, error) { return root, nil }
+			app.RunCommand = fakeCLIRefreshCommands(tt.mergeState, tt.checks)
+
+			writeArchivedPlanForCLI(t, root, "docs/plans/archived/2026-03-18-landed-plan.md")
+			if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-landed-plan.md"); err != nil {
+				t.Fatalf("save current plan: %v", err)
+			}
+			if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+				t.Fatalf("seed publish evidence: %#v", result)
+			}
+
+			if exitCode := app.Run([]string{"evidence", "refresh"}); exitCode != 0 {
+				t.Fatalf("expected refresh success, got %d: %s", exitCode, stderr.String())
+			}
+			ci, err := evidence.LoadLatestCI(root, "2026-03-18-landed-plan", 1)
+			if err != nil || ci == nil || ci.Status != tt.wantCI {
+				t.Fatalf("expected CI %q, got %#v err=%v", tt.wantCI, ci, err)
+			}
+			sync, err := evidence.LoadLatestSync(root, "2026-03-18-landed-plan", 1)
+			if err != nil || sync == nil || sync.Status != tt.wantSync {
+				t.Fatalf("expected sync %q, got %#v err=%v", tt.wantSync, sync, err)
+			}
+		})
+	}
+}
+
+func TestEvidenceRefreshHelpSurfaces(t *testing.T) {
+	tests := [][]string{
+		{"--help"},
+		{"evidence", "--help"},
+		{"evidence", "refresh", "--help"},
+	}
+	for _, args := range tests {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			stdout := new(bytes.Buffer)
+			stderr := new(bytes.Buffer)
+			app := cli.New(stdout, stderr)
+			if exitCode := app.Run(args); exitCode != 0 {
+				t.Fatalf("help failed with %d: %s", exitCode, stderr.String())
+			}
+			help := stderr.String()
+			if !strings.Contains(help, "refresh") || !strings.Contains(help, "CI and sync evidence") {
+				t.Fatalf("expected help to mention evidence refresh, got %q", help)
+			}
+		})
+	}
+}
+
 func TestEvidenceSubmitCommandReturnsSchemaValidationErrors(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
@@ -2104,6 +2343,29 @@ func seedMergeReadyEvidenceForCLI(t *testing.T, root string) {
 	}
 }
 
+func fakeCLIRefreshCommands(mergeStateJSON, checksJSON string) remote.CommandRunner {
+	return func(name string, args ...string) remote.CommandResult {
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
+			return remote.CommandResult{Stdout: `{
+				"url":"https://github.com/catu-ai/easyharness/pull/99",
+				"number":99,
+				"state":"OPEN",
+				"isDraft":false,
+				"mergeStateStatus":` + mergeStateJSON + `,
+				"mergeable":"MERGEABLE",
+				"reviewDecision":"APPROVED",
+				"headRefName":"codex/test",
+				"headRefOid":"abc123",
+				"baseRefName":"main"
+			}`}
+		}
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
+			return remote.CommandResult{Stdout: checksJSON}
+		}
+		return remote.CommandResult{}
+	}
+}
+
 func assertLastTimelineEventCommand(t *testing.T, root, command string) {
 	t.Helper()
 	timelineResult := timeline.Service{Workdir: root}.Read()
@@ -2336,6 +2598,17 @@ func assertWatchlistContainsWorkspace(t *testing.T, home, root string) {
 	if len(payload.Workspaces) != 1 || payload.Workspaces[0].WorkspacePath != canonicalRoot {
 		t.Fatalf("unexpected watchlist payload: %#v", payload)
 	}
+}
+
+func jsonNextActionsContain(actions []struct {
+	Command *string `json:"command"`
+}, command string) bool {
+	for _, action := range actions {
+		if action.Command != nil && *action.Command == command {
+			return true
+		}
+	}
+	return false
 }
 
 func seedGitWorkspace(t *testing.T, root string) {

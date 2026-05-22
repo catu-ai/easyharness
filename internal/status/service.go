@@ -924,6 +924,11 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 			Command:     nil,
 			Description: "Publish was marked not_applied, but v0.2 land still requires a PR URL; record publish evidence with a PR URL or reopen if the workflow changed.",
 		})
+	case shouldSuggestEvidenceRefresh(facts):
+		actions = append(actions, NextAction{
+			Command:     strPtr("harness evidence refresh"),
+			Description: "Refresh CI and sync evidence from the recorded PR URL, including re-checking pending CI or non-fresh sync state.",
+		})
 	}
 
 	switch {
@@ -934,8 +939,8 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 		})
 	case facts.CIStatus == "pending":
 		actions = append(actions, NextAction{
-			Command:     nil,
-			Description: "Wait for the relevant post-archive CI to finish, then record the updated result if it changes.",
+			Command:     strPtr("harness evidence submit --kind ci --input <json>"),
+			Description: "Wait for the relevant post-archive CI to finish, then manually record the updated result if refresh is unavailable.",
 		})
 	case facts.CIStatus == "failed":
 		actions = append(actions, NextAction{
@@ -952,8 +957,8 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 		})
 	case facts.SyncStatus == "stale":
 		actions = append(actions, NextAction{
-			Command:     nil,
-			Description: "Refresh the branch against the merge base, then record a fresh sync result before merge approval.",
+			Command:     strPtr("harness evidence submit --kind sync --input <json>"),
+			Description: "Refresh the branch against the merge base, then manually record a fresh sync result if refresh is unavailable.",
 		})
 	case facts.SyncStatus == "conflicted":
 		actions = append(actions, NextAction{
@@ -968,6 +973,16 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 	})
 
 	return actions
+}
+
+func shouldSuggestEvidenceRefresh(facts *Facts) bool {
+	if facts == nil || facts.PublishStatus != "recorded" || strings.TrimSpace(facts.PRURL) == "" {
+		return false
+	}
+	return facts.CIStatus == "" ||
+		facts.CIStatus == "pending" ||
+		facts.SyncStatus == "" ||
+		facts.SyncStatus == "stale"
 }
 
 func idleResult(workdir string, currentPlan *runstate.CurrentPlan) Result {

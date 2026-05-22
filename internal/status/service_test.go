@@ -1687,6 +1687,89 @@ func TestStatusArchivedPlanNeedsPublishEvidence(t *testing.T) {
 	}
 }
 
+func TestStatusArchivedPlanWithRecordedPRSuggestsEvidenceRefresh(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+
+	result := status.Service{Workdir: root}.Snapshot()
+	if result.State.CurrentNode != "execution/finalize/publish" {
+		t.Fatalf("unexpected node: %#v", result.State)
+	}
+	if !statusNextActionsContain(result, "harness evidence refresh") {
+		t.Fatalf("expected evidence refresh guidance after recorded PR, got %#v", result.NextAction)
+	}
+	if !statusNextActionsContain(result, "harness evidence submit --kind ci --input <json>") {
+		t.Fatalf("expected manual CI fallback guidance to remain, got %#v", result.NextAction)
+	}
+	if !statusNextActionsContain(result, "harness evidence submit --kind sync --input <json>") {
+		t.Fatalf("expected manual sync fallback guidance to remain, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusArchivedPlanKeepsEvidenceRefreshForNonReadyRecordedPR(t *testing.T) {
+	tests := []struct {
+		name            string
+		ciInput         string
+		syncInput       string
+		wantStatus      string
+		fallbackCommand string
+	}{
+		{
+			name:            "pending CI",
+			ciInput:         `{"status":"pending","provider":"github-actions","url":"https://ci.example/run"}`,
+			syncInput:       `{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`,
+			wantStatus:      "pending",
+			fallbackCommand: "harness evidence submit --kind ci --input <json>",
+		},
+		{
+			name:            "stale sync",
+			ciInput:         `{"status":"success","provider":"github-actions","url":"https://ci.example/run"}`,
+			syncInput:       `{"status":"stale","base_ref":"main","head_ref":"codex/test"}`,
+			wantStatus:      "stale",
+			fallbackCommand: "harness evidence submit --kind sync --input <json>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+				return completeAllSteps(content, true)
+			})
+			writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+			svc := evidence.Service{Workdir: root}
+			if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+				t.Fatalf("publish evidence: %#v", result)
+			}
+			if result := svc.Submit("ci", []byte(tt.ciInput)); !result.OK {
+				t.Fatalf("ci evidence: %#v", result)
+			}
+			if result := svc.Submit("sync", []byte(tt.syncInput)); !result.OK {
+				t.Fatalf("sync evidence: %#v", result)
+			}
+
+			result := status.Service{Workdir: root}.Snapshot()
+			if result.State.CurrentNode != "execution/finalize/publish" {
+				t.Fatalf("unexpected node: %#v", result.State)
+			}
+			if !statusNextActionsContain(result, "harness evidence refresh") {
+				t.Fatalf("expected evidence refresh guidance for %s handoff, got %#v", tt.wantStatus, result.NextAction)
+			}
+			if !statusNextActionsContain(result, tt.fallbackCommand) {
+				t.Fatalf("expected manual fallback command for %s handoff, got %#v", tt.wantStatus, result.NextAction)
+			}
+		})
+	}
+}
+
 func TestStatusWarnsInArchivedPublishWhenCompletedStepStillLacksCloseout(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
@@ -2980,6 +3063,15 @@ func assertStateJSONLacksKeys(t *testing.T, root, planStem string, keys ...strin
 			t.Fatalf("expected state.json to omit %q, got %#v", key, payload)
 		}
 	}
+}
+
+func statusNextActionsContain(result status.Result, command string) bool {
+	for _, action := range result.NextAction {
+		if action.Command != nil && *action.Command == command {
+			return true
+		}
+	}
+	return false
 }
 
 func mustJSONBytes(t *testing.T, value any) []byte {

@@ -20,6 +20,16 @@ const (
 	PRObservationAvailable   = "available"
 	PRObservationUnavailable = "unavailable"
 
+	HandoffObservationAvailable   = "available"
+	HandoffObservationUnavailable = "unavailable"
+	HandoffObservationDegraded    = "degraded"
+
+	RemoteCIAvailable   = "available"
+	RemoteCIUnavailable = "unavailable"
+
+	RemoteSyncAvailable   = "available"
+	RemoteSyncUnavailable = "unavailable"
+
 	DegradedMissingPRURL      = "missing_pr_url"
 	DegradedUnsupportedPRURL  = "unsupported_pr_url"
 	DegradedNotGitRepository  = "not_git_repository"
@@ -30,6 +40,8 @@ const (
 	DegradedGhMissing         = "gh_missing"
 	DegradedGhAuthUnavailable = "gh_auth_unavailable"
 	DegradedPRUnreadable      = "pr_unreadable"
+	DegradedChecksUnreadable  = "checks_unreadable"
+	DegradedMergeUnreadable   = "merge_unreadable"
 	DegradedGhInvalidJSON     = "gh_invalid_json"
 	DegradedGhCommandFailed   = "gh_command_failed"
 )
@@ -83,14 +95,48 @@ type PRIdentity struct {
 }
 
 type PRObservation struct {
-	Status      string      `json:"status"`
-	URL         string      `json:"url,omitempty"`
-	Number      int         `json:"number,omitempty"`
-	State       string      `json:"state,omitempty"`
-	HeadRefName string      `json:"head_ref_name,omitempty"`
-	HeadRefOID  string      `json:"head_ref_oid,omitempty"`
-	BaseRefName string      `json:"base_ref_name,omitempty"`
-	Degraded    Degradation `json:"degraded,omitempty"`
+	Status           string      `json:"status"`
+	URL              string      `json:"url,omitempty"`
+	Number           int         `json:"number,omitempty"`
+	State            string      `json:"state,omitempty"`
+	IsDraft          bool        `json:"is_draft,omitempty"`
+	MergeStateStatus string      `json:"merge_state_status,omitempty"`
+	Mergeable        string      `json:"mergeable,omitempty"`
+	ReviewDecision   string      `json:"review_decision,omitempty"`
+	HeadRefName      string      `json:"head_ref_name,omitempty"`
+	HeadRefOID       string      `json:"head_ref_oid,omitempty"`
+	BaseRefName      string      `json:"base_ref_name,omitempty"`
+	Degraded         Degradation `json:"degraded,omitempty"`
+}
+
+type HandoffObservation struct {
+	Status   string                `json:"status"`
+	PR       PRObservation         `json:"pr"`
+	CI       RemoteCIObservation   `json:"ci"`
+	Sync     RemoteSyncObservation `json:"sync"`
+	Degraded []Degradation         `json:"degraded,omitempty"`
+}
+
+type RemoteCIObservation struct {
+	Status         string      `json:"status"`
+	EvidenceStatus string      `json:"evidence_status,omitempty"`
+	Checks         []CheckRun  `json:"checks,omitempty"`
+	Degraded       Degradation `json:"degraded,omitempty"`
+}
+
+type RemoteSyncObservation struct {
+	Status         string      `json:"status"`
+	EvidenceStatus string      `json:"evidence_status,omitempty"`
+	MergeState     string      `json:"merge_state,omitempty"`
+	Degraded       Degradation `json:"degraded,omitempty"`
+}
+
+type CheckRun struct {
+	Name     string `json:"name,omitempty"`
+	Workflow string `json:"workflow,omitempty"`
+	Bucket   string `json:"bucket,omitempty"`
+	State    string `json:"state,omitempty"`
+	Link     string `json:"link,omitempty"`
 }
 
 type Degradation struct {
@@ -113,7 +159,7 @@ func (s Service) ObserveRecordedPR(identity PRIdentity) PRObservation {
 		}
 	}
 
-	result := s.run("gh", "pr", "view", identity.URL, "--json", "url,number,state,headRefName,headRefOid,baseRefName")
+	result := s.run("gh", "pr", "view", identity.URL, "--json", "url,number,state,isDraft,mergeStateStatus,mergeable,reviewDecision,headRefName,headRefOid,baseRefName")
 	if result.Err != nil {
 		return PRObservation{
 			Status:   PRObservationUnavailable,
@@ -122,12 +168,16 @@ func (s Service) ObserveRecordedPR(identity PRIdentity) PRObservation {
 	}
 
 	var parsed struct {
-		URL         string `json:"url"`
-		Number      int    `json:"number"`
-		State       string `json:"state"`
-		HeadRefName string `json:"headRefName"`
-		HeadRefOID  string `json:"headRefOid"`
-		BaseRefName string `json:"baseRefName"`
+		URL              string `json:"url"`
+		Number           int    `json:"number"`
+		State            string `json:"state"`
+		IsDraft          bool   `json:"isDraft"`
+		MergeStateStatus string `json:"mergeStateStatus"`
+		Mergeable        string `json:"mergeable"`
+		ReviewDecision   string `json:"reviewDecision"`
+		HeadRefName      string `json:"headRefName"`
+		HeadRefOID       string `json:"headRefOid"`
+		BaseRefName      string `json:"baseRefName"`
 	}
 	if err := json.Unmarshal([]byte(result.Stdout), &parsed); err != nil {
 		return PRObservation{
@@ -140,14 +190,163 @@ func (s Service) ObserveRecordedPR(identity PRIdentity) PRObservation {
 	}
 
 	return PRObservation{
-		Status:      PRObservationAvailable,
-		URL:         parsed.URL,
-		Number:      parsed.Number,
-		State:       parsed.State,
-		HeadRefName: parsed.HeadRefName,
-		HeadRefOID:  parsed.HeadRefOID,
-		BaseRefName: parsed.BaseRefName,
+		Status:           PRObservationAvailable,
+		URL:              parsed.URL,
+		Number:           parsed.Number,
+		State:            parsed.State,
+		IsDraft:          parsed.IsDraft,
+		MergeStateStatus: parsed.MergeStateStatus,
+		Mergeable:        parsed.Mergeable,
+		ReviewDecision:   parsed.ReviewDecision,
+		HeadRefName:      parsed.HeadRefName,
+		HeadRefOID:       parsed.HeadRefOID,
+		BaseRefName:      parsed.BaseRefName,
 	}
+}
+
+func (s Service) ObserveHandoff(identity PRIdentity) HandoffObservation {
+	pr := s.ObserveRecordedPR(identity)
+	if pr.Status != PRObservationAvailable {
+		degradation := pr.Degraded
+		return HandoffObservation{
+			Status:   HandoffObservationUnavailable,
+			PR:       pr,
+			CI:       unavailableCI(degradation),
+			Sync:     unavailableSync(degradation),
+			Degraded: degradationList(degradation),
+		}
+	}
+
+	ci := s.observeChecks(identity.URL)
+	sync := classifyMergeState(pr.MergeStateStatus)
+	degraded := make([]Degradation, 0, 2)
+	if ci.Status == RemoteCIUnavailable {
+		degraded = append(degraded, ci.Degraded)
+	}
+	if sync.Status == RemoteSyncUnavailable {
+		degraded = append(degraded, sync.Degraded)
+	}
+
+	status := HandoffObservationAvailable
+	if len(degraded) > 0 {
+		status = HandoffObservationDegraded
+	}
+	return HandoffObservation{
+		Status:   status,
+		PR:       pr,
+		CI:       ci,
+		Sync:     sync,
+		Degraded: degraded,
+	}
+}
+
+func (s Service) observeChecks(prURL string) RemoteCIObservation {
+	result := s.run("gh", "pr", "checks", prURL, "--json", "name,workflow,bucket,state,link")
+	if result.Err != nil && strings.TrimSpace(result.Stdout) == "" {
+		return unavailableCI(classifyGhFailure(result))
+	}
+
+	var checks []CheckRun
+	if err := json.Unmarshal([]byte(result.Stdout), &checks); err != nil {
+		return unavailableCI(Degradation{
+			Code:    DegradedGhInvalidJSON,
+			Message: "gh returned invalid JSON for recorded PR checks",
+		})
+	}
+	if len(checks) == 0 {
+		return unavailableCI(Degradation{
+			Code:    DegradedChecksUnreadable,
+			Message: "recorded PR checks are unavailable",
+		})
+	}
+
+	status, ok := classifyChecks(checks)
+	if !ok {
+		return unavailableCI(Degradation{
+			Code:    DegradedChecksUnreadable,
+			Message: "recorded PR checks could not be classified",
+		})
+	}
+	return RemoteCIObservation{
+		Status:         RemoteCIAvailable,
+		EvidenceStatus: status,
+		Checks:         checks,
+	}
+}
+
+func classifyChecks(checks []CheckRun) (string, bool) {
+	hasPending := false
+	hasPassing := false
+	for _, check := range checks {
+		switch strings.ToLower(strings.TrimSpace(check.Bucket)) {
+		case "fail", "cancel":
+			return "failed", true
+		case "pending":
+			hasPending = true
+		case "pass":
+			hasPassing = true
+		case "skipping":
+		default:
+			return "", false
+		}
+	}
+	if hasPending {
+		return "pending", true
+	}
+	if hasPassing {
+		return "success", true
+	}
+	return "", false
+}
+
+func classifyMergeState(raw string) RemoteSyncObservation {
+	mergeState := strings.ToUpper(strings.TrimSpace(raw))
+	switch mergeState {
+	case "CLEAN":
+		return RemoteSyncObservation{
+			Status:         RemoteSyncAvailable,
+			EvidenceStatus: "fresh",
+			MergeState:     mergeState,
+		}
+	case "DIRTY":
+		return RemoteSyncObservation{
+			Status:         RemoteSyncAvailable,
+			EvidenceStatus: "conflicted",
+			MergeState:     mergeState,
+		}
+	case "BEHIND", "BLOCKED", "DRAFT", "HAS_HOOKS", "UNKNOWN", "UNSTABLE":
+		return RemoteSyncObservation{
+			Status:         RemoteSyncAvailable,
+			EvidenceStatus: "stale",
+			MergeState:     mergeState,
+		}
+	default:
+		return unavailableSync(Degradation{
+			Code:    DegradedMergeUnreadable,
+			Message: "recorded PR merge state is unavailable",
+		})
+	}
+}
+
+func unavailableCI(degradation Degradation) RemoteCIObservation {
+	return RemoteCIObservation{
+		Status:   RemoteCIUnavailable,
+		Degraded: degradation,
+	}
+}
+
+func unavailableSync(degradation Degradation) RemoteSyncObservation {
+	return RemoteSyncObservation{
+		Status:   RemoteSyncUnavailable,
+		Degraded: degradation,
+	}
+}
+
+func degradationList(degradation Degradation) []Degradation {
+	if degradation.Code == "" {
+		return nil
+	}
+	return []Degradation{degradation}
 }
 
 func ParseRecordedPRURL(raw string) PRIdentity {
