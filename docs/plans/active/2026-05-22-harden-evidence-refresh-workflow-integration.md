@@ -90,7 +90,7 @@ recorded before it runs `harness status`.
 
 ### Step 1: Bound remote refresh reads
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -141,8 +141,8 @@ held-pipe cases, and added focused regression coverage. Validation:
 
 `review-001-delta` found timeout reads with non-empty stdout could still write
 CI evidence, the default runner lacked `WaitDelay`, and tests missed the
-non-empty stdout path. The repair addresses all three findings; follow-up
-delta review is pending.
+non-empty stdout path. The repair addressed all three findings, and
+`review-002-delta` passed clean.
 
 ### Step 2: Return refreshed statuses from the command result
 
