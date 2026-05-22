@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -39,6 +41,7 @@ const (
 	DegradedAmbiguousRemote   = "ambiguous_remote"
 	DegradedGhMissing         = "gh_missing"
 	DegradedGhAuthUnavailable = "gh_auth_unavailable"
+	DegradedGhTimeout         = "gh_timeout"
 	DegradedPRUnreadable      = "pr_unreadable"
 	DegradedChecksUnreadable  = "checks_unreadable"
 	DegradedMergeUnreadable   = "merge_unreadable"
@@ -47,6 +50,7 @@ const (
 )
 
 var scpLikeGitHubRemote = regexp.MustCompile(`^git@github\.com:([^/]+)/(.+?)(?:\.git)?$`)
+var defaultCommandTimeout = 30 * time.Second
 
 type Service struct {
 	Workdir    string
@@ -532,11 +536,20 @@ func (s Service) run(name string, args ...string) CommandResult {
 	if s.RunCommand != nil {
 		return s.RunCommand(name, args...)
 	}
-	cmd := exec.Command(name, args...)
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	if defaultCommandTimeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, defaultCommandTimeout)
+		defer cancel()
+	}
+	cmd := exec.CommandContext(ctx, name, args...)
 	output, err := cmd.Output()
 	stderr := ""
 	if exitErr := new(exec.ExitError); errors.As(err, &exitErr) {
 		stderr = string(exitErr.Stderr)
+	}
+	if ctx.Err() != nil {
+		err = ctx.Err()
 	}
 	return CommandResult{
 		Stdout: string(output),
@@ -546,6 +559,12 @@ func (s Service) run(name string, args ...string) CommandResult {
 }
 
 func classifyGhFailure(result CommandResult) Degradation {
+	if errors.Is(result.Err, context.DeadlineExceeded) {
+		return Degradation{
+			Code:    DegradedGhTimeout,
+			Message: "gh timed out while observing the recorded PR",
+		}
+	}
 	text := strings.ToLower(result.Stderr + "\n" + result.Err.Error())
 	switch {
 	case errors.Is(result.Err, exec.ErrNotFound):

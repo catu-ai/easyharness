@@ -1,11 +1,15 @@
 package remote
 
 import (
+	"context"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestObserveRecordedPRUsesGhView(t *testing.T) {
@@ -272,6 +276,44 @@ func TestObserveRecordedPRDegradesWhenGhMissing(t *testing.T) {
 
 	if observation.Status != PRObservationUnavailable || observation.Degraded.Code != DegradedGhMissing {
 		t.Fatalf("expected missing gh degradation, got %#v", observation)
+	}
+}
+
+func TestDefaultRunnerTimesOutGhReads(t *testing.T) {
+	oldTimeout := defaultCommandTimeout
+	defaultCommandTimeout = 20 * time.Millisecond
+	defer func() {
+		defaultCommandTimeout = oldTimeout
+	}()
+
+	scriptPath := filepath.Join(t.TempDir(), "slow-command")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nsleep 1\n"), 0o755); err != nil {
+		t.Fatalf("write slow command: %v", err)
+	}
+
+	start := time.Now()
+	result := (Service{}).run(scriptPath)
+	elapsed := time.Since(start)
+
+	if !errors.Is(result.Err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline exceeded, got %#v", result)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("expected command to be bounded, ran for %s", elapsed)
+	}
+}
+
+func TestObserveRecordedPRDegradesForGhTimeout(t *testing.T) {
+	svc := Service{
+		RunCommand: func(name string, args ...string) CommandResult {
+			return CommandResult{Err: context.DeadlineExceeded}
+		},
+	}
+
+	observation := svc.ObserveRecordedPR(ParseRecordedPRURL("https://github.com/catu-ai/easyharness/pull/203"))
+
+	if observation.Status != PRObservationUnavailable || observation.Degraded.Code != DegradedGhTimeout {
+		t.Fatalf("expected gh timeout degradation, got %#v", observation)
 	}
 }
 

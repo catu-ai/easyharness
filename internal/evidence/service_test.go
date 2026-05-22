@@ -1,6 +1,7 @@
 package evidence_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -189,6 +190,91 @@ func TestRefreshWritesOnlyClearDomainEvidence(t *testing.T) {
 	}
 	if sync, err := evidence.LoadLatestSync(root, "2026-03-21-evidence-plan", 1); err != nil || sync != nil {
 		t.Fatalf("expected no sync evidence, got %#v err=%v", sync, err)
+	}
+}
+
+func TestRefreshWritesNoEvidenceWhenPRViewTimesOut(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+		t.Fatalf("seed publish evidence: %#v", result)
+	}
+
+	result := evidence.Service{
+		Workdir: root,
+		RunCommand: func(name string, args ...string) remote.CommandResult {
+			if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
+				return remote.CommandResult{Err: context.DeadlineExceeded}
+			}
+			return remote.CommandResult{Stdout: `[]`}
+		},
+	}.Refresh()
+
+	if result.OK {
+		t.Fatalf("expected timeout refresh failure, got %#v", result)
+	}
+	if len(result.Warnings) == 0 || !strings.Contains(result.Warnings[0], "timed out") {
+		t.Fatalf("expected timeout warning, got %#v", result.Warnings)
+	}
+	if ci, err := evidence.LoadLatestCI(root, "2026-03-21-evidence-plan", 1); err != nil || ci != nil {
+		t.Fatalf("expected no CI evidence, got %#v err=%v", ci, err)
+	}
+	if sync, err := evidence.LoadLatestSync(root, "2026-03-21-evidence-plan", 1); err != nil || sync != nil {
+		t.Fatalf("expected no sync evidence, got %#v err=%v", sync, err)
+	}
+}
+
+func TestRefreshWritesSyncOnlyWhenChecksTimeOut(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+		t.Fatalf("seed publish evidence: %#v", result)
+	}
+
+	result := evidence.Service{
+		Workdir: root,
+		RunCommand: func(name string, args ...string) remote.CommandResult {
+			if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
+				return remote.CommandResult{Stdout: `{
+					"url":"https://github.com/catu-ai/easyharness/pull/99",
+					"number":99,
+					"state":"OPEN",
+					"isDraft":false,
+					"mergeStateStatus":"CLEAN",
+					"mergeable":"MERGEABLE",
+					"reviewDecision":"APPROVED",
+					"headRefName":"codex/test",
+					"headRefOid":"abc123",
+					"baseRefName":"main"
+				}`}
+			}
+			if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
+				return remote.CommandResult{Err: context.DeadlineExceeded}
+			}
+			return remote.CommandResult{}
+		},
+	}.Refresh()
+
+	if !result.OK {
+		t.Fatalf("expected partial refresh success, got %#v", result)
+	}
+	if result.Artifacts == nil || result.Artifacts.CIRecordID != "" || result.Artifacts.SyncRecordID != "sync-001" {
+		t.Fatalf("unexpected partial refresh artifacts: %#v", result.Artifacts)
+	}
+	if len(result.Warnings) == 0 || !strings.Contains(result.Warnings[0], "timed out") {
+		t.Fatalf("expected timeout warning, got %#v", result.Warnings)
+	}
+	if ci, err := evidence.LoadLatestCI(root, "2026-03-21-evidence-plan", 1); err != nil || ci != nil {
+		t.Fatalf("expected no CI evidence, got %#v err=%v", ci, err)
+	}
+	if sync, err := evidence.LoadLatestSync(root, "2026-03-21-evidence-plan", 1); err != nil || sync == nil || sync.Status != "fresh" {
+		t.Fatalf("expected fresh sync evidence, got %#v err=%v", sync, err)
 	}
 }
 
