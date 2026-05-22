@@ -207,7 +207,7 @@ omitting unwritten status keys. The repair added that coverage; follow-up
 
 ### Step 3: Refresh controller guidance
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -255,7 +255,7 @@ unavailable refresh paths. Validation: `scripts/sync-bootstrap-assets --check`.
 
 `review-005-delta` found the managed closeout/archive checklist still taught
 manual evidence submit as the ordinary handoff path. The repair aligned that
-checklist with refresh-first guidance; follow-up delta review is pending.
+checklist with refresh-first guidance, and `review-006-delta` passed clean.
 
 ## Validation Strategy
 
