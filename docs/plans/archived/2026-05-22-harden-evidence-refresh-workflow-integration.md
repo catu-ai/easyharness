@@ -308,6 +308,8 @@ checklist with refresh-first guidance, and `review-006-delta` passed clean.
 
 ## Archive Summary
 
+- Archived At: 2026-05-23T00:46:59+08:00
+- Revision: 1
 - PR: NONE. Create or update the PR after committing and pushing this archived
   candidate.
 - Ready: The tracked steps are complete, acceptance criteria are checked,
