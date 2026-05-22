@@ -193,9 +193,17 @@ the generated schema artifacts. Validation:
 `scripts/sync-contract-artifacts --check`;
 `go test ./internal/evidence ./internal/cli ./internal/contractsync -count=1`.
 
+After `review-003-delta`, added CLI coverage proving partial refresh JSON
+omits the unwritten status key. Validation:
+`go test ./internal/cli -run 'TestEvidenceRefreshCommand(PartialOutputOmitsUnwrittenStatus|WritesEvidenceAndUpdatesStatus|MapsNonSuccessRemoteStates)' -count=1`;
+`scripts/sync-contract-artifacts --check`;
+`go test ./internal/evidence ./internal/cli ./internal/contractsync -count=1`.
+
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-003-delta` found a missing CLI assertion for partial refresh JSON
+omitting unwritten status keys. The repair added that coverage; follow-up
+delta review is pending.
 
 ### Step 3: Refresh controller guidance
 
