@@ -37,6 +37,10 @@ type EvidenceRefreshResult struct {
 	// Artifacts points to the evidence records created by the command.
 	Artifacts *EvidenceRefreshArtifacts `json:"artifacts,omitempty"`
 
+	// Refreshed reports the machine-readable evidence statuses written by this
+	// refresh.
+	Refreshed *EvidenceRefreshStatuses `json:"refreshed,omitempty"`
+
 	// NextAction lists the most relevant follow-up steps in priority order.
 	NextAction []NextAction `json:"next_actions"`
 
@@ -77,6 +81,16 @@ type EvidenceRefreshArtifacts struct {
 	// SyncRecordID is the created sync evidence record identifier when sync was
 	// refreshed.
 	SyncRecordID string `json:"sync_record_id,omitempty"`
+}
+
+// EvidenceRefreshStatuses lists the compact evidence statuses written by
+// `harness evidence refresh`.
+type EvidenceRefreshStatuses struct {
+	// CIStatus is the CI evidence status written by this refresh.
+	CIStatus string `json:"ci_status,omitempty"`
+
+	// SyncStatus is the sync evidence status written by this refresh.
+	SyncStatus string `json:"sync_status,omitempty"`
 }
 
 // EvidenceCIInput is the JSON input consumed by `harness evidence submit --kind

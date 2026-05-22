@@ -184,7 +184,14 @@ PR metadata.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added `refreshed` to the `harness evidence refresh` result contract with
+compact `ci_status` and `sync_status` fields for evidence domains written by
+the refresh. Wired service and CLI outputs to populate the statuses for full
+and partial refreshes while omitting the object on failed refreshes. Refreshed
+the generated schema artifacts. Validation:
+`go test ./internal/evidence ./internal/cli -run 'TestRefresh|TestEvidenceRefresh'`;
+`scripts/sync-contract-artifacts --check`;
+`go test ./internal/evidence ./internal/cli ./internal/contractsync -count=1`.
 
 #### Review Notes
 

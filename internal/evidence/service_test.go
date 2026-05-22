@@ -80,6 +80,9 @@ func TestRefreshWritesCIAndSyncEvidenceFromRecordedPR(t *testing.T) {
 	if refresh.Artifacts == nil || refresh.Artifacts.CIRecordID != "ci-001" || refresh.Artifacts.SyncRecordID != "sync-001" {
 		t.Fatalf("unexpected refresh artifacts: %#v", refresh.Artifacts)
 	}
+	if refresh.Refreshed == nil || refresh.Refreshed.CIStatus != "success" || refresh.Refreshed.SyncStatus != "fresh" {
+		t.Fatalf("unexpected refreshed statuses: %#v", refresh.Refreshed)
+	}
 	ci, err := evidence.LoadLatestCI(root, "2026-03-21-evidence-plan", 1)
 	if err != nil {
 		t.Fatalf("load CI: %v", err)
@@ -182,6 +185,9 @@ func TestRefreshWritesOnlyClearDomainEvidence(t *testing.T) {
 	if result.Artifacts == nil || result.Artifacts.CIRecordID != "ci-001" || result.Artifacts.SyncRecordID != "" {
 		t.Fatalf("unexpected partial refresh artifacts: %#v", result.Artifacts)
 	}
+	if result.Refreshed == nil || result.Refreshed.CIStatus != "success" || result.Refreshed.SyncStatus != "" {
+		t.Fatalf("unexpected partial refreshed statuses: %#v", result.Refreshed)
+	}
 	if len(result.Warnings) == 0 {
 		t.Fatalf("expected degraded sync warning, got %#v", result)
 	}
@@ -215,6 +221,9 @@ func TestRefreshWritesNoEvidenceWhenPRViewTimesOut(t *testing.T) {
 
 	if result.OK {
 		t.Fatalf("expected timeout refresh failure, got %#v", result)
+	}
+	if result.Refreshed != nil {
+		t.Fatalf("failed refresh should not report refreshed statuses, got %#v", result.Refreshed)
 	}
 	if len(result.Warnings) == 0 || !strings.Contains(result.Warnings[0], "timed out") {
 		t.Fatalf("expected timeout warning, got %#v", result.Warnings)
@@ -269,6 +278,9 @@ func TestRefreshWritesSyncOnlyWhenChecksTimeOut(t *testing.T) {
 	}
 	if result.Artifacts == nil || result.Artifacts.CIRecordID != "" || result.Artifacts.SyncRecordID != "sync-001" {
 		t.Fatalf("unexpected partial refresh artifacts: %#v", result.Artifacts)
+	}
+	if result.Refreshed == nil || result.Refreshed.CIStatus != "" || result.Refreshed.SyncStatus != "fresh" {
+		t.Fatalf("unexpected partial refreshed statuses: %#v", result.Refreshed)
 	}
 	if len(result.Warnings) == 0 || !strings.Contains(result.Warnings[0], "timed out") {
 		t.Fatalf("expected timeout warning, got %#v", result.Warnings)

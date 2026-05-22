@@ -1151,6 +1151,10 @@ func TestEvidenceRefreshCommandWritesEvidenceAndUpdatesStatus(t *testing.T) {
 	if payload["command"] != "evidence refresh" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
+	refreshed, ok := payload["refreshed"].(map[string]any)
+	if !ok || refreshed["ci_status"] != "success" || refreshed["sync_status"] != "fresh" {
+		t.Fatalf("expected refreshed statuses in payload, got %#v", payload["refreshed"])
+	}
 	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK || statusResult.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("expected refresh to satisfy merge-ready evidence, got %#v", statusResult)
@@ -1320,6 +1324,18 @@ func TestEvidenceRefreshCommandMapsNonSuccessRemoteStates(t *testing.T) {
 
 			if exitCode := app.Run([]string{"evidence", "refresh"}); exitCode != 0 {
 				t.Fatalf("expected refresh success, got %d: %s", exitCode, stderr.String())
+			}
+			var payload struct {
+				Refreshed *struct {
+					CIStatus   string `json:"ci_status,omitempty"`
+					SyncStatus string `json:"sync_status,omitempty"`
+				} `json:"refreshed,omitempty"`
+			}
+			if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+				t.Fatalf("expected JSON evidence refresh output: %v\n%s", err, stdout.String())
+			}
+			if payload.Refreshed == nil || payload.Refreshed.CIStatus != tt.wantCI || payload.Refreshed.SyncStatus != tt.wantSync {
+				t.Fatalf("expected refreshed statuses %q/%q, got %#v", tt.wantCI, tt.wantSync, payload.Refreshed)
 			}
 			ci, err := evidence.LoadLatestCI(root, "2026-03-18-landed-plan", 1)
 			if err != nil || ci == nil || ci.Status != tt.wantCI {

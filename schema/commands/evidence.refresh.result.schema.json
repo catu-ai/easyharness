@@ -66,6 +66,10 @@
           "$ref": "#/$defs/EvidenceRefreshArtifacts",
           "description": "Artifacts points to the evidence records created by the command."
         },
+        "refreshed": {
+          "$ref": "#/$defs/EvidenceRefreshStatuses",
+          "description": "Refreshed reports the machine-readable evidence statuses written by this refresh."
+        },
         "next_actions": {
           "oneOf": [
             {
@@ -105,6 +109,21 @@
         "next_actions"
       ],
       "description": "EvidenceRefreshResult is the JSON result returned by `harness evidence refresh`."
+    },
+    "EvidenceRefreshStatuses": {
+      "properties": {
+        "ci_status": {
+          "type": "string",
+          "description": "CIStatus is the CI evidence status written by this refresh."
+        },
+        "sync_status": {
+          "type": "string",
+          "description": "SyncStatus is the sync evidence status written by this refresh."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "EvidenceRefreshStatuses lists the compact evidence statuses written by `harness evidence refresh`."
     },
     "NextAction": {
       "properties": {
