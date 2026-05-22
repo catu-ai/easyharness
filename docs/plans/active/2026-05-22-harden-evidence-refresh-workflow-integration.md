@@ -64,19 +64,19 @@ recorded before it runs `harness status`.
 
 ## Acceptance Criteria
 
-- [ ] `gh pr view` and `gh pr checks` calls used by refresh have bounded
+- [x] `gh pr view` and `gh pr checks` calls used by refresh have bounded
       runtime in the default command runner.
-- [ ] Timeout and other remote read failures degrade cleanly and do not write
+- [x] Timeout and other remote read failures degrade cleanly and do not write
       misleading CI or sync evidence.
-- [ ] Successful and partial refresh results expose machine-readable status
+- [x] Successful and partial refresh results expose machine-readable status
       details for the domains actually written, without requiring agents to
       parse summary text.
-- [ ] The public refresh result schema and contract artifacts match the new
+- [x] The public refresh result schema and contract artifacts match the new
       output shape.
-- [ ] `harness-execute` publish/CI/sync guidance names refresh as the ordinary
+- [x] `harness-execute` publish/CI/sync guidance names refresh as the ordinary
       first path after publish evidence records a PR URL, with `harness status`
       next and manual submit as fallback.
-- [ ] Focused tests cover success, partial refresh, timeout degradation, and
+- [x] Focused tests cover success, partial refresh, timeout degradation, and
       no-evidence timeout/failure behavior.
 
 ## Deferred Items
@@ -283,25 +283,60 @@ checklist with refresh-first guidance, and `review-006-delta` passed clean.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `go test ./internal/remote ./internal/evidence ./internal/cli ./internal/contractsync -count=1`
+  passed before finalize review.
+- `scripts/sync-contract-artifacts --check` passed.
+- `scripts/sync-bootstrap-assets --check` passed.
+- `harness plan lint docs/plans/active/2026-05-22-harden-evidence-refresh-workflow-integration.md`
+  passed.
+- `review-007-full` passed clean across correctness, contract/tests, and
+  docs-consistency reviewer slots.
+- Controller note: `go test ./... -count=1` was attempted after finalize
+  review and manually stopped after a long quiet smoke tail; it is not counted
+  as archive evidence.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step 1 review: `review-001-delta` requested timeout repairs for non-empty
+  stdout, `WaitDelay`, and coverage; `review-002-delta` passed after repair.
+- Step 2 review: `review-003-delta` requested CLI partial-output coverage;
+  `review-004-delta` passed after repair.
+- Step 3 review: `review-005-delta` requested closeout/archive guidance
+  alignment; `review-006-delta` passed after repair.
+- Finalize review: `review-007-full` passed with no blocking or non-blocking
+  findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: NONE. Create or update the PR after committing and pushing this archived
+  candidate.
+- Ready: The tracked steps are complete, acceptance criteria are checked,
+  focused validation and sync checks passed, and finalize review passed clean.
+- Merge Handoff: After archive, commit the archive move and summary updates,
+  push the branch, open or update the PR, record publish evidence with the PR
+  URL, run `harness evidence refresh`, run `harness status`, and use manual
+  evidence submit fallback only for degraded or unavailable refresh domains.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Bounded default `gh` reads used by evidence refresh with timeout and
+  `WaitDelay` handling.
+- Added `gh_timeout` degradation classification and prevented timeout results
+  from writing misleading evidence, including timed-out checks with stdout.
+- Added compact `refreshed.ci_status` and `refreshed.sync_status` output for
+  evidence domains written by `harness evidence refresh`.
+- Regenerated the public evidence refresh result schema.
+- Updated managed controller guidance so publish/CI/sync and archive handoff
+  flows prefer `harness evidence refresh`, then `harness status`, with manual
+  submit as fallback.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Richer remote handoff facts in `harness status`; that remains #200.
+- Broader controller documentation and skill updates beyond this handoff
+  guidance; that remains #202.
 
 ### Follow-Up Issues
 
