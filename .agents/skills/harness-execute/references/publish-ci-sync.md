@@ -13,26 +13,35 @@ current step and eventually into archived-candidate handoff.
 6. decide whether the repair needs delta review or full review
 
 For archived candidates, use the same sequence as post-archive handoff work,
-but record the observed external facts through `harness evidence submit`:
+but record the observed external facts through harness-owned evidence:
 
 1. commit the archive move
 2. push the branch
 3. open or update the PR
 4. run `harness evidence submit --kind publish` once the PR or handoff target
    exists
-5. wait for post-archive CI and record updates with
-   `harness evidence submit --kind ci`
-6. refresh remote readiness and record it with
-   `harness evidence submit --kind sync`
-7. once those remote facts exist, run the `Pre-Land` scan from
+5. when publish evidence records a supported PR URL, run
+   `harness evidence refresh` to read CI and sync facts from that recorded PR
+6. run `harness status` after refresh so the local summary and next actions
+   reflect the evidence that was just written
+7. if refresh degrades, is unavailable, or publish evidence lacks a recorded
+   PR URL, use manual
+   `harness evidence submit --kind publish|ci|sync --input <json>` for the
+   affected evidence domains
+8. once those remote facts exist, run the `Pre-Land` scan from
    [controller-truth-surfaces.md](controller-truth-surfaces.md) before treating
    the archived candidate as genuinely merge-ready
-8. only then treat the candidate as ready to enter
+9. only then treat the candidate as ready to enter
    `execution/finalize/await_merge`
 
 ## Remote Freshness
 
 Refresh remote state before merge-sensitive handoff work.
+
+Use `harness evidence refresh` as the ordinary refresh path when publish
+evidence has a recorded PR URL. Direct `gh` inspection is a diagnostic fallback
+for confusing or degraded refresh results, not the controller's first path for
+routine CI/sync evidence refresh.
 
 If remote changes introduce real conflict work:
 

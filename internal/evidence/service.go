@@ -33,6 +33,7 @@ type Result = contracts.EvidenceSubmitResult
 type RefreshResult = contracts.EvidenceRefreshResult
 type Artifacts = contracts.EvidenceArtifacts
 type RefreshArtifacts = contracts.EvidenceRefreshArtifacts
+type RefreshStatuses = contracts.EvidenceRefreshStatuses
 type NextAction = contracts.NextAction
 type CommandError = contracts.ErrorDetail
 type CIInput = contracts.EvidenceCIInput
@@ -186,6 +187,7 @@ func (s Service) Refresh() RefreshResult {
 		PlanPath: relPlanPath,
 		PRURL:    identity.URL,
 	}
+	refreshed := &RefreshStatuses{}
 	warnings := make([]string, 0, 2)
 	rollbackPaths := make([]string, 0, 2)
 	var ciRecord *CIRecord
@@ -242,6 +244,7 @@ func (s Service) Refresh() RefreshResult {
 			return refreshErrorResult("Unable to persist CI evidence refresh.", []CommandError{{Path: "ci.record", Message: err.Error()}})
 		}
 		artifacts.CIRecordID = ciRecord.RecordID
+		refreshed.CIStatus = ciRecord.Status
 		rollbackPaths = append(rollbackPaths, ciRecordPath)
 	}
 	if syncRecord != nil {
@@ -253,6 +256,7 @@ func (s Service) Refresh() RefreshResult {
 			return refreshErrorResult("Unable to persist sync evidence refresh.", issues)
 		}
 		artifacts.SyncRecordID = syncRecord.RecordID
+		refreshed.SyncStatus = syncRecord.Status
 		rollbackPaths = append(rollbackPaths, syncRecordPath)
 	}
 
@@ -285,6 +289,7 @@ func (s Service) Refresh() RefreshResult {
 		Command:    "evidence refresh",
 		Summary:    refreshSummary(artifacts),
 		Artifacts:  artifacts,
+		Refreshed:  refreshed,
 		Warnings:   warnings,
 		NextAction: nextActions,
 	}

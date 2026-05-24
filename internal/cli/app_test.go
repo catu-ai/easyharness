@@ -1151,12 +1151,70 @@ func TestEvidenceRefreshCommandWritesEvidenceAndUpdatesStatus(t *testing.T) {
 	if payload["command"] != "evidence refresh" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
+	refreshed, ok := payload["refreshed"].(map[string]any)
+	if !ok || refreshed["ci_status"] != "success" || refreshed["sync_status"] != "fresh" {
+		t.Fatalf("expected refreshed statuses in payload, got %#v", payload["refreshed"])
+	}
 	statusResult := status.Service{Workdir: root}.Snapshot()
 	if !statusResult.OK || statusResult.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("expected refresh to satisfy merge-ready evidence, got %#v", statusResult)
 	}
 	assertLastTimelineEventCommand(t, root, "evidence refresh")
 	assertWatchlistContainsWorkspace(t, home, root)
+}
+
+func TestEvidenceRefreshCommandPartialOutputOmitsUnwrittenStatus(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.RunCommand = func(name string, args ...string) remote.CommandResult {
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
+			return remote.CommandResult{Stdout: `{
+				"url":"https://github.com/catu-ai/easyharness/pull/99",
+				"number":99,
+				"state":"OPEN",
+				"isDraft":false,
+				"mergeStateStatus":"CLEAN",
+				"mergeable":"MERGEABLE",
+				"reviewDecision":"APPROVED",
+				"headRefName":"codex/test",
+				"headRefOid":"abc123",
+				"baseRefName":"main"
+			}`}
+		}
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
+			return remote.CommandResult{Err: context.DeadlineExceeded}
+		}
+		return remote.CommandResult{}
+	}
+
+	writeArchivedPlanForCLI(t, root, "docs/plans/archived/2026-03-18-landed-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-landed-plan.md"); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+		t.Fatalf("seed publish evidence: %#v", result)
+	}
+
+	if exitCode := app.Run([]string{"evidence", "refresh"}); exitCode != 0 {
+		t.Fatalf("expected partial refresh success, got %d: %s", exitCode, stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON evidence refresh output: %v\n%s", err, stdout.String())
+	}
+	refreshed, ok := payload["refreshed"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected refreshed object, got %#v", payload["refreshed"])
+	}
+	if _, exists := refreshed["ci_status"]; exists {
+		t.Fatalf("partial refresh should omit unwritten ci_status, got %#v", refreshed)
+	}
+	if refreshed["sync_status"] != "fresh" {
+		t.Fatalf("expected fresh sync status, got %#v", refreshed)
+	}
 }
 
 func TestEvidenceRefreshCommandDegradesWithoutRecordedPR(t *testing.T) {
@@ -1320,6 +1378,18 @@ func TestEvidenceRefreshCommandMapsNonSuccessRemoteStates(t *testing.T) {
 
 			if exitCode := app.Run([]string{"evidence", "refresh"}); exitCode != 0 {
 				t.Fatalf("expected refresh success, got %d: %s", exitCode, stderr.String())
+			}
+			var payload struct {
+				Refreshed *struct {
+					CIStatus   string `json:"ci_status,omitempty"`
+					SyncStatus string `json:"sync_status,omitempty"`
+				} `json:"refreshed,omitempty"`
+			}
+			if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+				t.Fatalf("expected JSON evidence refresh output: %v\n%s", err, stdout.String())
+			}
+			if payload.Refreshed == nil || payload.Refreshed.CIStatus != tt.wantCI || payload.Refreshed.SyncStatus != tt.wantSync {
+				t.Fatalf("expected refreshed statuses %q/%q, got %#v", tt.wantCI, tt.wantSync, payload.Refreshed)
 			}
 			ci, err := evidence.LoadLatestCI(root, "2026-03-18-landed-plan", 1)
 			if err != nil || ci == nil || ci.Status != tt.wantCI {

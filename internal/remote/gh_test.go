@@ -1,11 +1,15 @@
 package remote
 
 import (
+	"context"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestObserveRecordedPRUsesGhView(t *testing.T) {
@@ -272,6 +276,95 @@ func TestObserveRecordedPRDegradesWhenGhMissing(t *testing.T) {
 
 	if observation.Status != PRObservationUnavailable || observation.Degraded.Code != DegradedGhMissing {
 		t.Fatalf("expected missing gh degradation, got %#v", observation)
+	}
+}
+
+func TestDefaultRunnerTimesOutGhReads(t *testing.T) {
+	oldTimeout := defaultCommandTimeout
+	oldWaitDelay := defaultCommandWaitDelay
+	defaultCommandTimeout = 20 * time.Millisecond
+	defaultCommandWaitDelay = 20 * time.Millisecond
+	defer func() {
+		defaultCommandTimeout = oldTimeout
+		defaultCommandWaitDelay = oldWaitDelay
+	}()
+
+	scriptPath := filepath.Join(t.TempDir(), "slow-command")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nsleep 1\n"), 0o755); err != nil {
+		t.Fatalf("write slow command: %v", err)
+	}
+
+	start := time.Now()
+	result := (Service{}).run(scriptPath)
+	elapsed := time.Since(start)
+
+	if !errors.Is(result.Err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline exceeded, got %#v", result)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("expected command to be bounded, ran for %s", elapsed)
+	}
+}
+
+func TestDefaultRunnerBoundsHeldPipesAfterCommandExit(t *testing.T) {
+	oldTimeout := defaultCommandTimeout
+	oldWaitDelay := defaultCommandWaitDelay
+	defaultCommandTimeout = 20 * time.Millisecond
+	defaultCommandWaitDelay = 20 * time.Millisecond
+	defer func() {
+		defaultCommandTimeout = oldTimeout
+		defaultCommandWaitDelay = oldWaitDelay
+	}()
+
+	scriptPath := filepath.Join(t.TempDir(), "held-pipe-command")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\n(sleep 1) &\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write held-pipe command: %v", err)
+	}
+
+	start := time.Now()
+	result := (Service{}).run(scriptPath)
+	elapsed := time.Since(start)
+
+	if !errors.Is(result.Err, context.DeadlineExceeded) && !errors.Is(result.Err, exec.ErrWaitDelay) {
+		t.Fatalf("expected bounded timeout or wait delay error, got %#v", result)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("expected held pipes to be bounded, ran for %s", elapsed)
+	}
+}
+
+func TestObserveRecordedPRDegradesForGhTimeout(t *testing.T) {
+	svc := Service{
+		RunCommand: func(name string, args ...string) CommandResult {
+			return CommandResult{Err: context.DeadlineExceeded}
+		},
+	}
+
+	observation := svc.ObserveRecordedPR(ParseRecordedPRURL("https://github.com/catu-ai/easyharness/pull/203"))
+
+	if observation.Status != PRObservationUnavailable || observation.Degraded.Code != DegradedGhTimeout {
+		t.Fatalf("expected gh timeout degradation, got %#v", observation)
+	}
+}
+
+func TestObserveHandoffDegradesTimedOutChecksEvenWithStdout(t *testing.T) {
+	svc := Service{RunCommand: func(name string, args ...string) CommandResult {
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
+			return CommandResult{Stdout: `{"mergeStateStatus":"CLEAN"}`}
+		}
+		return CommandResult{
+			Stdout: `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
+			Err:    context.DeadlineExceeded,
+		}
+	}}
+
+	observation := svc.ObserveHandoff(ParseRecordedPRURL("https://github.com/catu-ai/easyharness/pull/199"))
+
+	if observation.CI.Status != RemoteCIUnavailable || observation.CI.Degraded.Code != DegradedGhTimeout {
+		t.Fatalf("expected timeout checks degradation, got %#v", observation.CI)
+	}
+	if observation.Sync.Status != RemoteSyncAvailable || observation.Sync.EvidenceStatus != "fresh" {
+		t.Fatalf("expected sync to remain refreshable, got %#v", observation.Sync)
 	}
 }
 
