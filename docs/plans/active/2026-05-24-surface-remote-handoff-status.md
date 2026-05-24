@@ -153,7 +153,7 @@ Follow-up `review-002-delta` passed with zero findings.
 
 ### Step 2: Wire read-only remote observation into status
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -205,7 +205,13 @@ pending or failed checks and stale or conflicted sync. Validation:
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-003-delta` found two important gaps: await-merge status observed live
+remote facts but did not include remote-specific wait/repair guidance, and the
+tests did not cover remote observation when durable local evidence already
+placed status in `execution/finalize/await_merge`. Fixed both by prepending
+remote handoff guidance in the await-merge action list and adding
+`TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode`.
+Follow-up `review-004-delta` passed with zero findings.
 
 ### Step 3: Align handoff guidance and full validation
 
