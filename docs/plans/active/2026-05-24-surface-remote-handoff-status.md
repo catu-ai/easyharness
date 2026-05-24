@@ -215,7 +215,7 @@ Follow-up `review-004-delta` passed with zero findings.
 
 ### Step 3: Align handoff guidance and full validation
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -265,7 +265,10 @@ evidence. Validation: `harness plan lint docs/plans/active/2026-05-24-surface-re
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-005-delta` found that Step 3 closeout omitted the required
+`harness plan lint` validation from its execution notes. Fixed the validation
+record, reran plan lint, and follow-up `review-006-delta` passed with zero
+findings.
 
 ## Validation Strategy
 
