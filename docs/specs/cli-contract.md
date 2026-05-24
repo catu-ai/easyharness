@@ -501,11 +501,20 @@ Contract:
   observation should anchor on that PR URL; when it does not, status should
   steer the controller to open or update the PR and record publish evidence
   rather than guessing a PR from the current branch
-- keep live remote observation optional and read-only: `gh` may be used to
-  observe a recorded PR URL when available, but missing `gh`, missing auth,
-  network/API failure, an unreadable PR, or mismatched local git context should
-  degrade to warnings or manual evidence guidance instead of failing local
-  workflow state
+- for archived publish and await-merge handoff states, default to live
+  read-only observation of the recorded PR URL when that URL is available and
+  supported
+- surface live remote observation under `facts.remote_handoff` as a
+  non-authoritative hint containing normalized PR, CI/check, sync/merge, and
+  degraded observation facts
+- keep live remote observation read-only and non-authoritative: `gh` may be
+  used to observe a recorded PR URL when available, but missing `gh`, missing
+  auth, network/API failure, an unreadable PR, or mismatched local git context
+  should degrade to warnings or manual evidence guidance instead of failing
+  local workflow state
+- never advance `state.current_node` based on live remote observation alone;
+  publish and await-merge progression remains driven by durable local publish,
+  CI, and sync evidence
 - never append evidence from `harness status`; automatic remote-to-evidence
   updates belong to the explicit `harness evidence refresh` command
 - when recorded publish evidence has a PR URL but CI or sync evidence is
@@ -822,12 +831,16 @@ trigger branch-based PR discovery. If no PR URL has been recorded, the
 controller should continue the existing manual publish path and record evidence
 once the PR or handoff target exists.
 
-When a future status implementation observes a recorded PR through `gh`, it
-must treat `gh` as an optional read-through provider rather than a hard
-workflow dependency. Missing `gh`, missing auth, network or API errors, invalid
-provider output, and unreadable PRs should produce degraded remote facts or
+When `harness status` observes a recorded PR through `gh`, it must treat `gh`
+as an optional read-through provider rather than a hard workflow dependency.
+Missing `gh`, missing auth, network or API errors, invalid provider output, and
+unreadable PRs should produce degraded `facts.remote_handoff` output or
 next-action guidance while preserving the local status result and the manual
-`harness evidence submit --kind publish|ci|sync` fallback.
+`harness evidence submit --kind publish|ci|sync` fallback. Live remote
+observation is useful for explaining what to do next, but it is not durable
+evidence: status must not enter `execution/finalize/await_merge` from passing
+remote checks or clean merge state until those facts have been recorded through
+local CI and sync evidence, normally by `harness evidence refresh`.
 
 ### `harness execute start`
 
