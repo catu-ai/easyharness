@@ -303,11 +303,21 @@ findings.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `harness plan lint docs/plans/active/2026-05-24-surface-remote-handoff-status.md`
+- `scripts/sync-contract-artifacts --check`
+- `go test ./internal/contracts ./internal/contractsync -count=1`
+- `go test ./internal/status -run 'TestStatusArchivedPlanSurfacesRemoteHandoffObservation|TestStatusRemoteHandoffObservationDegradesWithoutFailingLocalStatus|TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts|TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode|TestStatusRemoteHandoffDoesNotGuessPRWhenPublishEvidenceMissing' -count=1`
+- `go test ./internal/status ./internal/cli ./internal/remote ./internal/evidence ./internal/contractsync -count=1`
+- `go test ./tests/e2e -run 'TestPublishHandoff|TestAwaitMerge|TestLandWorkflow|TestLightweightWorkflow' -count=1`
+- `git diff --check`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Step closeout reviews ran for each work step. `review-001-delta` and
+`review-003-delta` requested changes that were fixed and re-reviewed.
+Follow-up rounds `review-002-delta`, `review-004-delta`, and
+`review-006-delta` passed with zero findings. `review-005-delta` found one
+closeout-recording gap in Step 3, which was fixed before `review-006-delta`.
 
 ## Archive Summary
 
@@ -317,11 +327,19 @@ PENDING_UNTIL_ARCHIVE
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added the `facts.remote_handoff` status contract and generated schemas for
+  non-authoritative live remote observation of the recorded PR.
+- Updated the CLI contract to state that status observes, evidence refresh
+  records, and `current_node` remains driven by local durable evidence.
+- Wired `harness status` to observe recorded PR handoff facts through the
+  existing `internal/remote` read model without guessing PRs from branch state.
+- Added status and CLI tests covering successful observation, degraded remote
+  observation, no-guess behavior, non-ready remote next actions, and
+  await-merge behavior with live remote drift.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+NONE.
 
 ### Follow-Up Issues
 
