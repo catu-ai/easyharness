@@ -307,6 +307,7 @@ findings.
 - `scripts/sync-contract-artifacts --check`
 - `go test ./internal/contracts ./internal/contractsync -count=1`
 - `go test ./internal/status -run 'TestStatusArchivedPlanSurfacesRemoteHandoffObservation|TestStatusRemoteHandoffObservationDegradesWithoutFailingLocalStatus|TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts|TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode|TestStatusRemoteHandoffDoesNotGuessPRWhenPublishEvidenceMissing' -count=1`
+- `go test ./internal/status -run 'TestStatusSuggestsRefreshWhenCleanRemoteCanReplaceNonReadyEvidence|TestStatusArchivedPlanSurfacesRemoteHandoffObservation|TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode' -count=1`
 - `go test ./internal/status ./internal/cli ./internal/remote ./internal/evidence ./internal/contractsync -count=1`
 - `go test ./tests/e2e -run 'TestPublishHandoff|TestAwaitMerge|TestLandWorkflow|TestLightweightWorkflow' -count=1`
 - `git diff --check`
@@ -318,6 +319,9 @@ Step closeout reviews ran for each work step. `review-001-delta` and
 Follow-up rounds `review-002-delta`, `review-004-delta`, and
 `review-006-delta` passed with zero findings. `review-005-delta` found one
 closeout-recording gap in Step 3, which was fixed before `review-006-delta`.
+Finalize `review-007-full` found one correctness gap around clean live remote
+facts replacing failed or conflicted local evidence; the repair was validated
+by `review-008-delta`, which passed with zero findings.
 
 ## Archive Summary
 
@@ -336,6 +340,8 @@ PENDING_UNTIL_ARCHIVE
 - Added status and CLI tests covering successful observation, degraded remote
   observation, no-guess behavior, non-ready remote next actions, and
   await-merge behavior with live remote drift.
+- Added refresh guidance when clean live remote facts can replace failed CI or
+  conflicted sync evidence while keeping `current_node` evidence-driven.
 
 ### Not Delivered
 
