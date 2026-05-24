@@ -155,7 +155,7 @@ type StatusRemotePRObservation struct {
 	BaseRefName string `json:"base_ref_name,omitempty"`
 
 	// Degraded explains why the PR could not be observed.
-	Degraded StatusRemoteDegradation `json:"degraded,omitempty"`
+	Degraded *StatusRemoteDegradation `json:"degraded,omitempty"`
 }
 
 // StatusRemoteCIObservation summarizes live remote CI/check state for a
@@ -172,7 +172,7 @@ type StatusRemoteCIObservation struct {
 	Checks []StatusRemoteCheckRun `json:"checks,omitempty"`
 
 	// Degraded explains why CI checks could not be observed.
-	Degraded StatusRemoteDegradation `json:"degraded,omitempty"`
+	Degraded *StatusRemoteDegradation `json:"degraded,omitempty"`
 }
 
 // StatusRemoteSyncObservation summarizes live remote merge/sync state for a
@@ -189,7 +189,7 @@ type StatusRemoteSyncObservation struct {
 	MergeState string `json:"merge_state,omitempty"`
 
 	// Degraded explains why sync state could not be observed.
-	Degraded StatusRemoteDegradation `json:"degraded,omitempty"`
+	Degraded *StatusRemoteDegradation `json:"degraded,omitempty"`
 }
 
 // StatusRemoteCheckRun is a compact provider check row surfaced through

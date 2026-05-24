@@ -254,6 +254,10 @@ help explain the node:
 - `pr_url`
 - `ci_status`
 - `sync_status`
+- `remote_handoff`
+  - optional non-authoritative live observation of the recorded PR handoff
+    target; local evidence remains the source of truth for workflow
+    progression
 - `land_pr_url`
 - `land_commit`
 
