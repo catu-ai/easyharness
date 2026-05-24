@@ -14,12 +14,15 @@ import (
 	"github.com/catu-ai/easyharness/internal/install"
 	"github.com/catu-ai/easyharness/internal/lifecycle"
 	"github.com/catu-ai/easyharness/internal/plan"
+	"github.com/catu-ai/easyharness/internal/remote"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/stepcloseout"
 )
 
 type Service struct {
-	Workdir string
+	Workdir       string
+	ObserveRemote bool
+	RunCommand    remote.CommandRunner
 }
 
 type Result = contracts.StatusResult
@@ -190,6 +193,7 @@ func (s Service) Snapshot() Result {
 		} else {
 			result.State.CurrentNode = "execution/finalize/publish"
 		}
+		applyRemoteHandoffFacts(s, facts, evidenceCtx)
 	default:
 		return Result{
 			OK:      false,
@@ -510,6 +514,123 @@ func applyEvidenceFacts(facts *Facts, artifacts *Artifacts, evidenceCtx *evidenc
 		if artifacts != nil {
 			artifacts.SyncRecordID = evidenceCtx.Sync.RecordID
 		}
+	}
+}
+
+func applyRemoteHandoffFacts(s Service, facts *Facts, evidenceCtx *evidenceContext) {
+	if !s.ObserveRemote || facts == nil || evidenceCtx == nil || evidenceCtx.Publish == nil {
+		return
+	}
+	if evidenceCtx.Publish.Status != "recorded" || strings.TrimSpace(evidenceCtx.Publish.PRURL) == "" {
+		return
+	}
+	identity := remote.ParseRecordedPRURL(evidenceCtx.Publish.PRURL)
+	if identity.Status != remote.PRStatusRecorded {
+		facts.RemoteHandoff = remoteHandoffUnavailable(identity.Degraded)
+		return
+	}
+	observation := remote.Service{Workdir: s.Workdir, RunCommand: s.RunCommand}.ObserveHandoff(identity)
+	facts.RemoteHandoff = mapRemoteHandoffObservation(observation)
+}
+
+func mapRemoteHandoffObservation(observation remote.HandoffObservation) *contracts.StatusRemoteHandoffObservation {
+	return &contracts.StatusRemoteHandoffObservation{
+		Status:   observation.Status,
+		PR:       mapRemotePRObservation(observation.PR),
+		CI:       mapRemoteCIObservation(observation.CI),
+		Sync:     mapRemoteSyncObservation(observation.Sync),
+		Degraded: mapRemoteDegradations(observation.Degraded),
+	}
+}
+
+func remoteHandoffUnavailable(degradation remote.Degradation) *contracts.StatusRemoteHandoffObservation {
+	return &contracts.StatusRemoteHandoffObservation{
+		Status: remote.HandoffObservationUnavailable,
+		PR: contracts.StatusRemotePRObservation{
+			Status:   remote.PRObservationUnavailable,
+			Degraded: mapRemoteDegradationPtr(degradation),
+		},
+		CI: contracts.StatusRemoteCIObservation{
+			Status:   remote.RemoteCIUnavailable,
+			Degraded: mapRemoteDegradationPtr(degradation),
+		},
+		Sync: contracts.StatusRemoteSyncObservation{
+			Status:   remote.RemoteSyncUnavailable,
+			Degraded: mapRemoteDegradationPtr(degradation),
+		},
+		Degraded: mapRemoteDegradations([]remote.Degradation{degradation}),
+	}
+}
+
+func mapRemotePRObservation(observation remote.PRObservation) contracts.StatusRemotePRObservation {
+	return contracts.StatusRemotePRObservation{
+		Status:           observation.Status,
+		URL:              observation.URL,
+		Number:           observation.Number,
+		State:            observation.State,
+		IsDraft:          observation.IsDraft,
+		MergeStateStatus: observation.MergeStateStatus,
+		Mergeable:        observation.Mergeable,
+		ReviewDecision:   observation.ReviewDecision,
+		HeadRefName:      observation.HeadRefName,
+		HeadRefOID:       observation.HeadRefOID,
+		BaseRefName:      observation.BaseRefName,
+		Degraded:         mapRemoteDegradationPtr(observation.Degraded),
+	}
+}
+
+func mapRemoteCIObservation(observation remote.RemoteCIObservation) contracts.StatusRemoteCIObservation {
+	checks := make([]contracts.StatusRemoteCheckRun, 0, len(observation.Checks))
+	for _, check := range observation.Checks {
+		checks = append(checks, contracts.StatusRemoteCheckRun{
+			Name:     check.Name,
+			Workflow: check.Workflow,
+			Bucket:   check.Bucket,
+			State:    check.State,
+			Link:     check.Link,
+		})
+	}
+	return contracts.StatusRemoteCIObservation{
+		Status:         observation.Status,
+		EvidenceStatus: observation.EvidenceStatus,
+		Checks:         checks,
+		Degraded:       mapRemoteDegradationPtr(observation.Degraded),
+	}
+}
+
+func mapRemoteSyncObservation(observation remote.RemoteSyncObservation) contracts.StatusRemoteSyncObservation {
+	return contracts.StatusRemoteSyncObservation{
+		Status:         observation.Status,
+		EvidenceStatus: observation.EvidenceStatus,
+		MergeState:     observation.MergeState,
+		Degraded:       mapRemoteDegradationPtr(observation.Degraded),
+	}
+}
+
+func mapRemoteDegradations(degradations []remote.Degradation) []contracts.StatusRemoteDegradation {
+	out := make([]contracts.StatusRemoteDegradation, 0, len(degradations))
+	for _, degradation := range degradations {
+		if strings.TrimSpace(degradation.Code) == "" {
+			continue
+		}
+		out = append(out, contracts.StatusRemoteDegradation{
+			Code:    degradation.Code,
+			Message: degradation.Message,
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func mapRemoteDegradationPtr(degradation remote.Degradation) *contracts.StatusRemoteDegradation {
+	if strings.TrimSpace(degradation.Code) == "" {
+		return nil
+	}
+	return &contracts.StatusRemoteDegradation{
+		Code:    degradation.Code,
+		Message: degradation.Message,
 	}
 }
 
@@ -912,6 +1033,7 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 			Description: "Commit and push the tracked plan change created by archiving before treating the candidate as merge-ready.",
 		},
 	}
+	actions = append(actions, remoteHandoffNextActions(facts)...)
 
 	switch {
 	case facts == nil || facts.PublishStatus == "":
@@ -972,6 +1094,43 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 		Description: "If the archived candidate is invalidated, reopen with `harness reopen --mode finalize-fix` for narrow repair or `harness reopen --mode new-step` when the change deserves a new unfinished step.",
 	})
 
+	return actions
+}
+
+func remoteHandoffNextActions(facts *Facts) []NextAction {
+	if facts == nil || facts.RemoteHandoff == nil {
+		return nil
+	}
+	remoteFacts := facts.RemoteHandoff
+	actions := make([]NextAction, 0, 2)
+	if remoteFacts.CI.Status == remote.RemoteCIAvailable {
+		switch remoteFacts.CI.EvidenceStatus {
+		case "pending":
+			actions = append(actions, NextAction{
+				Command:     nil,
+				Description: "Remote PR checks are still pending; wait for them to finish, then run `harness evidence refresh` to record the final CI and sync evidence.",
+			})
+		case "failed":
+			actions = append(actions, NextAction{
+				Command:     nil,
+				Description: "Remote PR checks are failing; fix CI before recording merge-ready evidence.",
+			})
+		}
+	}
+	if remoteFacts.Sync.Status == remote.RemoteSyncAvailable {
+		switch remoteFacts.Sync.EvidenceStatus {
+		case "stale":
+			actions = append(actions, NextAction{
+				Command:     nil,
+				Description: "Remote PR merge state is stale; refresh the branch against the base, then run `harness evidence refresh` once the PR is current.",
+			})
+		case "conflicted":
+			actions = append(actions, NextAction{
+				Command:     nil,
+				Description: "Remote PR merge state is conflicted; resolve the conflict before recording fresh sync evidence.",
+			})
+		}
+	}
 	return actions
 }
 
@@ -1179,6 +1338,7 @@ func factsEmpty(f *Facts) bool {
 		strings.TrimSpace(f.PRURL) == "" &&
 		strings.TrimSpace(f.CIStatus) == "" &&
 		strings.TrimSpace(f.SyncStatus) == "" &&
+		f.RemoteHandoff == nil &&
 		strings.TrimSpace(f.LandPRURL) == "" &&
 		strings.TrimSpace(f.LandCommit) == ""
 }

@@ -3,6 +3,7 @@ package status_test
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/install"
 	"github.com/catu-ai/easyharness/internal/plan"
+	"github.com/catu-ai/easyharness/internal/remote"
 	"github.com/catu-ai/easyharness/internal/review"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/status"
@@ -1713,6 +1715,168 @@ func TestStatusArchivedPlanWithRecordedPRSuggestsEvidenceRefresh(t *testing.T) {
 	}
 }
 
+func TestStatusArchivedPlanSurfacesRemoteHandoffObservation(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand:    fakeStatusRemoteCommands(`"CLEAN"`, `[{"name":"Go Test","workflow":"CI","bucket":"pass","state":"SUCCESS","link":"https://ci.example/run"}]`),
+	}.Snapshot()
+	if result.State.CurrentNode != "execution/finalize/publish" {
+		t.Fatalf("live remote facts must not advance without local evidence, got %#v", result.State)
+	}
+	if result.Facts == nil || result.Facts.RemoteHandoff == nil {
+		t.Fatalf("expected remote handoff facts, got %#v", result.Facts)
+	}
+	remoteHandoff := result.Facts.RemoteHandoff
+	if remoteHandoff.Status != "available" || remoteHandoff.PR.State != "OPEN" || remoteHandoff.PR.Number != 13 {
+		t.Fatalf("unexpected remote PR observation: %#v", remoteHandoff)
+	}
+	if remoteHandoff.CI.EvidenceStatus != "success" || len(remoteHandoff.CI.Checks) != 1 {
+		t.Fatalf("unexpected remote CI observation: %#v", remoteHandoff.CI)
+	}
+	if remoteHandoff.Sync.EvidenceStatus != "fresh" || remoteHandoff.Sync.MergeState != "CLEAN" {
+		t.Fatalf("unexpected remote sync observation: %#v", remoteHandoff.Sync)
+	}
+	if !statusNextActionsContain(result, "harness evidence refresh") {
+		t.Fatalf("expected evidence refresh guidance for recorded remote facts, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusRemoteHandoffObservationDegradesWithoutFailingLocalStatus(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand: func(name string, args ...string) remote.CommandResult {
+			return remote.CommandResult{Err: exec.ErrNotFound}
+		},
+	}.Snapshot()
+	if !result.OK || result.State.CurrentNode != "execution/finalize/publish" {
+		t.Fatalf("remote degradation should not fail local status, got %#v", result)
+	}
+	if result.Facts == nil || result.Facts.RemoteHandoff == nil {
+		t.Fatalf("expected degraded remote handoff facts, got %#v", result.Facts)
+	}
+	if result.Facts.RemoteHandoff.Status != "unavailable" {
+		t.Fatalf("expected unavailable remote handoff, got %#v", result.Facts.RemoteHandoff)
+	}
+	if len(result.Facts.RemoteHandoff.Degraded) != 1 || result.Facts.RemoteHandoff.Degraded[0].Code != "gh_missing" {
+		t.Fatalf("expected gh_missing degradation, got %#v", result.Facts.RemoteHandoff.Degraded)
+	}
+	if result.Facts.RemoteHandoff.PR.Degraded == nil || result.Facts.RemoteHandoff.PR.Degraded.Code != "gh_missing" {
+		t.Fatalf("expected PR degradation pointer, got %#v", result.Facts.RemoteHandoff.PR)
+	}
+	if !statusNextActionsContain(result, "harness evidence submit --kind ci --input <json>") {
+		t.Fatalf("expected manual CI fallback guidance, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) {
+	tests := []struct {
+		name       string
+		mergeState string
+		checks     string
+		wantCue    string
+	}{
+		{
+			name:       "pending checks",
+			mergeState: `"CLEAN"`,
+			checks:     `[{"name":"Go Test","bucket":"pending","state":"IN_PROGRESS"}]`,
+			wantCue:    "Remote PR checks are still pending",
+		},
+		{
+			name:       "failed checks",
+			mergeState: `"CLEAN"`,
+			checks:     `[{"name":"Go Test","bucket":"fail","state":"FAILURE"}]`,
+			wantCue:    "Remote PR checks are failing",
+		},
+		{
+			name:       "stale sync",
+			mergeState: `"BEHIND"`,
+			checks:     `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
+			wantCue:    "Remote PR merge state is stale",
+		},
+		{
+			name:       "conflicted sync",
+			mergeState: `"DIRTY"`,
+			checks:     `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
+			wantCue:    "Remote PR merge state is conflicted",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+				return completeAllSteps(content, true)
+			})
+			writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+			if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+				t.Fatalf("publish evidence: %#v", result)
+			}
+
+			result := status.Service{
+				Workdir:       root,
+				ObserveRemote: true,
+				RunCommand:    fakeStatusRemoteCommands(tt.mergeState, tt.checks),
+			}.Snapshot()
+			found := false
+			for _, action := range result.NextAction {
+				if strings.Contains(action.Description, tt.wantCue) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("expected next action containing %q, got %#v", tt.wantCue, result.NextAction)
+			}
+		})
+	}
+}
+
+func TestStatusRemoteHandoffDoesNotGuessPRWhenPublishEvidenceMissing(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+	called := false
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand: func(name string, args ...string) remote.CommandResult {
+			called = true
+			return remote.CommandResult{}
+		},
+	}.Snapshot()
+	if called {
+		t.Fatal("status should not call gh without recorded publish PR evidence")
+	}
+	if result.Facts != nil && result.Facts.RemoteHandoff != nil {
+		t.Fatalf("did not expect remote handoff facts without recorded PR evidence, got %#v", result.Facts.RemoteHandoff)
+	}
+}
+
 func TestStatusArchivedPlanKeepsEvidenceRefreshForNonReadyRecordedPR(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -3072,6 +3236,32 @@ func statusNextActionsContain(result status.Result, command string) bool {
 		}
 	}
 	return false
+}
+
+func fakeStatusRemoteCommands(mergeStateJSON, checksJSON string) remote.CommandRunner {
+	return func(name string, args ...string) remote.CommandResult {
+		if name != "gh" {
+			return remote.CommandResult{}
+		}
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
+			return remote.CommandResult{Stdout: `{
+				"url":"https://github.com/catu-ai/easyharness/pull/13",
+				"number":13,
+				"state":"OPEN",
+				"isDraft":false,
+				"mergeStateStatus":` + mergeStateJSON + `,
+				"mergeable":"MERGEABLE",
+				"reviewDecision":"APPROVED",
+				"headRefName":"codex/test",
+				"headRefOid":"abc123",
+				"baseRefName":"main"
+			}`}
+		}
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
+			return remote.CommandResult{Stdout: checksJSON}
+		}
+		return remote.CommandResult{}
+	}
 }
 
 func mustJSONBytes(t *testing.T, value any) []byte {

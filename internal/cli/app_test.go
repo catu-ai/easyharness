@@ -709,6 +709,57 @@ func TestStatusCommandDoesNotCreateStateMutationLock(t *testing.T) {
 	}
 }
 
+func TestStatusCommandSurfacesRemoteHandoffObservation(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	app.RunCommand = fakeCLIRefreshCommands(`"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS","link":"https://ci.example/run"}]`)
+
+	writeArchivedPlanForCLI(t, root, "docs/plans/archived/2026-03-18-landed-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-landed-plan.md"); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+		t.Fatalf("seed publish evidence: %#v", result)
+	}
+
+	if exitCode := app.Run([]string{"status"}); exitCode != 0 {
+		t.Fatalf("status command failed with %d: %s", exitCode, stderr.String())
+	}
+
+	var payload struct {
+		Facts struct {
+			RemoteHandoff *struct {
+				Status string `json:"status"`
+				PR     struct {
+					Number int    `json:"number"`
+					State  string `json:"state"`
+				} `json:"pr"`
+				CI struct {
+					EvidenceStatus string `json:"evidence_status"`
+				} `json:"ci"`
+				Sync struct {
+					EvidenceStatus string `json:"evidence_status"`
+				} `json:"sync"`
+			} `json:"remote_handoff"`
+		} `json:"facts"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON status output: %v\n%s", err, stdout.String())
+	}
+	if payload.Facts.RemoteHandoff == nil || payload.Facts.RemoteHandoff.Status != "available" {
+		t.Fatalf("expected available remote handoff facts, got %s", stdout.String())
+	}
+	if payload.Facts.RemoteHandoff.PR.Number != 99 || payload.Facts.RemoteHandoff.PR.State != "OPEN" {
+		t.Fatalf("unexpected remote PR facts: %#v", payload.Facts.RemoteHandoff.PR)
+	}
+	if payload.Facts.RemoteHandoff.CI.EvidenceStatus != "success" || payload.Facts.RemoteHandoff.Sync.EvidenceStatus != "fresh" {
+		t.Fatalf("unexpected remote evidence statuses: %#v", payload.Facts.RemoteHandoff)
+	}
+}
+
 func TestStatusCommandWaitsForStateMutationLockRelease(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)

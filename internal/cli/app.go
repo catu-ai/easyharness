@@ -804,7 +804,11 @@ func (a *App) runStatus(args []string) int {
 	if result, settled := a.settleStatusSnapshot(workdir); !settled {
 		return a.writeJSONResultForWorkdir(workdir, result)
 	}
-	result := status.Service{Workdir: workdir}.Snapshot()
+	result := status.Service{
+		Workdir:       workdir,
+		ObserveRemote: true,
+		RunCommand:    a.RunCommand,
+	}.Snapshot()
 	return a.writeJSONResultForWorkdir(workdir, result)
 }
 

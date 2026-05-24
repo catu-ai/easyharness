@@ -192,7 +192,16 @@ exists, status should keep the existing publish guidance and must not call
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Wired read-only remote observation into status behind an explicit
+`status.Service.ObserveRemote` switch, with `harness status` enabling it and
+passing the CLI's injectable `RunCommand`. Status now maps the existing
+`internal/remote` handoff observation into `facts.remote_handoff`, keeps
+`current_node` driven by local evidence, avoids branch-based PR guessing when
+publish evidence is missing, and adds remote-specific next-action guidance for
+pending or failed checks and stale or conflicted sync. Validation:
+`go test ./internal/status ./internal/cli -run 'TestStatusArchivedPlanSurfacesRemoteHandoffObservation|TestStatusRemoteHandoffObservationDegradesWithoutFailingLocalStatus|TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts|TestStatusRemoteHandoffDoesNotGuessPRWhenPublishEvidenceMissing|TestStatusCommandSurfacesRemoteHandoffObservation' -count=1`;
+`go test ./internal/status ./internal/cli ./internal/remote ./internal/evidence -count=1`;
+`git diff --check`.
 
 #### Review Notes
 
