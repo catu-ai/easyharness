@@ -257,7 +257,8 @@ Ran the final guidance and workflow validation pass after the contract and
 status implementation steps. Confirmed the generated contract artifacts are in
 sync, the status/CLI/remote/evidence packages pass together, and the
 publish/await-merge/land e2e paths still progress through local durable
-evidence. Validation: `scripts/sync-contract-artifacts --check`;
+evidence. Validation: `harness plan lint docs/plans/active/2026-05-24-surface-remote-handoff-status.md`;
+`scripts/sync-contract-artifacts --check`;
 `go test ./internal/status ./internal/cli ./internal/remote ./internal/evidence ./internal/contractsync -count=1`;
 `go test ./tests/e2e -run 'TestPublishHandoff|TestAwaitMerge|TestLandWorkflow|TestLightweightWorkflow' -count=1`;
 `git diff --check`.
