@@ -1853,6 +1853,63 @@ func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) 
 	}
 }
 
+func TestStatusSuggestsRefreshWhenCleanRemoteCanReplaceNonReadyEvidence(t *testing.T) {
+	tests := []struct {
+		name      string
+		ciInput   string
+		syncInput string
+	}{
+		{
+			name:      "failed CI evidence",
+			ciInput:   `{"status":"failed","provider":"github-actions","url":"https://ci.example/run"}`,
+			syncInput: `{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`,
+		},
+		{
+			name:      "conflicted sync evidence",
+			ciInput:   `{"status":"success","provider":"github-actions","url":"https://ci.example/run"}`,
+			syncInput: `{"status":"conflicted","base_ref":"main","head_ref":"codex/test"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+				return completeAllSteps(content, true)
+			})
+			writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+			svc := evidence.Service{
+				Workdir: root,
+				Now: func() time.Time {
+					return time.Date(2026, 3, 18, 11, 0, 0, 0, time.UTC)
+				},
+			}
+			if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+				t.Fatalf("publish evidence: %#v", result)
+			}
+			if result := svc.Submit("ci", []byte(tt.ciInput)); !result.OK {
+				t.Fatalf("ci evidence: %#v", result)
+			}
+			if result := svc.Submit("sync", []byte(tt.syncInput)); !result.OK {
+				t.Fatalf("sync evidence: %#v", result)
+			}
+
+			result := status.Service{
+				Workdir:       root,
+				ObserveRemote: true,
+				RunCommand:    fakeStatusRemoteCommands(`"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+			}.Snapshot()
+			if result.State.CurrentNode != "execution/finalize/publish" {
+				t.Fatalf("clean live facts must not advance stale local evidence, got %#v", result.State)
+			}
+			if !statusNextActionsContain(result, "harness evidence refresh") {
+				t.Fatalf("expected evidence refresh guidance when clean remote facts can replace non-ready evidence, got %#v", result.NextAction)
+			}
+		})
+	}
+}
+
 func TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {

@@ -1140,7 +1140,16 @@ func shouldSuggestEvidenceRefresh(facts *Facts) bool {
 	return facts.CIStatus == "" ||
 		facts.CIStatus == "pending" ||
 		facts.SyncStatus == "" ||
-		facts.SyncStatus == "stale"
+		facts.SyncStatus == "stale" ||
+		cleanRemoteCanRefreshNonReadyEvidence(facts)
+}
+
+func cleanRemoteCanRefreshNonReadyEvidence(facts *Facts) bool {
+	if facts == nil || facts.RemoteHandoff == nil {
+		return false
+	}
+	return (facts.CIStatus == "failed" && facts.RemoteHandoff.CI.Status == remote.RemoteCIAvailable && facts.RemoteHandoff.CI.EvidenceStatus == "success") ||
+		(facts.SyncStatus == "conflicted" && facts.RemoteHandoff.Sync.Status == remote.RemoteSyncAvailable && facts.RemoteHandoff.Sync.EvidenceStatus == "fresh")
 }
 
 func idleResult(workdir string, currentPlan *runstate.CurrentPlan) Result {
