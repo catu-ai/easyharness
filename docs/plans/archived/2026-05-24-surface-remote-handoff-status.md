@@ -326,6 +326,8 @@ by `review-008-delta`, which passed with zero findings. Finalize
 
 ## Archive Summary
 
+- Archived At: 2026-05-25T00:08:24+08:00
+- Revision: 1
 - PR: NONE
 - Ready: The candidate has completed tracked implementation, validation,
   step reviews, and a clean full finalize review. It is ready to archive.
