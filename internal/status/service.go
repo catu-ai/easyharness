@@ -832,9 +832,8 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 	case "execution/finalize/publish":
 		return buildPublishNextActions(facts)
 	case "execution/finalize/await_merge":
-		actions := []NextAction{
-			{Command: nil, Description: "Wait for explicit human approval before merging the PR."},
-		}
+		actions := remoteHandoffNextActions(facts)
+		actions = append(actions, NextAction{Command: nil, Description: "Wait for explicit human approval before merging the PR."})
 		if facts != nil && strings.TrimSpace(facts.PRURL) != "" {
 			actions = append(actions, NextAction{
 				Command:     strPtr(fmt.Sprintf("harness land --pr %s [--commit <sha>]", facts.PRURL)),

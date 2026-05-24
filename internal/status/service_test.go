@@ -1853,6 +1853,58 @@ func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) 
 	}
 }
 
+func TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+	svc := evidence.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 18, 11, 0, 0, 0, time.UTC)
+		},
+	}
+	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
+		t.Fatalf("ci evidence: %#v", result)
+	}
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+		t.Fatalf("sync evidence: %#v", result)
+	}
+
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand:    fakeStatusRemoteCommands(`"CLEAN"`, `[{"name":"Go Test","bucket":"fail","state":"FAILURE"}]`),
+	}.Snapshot()
+	if result.State.CurrentNode != "execution/finalize/await_merge" {
+		t.Fatalf("live remote facts must not regress evidence-driven await_merge node, got %#v", result.State)
+	}
+	if result.Facts == nil || result.Facts.RemoteHandoff == nil || result.Facts.RemoteHandoff.CI.EvidenceStatus != "failed" {
+		t.Fatalf("expected failed live remote CI facts, got %#v", result.Facts)
+	}
+	foundRemoteGuidance := false
+	foundLandGuidance := false
+	for _, action := range result.NextAction {
+		if strings.Contains(action.Description, "Remote PR checks are failing") {
+			foundRemoteGuidance = true
+		}
+		if action.Command != nil && strings.Contains(*action.Command, "harness land --pr https://github.com/catu-ai/easyharness/pull/13") {
+			foundLandGuidance = true
+		}
+	}
+	if !foundRemoteGuidance {
+		t.Fatalf("expected await_merge next actions to include remote failure guidance, got %#v", result.NextAction)
+	}
+	if !foundLandGuidance {
+		t.Fatalf("expected ordinary land guidance to remain after remote guidance, got %#v", result.NextAction)
+	}
+}
+
 func TestStatusRemoteHandoffDoesNotGuessPRWhenPublishEvidenceMissing(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
