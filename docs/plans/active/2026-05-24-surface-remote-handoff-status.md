@@ -68,22 +68,22 @@ local evidence.
 
 ## Acceptance Criteria
 
-- [ ] `harness status` includes remote handoff observation for archived
+- [x] `harness status` includes remote handoff observation for archived
       candidates with recorded GitHub PR URLs when live observation succeeds.
-- [ ] Remote observation failures appear as degraded remote facts, warnings, or
+- [x] Remote observation failures appear as degraded remote facts, warnings, or
       manual fallback next actions without making local status fail.
-- [ ] `state.current_node` remains evidence-driven: live remote passing checks
+- [x] `state.current_node` remains evidence-driven: live remote passing checks
       and clean merge state do not move status to `execution/finalize/await_merge`
       until local CI and sync evidence are recorded.
-- [ ] When live remote facts are passing or fresh but local evidence is missing
+- [x] When live remote facts are passing or fresh but local evidence is missing
       or stale, `next_actions` steer the controller to `harness evidence
       refresh`.
-- [ ] When live remote checks fail, are pending, or remote sync is stale or
+- [x] When live remote checks fail, are pending, or remote sync is stale or
       conflicted, `next_actions` explain the repair or wait path without
       writing evidence.
-- [ ] Missing recorded PR evidence still steers the controller to publish and
+- [x] Missing recorded PR evidence still steers the controller to publish and
       record publish evidence instead of attempting branch-based PR discovery.
-- [ ] Tests cover successful live observation, degraded remote observation,
+- [x] Tests cover successful live observation, degraded remote observation,
       non-authoritative remote facts, no-guess missing PR behavior, and
       preservation of existing evidence-driven publish and await-merge
       behavior.
@@ -321,11 +321,18 @@ Follow-up rounds `review-002-delta`, `review-004-delta`, and
 closeout-recording gap in Step 3, which was fixed before `review-006-delta`.
 Finalize `review-007-full` found one correctness gap around clean live remote
 facts replacing failed or conflicted local evidence; the repair was validated
-by `review-008-delta`, which passed with zero findings.
+by `review-008-delta`, which passed with zero findings. Finalize
+`review-009-full` then passed with zero findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: NONE
+- Ready: The candidate has completed tracked implementation, validation,
+  step reviews, and a clean full finalize review. It is ready to archive.
+- Merge Handoff: After archive, commit the tracked archive move, push the
+  branch, open or update the PR for issue #200, record publish evidence with
+  the PR URL, then use `harness evidence refresh` or manual CI/sync evidence
+  until `harness status` reaches `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
@@ -349,4 +356,5 @@ NONE.
 
 ### Follow-Up Issues
 
-NONE
+- #202: update broader controller docs and harness-execute skill guidance after
+  this status surface lands.
