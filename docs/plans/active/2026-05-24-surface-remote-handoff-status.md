@@ -99,7 +99,7 @@ local evidence.
 
 ### Step 1: Define the status contract for remote observation
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -144,7 +144,12 @@ status schema artifacts. Validation: `scripts/sync-contract-artifacts`,
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` found one important contract bug and one minor docs
+inventory gap: value-typed sub-observation `degraded` fields would serialize
+empty objects, and the top-level status facts inventory omitted
+`remote_handoff`. Fixed both by switching sub-observation degraded fields to
+`*StatusRemoteDegradation` and adding `remote_handoff` to the facts inventory.
+Follow-up `review-002-delta` passed with zero findings.
 
 ### Step 2: Wire read-only remote observation into status
 
