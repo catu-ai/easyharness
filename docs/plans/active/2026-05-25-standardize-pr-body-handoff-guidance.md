@@ -86,7 +86,7 @@ the tracked plan and harness evidence artifacts.
 
 ### Step 1: Define the PR body guidance contract
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -141,7 +141,13 @@ Validation used targeted wording search, `git diff --check`, and plan lint.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Step-closeout delta review `review-001-delta` passed with no findings. The
+`docs_consistency` slot confirmed that managed bootstrap source and normative
+specs consistently frame PR bodies as readable merge memos while preserving
+lightweight breadcrumb and publish/CI/sync evidence semantics. The `agent_ux`
+slot confirmed that future controllers can distinguish `What Changed`,
+`Confidence`, and optional `Handoff` without being steered into rigid templates
+or command dumps.
 
 ### Step 2: Sync outputs and validate the guidance
 
