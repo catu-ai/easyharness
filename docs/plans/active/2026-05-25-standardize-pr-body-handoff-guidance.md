@@ -247,4 +247,7 @@ PENDING_UNTIL_ARCHIVE
 
 ### Follow-Up Issues
 
-NONE
+- Future work may add automated PR body generation or linting if repeated
+  manual application of the merge-memo guidance proves inconsistent.
+- Downstream repositories may add local PR templates when their domain needs
+  more specific handoff fields than the generic easyharness guidance provides.
