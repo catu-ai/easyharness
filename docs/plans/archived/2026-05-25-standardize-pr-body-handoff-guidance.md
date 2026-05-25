@@ -248,7 +248,7 @@ code or generated contracts.
 
 ## Archive Summary
 
-- Archived At: 2026-05-25T22:35:49+08:00
+- Archived At: 2026-05-25T22:36:14+08:00
 - Revision: 1
 - PR: pending publish after archive; no PR URL exists yet.
 - Ready: Managed source guidance, materialized bootstrap output, root managed
