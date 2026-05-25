@@ -529,8 +529,9 @@ Contract:
   landed candidate, return `state.current_node: idle` with landed context in
   `artifacts`
 - when the current plan uses the lightweight profile, remind the controller to
-  leave the agreed repo-visible breadcrumb, such as a PR body note explaining
-  why the lightweight path was used
+  leave the agreed repo-visible breadcrumb, such as a readable PR body merge
+  memo explaining what changed, why the branch is mergeable, and why the
+  lightweight path was used
 - return recommended next actions for both "continue work" and "wait/observe"
   situations
 - if an already completed earlier step is missing review-complete closeout,
@@ -951,7 +952,8 @@ Important note:
   treating the candidate as truly waiting for merge approval
 - the controller agent should also update the agreed repo-visible breadcrumb
   for `lightweight` before treating the candidate as truly waiting for merge
-  approval
+  approval; a PR body breadcrumb should read as a merge memo rather than a raw
+  validation command log
 - after archive, record publish, CI, and sync observations through
   `harness evidence submit` instead of treating missing evidence as success
 - after archive, correctness should not depend on archived supplements still

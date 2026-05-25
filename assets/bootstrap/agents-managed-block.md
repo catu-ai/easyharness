@@ -44,7 +44,8 @@ lightweight`, keep the same workflow shape but store the active plan under
 `docs/plans/active/` like any other plan. Only the archived lightweight
 snapshot moves to `.local/harness/plans/archived/<plan-stem>.md`. That
 shortcut does not remove human steering, low-risk eligibility checks, or the
-requirement to leave a repo-visible breadcrumb such as a PR body note.
+requirement to leave a repo-visible breadcrumb such as a readable PR body
+merge memo.
 
 Use `lightweight` only when all of these are true:
 
