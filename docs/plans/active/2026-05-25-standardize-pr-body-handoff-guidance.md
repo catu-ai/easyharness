@@ -225,25 +225,59 @@ code or generated contracts.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `scripts/sync-bootstrap-assets --check`
+- `harness plan lint docs/plans/active/2026-05-25-standardize-pr-body-handoff-guidance.md`
+- Targeted wording checks for `What Changed`, `Confidence`, `Handoff`,
+  `PR body`, `repo-visible breadcrumb`, `merge memo`, and `validation command`
+  across managed source, materialized outputs, root guidance, and specs.
+- `git diff --check`
+- Repair validation after finalize review: plan lint, bootstrap sync check,
+  diff hygiene, and deferred/follow-up scan all passed.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step-closeout delta review `review-001-delta` passed with no findings across
+  `docs_consistency` and `agent_ux`.
+- Finalize review `review-002-full` found one archive-readiness blocker: real
+  deferred items still had `Follow-Up Issues: NONE`.
+- The blocker was repaired by adding explicit follow-up handoff bullets for
+  possible future PR body generation/linting and downstream repository
+  templates.
+- Finalize repair review `review-003-full` passed with no findings across
+  `archive_readiness` and `docs_consistency`.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-05-25T22:35:49+08:00
+- Revision: 1
+- PR: pending publish after archive; no PR URL exists yet.
+- Ready: Managed source guidance, materialized bootstrap output, root managed
+  block, and normative specs agree on the readable PR body merge-memo
+  standard, and the final repair review passed cleanly.
+- Merge Handoff: Commit the archive move, push branch
+  `codex/pr-body-handoff-guidance`, open or update the PR with a `What
+  Changed` / `Confidence` / optional `Handoff` body, then record publish, CI,
+  and sync evidence before waiting for merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added PR body handoff guidance to the managed `harness-execute`
+  publish/CI/sync reference.
+- Defined the preferred PR body shape as `What Changed`, `Confidence`, and
+  optional `Handoff`.
+- Clarified that PR bodies are readable merge memos for human merge approval,
+  while tracked plans and harness evidence hold the full audit trail.
+- Updated lightweight breadcrumb wording in managed guidance and normative
+  specs to point at readable PR body merge memos.
+- Synchronized materialized `.agents/skills` output and the root managed
+  `AGENTS.md` block from `assets/bootstrap`.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No automated PR body generation or linting was added.
+- No downstream repository-specific PR template was created.
 
 ### Follow-Up Issues
 
