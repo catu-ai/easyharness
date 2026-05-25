@@ -60,21 +60,21 @@ the tracked plan and harness evidence artifacts.
 
 ## Acceptance Criteria
 
-- [ ] Managed controller guidance tells agents to use a `What Changed`,
+- [x] Managed controller guidance tells agents to use a `What Changed`,
       `Confidence`, and optional `Handoff` PR body shape during publish
       handoff.
-- [ ] `What Changed` guidance explains that the section should lead with the
+- [x] `What Changed` guidance explains that the section should lead with the
       outcome, use readable short sentences, and avoid file-shaped or
       command-shaped summaries.
-- [ ] `Confidence` guidance explains that self-review and validation are
+- [x] `Confidence` guidance explains that self-review and validation are
       combined and condensed into risk-surface-plus-result bullets, with raw
       command lists left to the tracked plan or evidence artifacts.
-- [ ] Guidance clearly distinguishes what belongs in the PR body from what
+- [x] Guidance clearly distinguishes what belongs in the PR body from what
       belongs in the plan and what belongs in harness evidence.
-- [ ] Lightweight repo-visible breadcrumb guidance remains intact but points at
+- [x] Lightweight repo-visible breadcrumb guidance remains intact but points at
       the same readable merge-memo principles.
-- [ ] Bootstrap assets and materialized skill outputs are synchronized.
-- [ ] Validation confirms plan lint, bootstrap sync check, and targeted wording
+- [x] Bootstrap assets and materialized skill outputs are synchronized.
+- [x] Validation confirms plan lint, bootstrap sync check, and targeted wording
       checks pass.
 
 ## Deferred Items
