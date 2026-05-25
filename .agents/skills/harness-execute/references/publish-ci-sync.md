@@ -28,11 +28,45 @@ but record the observed external facts through harness-owned evidence:
    PR URL, use manual
    `harness evidence submit --kind publish|ci|sync --input <json>` for the
    affected evidence domains
-8. once those remote facts exist, run the `Pre-Land` scan from
+8. write or update the PR body as a readable merge memo; see
+   [PR Body Handoff](#pr-body-handoff)
+9. once those remote facts exist, run the `Pre-Land` scan from
    [controller-truth-surfaces.md](controller-truth-surfaces.md) before treating
    the archived candidate as genuinely merge-ready
-9. only then treat the candidate as ready to enter
+10. only then treat the candidate as ready to enter
    `execution/finalize/await_merge`
+
+## PR Body Handoff
+
+Treat the PR body as a human merge memo, not as a copied execution log. The
+tracked plan and harness evidence already hold the full audit trail: scope,
+acceptance criteria, validation commands, review rounds, repair history, and
+publish/CI/sync facts. The PR body should summarize why the branch is
+mergeable without asking the human to rereview the diff.
+
+Use this shape unless the repository has a stricter local convention:
+
+- `What Changed`
+  - Lead with what is now true after the PR.
+  - Write a readable explanation, not a file list, command list, commit-log
+    rewrite, or pasted plan summary.
+  - Use short paragraphs or bullets according to the change shape. Length is
+    secondary to clarity.
+- `Confidence`
+  - Combine self-review and validation into three to five high-signal bullets.
+  - Each bullet should name a checked risk surface and the result, such as
+    contract sync, generated bootstrap output, remote experiment completeness,
+    focused tests, review-found repairs, or diff hygiene.
+  - Do not dump raw validation commands unless the command result itself is the
+    user-facing fact, such as release version parsing.
+- `Handoff`
+  - Include only merge-time, release-time, follow-up, non-goal, known-gap, or
+    deferred-work notes that still matter after reading the PR.
+  - Omit the section when it has no useful content.
+
+For lightweight work, the required repo-visible breadcrumb can be this PR body
+memo. It should still explain why the lightweight path was appropriate, but it
+should follow the same readable merge-memo standard.
 
 ## Status-First Remote Handoff
 

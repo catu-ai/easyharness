@@ -151,7 +151,7 @@ or command dumps.
 
 ### Step 2: Sync outputs and validate the guidance
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -187,11 +187,19 @@ record that explicitly in execution notes rather than forcing a spec edit.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Ran `scripts/sync-bootstrap-assets`, which refreshed the materialized root
+`AGENTS.md` managed block and `.agents/skills/harness-execute` reference files
+from `assets/bootstrap/`. Validation confirmed bootstrap outputs are in sync,
+the tracked plan lints, targeted wording checks find the new merge-memo
+guidance in both source and materialized outputs, and diff hygiene is clean.
+No normative spec edit was skipped; the lightweight breadcrumb references in
+`cli-contract`, `state-model`, and `plan-schema` were updated in Step 1.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 2 only synchronized generated bootstrap outputs
+from the reviewed source guidance and reran the planned consistency checks.
+The guidance contract itself passed `review-001-delta` in Step 1.
 
 ## Validation Strategy
 

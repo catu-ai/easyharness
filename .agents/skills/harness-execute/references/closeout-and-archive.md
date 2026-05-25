@@ -43,8 +43,9 @@ Archive still needs an explicit handoff flow:
 2. Push the branch.
 3. Open or update the PR.
 4. If the profile is `lightweight`, update the agreed repo-visible breadcrumb
-   such as the PR body note before treating the candidate as ready to wait for
-   merge approval.
+   such as the PR body memo before treating the candidate as ready to wait for
+   merge approval. Follow the readable `What Changed`, `Confidence`, and
+   optional `Handoff` shape in [publish-ci-sync.md](publish-ci-sync.md).
 5. Run `harness status` again to confirm the archived candidate entered
    `execution/finalize/publish` for this worktree.
 6. Record publish evidence with the PR URL or handoff target through
