@@ -86,7 +86,8 @@ when it is genuinely impractical, and record the reason in the step's
    - which tracked plan is current
    - which `current_node` the worktree is currently in
    - which step or finalize phase is active or next
-   - whether local state already shows review, evidence, or land work in flight
+   - whether local state already shows review, evidence, or land work in flight,
+     and whether live remote handoff observations are guiding the next action
 5. If `harness` is unavailable or resolves to the wrong binary, first follow
    the repository's documented setup path. If no setup path is documented, ask
    the human to install or expose the correct `harness` command.
@@ -115,9 +116,15 @@ when it is genuinely impractical, and record the reason in the step's
   - the plan is archived, but publish, CI, or sync evidence still needs work
   - for lightweight work, keep the repo-visible breadcrumb requirement in view
     while driving the candidate toward `await_merge`
+  - use `harness status` remote handoff facts as the first orientation surface;
+    status may observe the recorded PR, but only evidence commands move the
+    archived candidate toward `await_merge`
 - `execution/finalize/await_merge`
   - the archived candidate is merge-ready; stay in execute until explicit
     human merge approval switches the controller into `harness-land`
+  - if status warns that live remote facts drifted after local evidence was
+    recorded, repair or refresh the candidate before treating it as still
+    merge-ready
 
 ## Reference Guide
 

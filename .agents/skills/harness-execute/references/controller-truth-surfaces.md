@@ -51,14 +51,16 @@ self-check for the controller, not a second reviewer protocol.
 ## Pre-Land
 
 - PR truth
-  - refresh the actual PR state instead of trusting a stale local impression of
-    readiness
+  - run `harness status` first and inspect the recorded PR handoff facts instead
+    of trusting a stale local impression of readiness
 - CI truth
-  - verify the latest relevant runs and distinguish `success` from cancelled,
-    stale, superseded, or still-running checks
+  - verify the latest relevant runs through status or refresh output and
+    distinguish `success` from cancelled, stale, superseded, failed, or
+    still-running checks
 - sync truth
-  - refresh branch freshness against the remote base before merge-sensitive
-    handoff or merge work
+  - confirm status shows fresh local sync evidence and no live remote stale or
+    conflicted handoff warning before merge-sensitive handoff or merge work
 - merge and bookkeeping truth
-  - confirm the remaining PR comment, issue follow-up, evidence, and land
-    bookkeeping work rather than assuming merge-ready means done
+  - remember that status is read-only: PR creation, reruns, comments, issue
+    follow-up, merge, and land bookkeeping remain human/agent actions outside
+    harness core commands

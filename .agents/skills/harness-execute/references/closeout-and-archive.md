@@ -52,12 +52,16 @@ Archive still needs an explicit handoff flow:
 7. If publish evidence records a supported PR URL, run
    `harness evidence refresh` to record CI and sync facts from that PR.
 8. Run `harness status` after refresh so the archived candidate summary and
-   next actions reflect the evidence that was just written.
+   next actions reflect the evidence that was just written and any live
+   `facts.remote_handoff` observations that still need controller action.
 9. If refresh degrades, is unavailable, or publish evidence lacks a recorded
    PR URL, manually record the affected domains with
    `harness evidence submit --kind publish|ci|sync`.
 10. Run `harness status` again after that handoff work and confirm the candidate
-   is now genuinely ready to report `execution/finalize/await_merge`.
+   is now genuinely ready to report `execution/finalize/await_merge`. If status
+   still reports pending checks, failing checks, stale or conflicted sync,
+   degraded remote reads, or live remote drift, follow
+   [publish-ci-sync.md](publish-ci-sync.md) before claiming merge readiness.
 11. Wait for human merge approval or switch to `harness-land` only when asked
    once status reaches `execution/finalize/await_merge`.
 
