@@ -445,7 +445,7 @@ The lightweight profile is eligible only when all of these are true:
     schema meaning, state transitions, review/archive/evidence semantics,
     release safety, or security-sensitive behavior
 - the controller can explain the lightweight choice in one small repo-visible
-  breadcrumb such as a PR body note
+  breadcrumb such as a readable PR body merge memo
 - the plan can stay clear and reviewable without depending on supplements as a
   default authoring pattern
 

@@ -295,8 +295,9 @@ appropriate archive move or snapshot update.
 The plan is already archived, but merge readiness still depends on external
 handoff facts recorded through `publish`, `ci`, and `sync` evidence. For
 lightweight work, this phase is also where status should remind the controller
-to leave the agreed repo-visible breadcrumb, such as a PR body note explaining
-why the lightweight path was used.
+to leave the agreed repo-visible breadcrumb. A PR body can satisfy that
+breadcrumb when it is a readable merge memo that explains what changed, why the
+branch is mergeable, and why the lightweight path was appropriate.
 
 ### `execution/finalize/await_merge`
 
