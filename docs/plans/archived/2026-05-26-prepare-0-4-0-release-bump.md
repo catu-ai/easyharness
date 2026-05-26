@@ -54,15 +54,15 @@ assets, and update the Homebrew formula when configured.
 
 ## Acceptance Criteria
 
-- [ ] `VERSION` contains exactly `0.4.0`.
-- [ ] `scripts/read-release-version` returns `0.4.0`, and
+- [x] `VERSION` contains exactly `0.4.0`.
+- [x] `scripts/read-release-version` returns `0.4.0`, and
       `scripts/read-release-version --tag` returns `v0.4.0`.
-- [ ] The final code diff contains only the release bump and harness plan
+- [x] The final code diff contains only the release bump and harness plan
       lifecycle updates needed to drive this work.
-- [ ] The candidate is ready for a dedicated release PR that can merge to
+- [x] The candidate is ready for a dedicated release PR that can merge to
       `main` and let CI/CD perform tagging, release publication, and Homebrew
       update work.
-- [ ] The `v0.4.0` milestone remains complete with 0 open issues, and milestone
+- [x] The `v0.4.0` milestone remains complete with 0 open issues, and milestone
       closure is deferred until after release publication.
 
 ## Deferred Items
@@ -153,7 +153,7 @@ is complete, so it must not block the release-bump candidate from reaching
 
 #### Validation
 
-- Confirm the `v0.4.0` milestone has 0 open issues before closing it.
+- Confirm the `v0.4.0` milestone has 0 open issues before release handoff.
 - Confirm no open GitHub issue should be added to the `v0.4.0` release before
   this release bump.
 
@@ -199,26 +199,63 @@ cover the candidate.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `scripts/read-release-version` returned `0.4.0`.
+- `scripts/read-release-version --tag` returned `v0.4.0`.
+- `harness plan lint docs/plans/active/2026-05-26-prepare-0-4-0-release-bump.md`
+  passed before execution and again before archive.
+- `gh issue list --state open --milestone v0.4.0 --json number,title,url`
+  returned an empty list.
+- Final diff review confirmed the source release change is limited to the
+  `VERSION` bump plus tracked harness lifecycle updates.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step review was skipped with `NO_STEP_REVIEW_NEEDED` because the
+  implementation was a one-line `VERSION` bump plus release-handoff scope
+  confirmation validated through existing helpers and issue queries.
+- Finalize review `review-001-full` passed on 2026-05-26 with 0 blocking and 0
+  non-blocking findings.
+- Reviewer slots covered `correctness` and `release_scope`; both reported no
+  findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-05-26T22:20:38+08:00
+- Revision: 1
+- PR: pending archive publication. After archive, push branch
+  `codex/release-0-4-0` and open the dedicated release PR for `0.4.0`.
+- Ready: the candidate is ready for PR publication; `VERSION` is `0.4.0`, the
+  helper resolves `v0.4.0`, the `v0.4.0` milestone has 0 open issues, and
+  finalize review passed with no findings.
+- Merge Handoff: after the PR exists and CI/CD readiness is recorded, stop at
+  `execution/finalize/await_merge` for explicit human merge approval. The
+  release publication path itself remains CI/CD-owned after merge to `main`;
+  no manual tag or GitHub Release publication is performed in this slice.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Root `VERSION` bumped from `0.3.1` to `0.4.0`.
+- Focused helper validation confirmed the raw version and matching release tag
+  resolve to `0.4.0` and `v0.4.0`.
+- Confirmed the `v0.4.0` milestone has no open issues and no additional issue
+  should block the release bump.
+- The tracked plan records the approved release-PR-only scope, validation, and
+  finalize review outcome.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No release workflow, tag automation, package build, release notes, changelog,
+  announcement, Homebrew behavior, or feature code was changed.
+- No manual `v0.4.0` tag or GitHub Release was created; CI/CD owns that after
+  the release PR merges.
+- The `v0.4.0` milestone was not closed before release publication.
 
 ### Follow-Up Issues
 
-NONE
+- No GitHub issues were created. Deferred items are operational release
+  follow-ups rather than repository backlog: verify the published `v0.4.0`
+  GitHub Release and Homebrew formula after CI/CD publishes them, close the
+  already-complete `v0.4.0` milestone after publication, and handle any future
+  changelog or announcement packaging outside this release-bump PR.
