@@ -97,8 +97,8 @@ Prefer no finding over a vague finding. If the issue is real, say exactly what
 is wrong and why it matters to your assigned slot.
 
 Report only actionable defects that the reviewed change introduced, exposed, or
-made relevant to the current plan. Do not report pre-existing unrelated cleanup
-or style preferences as findings.
+made relevant. Do not report pre-existing unrelated cleanup or style
+preferences as findings.
 
 For security findings, describe the concrete exploitable risk, removed safety
 check, or missing validation at a trust boundary. Do not flag shell, filesystem,

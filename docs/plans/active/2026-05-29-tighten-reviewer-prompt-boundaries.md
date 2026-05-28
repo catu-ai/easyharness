@@ -110,6 +110,11 @@ CLI behavior, schemas, or review artifacts. TDD is not applicable because this
 slice changes reviewer instructions rather than executable behavior; validation
 used bootstrap sync, plan lint, and diff inspection.
 
+Round `review-001-delta` found one agent UX issue: the phrase "made relevant to
+the current plan" could broaden review scope beyond change-tied defects. The
+repair changed that sentence to keep relevance tied to the reviewed change and
+resynced the materialized skill output.
+
 #### Review Notes
 
 PENDING_STEP_REVIEW
