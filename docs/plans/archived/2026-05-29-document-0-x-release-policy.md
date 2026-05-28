@@ -296,26 +296,66 @@ finalize review will cover the complete candidate before archive.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+Validated the documentation and repo-local skill candidate with:
+
+- `harness plan lint docs/plans/active/2026-05-29-document-0-x-release-policy.md`
+- `git diff --check`
+- live #87 verification with `gh issue view 87 --json number,title,state,labels,body,url`
+
+The slice is text-only. No Go, UI, release workflow, or packaging behavior
+changed, so runtime test suites were not run.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Finalize full review `review-001-full` passed with 0 findings at revision 1.
+Reviewer slots:
+
+- `policy_consistency`: no findings; confirmed the release policy,
+  issue-triage handoff, release-triage skill, active plan, and live issue #87
+  framing agree without stale alpha assumptions or rejected process machinery.
+- `agent_ux`: no findings; confirmed the repo-local release-triage skill is
+  advisory, points to `docs/releasing.md`, and includes guardrails against
+  version bumps, release PR creation, publication, milestone churn, priority
+  labels, tracker issues, and distributed-skill confusion.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-05-29T00:11:17+08:00
+- Revision: 1
+- PR: Open from branch `codex/document-0-x-release-policy` after archive.
+- Ready: Documentation, repo-local skills, live issue #87 handoff, plan lint,
+  whitespace validation, and finalize full review are complete.
+- Merge Handoff: After PR publication, record publish evidence, refresh CI/sync
+  evidence, and wait for human merge approval once `harness status` reaches
+  `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added the public 0.x release policy to `docs/releasing.md`, including
+  change-driven release timing, dedicated release PR version bumps, minor
+  release promises, optional patch milestones, milestone scope boundaries, and
+  release-readiness judgment.
+- Updated the repo-local `issue-triage` skill so milestone triage points to
+  `docs/releasing.md` for release policy instead of treating #87 as unresolved.
+- Added the repo-local `release-triage` skill for advisory release-readiness
+  recommendations after land, milestone closeout, or release-scope review.
+- Updated live issue #87 to remove alpha-only framing and point at the tracked
+  policy plus repo-local release-triage skill as the intended resolution.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No release automation, `VERSION` behavior, GitHub Actions workflows,
+  packaging, or Homebrew publishing behavior changed.
+- No priority labels, GitHub Projects, tracker issues, or roadmap documents
+  were added.
+- No patch milestone requirement was introduced.
+- No `v0.5.0` customization scope or issue splitting was performed.
 
 ### Follow-Up Issues
 
-NONE
+- No new GitHub follow-up issue was created. Deferred items are optional future
+  expansions already named in this plan: release automation, possible future
+  priority labels if the backlog outgrows the current system, and separate
+  customization milestone refinement if maintainers choose to pursue it later.
