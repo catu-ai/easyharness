@@ -93,6 +93,19 @@ Use severities like this:
 Prefer no finding over a vague finding. If the issue is real, say exactly what
 is wrong and why it matters to your assigned slot.
 
+Report only actionable defects that the reviewed change introduced, exposed, or
+made relevant to the current plan. Do not report pre-existing unrelated cleanup
+or style preferences as findings.
+
+For security findings, describe the concrete exploitable risk, removed safety
+check, or missing validation at a trust boundary. Do not flag shell, filesystem,
+network, authentication, or other sensitive surfaces just because the change
+touches them.
+
+Use the smallest useful location that demonstrates the issue. When a finding
+points at code outside the directly changed files, explain why the reviewed
+change makes that unchanged code part of the defect.
+
 If the current plan explicitly defers a risk and the implementation still
 matches that deferral, you do not need to raise it again as a finding. Raise it
 only if the change contradicts the deferral, expands the risk, or makes the
@@ -115,7 +128,9 @@ deferral stale.
    checked areas, open questions, candidate findings, or similar review
    progress in top-level worklog-style fields instead of a separate scratchpad.
 6. For `delta` review, start from the anchored change since `Anchor SHA`.
-   Treat that diff as the default starting lens, not a hard boundary.
+   Treat that diff as the default starting lens, not a hard boundary. Begin
+   with directly changed paths, then follow related logic, contracts, and
+   runtime behavior when needed to decide whether the change is sound.
 7. Continue inspection when related logic, plan intent, or contract meaning
    warrants it. If that deeper read uncovers additional real issues, report
    them in the same round with normal severities.
