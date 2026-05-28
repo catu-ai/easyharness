@@ -9,6 +9,46 @@ executable remains `harness`. Tagged releases can also update the dedicated
 Homebrew tap formula `easyharness` in `catu-ai/homebrew-tap`, which users
 install as `catu-ai/tap/easyharness`.
 
+## Release Policy
+
+`easyharness` currently ships a public 0.x release line. Releases are
+change-driven rather than calendar-driven: maintainers cut a release when the
+current `main` branch contains a coherent user-facing improvement, a useful
+same-theme fast-follow, or a repair worth shipping to users.
+
+Ordinary feature, documentation, and fix PRs do not bump `VERSION`. Version
+changes happen in a dedicated release PR after the intended scope is already
+merged or ready to publish. That release PR should stay narrow: update the
+root `VERSION` file, include any directly related release documentation, and
+let the VERSION-driven automation create the tag and publish assets after the
+PR merges.
+
+Minor releases such as `v0.5.0` represent a coherent user promise. They do not
+need to finish every possible idea in a feature family, but they should deliver
+enough of the promise that users can understand and start relying on it. A
+minor release is usually represented by a concrete GitHub milestone whose
+issues are release-critical for that promise.
+
+Patch releases such as `v0.5.1` are smaller. They may ship bug fixes, release
+repairs, documentation or CI corrections, and low-risk follow-ups that extend
+the same already-shipped promise. Routine patch releases do not need a GitHub
+milestone. Create a patch milestone only when the patch needs an explicit
+bucket, such as a small coordinated set of related fixes.
+
+Milestones are release promises, not feature-family backlogs. Put only the
+issues that must be done before that version should ship into the milestone.
+Related follow-up issues can remain normal triaged issues until maintainers
+select them for a later release. When useful, an umbrella or delivery issue can
+use its body to distinguish must-deliver work from likely fast-follows and
+later/not-now ideas; do not add priority labels or tracker issues just to carry
+that context.
+
+Release readiness depends on both automation and maintainer judgment. Required
+CI must be green for the release PR, and the release workflow must publish the
+expected GitHub Release and Homebrew artifacts after merge. Maintainers also
+decide whether the release promise is complete enough, whether known blockers
+remain, and whether a post-publication repair is needed.
+
 ## Release Checklist
 
 1. Decide the next release version, such as `0.0.0`, and update the
