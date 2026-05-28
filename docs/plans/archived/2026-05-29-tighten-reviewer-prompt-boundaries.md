@@ -143,25 +143,68 @@ Follow-up delta review `review-002-delta` passed with no findings.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `scripts/sync-bootstrap-assets` updated the materialized
+  `.agents/skills/harness-reviewer/SKILL.md` output from the managed bootstrap
+  source.
+- `harness plan lint
+  docs/plans/active/2026-05-29-tighten-reviewer-prompt-boundaries.md` passed
+  after plan creation, implementation, review repairs, and archive-summary
+  updates.
+- `git diff --check` passed for the prompt-only change.
+- Follow-up issues [#221](https://github.com/catu-ai/easyharness/issues/221)
+  and [#222](https://github.com/catu-ai/easyharness/issues/222) were created
+  and linked in the plan handoff.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step-closeout delta review `review-001-delta` found one important agent UX
+  issue: the phrase "made relevant to the current plan" could broaden scope
+  beyond defects tied to the reviewed change.
+- The wording was repaired and resynced; follow-up delta review
+  `review-002-delta` passed with no findings.
+- Finalize full review `review-003-full` found one archive-readiness issue:
+  deferred follow-up items needed concrete issue links.
+- Issues [#221](https://github.com/catu-ai/easyharness/issues/221) and
+  [#222](https://github.com/catu-ai/easyharness/issues/222) were created and
+  linked; finalize delta repair review `review-004-delta` passed with no
+  findings.
+- Finalize full review `review-005-full` passed with no findings across
+  `correctness` and `docs_consistency`.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-05-29T00:22:22+08:00
+- Revision: 1
+- PR: pending publish after archive; no PR URL exists yet.
+- Ready: The managed reviewer skill source and materialized skill output now
+  give sharper prompt-only review guidance for actionable findings, concrete
+  security findings, smallest useful locations, and changed-path awareness as a
+  starting lens rather than a hard boundary.
+- Merge Handoff: Commit the archive move, push branch
+  `codex/tighten-reviewer-prompt-boundaries`, open the PR with a concise merge
+  memo, record publish/CI/sync evidence, and stop at
+  `execution/finalize/await_merge` for explicit human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added high-signal finding guidance to the managed `harness-reviewer` skill.
+- Clarified that security findings need concrete risk or missing
+  trust-boundary validation rather than generic sensitive-surface alarms.
+- Clarified that reviewers should use the smallest useful location and explain
+  unchanged-code findings when the reviewed change makes them relevant.
+- Clarified that delta review begins from directly changed paths and may follow
+  related logic, contracts, and runtime behavior when needed.
+- Synced the materialized `.agents/skills/harness-reviewer/SKILL.md` output
+  from the bootstrap source.
+- Created and linked follow-up issues for review context packets and optional
+  review finding metadata research.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+No CLI review-engine integration, schema change, automatic finding filtering,
+or first-class review evidence packet was delivered in this slice.
 
 ### Follow-Up Issues
 
