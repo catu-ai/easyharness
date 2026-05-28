@@ -43,15 +43,15 @@ helper. Codex subagents remain the review runtime.
 
 ## Acceptance Criteria
 
-- [ ] `assets/bootstrap/skills/harness-reviewer/SKILL.md` includes concise
+- [x] `assets/bootstrap/skills/harness-reviewer/SKILL.md` includes concise
   reviewer guidance for actionable findings, security findings, smallest useful
   locations, and changed-path awareness.
-- [ ] The synced `.agents/skills/harness-reviewer/SKILL.md` matches the
+- [x] The synced `.agents/skills/harness-reviewer/SKILL.md` matches the
   bootstrap source after running `scripts/sync-bootstrap-assets`.
-- [ ] The wording preserves the current reviewer workflow shape: reviewer
+- [x] The wording preserves the current reviewer workflow shape: reviewer
   subagents inspect the repo directly and submit through `harness review
   submit`.
-- [ ] No CLI behavior, schema, or generated contract artifact changes are made.
+- [x] No CLI behavior, schema, or generated contract artifact changes are made.
 
 ## Deferred Items
 
@@ -65,7 +65,7 @@ helper. Codex subagents remain the review runtime.
 
 ### Step 1: Tighten Managed Reviewer Prompt Guidance
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -117,7 +117,11 @@ resynced the materialized skill output.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Delta review `review-001-delta` found one important agent UX issue: "made
+relevant to the current plan" could broaden scope beyond defects made relevant
+by the reviewed change. The wording was repaired and resynced.
+
+Follow-up delta review `review-002-delta` passed with no findings.
 
 ## Validation Strategy
 
