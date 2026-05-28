@@ -55,11 +55,11 @@ helper. Codex subagents remain the review runtime.
 
 ## Deferred Items
 
-- Open or update a follow-up issue to research first-class review
-  evidence/context packets for reviewer handoff.
-- Open or update a follow-up issue to research optional finding metadata such
-  as category and confidence, likely starting as reviewer `worklog` data before
-  any contract decision.
+- [#221](https://github.com/catu-ai/easyharness/issues/221): Research
+  first-class review evidence/context packets for reviewer handoff.
+- [#222](https://github.com/catu-ai/easyharness/issues/222): Research optional
+  finding metadata such as category and confidence, likely starting as reviewer
+  `worklog` data before any contract decision.
 
 ## Work Breakdown
 
@@ -165,4 +165,7 @@ PENDING_UNTIL_ARCHIVE
 
 ### Follow-Up Issues
 
-PENDING_UNTIL_ARCHIVE
+- [#221](https://github.com/catu-ai/easyharness/issues/221): Research
+  first-class review evidence/context packets for reviewer handoff.
+- [#222](https://github.com/catu-ai/easyharness/issues/222): Research optional
+  review finding metadata.
