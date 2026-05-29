@@ -1,16 +1,18 @@
 ---
 name: release-triage
-description: Decide whether easyharness maintainers should consider a release PR after merged work, milestone closeout, or release-scope review. Use only for advisory release-readiness checks in this repository; do not bump versions or publish releases.
+description: Proactively use after every easyharness PR lands, and when checking milestone closeout or release scope, to decide whether to recommend that the human open a patch or minor release PR. This repo-local skill is advisory only: do not bump VERSION, create release PRs, publish releases, or create release-process machinery.
 ---
 
 # Release Triage
 
 ## Overview
 
-Use this repo-local skill when reviewing whether recent `easyharness` work is
-ready to ship as a patch or minor release. The skill is advisory: it helps the
-agent recommend a next release action, but it does not authorize publishing,
-version bumps, issue closure, or milestone creation by itself.
+Use this repo-local skill proactively after every `easyharness` PR lands, and
+when reviewing whether recent work, milestone closeout, or release-scope
+changes are ready to ship as a patch or minor release. The skill is advisory:
+it helps the agent recommend a next release action to the human, but it does
+not authorize publishing, version bumps, issue closure, or milestone creation
+by itself.
 
 Read `docs/releasing.md` first. That file is the policy source for the public
 0.x release line, including minor versus patch shape, optional patch

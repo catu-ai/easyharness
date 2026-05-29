@@ -219,6 +219,12 @@ editing `VERSION`, opening release PRs, publishing releases, creating required
 patch milestones, adding priority labels, or treating the skill as distributed
 easyharness-managed material.
 
+Revision 2 finalize-fix updated the skill frontmatter `description` to carry
+the proactive trigger condition directly in discoverable metadata: use after
+every `easyharness` PR lands, and when checking milestone closeout or release
+scope, to decide whether to recommend that the human open a patch or minor
+release PR. The body overview was aligned with the same proactive trigger.
+
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: Step 2 adds one repo-local text skill with no runtime
@@ -301,9 +307,12 @@ Validated the documentation and repo-local skill candidate with:
 - `harness plan lint docs/plans/active/2026-05-29-document-0-x-release-policy.md`
 - `git diff --check`
 - live #87 verification with `gh issue view 87 --json number,title,state,labels,body,url`
+- revision 1 remote PR CI through GitHub Actions `Go Test`
+- revision 1 local `go test ./...`
 
 The slice is text-only. No Go, UI, release workflow, or packaging behavior
-changed, so runtime test suites were not run.
+changed in revision 2, so the finalize-fix validation was limited to plan lint,
+whitespace validation, and delta review of the skill trigger metadata.
 
 ## Review Summary
 
@@ -318,13 +327,20 @@ Reviewer slots:
   version bumps, release PR creation, publication, milestone churn, priority
   labels, tracker issues, and distributed-skill confusion.
 
+Finalize repair delta review `review-002-delta` passed with 0 findings at
+revision 2. The reviewer confirmed the `release-triage` frontmatter now carries
+the proactive discoverability trigger after every `easyharness` PR lands, while
+preserving advisory-only guardrails and accurately recording the repair in the
+active plan.
+
 ## Archive Summary
 
-- Archived At: 2026-05-29T00:11:17+08:00
-- Revision: 1
+- Archived At: 2026-05-29T22:43:37+08:00
+- Revision: 2
 - PR: Open from branch `codex/document-0-x-release-policy` after archive.
 - Ready: Documentation, repo-local skills, live issue #87 handoff, plan lint,
-  whitespace validation, and finalize full review are complete.
+  whitespace validation, finalize full review, and revision 2 delta repair
+  review are complete.
 - Merge Handoff: After PR publication, record publish evidence, refresh CI/sync
   evidence, and wait for human merge approval once `harness status` reaches
   `execution/finalize/await_merge`.
@@ -341,6 +357,9 @@ Reviewer slots:
   `docs/releasing.md` for release policy instead of treating #87 as unresolved.
 - Added the repo-local `release-triage` skill for advisory release-readiness
   recommendations after land, milestone closeout, or release-scope review.
+- Updated the `release-triage` frontmatter description so skill discovery can
+  proactively trigger it after every `easyharness` PR lands and when checking
+  milestone closeout or release scope.
 - Updated live issue #87 to remove alpha-only framing and point at the tracked
   policy plus repo-local release-triage skill as the intended resolution.
 
