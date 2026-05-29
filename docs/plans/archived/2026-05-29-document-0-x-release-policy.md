@@ -225,6 +225,10 @@ every `easyharness` PR lands, and when checking milestone closeout or release
 scope, to decide whether to recommend that the human open a patch or minor
 release PR. The body overview was aligned with the same proactive trigger.
 
+Revision 3 finalize-fix converted the frontmatter `description` to folded YAML
+style after CI showed the unquoted colon in the proactive advisory sentence
+broke skill YAML parsing during bootstrap dogfood checks.
+
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: Step 2 adds one repo-local text skill with no runtime
@@ -309,10 +313,12 @@ Validated the documentation and repo-local skill candidate with:
 - live #87 verification with `gh issue view 87 --json number,title,state,labels,body,url`
 - revision 1 remote PR CI through GitHub Actions `Go Test`
 - revision 1 local `go test ./...`
+- revision 3 `scripts/sync-bootstrap-assets --check`
 
 The slice is text-only. No Go, UI, release workflow, or packaging behavior
-changed in revision 2, so the finalize-fix validation was limited to plan lint,
-whitespace validation, and delta review of the skill trigger metadata.
+changed in revisions 2 or 3, so finalize-fix validation focused on plan lint,
+whitespace validation, bootstrap skill parsing, and delta review of the skill
+trigger metadata.
 
 ## Review Summary
 
@@ -333,14 +339,25 @@ the proactive discoverability trigger after every `easyharness` PR lands, while
 preserving advisory-only guardrails and accurately recording the repair in the
 active plan.
 
+Revision 3 fixed YAML formatting for that same frontmatter description after
+remote CI caught the parse failure. The follow-up review should confirm the
+proactive trigger remains discoverable and the YAML shape is valid.
+
+Finalize repair delta review `review-003-delta` passed with 0 findings at
+revision 3. The reviewer confirmed the folded YAML frontmatter parses, the
+proactive trigger remains discoverable in skill metadata, advisory-only
+guardrails are preserved, and the active plan accurately records the CI parse
+failure plus fix.
+
 ## Archive Summary
 
-- Archived At: 2026-05-29T22:43:37+08:00
-- Revision: 2
+- Archived At: 2026-05-29T22:52:01+08:00
+- Revision: 3
 - PR: Open from branch `codex/document-0-x-release-policy` after archive.
 - Ready: Documentation, repo-local skills, live issue #87 handoff, plan lint,
-  whitespace validation, finalize full review, and revision 2 delta repair
-  review are complete.
+  whitespace validation, bootstrap dogfood check, finalize full review,
+  revision 2 delta repair review, and revision 3 YAML-format delta review are
+  complete.
 - Merge Handoff: After PR publication, record publish evidence, refresh CI/sync
   evidence, and wait for human merge approval once `harness status` reaches
   `execution/finalize/await_merge`.
@@ -360,6 +377,8 @@ active plan.
 - Updated the `release-triage` frontmatter description so skill discovery can
   proactively trigger it after every `easyharness` PR lands and when checking
   milestone closeout or release scope.
+- Formatted the proactive frontmatter description as folded YAML so
+  repo-local skill parsing stays valid during bootstrap dogfood checks.
 - Updated live issue #87 to remove alpha-only framing and point at the tracked
   policy plus repo-local release-triage skill as the intended resolution.
 

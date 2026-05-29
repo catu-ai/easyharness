@@ -1,6 +1,11 @@
 ---
 name: release-triage
-description: Proactively use after every easyharness PR lands, and when checking milestone closeout or release scope, to decide whether to recommend that the human open a patch or minor release PR. This repo-local skill is advisory only: do not bump VERSION, create release PRs, publish releases, or create release-process machinery.
+description: >-
+  Proactively use after every easyharness PR lands, and when checking milestone
+  closeout or release scope, to decide whether to recommend that the human open
+  a patch or minor release PR. This repo-local skill is advisory only: do not
+  bump VERSION, create release PRs, publish releases, or create release-process
+  machinery.
 ---
 
 # Release Triage
