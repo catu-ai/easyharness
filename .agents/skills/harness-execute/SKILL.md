@@ -56,13 +56,11 @@ For `delta` review, use a real git commit anchor. The detailed controller
 dispatch fields, anchor guidance, and reviewer-resume rules live in
 [review-orchestration.md](references/review-orchestration.md).
 
-If the approved plan is likely to require reviewer subagents and explicit
-authorization has not been obtained yet, ask for that authorization as soon as
-the need becomes foreseeable. Do not wait until reviewer spawning is the only
-remaining next action before surfacing the request.
-If execution still reaches a reviewer-subagent boundary without that explicit
-approval, pause only long enough to request it, then continue the review flow
-once the human answers.
+If subagent authorization for this harness run has not been explicit yet, ask
+once before spawning any explorer, worker, or reviewer subagent. Once the human
+authorizes bounded subagents for the run, actively use them for suitable
+independent work instead of waiting until review orchestration is blocked. If
+authorization is denied, continue locally until the human changes that boundary.
 
 Keep exactly one active review round at a time. The detailed review rules live
 in [review-orchestration.md](references/review-orchestration.md).
@@ -157,10 +155,9 @@ Execute is done when:
 - Do not ask the human whether routine step-closeout or finalize review should
   start once `harness status` and the tracked plan make the next review action
   clear.
-- Do not silently stall at review orchestration because reviewer subagent
-  authorization is missing; request it explicitly as soon as you know it will
-  be required, and if you still reach the reviewer boundary without approval,
-  pause only long enough to ask and then resume once the answer arrives.
+- Do not silently stall at review orchestration because subagent authorization
+  is missing; the harness-run authorization should be requested at the first
+  harness workflow boundary, or as soon as the missing authorization is noticed.
 - Do not submit reviewer results from the controller thread or impersonate a
   reviewer slot yourself. Reviewer submissions belong to bounded reviewer
   subagents using `harness review submit --by <reviewer-name>`.
