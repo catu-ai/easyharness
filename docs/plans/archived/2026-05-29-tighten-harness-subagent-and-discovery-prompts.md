@@ -326,25 +326,63 @@ the final full review will cover the prompt wording as one coherent change.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+Validated the prompt-only candidate with:
+
+- `git diff --check`
+- `scripts/sync-bootstrap-assets --check`
+- `harness plan lint docs/plans/active/2026-05-29-tighten-harness-subagent-and-discovery-prompts.md`
+- stale-wording search across the edited managed prompt surfaces for old
+  medium/large discovery, Socratic discovery, reviewer-only authorization, and
+  late reviewer-subagent authorization language
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+`review-001-full` passed cleanly with 0 findings. Reviewer slots:
+
+- `docs_consistency`: confirmed the active plan, managed `AGENTS.md` source and
+  output, bootstrap skill sources, and materialized skill copies consistently
+  describe run-level bounded-subagent authorization, active post-authorization
+  subagent use, and the tightened discovery boundary.
+- `agent_ux`: confirmed the updated prompts are direct and usable for future
+  agents, including size-independent discovery, agent-owned repo facts, the
+  current-read/recommendation/plain-boundary question format, no loaded
+  implementation binaries, and explicit discovery-summary handoff.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-05-30T00:16:03+08:00
+- Revision: 1
+- PR: pending publish after archive; no PR URL exists yet.
+- Ready: The managed bootstrap source, root managed block, materialized
+  harness skills, and active plan now satisfy the approved prompt-only scope.
+  Validation passed and `review-001-full` found no issues.
+- Merge Handoff: Archive the plan, commit the tracked plan move and closeout
+  summary, push branch `codex/tighten-harness-subagent-discovery-prompts`, open
+  a PR, record publish/CI/sync evidence, and wait for explicit human merge
+  approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added first-boundary harness-run subagent authorization guidance to the
+  managed `AGENTS.md` contract, covering explorer, worker, and reviewer
+  subagents.
+- Reframed subagents as a normal authorized harness workflow tool for bounded,
+  independent work while preserving controller ownership and human steering.
+- Aligned `harness-plan` and `harness-execute` with the shared run-level
+  authorization model instead of reviewer-only late authorization wording.
+- Updated `harness-discovery` so discovery is size-independent, excludes simple
+  repo Q&A/status/code lookup and clear implementation-ready work, assigns repo
+  facts to the agent, gives a direct question format, discourages loaded
+  implementation binaries, and requires a concise discovery summary before
+  handoff to `harness-plan`.
+- Synced bootstrap outputs into root `AGENTS.md` and `.agents/skills/`.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+No CLI behavior, command schema, state transition, or subagent runtime changes
+were made.
 
 ### Follow-Up Issues
 
