@@ -65,38 +65,38 @@ belong to `harness evidence refresh` or manual `harness evidence submit`.
 
 ## Acceptance Criteria
 
-- [ ] Default `harness status` remains the single agent-facing status entrypoint
+- [x] Default `harness status` remains the single agent-facing status entrypoint
       and does not require agents to know when to request a verbose/details
       variant.
-- [ ] Archived-candidate status groups local durable evidence under
+- [x] Archived-candidate status groups local durable evidence under
       `facts.evidence.recorded`, with publish, CI, and sync statuses clearly
       separated from live remote observation.
-- [ ] Live remote observation is exposed through a compact
+- [x] Live remote observation is exposed through a compact
       `facts.evidence.remote` object rather than the current provider-shaped
       `facts.remote_handoff` dump.
-- [ ] `facts.evidence.remote.observation` uses a small clear vocabulary such as
+- [x] `facts.evidence.remote.observation` uses a small clear vocabulary such as
       `complete`, `partial`, and `unavailable` to describe observation
       completeness.
-- [ ] `facts.evidence.remote.assessment` uses an agent-facing workflow
+- [x] `facts.evidence.remote.assessment` uses an agent-facing workflow
       vocabulary such as `matches_recorded`, `refresh_available`,
       `wait_for_remote`, `repair_remote`, `manual_evidence_required`, and
       `candidate_invalidated`.
-- [ ] Default remote facts include only high-signal fields: a human-readable
+- [x] Default remote facts include only high-signal fields: a human-readable
       message, minimal PR state/draft information when relevant, and the remote
       CI/sync evidence statuses that refresh would record.
-- [ ] Default status output does not include raw provider check rows, provider
+- [x] Default status output does not include raw provider check rows, provider
       merge-state internals, head commit OIDs, duplicate PR URLs under remote
       facts, or evidence record IDs unless they are needed for the current
       workflow node.
-- [ ] `next_actions` remains the sole command recommendation surface; no fact
+- [x] `next_actions` remains the sole command recommendation surface; no fact
       field duplicates commands or tells the agent what to run.
-- [ ] Status remains read-only and cannot advance to
+- [x] Status remains read-only and cannot advance to
       `execution/finalize/await_merge` from live remote facts alone; durable
       recorded publish, CI, and sync evidence still determine that node.
-- [ ] `harness evidence refresh` continues to be the mutating bridge that
+- [x] `harness evidence refresh` continues to be the mutating bridge that
       records observed CI and sync facts, and its output remains consistent with
       the compact status remote assessment.
-- [ ] Specs, generated schemas, implementation tests, CLI/e2e tests, and
+- [x] Specs, generated schemas, implementation tests, CLI/e2e tests, and
       bootstrap skill guidance agree on the new status field names and
       semantics.
 
@@ -408,25 +408,84 @@ and runtime consistency across the whole candidate.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `harness plan lint docs/plans/active/2026-05-30-simplify-status-evidence-remote-handoff-output.md`
+- `scripts/sync-bootstrap-assets`
+- `scripts/sync-bootstrap-assets --check`
+- `scripts/sync-contract-artifacts`
+- `scripts/sync-contract-artifacts --check`
+- `go run ./cmd/contract-sync --check`
+- `go test ./internal/status ./internal/cli ./internal/evidence ./internal/remote ./internal/contractsync ./internal/ui ./internal/dashboard ./internal/watchlist ./tests/e2e -count=1`
+- `go test ./internal/status ./internal/cli ./internal/evidence ./internal/remote ./internal/contractsync ./tests/smoke -count=1`
+- `go test ./internal/contractsync -count=1`
+- `go test ./internal/status -count=1`
+- `go test ./tests/smoke -run TestSyncContractArtifactsCheckPassesForCurrentRepo -count=1`
+- `go test ./... -count=1`
+- `pnpm --dir web check`
+- `pnpm --dir web test -- --run`
+- `scripts/install-dev-harness`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step-level review was intentionally marked `NO_STEP_REVIEW_NEEDED` because
+  the three steps were one tightly coupled status contract/runtime/guidance
+  slice; the meaningful review boundary was finalize review.
+- Finalize review ran through multiple rounds as reviewers found and verified
+  repairs:
+  - `review-001-full`: found issues around non-open PR assessment, frontend
+    status types, draft serialization, and missing remote assessment coverage.
+  - `review-002-delta` through `review-008-delta`: verified targeted repairs
+    for closed/non-open PRs, refresh/land guidance, draft and wait/repair
+    states, schema/type alignment, and contract-sync stability.
+  - `review-009-full`: passed with 0 blocking and 0 non-blocking findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-05-31T01:15:06+08:00
+- Revision: 1
+- PR: not created yet; publish handoff will open the PR after archive and
+  record publish evidence with the PR URL.
+- Ready: archive-ready after grouped status evidence, compact remote
+  assessment, assessment-gated refresh guidance, generated schemas, frontend
+  types, specs, and bootstrap guidance were updated and validated.
+- Merge Handoff: after archive, run publish/CI/sync handoff by pushing the
+  branch, opening the PR, recording publish evidence, refreshing CI/sync
+  evidence, and confirming `harness status` reaches
+  `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- `harness status` now keeps the default agent-facing payload compact and
+  workflow-oriented: durable evidence lives under `facts.evidence.recorded`,
+  live remote observation lives under `facts.evidence.remote`, and command
+  recommendations remain only in `next_actions`.
+- Remote handoff output now uses clear `observation`, `assessment`, and
+  `message` fields plus minimal PR/CI/sync summaries instead of exposing raw
+  provider-shaped handoff details by default.
+- Status remains read-only and evidence-driven. Live remote facts can explain
+  why to refresh, wait, repair, use manual evidence, or treat a candidate as
+  invalidated, but they do not advance the workflow node by themselves.
+- `harness evidence refresh` remains the mutating bridge and now refuses to
+  write CI/sync evidence for non-open PRs. Status refresh commands are gated
+  by `remote.assessment == refresh_available` when remote facts are present.
+- Status artifacts were reduced by omitting default evidence record IDs, and
+  in-repo consumers, schemas, specs, bootstrap guidance, and frontend types
+  were aligned to the new shape.
+- Contract artifact generation now normalizes workdir paths so direct
+  `go run ./cmd/contract-sync --check` and the repo wrapper
+  `scripts/sync-contract-artifacts --check` agree.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No `harness status --details`, `-v`, or routine verbose status workflow was
+  introduced.
+- No compatibility shim was kept for the old default flat archived evidence
+  fields or `facts.remote_handoff` provider-shaped tree.
+- No remote provider expansion beyond the existing recorded GitHub PR
+  observation path was added.
+- No publish, CI, or sync evidence has been recorded yet because those belong
+  to the post-archive handoff.
 
 ### Follow-Up Issues
 
