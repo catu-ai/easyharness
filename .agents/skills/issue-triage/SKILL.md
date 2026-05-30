@@ -51,9 +51,9 @@ Use milestones for real version intent, not vague release buckets.
 
 A milestone means "this issue belongs to the intended scope of that version"
 and should be more specific than `state/accepted`. It does not by itself mean
-the release is ready to cut, nor does it define the release cadence or quality
-bar. Those release-policy questions remain separate work, currently tracked by
-issue `#87`.
+the release is ready to cut. The release policy in `docs/releasing.md` defines
+minor versus patch release shape, release-readiness judgment, and when patch
+releases can skip milestones.
 
 ## Workflow
 
