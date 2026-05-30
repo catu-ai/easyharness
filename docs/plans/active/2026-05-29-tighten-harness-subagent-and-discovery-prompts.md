@@ -276,6 +276,12 @@ current-read/options/recommendation-under-preferred-option format, discourages
 loaded implementation binaries, and strengthens the required end-of-discovery
 summary before handoff to `harness-plan`.
 
+Revision 3 PR feedback repair restored `Socratic` to the discovery frontmatter
+and body, replaced the non-self-contained "borrow useful parts" wording with
+direct cold-agent instructions, and made explicit that discovery may challenge
+the human's framing when repository evidence points another way, as long as
+the challenge serves a concrete decision.
+
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: This tightly-coupled prompt-only slice will receive one
@@ -346,6 +352,8 @@ the final full review will cover the prompt wording as one coherent change.
 
 ## Validation Summary
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 Revision 2 validation covers the original prompt-only candidate plus the PR
 feedback repair:
 
@@ -370,6 +378,8 @@ feedback repair:
 
 ## Review Summary
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 Revision 1 `review-001-full` passed cleanly with 0 findings before PR feedback.
 Revision 2 `review-002-full` found 1 blocking `agent_ux` issue: the reusable
 `Option Framing Pattern` still told agents to add the recommendation after the
@@ -392,6 +402,8 @@ Revision 1 reviewer slots:
 
 ## Archive Summary
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 - Archived At: 2026-05-30T10:43:48+08:00
 - Revision: 2
 - PR: https://github.com/catu-ai/easyharness/pull/224
@@ -406,6 +418,8 @@ Revision 1 reviewer slots:
 ## Outcome Summary
 
 ### Delivered
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - Added first-boundary harness-run subagent authorization guidance to the
   managed `AGENTS.md` contract, covering explorer, worker, and reviewer
@@ -425,9 +439,13 @@ Revision 1 reviewer slots:
 
 ### Not Delivered
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 No CLI behavior, command schema, state transition, or subagent runtime changes
 were made.
 
 ### Follow-Up Issues
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 NONE

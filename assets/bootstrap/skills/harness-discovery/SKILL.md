@@ -1,6 +1,6 @@
 ---
 name: harness-discovery
-description: Run interactive, collaborative discovery before planning or execution when the objective, boundaries, tradeoffs, success criteria, size, or workflow direction are unclear, or when archived work may need to reopen. Do not use for casual Q&A, simple repo orientation, status checks, or already-approved execution.
+description: Run interactive, Socratic discovery before planning or execution when the objective, boundaries, tradeoffs, success criteria, size, or workflow direction are unclear, or when archived work may need to reopen. Do not use for casual Q&A, simple repo orientation, status checks, or already-approved execution.
 ---
 
 # Harness Discovery
@@ -50,11 +50,13 @@ asking the human, read the relevant context and answer factual repository
 questions yourself, using bounded explorers when that will sharpen the next
 human question.
 
-Keep the harness posture collaborative, not adversarial. Borrow the useful
-parts of brainstorming and grill-style questioning: read context first, ask one
-focused question at a time, frame real choices plainly, and recommend a
-direction when the evidence is strong enough. Do not turn discovery into a long
-interrogation.
+Use a Socratic posture to clarify the work: test assumptions, name tensions,
+and ask focused questions when they expose a real decision. Challenge the
+human's framing when repository evidence points another way, but keep the
+challenge tied to a concrete choice instead of debate. Read context first, ask
+one focused question at a time, frame real choices plainly, recommend a
+direction when the evidence is strong enough, and stop when there is enough
+clarity to summarize and hand off.
 
 Prefer option-shaped questions:
 
@@ -99,7 +101,7 @@ Which direction should I plan around?
    exploration. Re-evaluate whether more exploration is needed after each
    clarification turn.
 6. Ask exactly one high-leverage question per turn.
-7. Use focused questioning to clarify:
+7. Use Socratic, focused questioning to clarify:
    - purpose
    - constraints
    - non-goals
