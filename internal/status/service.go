@@ -939,12 +939,19 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 		return buildPublishNextActions(facts)
 	case "execution/finalize/await_merge":
 		actions := remoteHandoffNextActions(facts)
-		actions = append(actions, NextAction{Command: nil, Description: "Wait for explicit human approval before merging the PR."})
-		if facts != nil && strings.TrimSpace(recordedPRURL(facts)) != "" {
+		if remoteBlocksMergeApproval(facts) {
 			actions = append(actions, NextAction{
-				Command:     strPtr(fmt.Sprintf("harness land --pr %s [--commit <sha>]", recordedPRURL(facts))),
-				Description: "After the PR is merged outside harness and the worktree is synced, record merge confirmation and enter required post-merge bookkeeping.",
+				Command:     nil,
+				Description: "Repair or refresh the remote handoff before asking for merge approval.",
 			})
+		} else {
+			actions = append(actions, NextAction{Command: nil, Description: "Wait for explicit human approval before merging the PR."})
+			if facts != nil && strings.TrimSpace(recordedPRURL(facts)) != "" {
+				actions = append(actions, NextAction{
+					Command:     strPtr(fmt.Sprintf("harness land --pr %s [--commit <sha>]", recordedPRURL(facts))),
+					Description: "After the PR is merged outside harness and the worktree is synced, record merge confirmation and enter required post-merge bookkeeping.",
+				})
+			}
 		}
 		actions = append(actions, NextAction{
 			Command:     nil,
@@ -1249,11 +1256,34 @@ func shouldSuggestEvidenceRefresh(facts *Facts) bool {
 	if facts == nil || recordedPublishStatus(facts) != "recorded" || strings.TrimSpace(recordedPRURL(facts)) == "" {
 		return false
 	}
+	if remoteFacts := remoteEvidenceFacts(facts); unusableRemotePR(remoteFacts) {
+		return false
+	}
 	return recordedCIStatus(facts) == "" ||
 		recordedCIStatus(facts) == "pending" ||
 		recordedSyncStatus(facts) == "" ||
 		recordedSyncStatus(facts) == "stale" ||
 		cleanRemoteCanRefreshNonReadyEvidence(facts)
+}
+
+func remoteBlocksMergeApproval(facts *Facts) bool {
+	remoteFacts := remoteEvidenceFacts(facts)
+	if remoteFacts == nil {
+		return false
+	}
+	switch remoteFacts.Assessment {
+	case "candidate_invalidated", "repair_remote", "wait_for_remote":
+		return true
+	default:
+		return unusableRemotePR(remoteFacts)
+	}
+}
+
+func remoteEvidenceFacts(facts *Facts) *contracts.StatusRemoteEvidence {
+	if facts == nil || facts.Evidence == nil {
+		return nil
+	}
+	return facts.Evidence.Remote
 }
 
 func cleanRemoteCanRefreshNonReadyEvidence(facts *Facts) bool {

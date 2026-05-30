@@ -752,6 +752,29 @@ func TestStatusCommandSurfacesRemoteHandoffObservation(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("expected JSON status output: %v\n%s", err, stdout.String())
 	}
+	var raw map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &raw); err != nil {
+		t.Fatalf("expected JSON status output for raw inspection: %v\n%s", err, stdout.String())
+	}
+	rawFacts, ok := raw["facts"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected facts object in status payload, got %s", stdout.String())
+	}
+	rawEvidence, ok := rawFacts["evidence"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected evidence object in status payload, got %s", stdout.String())
+	}
+	rawRemote, ok := rawEvidence["remote"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected remote evidence object in status payload, got %s", stdout.String())
+	}
+	rawPR, ok := rawRemote["pr"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected remote PR object in status payload, got %s", stdout.String())
+	}
+	if draft, exists := rawPR["draft"]; !exists || draft != false {
+		t.Fatalf("expected explicit draft:false in status payload, got %#v in %s", rawPR, stdout.String())
+	}
 	remoteEvidence := payload.Facts.Evidence.Remote
 	if remoteEvidence == nil || remoteEvidence.Observation != "complete" || remoteEvidence.Assessment != "refresh_available" {
 		t.Fatalf("expected complete refresh-available remote evidence facts, got %s", stdout.String())

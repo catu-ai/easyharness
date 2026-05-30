@@ -24,6 +24,11 @@ export type ErrorDetail = {
   message: string;
 };
 
+export type StatusRemoteDegradation = {
+  code?: string;
+  message?: string;
+};
+
 export type StatusFacts = {
   current_step?: string;
   revision?: number;
@@ -60,7 +65,7 @@ export type StatusFacts = {
       sync?: {
         status?: string;
       } | null;
-      degraded?: ErrorDetail[] | null;
+      degraded?: StatusRemoteDegradation[] | null;
     } | null;
   } | null;
   land_pr_url?: string;

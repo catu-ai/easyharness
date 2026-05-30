@@ -1743,6 +1743,13 @@ func TestStatusArchivedPlanSurfacesRemoteHandoffObservation(t *testing.T) {
 	if remoteEvidence.PR == nil || remoteEvidence.PR.State != "OPEN" || remoteEvidence.PR.Draft {
 		t.Fatalf("unexpected remote PR summary: %#v", remoteEvidence.PR)
 	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal status result: %v", err)
+	}
+	if !strings.Contains(string(payload), `"draft":false`) {
+		t.Fatalf("expected status JSON to include explicit draft:false, got %s", string(payload))
+	}
 	if remoteEvidence.CI == nil || remoteEvidence.CI.Status != "success" {
 		t.Fatalf("unexpected remote CI summary: %#v", remoteEvidence.CI)
 	}
@@ -1917,6 +1924,9 @@ func TestStatusRemoteAssessmentHandlesClosedPR(t *testing.T) {
 	if !found {
 		t.Fatalf("expected closed PR guidance, got %#v", result.NextAction)
 	}
+	if statusNextActionsContain(result, "harness evidence refresh") {
+		t.Fatalf("closed PR must not suggest evidence refresh, got %#v", result.NextAction)
+	}
 }
 
 func TestStatusRemoteAssessmentInvalidatesReadyClosedPR(t *testing.T) {
@@ -1947,6 +1957,9 @@ func TestStatusRemoteAssessmentInvalidatesReadyClosedPR(t *testing.T) {
 	remoteEvidence := requireRemoteEvidence(t, result)
 	if remoteEvidence.Assessment != "candidate_invalidated" {
 		t.Fatalf("closed PR should invalidate recorded merge-ready candidate, got %#v", remoteEvidence)
+	}
+	if statusNextActionsContain(result, "harness land --pr https://github.com/catu-ai/easyharness/pull/13 [--commit <sha>]") {
+		t.Fatalf("closed PR must not suggest land guidance, got %#v", result.NextAction)
 	}
 }
 
@@ -2055,8 +2068,8 @@ func TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode(t *t
 	if !foundRemoteGuidance {
 		t.Fatalf("expected await_merge next actions to include remote failure guidance, got %#v", result.NextAction)
 	}
-	if !foundLandGuidance {
-		t.Fatalf("expected ordinary land guidance to remain after remote guidance, got %#v", result.NextAction)
+	if foundLandGuidance {
+		t.Fatalf("invalidating remote facts must suppress ordinary land guidance, got %#v", result.NextAction)
 	}
 }
 

@@ -187,6 +187,12 @@ func (s Service) Refresh() RefreshResult {
 		PlanPath: relPlanPath,
 		PRURL:    identity.URL,
 	}
+	if observation.PR.Status == remote.PRObservationAvailable && !refreshablePRState(observation.PR.State) {
+		return refreshErrorResult("Recorded PR is no longer open; repair or replace publish evidence before refreshing CI and sync evidence.", []CommandError{{
+			Path:    "publish.pr_url",
+			Message: fmt.Sprintf("recorded PR state is %s; refresh requires an open PR", observation.PR.State),
+		}}, publishRefreshFallbackActions())
+	}
 	refreshed := &RefreshStatuses{}
 	warnings := make([]string, 0, 2)
 	rollbackPaths := make([]string, 0, 2)
@@ -504,6 +510,11 @@ func refreshErrorResult(summary string, errors []CommandError, actions ...[]Next
 		Errors:     errors,
 		NextAction: nextActions,
 	}
+}
+
+func refreshablePRState(state string) bool {
+	state = strings.ToUpper(strings.TrimSpace(state))
+	return state == "" || state == "OPEN"
 }
 
 func (s Service) finalizeMutation(result Result, rollback func() []CommandError) Result {
