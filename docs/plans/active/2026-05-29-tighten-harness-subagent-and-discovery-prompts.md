@@ -412,6 +412,9 @@ Revision 4 validation covers the discovery-turn rhythm repair:
 - replaced the absolute "ask exactly one high-leverage question per turn" rule
   with "when the next step needs a human decision, ask exactly one question:
   the highest-leverage question for the current moment"
+- after `review-005-delta` found a minor wording slip, changed "answers a side
+  question" to "asks a side question" in bootstrap source and materialized
+  output
 - synced bootstrap output into `.agents/skills/harness-discovery/SKILL.md`
 - `scripts/sync-bootstrap-assets --check`
 - `git diff --check`
@@ -434,7 +437,10 @@ Socratic wording repair satisfies the PR comments, is self-contained for cold
 agents, allows concrete challenge when it clarifies the work, removes the old
 "borrow useful parts" and "not adversarial" wording, and keeps bootstrap
 source/materialized output synchronized.
-Revision 4 review is pending after the latest discovery-turn rhythm repair.
+Revision 4 `review-005-delta` passed with 1 non-blocking `agent_ux` finding:
+the new side-question carveout used "answers a side question" where the prompt
+should say "asks a side question." The wording was repaired in bootstrap
+source and materialized output. A narrow follow-up review is pending.
 Revision 1 reviewer slots:
 
 - `docs_consistency`: confirmed the active plan, managed `AGENTS.md` source and

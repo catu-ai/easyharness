@@ -67,7 +67,7 @@ Prefer option-shaped questions:
 4. Ask the human to choose, edit, or reject the options.
 
 Do not force a new question into every discovery turn. If the human asks for
-details about an option, answers a side question, or needs a factual
+details about an option, asks a side question, or needs a factual
 explanation before deciding, answer directly. When a new human decision is
 needed, ask only one question, and make it the highest-leverage question for
 the current moment.
