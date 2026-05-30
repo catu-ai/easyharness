@@ -117,7 +117,7 @@ If a tracked plan conflicts with a repo-local skill, the tracked plan wins.
 
 ## Harness Workflow
 
-For medium or large work:
+For harness-managed work that is not already clear enough to execute directly:
 
 1. Discovery
 2. Plan
@@ -171,11 +171,19 @@ invalidation.
 ## Harness Subagent Use
 
 The controller owns shared repository context and the final workflow judgment.
-Spawn subagents only for bounded subproblems; do not split one shared context
-bundle across multiple subagents just to get summaries back.
+Subagents are a normal part of harness work, not an exceptional fallback. When
+a harness workflow skill is first used in a thread, ask once whether the human
+authorizes specific, well-scoped subagents for this harness run unless that
+authorization has already been explicit in the conversation. This authorization
+covers explorer, worker, and reviewer subagents.
 
-Discovery and execution may stay local, use one subagent, or use multiple
-subagents in parallel according to the current question shape:
+After authorization, actively look for bounded, independent work that
+subagents can handle in parallel or with useful separation. Spawn subagents
+only for concrete subproblems; do not split one shared context bundle across
+multiple subagents just to get summaries back.
+
+Discovery and execution may still stay local, use one subagent, or use
+multiple subagents in parallel according to the current question shape:
 
 - stay local when the controller can answer the next question from the shared
   context it already needs to hold
@@ -183,6 +191,10 @@ subagents in parallel according to the current question shape:
   checking
 - use multiple subagents in parallel only when multiple hypotheses or
   questions are genuinely independent
+
+If subagent authorization is missing when it becomes useful, ask for that
+authorization before spawning. If authorization is denied, continue locally
+until the human changes that boundary.
 
 In Codex, spawned subagents are not fire-and-forget memory. Once a bounded
 subagent task is complete and the controller has received the result, close
@@ -219,10 +231,6 @@ Use `harness status` at routine checkpoints:
 
 Human confirmation is still required for real blockers, scope changes, and
 merge approval, but not for ordinary review closeout.
-
-If an approved plan is likely to require reviewer subagents later, ask for
-explicit human authorization when seeking plan approval instead of waiting
-until review orchestration is already blocked on that permission.
 
 ## Harness Start Points
 
