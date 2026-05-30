@@ -7,7 +7,7 @@
       "properties": {
         "path": {
           "type": "string",
-          "description": "Path identifies the field, section, or artifact path associated with the\nerror."
+          "description": "Path identifies the field, section, or artifact path associated with the error."
         },
         "message": {
           "type": "string",
@@ -20,7 +20,7 @@
         "path",
         "message"
       ],
-      "description": "ErrorDetail describes one machine-readable validation or execution problem in\na command result."
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
     },
     "EvidenceRefreshArtifacts": {
       "properties": {
@@ -34,11 +34,11 @@
         },
         "ci_record_id": {
           "type": "string",
-          "description": "CIRecordID is the created CI evidence record identifier when CI was\nrefreshed."
+          "description": "CIRecordID is the created CI evidence record identifier when CI was refreshed."
         },
         "sync_record_id": {
           "type": "string",
-          "description": "SyncRecordID is the created sync evidence record identifier when sync was\nrefreshed."
+          "description": "SyncRecordID is the created sync evidence record identifier when sync was refreshed."
         }
       },
       "additionalProperties": false,
@@ -46,7 +46,7 @@
       "required": [
         "plan_path"
       ],
-      "description": "EvidenceRefreshArtifacts lists evidence records touched by `harness evidence\nrefresh`."
+      "description": "EvidenceRefreshArtifacts lists evidence records touched by `harness evidence refresh`."
     },
     "EvidenceRefreshResult": {
       "properties": {
@@ -68,7 +68,7 @@
         },
         "refreshed": {
           "$ref": "#/$defs/EvidenceRefreshStatuses",
-          "description": "Refreshed reports the machine-readable evidence statuses written by this\nrefresh."
+          "description": "Refreshed reports the machine-readable evidence statuses written by this refresh."
         },
         "next_actions": {
           "oneOf": [
@@ -90,7 +90,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "Warnings lists degraded domains that did not prevent other evidence from\nbeing refreshed."
+          "description": "Warnings lists degraded domains that did not prevent other evidence from being refreshed."
         },
         "errors": {
           "items": {
@@ -108,7 +108,7 @@
         "summary",
         "next_actions"
       ],
-      "description": "EvidenceRefreshResult is the JSON result returned by `harness evidence\nrefresh`."
+      "description": "EvidenceRefreshResult is the JSON result returned by `harness evidence refresh`."
     },
     "EvidenceRefreshStatuses": {
       "properties": {
@@ -123,7 +123,7 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "EvidenceRefreshStatuses lists the compact evidence statuses written by\n`harness evidence refresh`."
+      "description": "EvidenceRefreshStatuses lists the compact evidence statuses written by `harness evidence refresh`."
     },
     "NextAction": {
       "properties": {
@@ -131,13 +131,13 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
+              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
             },
             {
               "type": "null"
             }
           ],
-          "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
+          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
         },
         "description": {
           "type": "string",
@@ -150,7 +150,7 @@
         "command",
         "description"
       ],
-      "description": "NextAction describes one concrete follow-up action that the caller should\nconsider after reading a command result."
+      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
     }
   },
   "title": "Evidence refresh command result",

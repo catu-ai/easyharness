@@ -7,7 +7,7 @@
       "properties": {
         "path": {
           "type": "string",
-          "description": "Path identifies the field, section, or artifact path associated with the\nerror."
+          "description": "Path identifies the field, section, or artifact path associated with the error."
         },
         "message": {
           "type": "string",
@@ -20,25 +20,25 @@
         "path",
         "message"
       ],
-      "description": "ErrorDetail describes one machine-readable validation or execution problem in\na command result."
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
     },
     "LifecycleArtifacts": {
       "properties": {
         "from_plan_path": {
           "type": "string",
-          "description": "FromPlanPath is the source plan path for transitions that move or archive a\nplan."
+          "description": "FromPlanPath is the source plan path for transitions that move or archive a plan."
         },
         "from_supplements_path": {
           "type": "string",
-          "description": "FromSupplementsPath is the source supplements directory for transitions\nthat move a whole plan package."
+          "description": "FromSupplementsPath is the source supplements directory for transitions that move a whole plan package."
         },
         "to_plan_path": {
           "type": "string",
-          "description": "ToPlanPath is the destination plan path for transitions that create or move\na plan artifact."
+          "description": "ToPlanPath is the destination plan path for transitions that create or move a plan artifact."
         },
         "to_supplements_path": {
           "type": "string",
-          "description": "ToSupplementsPath is the destination supplements directory for transitions\nthat move a whole plan package."
+          "description": "ToSupplementsPath is the destination supplements directory for transitions that move a whole plan package."
         },
         "local_state_path": {
           "type": "string",
@@ -46,7 +46,7 @@
         },
         "current_plan_path": {
           "type": "string",
-          "description": "CurrentPlanPath is the worktree-level current-plan pointer path when the\ncommand updated it."
+          "description": "CurrentPlanPath is the worktree-level current-plan pointer path when the command updated it."
         }
       },
       "additionalProperties": false,
@@ -55,7 +55,7 @@
         "from_plan_path",
         "to_plan_path"
       ],
-      "description": "LifecycleArtifacts lists the relevant plan and local-state paths for a\nlifecycle command result."
+      "description": "LifecycleArtifacts lists the relevant plan and local-state paths for a lifecycle command result."
     },
     "LifecycleFacts": {
       "properties": {
@@ -65,7 +65,7 @@
         },
         "reopen_mode": {
           "type": "string",
-          "description": "ReopenMode is the active reopen mode when a reopen repair path is in\neffect."
+          "description": "ReopenMode is the active reopen mode when a reopen repair path is in effect."
         },
         "land_pr_url": {
           "type": "string",
@@ -73,12 +73,12 @@
         },
         "land_commit": {
           "type": "string",
-          "description": "LandCommit is the merge commit or landed commit recorded for the land\nphase."
+          "description": "LandCommit is the merge commit or landed commit recorded for the land phase."
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "LifecycleFacts carries selected lifecycle-specific details that remain useful\nafter the contract converges on the shared v0.2 envelope."
+      "description": "LifecycleFacts carries selected lifecycle-specific details that remain useful after the contract converges on the shared v0.2 envelope."
     },
     "LifecycleResult": {
       "properties": {
@@ -100,7 +100,7 @@
         },
         "facts": {
           "$ref": "#/$defs/LifecycleFacts",
-          "description": "Facts carries selected high-signal lifecycle details when they help\nexplain the post-command state."
+          "description": "Facts carries selected high-signal lifecycle details when they help explain the post-command state."
         },
         "artifacts": {
           "$ref": "#/$defs/LifecycleArtifacts",
@@ -138,7 +138,7 @@
         "state",
         "next_actions"
       ],
-      "description": "LifecycleResult is the JSON result shape currently shared by\n`harness plan approve`, `harness execute start`, `harness archive`,\n`harness reopen`, `harness land`, and `harness land complete`."
+      "description": "LifecycleResult is the JSON result shape currently shared by `harness plan approve`, `harness execute start`, `harness archive`, `harness reopen`, `harness land`, and `harness land complete`."
     },
     "LifecycleState": {
       "properties": {
@@ -160,13 +160,13 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
+              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
             },
             {
               "type": "null"
             }
           ],
-          "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
+          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
         },
         "description": {
           "type": "string",
@@ -179,7 +179,7 @@
         "command",
         "description"
       ],
-      "description": "NextAction describes one concrete follow-up action that the caller should\nconsider after reading a command result."
+      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
     }
   },
   "title": "Lifecycle command result",

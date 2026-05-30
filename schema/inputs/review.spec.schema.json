@@ -20,7 +20,7 @@
         "name",
         "instructions"
       ],
-      "description": "ReviewDimension defines one named review dimension and its reviewer\ninstructions."
+      "description": "ReviewDimension defines one named review dimension and its reviewer instructions."
     },
     "ReviewSpec": {
       "properties": {
@@ -34,11 +34,11 @@
         },
         "anchor_sha": {
           "type": "string",
-          "description": "AnchorSHA is the controller-chosen git commit anchor for delta review.\nDelta review expects this to resolve to a real commit."
+          "description": "AnchorSHA is the controller-chosen git commit anchor for delta review. Delta review expects this to resolve to a real commit."
         },
         "review_title": {
           "type": "string",
-          "description": "ReviewTitle is the human-readable title for finalize or custom review\nrounds."
+          "description": "ReviewTitle is the human-readable title for finalize or custom review rounds."
         },
         "dimensions": {
           "items": {
@@ -46,7 +46,7 @@
           },
           "type": "array",
           "minItems": 1,
-          "description": "Dimensions lists the review dimensions and instructions assigned to\nreviewers."
+          "description": "Dimensions lists the review dimensions and instructions assigned to reviewers."
         }
       },
       "additionalProperties": false,

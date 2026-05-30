@@ -1862,7 +1862,34 @@ func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) 
 			if !found {
 				t.Fatalf("expected next action containing %q, got %#v", tt.wantCue, result.NextAction)
 			}
+			if statusNextActionsContain(result, "harness evidence refresh") {
+				t.Fatalf("remote assessment %s must not suggest immediate evidence refresh, got %#v", tt.wantAssessment, result.NextAction)
+			}
 		})
+	}
+}
+
+func TestStatusDraftRemoteAssessmentDoesNotSuggestImmediateRefresh(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand:    fakeStatusRemoteCommandsWithPRState(`"OPEN"`, true, `"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Snapshot()
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Assessment != "wait_for_remote" || remoteEvidence.PR == nil || !remoteEvidence.PR.Draft {
+		t.Fatalf("expected draft PR wait assessment, got %#v", remoteEvidence)
+	}
+	if statusNextActionsContain(result, "harness evidence refresh") {
+		t.Fatalf("draft PR must not suggest immediate evidence refresh, got %#v", result.NextAction)
 	}
 }
 

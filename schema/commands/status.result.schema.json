@@ -7,7 +7,7 @@
       "properties": {
         "path": {
           "type": "string",
-          "description": "Path identifies the field, section, or artifact path associated with the\nerror."
+          "description": "Path identifies the field, section, or artifact path associated with the error."
         },
         "message": {
           "type": "string",
@@ -20,7 +20,7 @@
         "path",
         "message"
       ],
-      "description": "ErrorDetail describes one machine-readable validation or execution problem in\na command result."
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
     },
     "NextAction": {
       "properties": {
@@ -28,13 +28,13 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
+              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
             },
             {
               "type": "null"
             }
           ],
-          "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
+          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
         },
         "description": {
           "type": "string",
@@ -47,7 +47,7 @@
         "command",
         "description"
       ],
-      "description": "NextAction describes one concrete follow-up action that the caller should\nconsider after reading a command result."
+      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
     },
     "ReviewSlot": {
       "properties": {
@@ -82,32 +82,32 @@
       "properties": {
         "project_root": {
           "type": "string",
-          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing\npaths."
+          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing paths."
         },
         "plan_path": {
           "type": "string",
-          "description": "PlanPath is the active, archived, or last-landed plan path relevant to the\ncurrent status resolution.",
+          "description": "PlanPath is the active, archived, or last-landed plan path relevant to the current status resolution.",
           "examples": [
             "docs/plans/active/2026-03-31-centralize-contract-schemas-and-generated-reference-docs.md"
           ]
         },
         "supplements_path": {
           "type": "string",
-          "description": "SupplementsPath is the companion supplements directory for the current\nplan package when one exists.",
+          "description": "SupplementsPath is the companion supplements directory for the current plan package when one exists.",
           "examples": [
             "docs/plans/active/supplements/2026-03-31-centralize-contract-schemas-and-generated-reference-docs"
           ]
         },
         "review_round_id": {
           "type": "string",
-          "description": "ReviewRoundID is the active review round identifier when review is in\nflight."
+          "description": "ReviewRoundID is the active review round identifier when review is in flight."
         },
         "review_slots": {
           "items": {
             "$ref": "#/$defs/ReviewSlot"
           },
           "type": "array",
-          "description": "ReviewSlots lists the active round's reviewer-owned slot handles when\nreview is in flight."
+          "description": "ReviewSlots lists the active round's reviewer-owned slot handles when review is in flight."
         },
         "last_landed_at": {
           "type": "string",
@@ -116,17 +116,17 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "StatusArtifacts lists stable paths or identifiers related to the current\nstatus result."
+      "description": "StatusArtifacts lists stable paths or identifiers related to the current status result."
     },
     "StatusEvidenceFacts": {
       "properties": {
         "recorded": {
           "$ref": "#/$defs/StatusRecordedEvidence",
-          "description": "Recorded is durable local evidence. Recorded evidence is authoritative for\nworkflow-node progression."
+          "description": "Recorded is durable local evidence. Recorded evidence is authoritative for workflow-node progression."
         },
         "remote": {
           "$ref": "#/$defs/StatusRemoteEvidence",
-          "description": "Remote is a compact read-only projection of live remote facts. It explains\ndrift or refresh opportunities but does not advance workflow state."
+          "description": "Remote is a compact read-only projection of live remote facts. It explains drift or refresh opportunities but does not advance workflow state."
         }
       },
       "additionalProperties": false,
@@ -145,7 +145,7 @@
         },
         "reopen_mode": {
           "type": "string",
-          "description": "ReopenMode is the active reopen mode when a reopen repair path is in\neffect."
+          "description": "ReopenMode is the active reopen mode when a reopen repair path is in effect."
         },
         "review_kind": {
           "type": "string",
@@ -157,7 +157,7 @@
         },
         "review_title": {
           "type": "string",
-          "description": "ReviewTitle is the human-readable title for the active review round when\none exists."
+          "description": "ReviewTitle is the human-readable title for the active review round when one exists."
         },
         "review_status": {
           "type": "string",
@@ -165,11 +165,11 @@
         },
         "archive_blocker_count": {
           "type": "integer",
-          "description": "ArchiveBlockerCount reports how many archive-readiness blockers are still\npresent."
+          "description": "ArchiveBlockerCount reports how many archive-readiness blockers are still present."
         },
         "evidence": {
           "$ref": "#/$defs/StatusEvidenceFacts",
-          "description": "Evidence groups durable recorded evidence and compact read-only remote\nobservation facts for archived-candidate handoff."
+          "description": "Evidence groups durable recorded evidence and compact read-only remote observation facts for archived-candidate handoff."
         },
         "land_pr_url": {
           "type": "string",
@@ -177,12 +177,12 @@
         },
         "land_commit": {
           "type": "string",
-          "description": "LandCommit is the merge commit or landed commit recorded for the land\nphase."
+          "description": "LandCommit is the merge commit or landed commit recorded for the land phase."
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "StatusFacts carries selected derived details that help interpret a status\nnode without dumping the full local state model."
+      "description": "StatusFacts carries selected derived details that help interpret a status node without dumping the full local state model."
     },
     "StatusRecordedEvidence": {
       "properties": {
@@ -245,33 +245,33 @@
       "required": [
         "code"
       ],
-      "description": "StatusRemoteDegradation explains a non-fatal live remote observation\nfailure."
+      "description": "StatusRemoteDegradation explains a non-fatal live remote observation failure."
     },
     "StatusRemoteEvidence": {
       "properties": {
         "observation": {
           "type": "string",
-          "description": "Observation describes how complete the live remote observation was, such\nas complete, partial, or unavailable."
+          "description": "Observation describes how complete the live remote observation was, such as complete, partial, or unavailable."
         },
         "assessment": {
           "type": "string",
-          "description": "Assessment describes the workflow meaning of the remote facts relative to\ndurable recorded evidence. Commands remain exclusively in next_actions."
+          "description": "Assessment describes the workflow meaning of the remote facts relative to durable recorded evidence. Commands remain exclusively in next_actions."
         },
         "message": {
           "type": "string",
-          "description": "Message explains the remote evidence relationship in concise human-readable\nlanguage."
+          "description": "Message explains the remote evidence relationship in concise human-readable language."
         },
         "pr": {
           "$ref": "#/$defs/StatusRemotePRSummary",
-          "description": "PR summarizes only the high-signal pull request state needed for workflow\nguidance."
+          "description": "PR summarizes only the high-signal pull request state needed for workflow guidance."
         },
         "ci": {
           "$ref": "#/$defs/StatusRemoteEvidenceStatus",
-          "description": "CI reports the CI evidence status that refresh would record when it can be\nobserved."
+          "description": "CI reports the CI evidence status that refresh would record when it can be observed."
         },
         "sync": {
           "$ref": "#/$defs/StatusRemoteEvidenceStatus",
-          "description": "Sync reports the sync evidence status that refresh would record when it can\nbe observed."
+          "description": "Sync reports the sync evidence status that refresh would record when it can be observed."
         },
         "degraded": {
           "items": {
@@ -283,7 +283,7 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "StatusRemoteEvidence is the compact live, read-only remote state surfaced by\n`harness status` for an archived candidate with recorded publish PR evidence."
+      "description": "StatusRemoteEvidence is the compact live, read-only remote state surfaced by `harness status` for an archived candidate with recorded publish PR evidence."
     },
     "StatusRemoteEvidenceStatus": {
       "properties": {
@@ -294,7 +294,7 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "StatusRemoteEvidenceStatus reports the evidence status that a refresh would\nrecord for one remote-observed domain."
+      "description": "StatusRemoteEvidenceStatus reports the evidence status that a refresh would record for one remote-observed domain."
     },
     "StatusRemotePRSummary": {
       "properties": {
@@ -312,7 +312,7 @@
       "required": [
         "draft"
       ],
-      "description": "StatusRemotePRSummary summarizes only remote pull request state that can\naffect controller guidance."
+      "description": "StatusRemotePRSummary summarizes only remote pull request state that can affect controller guidance."
     },
     "StatusResult": {
       "properties": {
@@ -334,11 +334,11 @@
         },
         "facts": {
           "$ref": "#/$defs/StatusFacts",
-          "description": "Facts carries selected high-signal derived details that help explain the\ncurrent node."
+          "description": "Facts carries selected high-signal derived details that help explain the current node."
         },
         "artifacts": {
           "$ref": "#/$defs/StatusArtifacts",
-          "description": "Artifacts points to stable paths or identifiers that help the caller locate\nrelated contract artifacts."
+          "description": "Artifacts points to stable paths or identifiers that help the caller locate related contract artifacts."
         },
         "next_actions": {
           "oneOf": [

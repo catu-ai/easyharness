@@ -35,7 +35,7 @@
       "required": [
         "status"
       ],
-      "description": "EvidencePublishInput is the JSON input consumed by `harness evidence submit\n--kind publish`."
+      "description": "EvidencePublishInput is the JSON input consumed by `harness evidence submit --kind publish`."
     }
   },
   "title": "Publish evidence input",

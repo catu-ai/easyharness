@@ -27,7 +27,7 @@
       "required": [
         "status"
       ],
-      "description": "EvidenceCIInput is the JSON input consumed by `harness evidence submit --kind\nci`."
+      "description": "EvidenceCIInput is the JSON input consumed by `harness evidence submit --kind ci`."
     }
   },
   "title": "CI evidence input",

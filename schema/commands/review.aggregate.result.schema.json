@@ -7,7 +7,7 @@
       "properties": {
         "path": {
           "type": "string",
-          "description": "Path identifies the field, section, or artifact path associated with the\nerror."
+          "description": "Path identifies the field, section, or artifact path associated with the error."
         },
         "message": {
           "type": "string",
@@ -20,7 +20,7 @@
         "path",
         "message"
       ],
-      "description": "ErrorDetail describes one machine-readable validation or execution problem in\na command result."
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
     },
     "NextAction": {
       "properties": {
@@ -28,13 +28,13 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
+              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
             },
             {
               "type": "null"
             }
           ],
-          "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
+          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
         },
         "description": {
           "type": "string",
@@ -47,7 +47,7 @@
         "command",
         "description"
       ],
-      "description": "NextAction describes one concrete follow-up action that the caller should\nconsider after reading a command result."
+      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
     },
     "ReviewAggregate": {
       "properties": {
@@ -97,13 +97,13 @@
                 "$ref": "#/$defs/ReviewAggregateFinding"
               },
               "type": "array",
-              "description": "NonBlockingFindings lists the findings that were recorded without blocking\nprogression."
+              "description": "NonBlockingFindings lists the findings that were recorded without blocking progression."
             },
             {
               "type": "null"
             }
           ],
-          "description": "NonBlockingFindings lists the findings that were recorded without blocking\nprogression."
+          "description": "NonBlockingFindings lists the findings that were recorded without blocking progression."
         },
         "aggregated_at": {
           "type": "string",
@@ -121,13 +121,13 @@
         "non_blocking_findings",
         "aggregated_at"
       ],
-      "description": "ReviewAggregate is the command-owned aggregate artifact for a completed\nreview round."
+      "description": "ReviewAggregate is the command-owned aggregate artifact for a completed review round."
     },
     "ReviewAggregateArtifacts": {
       "properties": {
         "project_root": {
           "type": "string",
-          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing\npaths."
+          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing paths."
         },
         "round_id": {
           "type": "string",
@@ -140,7 +140,7 @@
         "project_root",
         "round_id"
       ],
-      "description": "ReviewAggregateArtifacts lists the artifacts touched by\n`harness review aggregate`."
+      "description": "ReviewAggregateArtifacts lists the artifacts touched by `harness review aggregate`."
     },
     "ReviewAggregateFinding": {
       "properties": {
@@ -169,7 +169,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "Locations optionally lists lightweight repo-relative source anchors for\nthe finding, such as \"path/to/file.go\", \"path/to/file.go#L123\", or\n\"path/to/file.go#L1-L3\"."
+          "description": "Locations optionally lists lightweight repo-relative source anchors for the finding, such as \"path/to/file.go\", \"path/to/file.go#L123\", or \"path/to/file.go#L1-L3\"."
         }
       },
       "additionalProperties": false,
@@ -181,7 +181,7 @@
         "title",
         "details"
       ],
-      "description": "ReviewAggregateFinding is one aggregate finding annotated with its slot and\ndimension context."
+      "description": "ReviewAggregateFinding is one aggregate finding annotated with its slot and dimension context."
     },
     "ReviewAggregateResult": {
       "properties": {
@@ -236,7 +236,7 @@
         "summary",
         "next_actions"
       ],
-      "description": "ReviewAggregateResult is the JSON result returned by\n`harness review aggregate`."
+      "description": "ReviewAggregateResult is the JSON result returned by `harness review aggregate`."
     }
   },
   "title": "Review aggregate command result",

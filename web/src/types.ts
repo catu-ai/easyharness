@@ -25,7 +25,7 @@ export type ErrorDetail = {
 };
 
 export type StatusRemoteDegradation = {
-  code?: string;
+  code: string;
   message?: string;
 };
 

@@ -7,7 +7,7 @@
       "properties": {
         "path": {
           "type": "string",
-          "description": "Path identifies the field, section, or artifact path associated with the\nerror."
+          "description": "Path identifies the field, section, or artifact path associated with the error."
         },
         "message": {
           "type": "string",
@@ -20,7 +20,7 @@
         "path",
         "message"
       ],
-      "description": "ErrorDetail describes one machine-readable validation or execution problem in\na command result."
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
     },
     "NextAction": {
       "properties": {
@@ -28,13 +28,13 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
+              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
             },
             {
               "type": "null"
             }
           ],
-          "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
+          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
         },
         "description": {
           "type": "string",
@@ -47,7 +47,7 @@
         "command",
         "description"
       ],
-      "description": "NextAction describes one concrete follow-up action that the caller should\nconsider after reading a command result."
+      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
     },
     "ReviewSlot": {
       "properties": {
@@ -82,7 +82,7 @@
       "properties": {
         "project_root": {
           "type": "string",
-          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing\npaths."
+          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing paths."
         },
         "plan_path": {
           "type": "string",
@@ -116,7 +116,7 @@
         "round_id",
         "slots"
       ],
-      "description": "ReviewStartArtifacts lists the review artifacts created by\n`harness review start`."
+      "description": "ReviewStartArtifacts lists the review artifacts created by `harness review start`."
     },
     "ReviewStartResult": {
       "properties": {

@@ -1227,7 +1227,7 @@ func remoteHandoffNextActions(facts *Facts) []NextAction {
 		case "pending":
 			actions = append(actions, NextAction{
 				Command:     nil,
-				Description: "Remote PR checks are still pending; wait for them to finish, then run `harness evidence refresh` to record the final CI and sync evidence.",
+				Description: "Remote PR checks are still pending; wait for them to finish before recording final CI and sync evidence.",
 			})
 		case "failed":
 			actions = append(actions, NextAction{
@@ -1241,7 +1241,7 @@ func remoteHandoffNextActions(facts *Facts) []NextAction {
 		case "stale":
 			actions = append(actions, NextAction{
 				Command:     nil,
-				Description: "Remote PR merge state is stale; refresh the branch against the base, then run `harness evidence refresh` once the PR is current.",
+				Description: "Remote PR merge state is stale; refresh the branch against the base before recording fresh sync evidence.",
 			})
 		case "conflicted":
 			actions = append(actions, NextAction{
@@ -1257,8 +1257,8 @@ func shouldSuggestEvidenceRefresh(facts *Facts) bool {
 	if facts == nil || recordedPublishStatus(facts) != "recorded" || strings.TrimSpace(recordedPRURL(facts)) == "" {
 		return false
 	}
-	if remoteFacts := remoteEvidenceFacts(facts); unusableRemotePR(remoteFacts) {
-		return false
+	if remoteFacts := remoteEvidenceFacts(facts); remoteFacts != nil {
+		return remoteFacts.Assessment == "refresh_available"
 	}
 	return recordedCIStatus(facts) == "" ||
 		recordedCIStatus(facts) == "pending" ||

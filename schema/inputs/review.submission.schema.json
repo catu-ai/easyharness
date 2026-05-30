@@ -22,7 +22,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "Locations optionally lists lightweight repo-relative source anchors for\nthe finding, such as \"path/to/file.go\", \"path/to/file.go#L123\", or\n\"path/to/file.go#L1-L3\"."
+          "description": "Locations optionally lists lightweight repo-relative source anchors for the finding, such as \"path/to/file.go\", \"path/to/file.go#L123\", or \"path/to/file.go#L1-L3\"."
         }
       },
       "additionalProperties": false,

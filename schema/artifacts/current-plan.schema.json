@@ -7,11 +7,11 @@
       "properties": {
         "plan_path": {
           "type": "string",
-          "description": "PlanPath is the current active or archived plan path when work is in\nflight."
+          "description": "PlanPath is the current active or archived plan path when work is in flight."
         },
         "last_landed_plan_path": {
           "type": "string",
-          "description": "LastLandedPlanPath is the most recent landed plan path when the worktree is\notherwise idle."
+          "description": "LastLandedPlanPath is the most recent landed plan path when the worktree is otherwise idle."
         },
         "last_landed_at": {
           "type": "string",
@@ -20,7 +20,7 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "CurrentPlanFile is the worktree-level pointer file under\n`.local/harness/current-plan.json`."
+      "description": "CurrentPlanFile is the worktree-level pointer file under `.local/harness/current-plan.json`."
     }
   },
   "title": "Current plan pointer file",
