@@ -159,7 +159,7 @@ type StatusRemotePRSummary struct {
 	State string `json:"state,omitempty"`
 
 	// Draft reports whether the observed pull request is a draft.
-	Draft bool `json:"draft,omitempty"`
+	Draft bool `json:"draft"`
 }
 
 // StatusRemoteEvidenceStatus reports the evidence status that a refresh would

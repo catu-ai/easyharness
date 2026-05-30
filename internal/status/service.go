@@ -575,6 +575,12 @@ func remoteAssessment(facts *Facts, remoteFacts *contracts.StatusRemoteEvidence)
 	if recordedReady && remoteNonReady(remoteFacts) {
 		return "candidate_invalidated"
 	}
+	if unusableRemotePR(remoteFacts) {
+		if recordedReady {
+			return "candidate_invalidated"
+		}
+		return "manual_evidence_required"
+	}
 	if remoteFacts.PR != nil && remoteFacts.PR.Draft {
 		return "wait_for_remote"
 	}
@@ -591,6 +597,14 @@ func remoteAssessment(facts *Facts, remoteFacts *contracts.StatusRemoteEvidence)
 		return "manual_evidence_required"
 	}
 	return "matches_recorded"
+}
+
+func unusableRemotePR(remoteFacts *contracts.StatusRemoteEvidence) bool {
+	if remoteFacts == nil || remoteFacts.PR == nil {
+		return false
+	}
+	state := strings.ToUpper(strings.TrimSpace(remoteFacts.PR.State))
+	return state != "" && state != "OPEN"
 }
 
 func remoteMessage(remoteFacts *contracts.StatusRemoteEvidence) string {
@@ -1194,6 +1208,12 @@ func remoteHandoffNextActions(facts *Facts) []NextAction {
 	}
 	remoteFacts := facts.Evidence.Remote
 	actions := make([]NextAction, 0, 2)
+	if unusableRemotePR(remoteFacts) {
+		actions = append(actions, NextAction{
+			Command:     nil,
+			Description: "Recorded PR is no longer open; repair or replace the publish handoff before recording merge-ready evidence.",
+		})
+	}
 	if remoteFacts.CI != nil {
 		switch remoteFacts.CI.Status {
 		case "pending":

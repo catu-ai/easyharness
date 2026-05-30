@@ -309,6 +309,9 @@
       },
       "additionalProperties": false,
       "type": "object",
+      "required": [
+        "draft"
+      ],
       "description": "StatusRemotePRSummary summarizes only remote pull request state that can\naffect controller guidance."
     },
     "StatusResult": {

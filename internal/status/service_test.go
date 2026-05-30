@@ -2,6 +2,7 @@ package status_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1788,34 +1789,39 @@ func TestStatusRemoteHandoffObservationDegradesWithoutFailingLocalStatus(t *test
 
 func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) {
 	tests := []struct {
-		name       string
-		mergeState string
-		checks     string
-		wantCue    string
+		name           string
+		mergeState     string
+		checks         string
+		wantCue        string
+		wantAssessment string
 	}{
 		{
-			name:       "pending checks",
-			mergeState: `"CLEAN"`,
-			checks:     `[{"name":"Go Test","bucket":"pending","state":"IN_PROGRESS"}]`,
-			wantCue:    "Remote PR checks are still pending",
+			name:           "pending checks",
+			mergeState:     `"CLEAN"`,
+			checks:         `[{"name":"Go Test","bucket":"pending","state":"IN_PROGRESS"}]`,
+			wantCue:        "Remote PR checks are still pending",
+			wantAssessment: "wait_for_remote",
 		},
 		{
-			name:       "failed checks",
-			mergeState: `"CLEAN"`,
-			checks:     `[{"name":"Go Test","bucket":"fail","state":"FAILURE"}]`,
-			wantCue:    "Remote PR checks are failing",
+			name:           "failed checks",
+			mergeState:     `"CLEAN"`,
+			checks:         `[{"name":"Go Test","bucket":"fail","state":"FAILURE"}]`,
+			wantCue:        "Remote PR checks are failing",
+			wantAssessment: "repair_remote",
 		},
 		{
-			name:       "stale sync",
-			mergeState: `"BEHIND"`,
-			checks:     `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
-			wantCue:    "Remote PR merge state is stale",
+			name:           "stale sync",
+			mergeState:     `"BEHIND"`,
+			checks:         `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
+			wantCue:        "Remote PR merge state is stale",
+			wantAssessment: "repair_remote",
 		},
 		{
-			name:       "conflicted sync",
-			mergeState: `"DIRTY"`,
-			checks:     `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
-			wantCue:    "Remote PR merge state is conflicted",
+			name:           "conflicted sync",
+			mergeState:     `"DIRTY"`,
+			checks:         `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
+			wantCue:        "Remote PR merge state is conflicted",
+			wantAssessment: "repair_remote",
 		},
 	}
 
@@ -1835,6 +1841,10 @@ func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) 
 				ObserveRemote: true,
 				RunCommand:    fakeStatusRemoteCommands(tt.mergeState, tt.checks),
 			}.Snapshot()
+			remoteEvidence := requireRemoteEvidence(t, result)
+			if remoteEvidence.Assessment != tt.wantAssessment {
+				t.Fatalf("expected remote assessment %q, got %#v", tt.wantAssessment, remoteEvidence)
+			}
 			found := false
 			for _, action := range result.NextAction {
 				if strings.Contains(action.Description, tt.wantCue) {
@@ -1846,6 +1856,97 @@ func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) 
 				t.Fatalf("expected next action containing %q, got %#v", tt.wantCue, result.NextAction)
 			}
 		})
+	}
+}
+
+func TestStatusRemoteAssessmentMatchesRecordedEvidence(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+	svc := evidence.Service{Workdir: root}
+	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
+		t.Fatalf("ci evidence: %#v", result)
+	}
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+		t.Fatalf("sync evidence: %#v", result)
+	}
+
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand:    fakeStatusRemoteCommands(`"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Snapshot()
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Assessment != "matches_recorded" {
+		t.Fatalf("expected matching recorded and remote evidence assessment, got %#v", remoteEvidence)
+	}
+}
+
+func TestStatusRemoteAssessmentHandlesClosedPR(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand:    fakeStatusRemoteCommandsWithPRState(`"CLOSED"`, false, `"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Snapshot()
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Assessment != "manual_evidence_required" {
+		t.Fatalf("closed PR without ready recorded evidence should require manual handoff repair, got %#v", remoteEvidence)
+	}
+	found := false
+	for _, action := range result.NextAction {
+		if strings.Contains(action.Description, "Recorded PR is no longer open") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected closed PR guidance, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusRemoteAssessmentInvalidatesReadyClosedPR(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	svc := evidence.Service{Workdir: root}
+	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
+		t.Fatalf("ci evidence: %#v", result)
+	}
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+		t.Fatalf("sync evidence: %#v", result)
+	}
+
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand:    fakeStatusRemoteCommandsWithPRState(`"CLOSED"`, false, `"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Snapshot()
+	if result.State.CurrentNode != "execution/finalize/await_merge" {
+		t.Fatalf("remote facts must not regress evidence-driven node, got %#v", result.State)
+	}
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Assessment != "candidate_invalidated" {
+		t.Fatalf("closed PR should invalidate recorded merge-ready candidate, got %#v", remoteEvidence)
 	}
 }
 
@@ -3374,6 +3475,10 @@ func requireRemoteEvidence(t *testing.T, result status.Result) *contracts.Status
 }
 
 func fakeStatusRemoteCommands(mergeStateJSON, checksJSON string) remote.CommandRunner {
+	return fakeStatusRemoteCommandsWithPRState(`"OPEN"`, false, mergeStateJSON, checksJSON)
+}
+
+func fakeStatusRemoteCommandsWithPRState(prStateJSON string, draft bool, mergeStateJSON, checksJSON string) remote.CommandRunner {
 	return func(name string, args ...string) remote.CommandResult {
 		if name != "gh" {
 			return remote.CommandResult{}
@@ -3382,8 +3487,8 @@ func fakeStatusRemoteCommands(mergeStateJSON, checksJSON string) remote.CommandR
 			return remote.CommandResult{Stdout: `{
 				"url":"https://github.com/catu-ai/easyharness/pull/13",
 				"number":13,
-				"state":"OPEN",
-				"isDraft":false,
+				"state":` + prStateJSON + `,
+				"isDraft":` + fmt.Sprintf("%t", draft) + `,
 				"mergeStateStatus":` + mergeStateJSON + `,
 				"mergeable":"MERGEABLE",
 				"reviewDecision":"APPROVED",
