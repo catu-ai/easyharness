@@ -66,6 +66,12 @@ Prefer option-shaped questions:
    reason.
 4. Ask the human to choose, edit, or reject the options.
 
+Do not force a new question into every discovery turn. If the human asks for
+details about an option, answers a side question, or needs a factual
+explanation before deciding, answer directly. When a new human decision is
+needed, ask only one question, and make it the highest-leverage question for
+the current moment.
+
 Avoid jargon-heavy labels, hedging, and loaded binary implementation choices.
 Do not ask a loaded binary question like:
 
@@ -100,7 +106,9 @@ Which direction should I plan around?
 5. Discovery may alternate between human answers and further bounded
    exploration. Re-evaluate whether more exploration is needed after each
    clarification turn.
-6. Ask exactly one high-leverage question per turn.
+6. When the next step needs a human decision, ask exactly one question: the
+   highest-leverage question for the current moment. Do not ask a new question
+   merely to satisfy the discovery rhythm.
 7. Use Socratic, focused questioning to clarify:
    - purpose
    - constraints

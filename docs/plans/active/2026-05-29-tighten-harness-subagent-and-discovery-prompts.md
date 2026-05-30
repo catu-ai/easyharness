@@ -282,6 +282,13 @@ direct cold-agent instructions, and made explicit that discovery may challenge
 the human's framing when repository evidence points another way, as long as
 the challenge serves a concrete decision.
 
+Revision 4 PR feedback repair clarified that discovery should not force a new
+question or option set into every turn. When the human asks for details about
+existing options, asks a side question, or needs a factual explanation before
+deciding, the agent should answer directly. The "one high-leverage question"
+rule now applies only when the next step needs a human decision, and the
+question should be the highest-leverage question for that moment.
+
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: This tightly-coupled prompt-only slice will receive one
@@ -352,6 +359,8 @@ the final full review will cover the prompt wording as one coherent change.
 
 ## Validation Summary
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 Revision 2 validation covers the original prompt-only candidate plus the PR
 feedback repair:
 
@@ -394,7 +403,22 @@ Revision 3 validation covers the latest PR feedback repair:
 - `review-004-delta` verified the Socratic wording repair and passed with 0
   findings
 
+Revision 4 validation covers the discovery-turn rhythm repair:
+
+- clarified in `harness-discovery` that agents should not force a new question
+  into every discovery turn
+- clarified that details about an existing option, side questions, and factual
+  explanations should be answered directly
+- replaced the absolute "ask exactly one high-leverage question per turn" rule
+  with "when the next step needs a human decision, ask exactly one question:
+  the highest-leverage question for the current moment"
+- synced bootstrap output into `.agents/skills/harness-discovery/SKILL.md`
+- `scripts/sync-bootstrap-assets --check`
+- `git diff --check`
+
 ## Review Summary
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 Revision 1 `review-001-full` passed cleanly with 0 findings before PR feedback.
 Revision 2 `review-002-full` found 1 blocking `agent_ux` issue: the reusable
@@ -410,6 +434,7 @@ Socratic wording repair satisfies the PR comments, is self-contained for cold
 agents, allows concrete challenge when it clarifies the work, removes the old
 "borrow useful parts" and "not adversarial" wording, and keeps bootstrap
 source/materialized output synchronized.
+Revision 4 review is pending after the latest discovery-turn rhythm repair.
 Revision 1 reviewer slots:
 
 - `docs_consistency`: confirmed the active plan, managed `AGENTS.md` source and
@@ -423,21 +448,26 @@ Revision 1 reviewer slots:
 
 ## Archive Summary
 
-- Archived At: 2026-05-30T23:02:09+08:00
-- Revision: 3
+UPDATE_REQUIRED_AFTER_REOPEN
+
+- Archived At: UPDATE_REQUIRED_AFTER_REOPEN
+- Revision: 4
 - PR: https://github.com/catu-ai/easyharness/pull/224
 - Ready: The managed bootstrap source, root managed block, materialized
   harness skills, and active plan now satisfy the approved prompt-only scope
   plus the PR feedback repairs. Validation passed, `review-002-full` feedback
-  was repaired, `review-003-delta` passed cleanly, and the revision 3
-  Socratic wording repair passed `review-004-delta` cleanly.
-- Merge Handoff: Archive the repaired plan, commit and push revision 3 to PR
+  was repaired, `review-003-delta` passed cleanly, the revision 3 Socratic
+  wording repair passed `review-004-delta` cleanly, and the revision 4
+  discovery-turn rhythm repair is pending review.
+- Merge Handoff: Archive the repaired plan, commit and push revision 4 to PR
   `#224`, refresh publish/CI/sync evidence, and wait for explicit human merge
   approval.
 
 ## Outcome Summary
 
 ### Delivered
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - Added first-boundary harness-run subagent authorization guidance to the
   managed `AGENTS.md` contract, covering explorer, worker, and reviewer
@@ -457,13 +487,20 @@ Revision 1 reviewer slots:
   self-contained for cold agents, and clarified that agents may challenge the
   human's framing when repository evidence points another way and the
   challenge serves a concrete decision.
+- Clarified that discovery should answer option-detail, side-question, and
+  factual-explanation turns directly instead of forcing a fresh question, and
+  that the one-question rule applies only when a human decision is needed.
 - Synced bootstrap outputs into root `AGENTS.md` and `.agents/skills/`.
 
 ### Not Delivered
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 No CLI behavior, command schema, state transition, or subagent runtime changes
 were made.
 
 ### Follow-Up Issues
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 NONE
