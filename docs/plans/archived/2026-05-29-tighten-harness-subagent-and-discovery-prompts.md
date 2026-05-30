@@ -352,8 +352,6 @@ the final full review will cover the prompt wording as one coherent change.
 
 ## Validation Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 Revision 2 validation covers the original prompt-only candidate plus the PR
 feedback repair:
 
@@ -376,9 +374,27 @@ feedback repair:
 - `review-003-delta` verified the option-pattern repair and passed with 0
   findings
 
-## Review Summary
+Revision 3 validation covers the latest PR feedback repair:
 
-UPDATE_REQUIRED_AFTER_REOPEN
+- restored `Socratic` to `harness-discovery` frontmatter and execution
+  guidance
+- replaced the non-self-contained "borrow useful parts" wording with direct
+  cold-agent instructions for testing assumptions, naming tensions, and asking
+  focused questions
+- changed the prior "not adversarial" framing into explicit permission to
+  challenge the human's framing when repository evidence points another way,
+  while keeping the challenge tied to a concrete decision
+- synced bootstrap output into `.agents/skills/harness-discovery/SKILL.md`
+- `scripts/sync-bootstrap-assets --check`
+- `harness plan lint docs/plans/active/2026-05-29-tighten-harness-subagent-and-discovery-prompts.md`
+- `git diff --check`
+- stale-wording search for the old "Borrow the useful parts",
+  "collaborative, not adversarial", focused-only questioning, and
+  collaborative-only frontmatter phrases
+- `review-004-delta` verified the Socratic wording repair and passed with 0
+  findings
+
+## Review Summary
 
 Revision 1 `review-001-full` passed cleanly with 0 findings before PR feedback.
 Revision 2 `review-002-full` found 1 blocking `agent_ux` issue: the reusable
@@ -389,6 +405,11 @@ Revision 2 `review-003-delta` passed with 0 findings and confirmed the
 recommendation now lives under the preferred option in both bootstrap source
 and materialized output, with no remaining contradictory recommendation
 placement wording.
+Revision 3 `review-004-delta` passed with 0 findings and confirmed the latest
+Socratic wording repair satisfies the PR comments, is self-contained for cold
+agents, allows concrete challenge when it clarifies the work, removes the old
+"borrow useful parts" and "not adversarial" wording, and keeps bootstrap
+source/materialized output synchronized.
 Revision 1 reviewer slots:
 
 - `docs_consistency`: confirmed the active plan, managed `AGENTS.md` source and
@@ -402,24 +423,21 @@ Revision 1 reviewer slots:
 
 ## Archive Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
-- Archived At: 2026-05-30T10:43:48+08:00
-- Revision: 2
+- Archived At: 2026-05-30T23:02:09+08:00
+- Revision: 3
 - PR: https://github.com/catu-ai/easyharness/pull/224
 - Ready: The managed bootstrap source, root managed block, materialized
   harness skills, and active plan now satisfy the approved prompt-only scope
-  plus the PR feedback repair. Validation passed, `review-002-full` feedback
-  was repaired, and `review-003-delta` passed cleanly.
-- Merge Handoff: Archive the repaired plan, commit and push revision 2 to PR
+  plus the PR feedback repairs. Validation passed, `review-002-full` feedback
+  was repaired, `review-003-delta` passed cleanly, and the revision 3
+  Socratic wording repair passed `review-004-delta` cleanly.
+- Merge Handoff: Archive the repaired plan, commit and push revision 3 to PR
   `#224`, refresh publish/CI/sync evidence, and wait for explicit human merge
   approval.
 
 ## Outcome Summary
 
 ### Delivered
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - Added first-boundary harness-run subagent authorization guidance to the
   managed `AGENTS.md` contract, covering explorer, worker, and reviewer
@@ -435,17 +453,17 @@ UPDATE_REQUIRED_AFTER_REOPEN
   question format with the recommendation under the preferred option,
   discourages loaded implementation binaries, and requires a concise discovery
   summary before handoff to `harness-plan`.
+- Restored Socratic wording in `harness-discovery`, made the Socratic posture
+  self-contained for cold agents, and clarified that agents may challenge the
+  human's framing when repository evidence points another way and the
+  challenge serves a concrete decision.
 - Synced bootstrap outputs into root `AGENTS.md` and `.agents/skills/`.
 
 ### Not Delivered
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 No CLI behavior, command schema, state transition, or subagent runtime changes
 were made.
 
 ### Follow-Up Issues
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 NONE
