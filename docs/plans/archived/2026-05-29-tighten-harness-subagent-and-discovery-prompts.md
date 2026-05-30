@@ -365,6 +365,8 @@ feedback repair:
   recommendation after the list, updated both bootstrap source and materialized
   output so the recommendation lives under the preferred option, then reran
   `scripts/sync-bootstrap-assets --check` and `git diff --check`
+- `review-003-delta` verified the option-pattern repair and passed with 0
+  findings
 
 ## Review Summary
 
@@ -373,6 +375,10 @@ Revision 2 `review-002-full` found 1 blocking `agent_ux` issue: the reusable
 `Option Framing Pattern` still told agents to add the recommendation after the
 options. The source and materialized skill were repaired so the reusable
 pattern now puts the recommendation under the preferred option.
+Revision 2 `review-003-delta` passed with 0 findings and confirmed the
+recommendation now lives under the preferred option in both bootstrap source
+and materialized output, with no remaining contradictory recommendation
+placement wording.
 Revision 1 reviewer slots:
 
 - `docs_consistency`: confirmed the active plan, managed `AGENTS.md` source and
@@ -386,15 +392,15 @@ Revision 1 reviewer slots:
 
 ## Archive Summary
 
-- Archived At: 2026-05-30T00:16:03+08:00
-- Revision: 1
-- PR: pending publish after archive; no PR URL exists yet.
+- Archived At: 2026-05-30T10:43:48+08:00
+- Revision: 2
+- PR: https://github.com/catu-ai/easyharness/pull/224
 - Ready: The managed bootstrap source, root managed block, materialized
-  harness skills, and active plan now satisfy the approved prompt-only scope.
-  Validation passed and `review-001-full` found no issues.
-- Merge Handoff: Archive the plan, commit the tracked plan move and closeout
-  summary, push branch `codex/tighten-harness-subagent-discovery-prompts`, open
-  a PR, record publish/CI/sync evidence, and wait for explicit human merge
+  harness skills, and active plan now satisfy the approved prompt-only scope
+  plus the PR feedback repair. Validation passed, `review-002-full` feedback
+  was repaired, and `review-003-delta` passed cleanly.
+- Merge Handoff: Archive the repaired plan, commit and push revision 2 to PR
+  `#224`, refresh publish/CI/sync evidence, and wait for explicit human merge
   approval.
 
 ## Outcome Summary
