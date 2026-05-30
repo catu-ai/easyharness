@@ -1,6 +1,6 @@
 ---
 name: harness-discovery
-description: Use before planning or execution when the objective, boundaries, tradeoffs, success criteria, size, or workflow direction are unclear, or when archived work may need to reopen. Do not use for casual Q&A, simple repo orientation, status checks, already-approved execution, or implementation-ready work with clear scope.
+description: Run interactive, collaborative discovery before planning or execution when the objective, boundaries, tradeoffs, success criteria, size, or workflow direction are unclear, or when archived work may need to reopen. Do not use for casual Q&A, simple repo orientation, status checks, or already-approved execution.
 metadata:
     easyharness-managed: "true"
     easyharness-version: dev
@@ -46,10 +46,12 @@ Use explorer subagents on demand, not by default.
 
 ## Questioning Style
 
-Repository facts are agent-owned. Product intent, priorities, boundaries, and
-approval are human-owned. Before asking the human, read the relevant context
-and answer factual repository questions yourself, using bounded explorers when
-that will sharpen the next human question.
+Repository facts and documented project intent are agent-owned to investigate.
+Humans have final say over goals, priorities, boundaries, and approvals when
+they are ambiguous, contested, or not already settled in the repository. Before
+asking the human, read the relevant context and answer factual repository
+questions yourself, using bounded explorers when that will sharpen the next
+human question.
 
 Keep the harness posture collaborative, not adversarial. Borrow the useful
 parts of brainstorming and grill-style questioning: read context first, ask one
@@ -57,30 +59,40 @@ focused question at a time, frame real choices plainly, and recommend a
 direction when the evidence is strong enough. Do not turn discovery into a long
 interrogation.
 
-Prefer this question shape:
+Prefer option-shaped questions:
 
 1. State the current read in one or two sentences.
-2. Recommend a direction when there is enough signal.
-3. Ask one plain question about the human-owned boundary, priority, or
-   approval.
+2. Present 2-4 realistic options, even when the decision is small.
+3. Put the recommendation under the option the agent prefers, with a short
+   reason.
+4. Ask the human to choose, edit, or reject the options.
 
 Avoid jargon-heavy labels, hedging, and loaded binary implementation choices.
-Do not ask a question like:
+Do not ask a loaded binary question like:
 
-> Do you want direct breaking schema convergence, or the minimal change of
-> reordering fields and folding `remote_handoff`?
+> Do you want the broad breaking rewrite, or the minimal low-risk patch?
 
-Prefer:
+Instead, use the option framing pattern below. Keep labels neutral, name the
+real tradeoff, and put the recommendation under the option the agent prefers:
 
-> I recommend making default `harness status` a short control-panel view and
-> keeping full remote details for diagnostics. Are you comfortable changing the
-> default output shape to get that clarity?
+1. `Option A`
+   - upside: the main goal is addressed directly
+   - downside: the change may be broader
+   - best when: the clean target shape matters most
+   - recommendation: I recommend this when repo context supports the broader
+     change.
+2. `Option B`
+   - upside: the change is smaller
+   - downside: the original confusion may only be reduced, not removed
+   - best when: limiting scope matters most
+
+Which direction should I plan around?
 
 ## Execution Contract
 
 1. If the request is simple repo orientation, factual explanation, code lookup,
-   status checking, already-approved execution, or clear implementation-ready
-   work, answer or route it directly instead of entering discovery.
+   status checking, or already-approved execution, answer directly and do not
+   expand the turn into discovery.
 2. Read the most relevant repository context needed to ask sharper questions.
 3. If the task is still fuzzy after repo-factual context is handled, ask one
    concise clarification question before doing broader discovery.

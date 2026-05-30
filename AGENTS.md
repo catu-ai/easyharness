@@ -173,9 +173,9 @@ invalidation.
 The controller owns shared repository context and the final workflow judgment.
 Subagents are a normal part of harness work, not an exceptional fallback. When
 a harness workflow skill is first used in a thread, ask once whether the human
-authorizes bounded subagents for this harness run unless that authorization has
-already been explicit in the conversation. This authorization covers explorer,
-worker, and reviewer subagents.
+authorizes specific, well-scoped subagents for this harness run unless that
+authorization has already been explicit in the conversation. This authorization
+covers explorer, worker, and reviewer subagents.
 
 After authorization, actively look for bounded, independent work that
 subagents can handle in parallel or with useful separation. Spawn subagents

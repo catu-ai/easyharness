@@ -76,10 +76,6 @@ Use this skill to create or update the tracked plan that will drive execution.
      written plan
    - once the human approves the plan, record that boundary explicitly with
      `harness plan approve --by human`
-   - if this is the first harness workflow boundary in the thread and subagent
-     authorization has not already been explicit, ask whether bounded
-     explorer, worker, and reviewer subagents are authorized for this harness
-     run
 
 ## Commands
 
@@ -106,8 +102,6 @@ The plan is ready when:
   tracked locations before archive so the archived supplements are only backup
   context rather than a hidden dependency
 - the human can approve or challenge it without hidden context
-- when this is the first harness workflow boundary in the thread, the approval
-  handoff records whether bounded subagents are authorized for the harness run
 - a future agent could continue the work from the plan alone
 
 ## Do Not

@@ -13,21 +13,22 @@ size: S
 
 ## Goal
 
-Update the harness-managed prompts so agents treat bounded subagents as a
-normal, actively used part of harness work once the human authorizes them for a
-harness run.
+Update the harness-managed prompts so agents treat specific, well-scoped
+subagents as a normal, actively used part of harness work once the human
+authorizes them for a harness run.
 
 At the same time, tighten `harness-discovery` so it is used for unclear
 workflow direction, boundaries, size, tradeoffs, or success criteria, not for
 ordinary repo facts, code lookup, status checks, or simple explanations. The
 discovery guidance should stay direct and low-jargon: agents should own repo
-fact-finding, make clear recommendations, and avoid pushing low-level
-implementation choices back to the human as false binary decisions.
+fact-finding, frame choices as options, make clear recommendations under the
+preferred option, and avoid pushing low-level implementation choices back to the
+human as false binary decisions.
 When discovery asks the human a question, the preferred shape is: state the
-agent's current read, give a direct recommendation when there is enough signal,
-then ask one plain boundary or approval question. Avoid jargon-heavy labels,
-hedging, and loaded binary choices such as "big breaking rewrite or minimal
-tweak?"
+agent's current read, present 2-4 realistic options, put the recommendation
+under the preferred option, and ask the human to choose, edit, or reject the
+options. Avoid jargon-heavy labels, hedging, and loaded binaries such as "big
+breaking rewrite or minimal tweak?"
 
 The discovery update should deliberately learn from the current
 `superpowers/brainstorming` and `grill-me` skills without copying either one
@@ -55,14 +56,16 @@ harness discovery into adversarial interrogation.
   keyed to unclear direction, boundaries, tradeoffs, success criteria, or
   workflow path.
 - Clarify in `harness-discovery` that simple repo orientation, factual
-  explanation, status checks, and implementation-ready clear-scope work should
-  not enter discovery.
+  explanation, status checks, and already-approved execution should not expand
+  into discovery.
 - Tighten discovery questioning guidance so agents answer repository-factual
   parts themselves, use explorer subagents for bounded repo questions when
-  useful, keep synthesis in the controller, recommend a direction when
-  appropriate, and ask direct human-facing boundary questions.
-- Define the preferred question format for discovery: current read,
-  recommendation when available, then one plain boundary or approval question.
+  useful, keep synthesis in the controller, frame choices as options, put the
+  recommendation under the preferred option, and ask direct human-facing
+  boundary questions.
+- Define the preferred question format for discovery: current read, 2-4
+  realistic options, recommendation under the preferred option, then a request
+  for the human to choose, edit, or reject the options.
   Explicitly discourage loaded either/or implementation choices and
   jargon-heavy wording.
 - Preserve and strengthen the end-of-discovery summary handoff before planning:
@@ -71,9 +74,9 @@ harness discovery into adversarial interrogation.
   switching to `harness-plan`.
 - Fold in the relevant lessons from `superpowers/brainstorming` and
   `grill-me`: read context first, ask one useful question at a time, frame
-  choices plainly, recommend a path when the agent has enough signal, and ask
-  the human for goals, priorities, boundaries, and approval rather than repo
-  facts.
+  choices plainly as options, recommend a path when the agent has enough
+  signal, and treat the human as having final say over goals, priorities,
+  boundaries, and approval when repo context does not already settle them.
 - Sync bootstrap assets so the materialized `.agents/skills/` and root
   `AGENTS.md` managed block match the bootstrap source.
 
@@ -88,8 +91,8 @@ harness discovery into adversarial interrogation.
 ## Acceptance Criteria
 
 - [x] The managed `AGENTS.md` block says that, once a harness workflow skill is
-  triggered, the controller should ask once for this harness run whether bounded
-  subagents may be used.
+  triggered, the controller should ask once for this harness run whether
+  specific, well-scoped subagents may be used.
 - [x] The managed block says the authorization covers explorer, worker, and
   reviewer subagents, and that subagents should be actively used for bounded,
   independent work after authorization.
@@ -101,16 +104,18 @@ harness discovery into adversarial interrogation.
   than preserving a reviewer-only or late-workflow permission model.
 - [x] `harness-discovery` frontmatter no longer limits discovery to
   medium/large work and clearly excludes casual Q&A, simple repo orientation,
-  simple status checks, already-approved execution, and implementation-ready
-  clear-scope changes.
-- [x] `harness-discovery` guidance distinguishes agent-owned repo facts from
-  human-owned goals, priorities, boundaries, approvals, and workflow direction.
+  simple status checks, and already-approved execution.
+- [x] `harness-discovery` guidance distinguishes agent-investigated repo facts
+  and documented intent from human final say over goals, priorities,
+  boundaries, approvals, and workflow direction when those are ambiguous,
+  contested, or not already settled in the repository.
 - [x] `harness-discovery` discourages low-level binary implementation-choice
-  questions and prefers direct recommendations plus one human-facing boundary
-  question.
+  questions and prefers neutral option framing with a recommendation under the
+  preferred option.
 - [x] `harness-discovery` gives agents a concrete question format: current
-  read, recommendation when there is enough signal, then one plain boundary or
-  approval question, without jargon-heavy labels or loaded either/or wording.
+  read, 2-4 realistic options, recommendation under the preferred option, then
+  a request for the human to choose, edit, or reject the options, without
+  jargon-heavy labels or loaded either/or wording.
 - [x] `harness-discovery` requires a concise discovery summary before handoff
   to `harness-plan`, including discovered facts, confirmed direction, rejected
   alternatives, draft acceptance criteria, rough plan content, and the next
@@ -134,7 +139,8 @@ harness discovery into adversarial interrogation.
 #### Objective
 
 Revise the managed `AGENTS.md` source so harness runs ask once for broad
-bounded-subagent authorization and then actively use authorized subagents.
+subagent authorization and then actively use authorized, specific, well-scoped
+subagents.
 
 #### Details
 
@@ -142,13 +148,13 @@ The wording should keep the human in control without making subagents feel
 exceptional. It should trigger only when a harness workflow skill is actually
 being used, not for casual chat or simple repo questions. The authorization
 should cover explorer, worker, and reviewer subagents for the current harness
-run.
+run, using plain wording such as "specific, well-scoped subagents" where that
+is clearer than "bounded subagents."
 
-Also update any nearby managed harness skill wording that still treats subagent
-authorization as reviewer-only or something to request late in plan approval or
-execution. Those sections should point back to the shared first-boundary
-authorization model while still respecting explicit human approval before
-subagent spawning.
+Do not duplicate the authorization prompt in every harness skill. The shared
+managed `AGENTS.md` block owns that run-level rule. Nearby managed harness
+skills should avoid reviewer-only or late-workflow authorization wording that
+would contradict the shared model.
 
 #### Expected Files
 
@@ -166,11 +172,13 @@ subagent spawning.
 #### Execution Notes
 
 Updated the managed `AGENTS.md` source so subagents are described as a normal
-harness workflow tool after explicit run-level authorization. The new wording
-asks once at the first harness workflow boundary, covers explorer, worker, and
-reviewer subagents, and keeps the controller responsible for shared context and
-final workflow judgment. Also aligned `harness-plan` and `harness-execute` so
-they no longer preserve reviewer-only or late-workflow authorization language.
+harness workflow tool after explicit run-level authorization. The revised
+wording asks once at the first harness workflow boundary, uses "specific,
+well-scoped subagents" for the authorization prompt, covers explorer, worker,
+and reviewer subagents, and keeps the controller responsible for shared context
+and final workflow judgment. Removed duplicate authorization prompting from
+`harness-plan` and `harness-execute` while preserving the shared managed-block
+rule.
 
 #### Review Notes
 
@@ -196,24 +204,33 @@ should stay outside discovery unless the user is deciding what work to do next.
 Questioning guidance should stay plain and direct. Agents should not ask the
 human to answer repository facts or choose between low-level implementation
 mechanics when the controller can recommend the better path from repo context.
-The skill should give agents a compact question pattern instead of abstract
-style advice:
+The skill should give agents a compact option-shaped question pattern instead
+of abstract style advice:
 
 1. Say the current read in one or two sentences.
-2. Recommend a direction when the evidence is strong enough.
-3. Ask one plain question about the human-owned boundary, priority, or
-   approval.
+2. Present 2-4 realistic options, even for small decisions.
+3. Put the recommendation under the option the agent prefers, with a short
+   reason.
+4. Ask the human to choose, edit, or reject the options.
 
 Bad discovery question shape:
 
-> Do you want direct breaking schema convergence, or the minimal change of
-> reordering fields and folding `remote_handoff`?
+> Do you want the broad breaking rewrite, or the minimal low-risk patch?
 
 Better shape:
 
-> I recommend making default `harness status` a short control-panel view and
-> keeping full remote details for diagnostics. Are you comfortable changing the
-> default output shape to get that clarity?
+1. `Option A`
+   - upside: the main goal is addressed directly
+   - downside: the change may be broader
+   - best when: the clean target shape matters most
+   - recommendation: I recommend this when repo context supports the broader
+     change.
+2. `Option B`
+   - upside: the change is smaller
+   - downside: the original confusion may only be reduced, not removed
+   - best when: limiting scope matters most
+
+Which direction should I plan around?
 
 The existing end-of-discovery `Output` section should be kept and made harder
 to skip. Before handing off to `harness-plan`, the controller should give a
@@ -230,8 +247,8 @@ Use the two reference skills as design input:
 
 - From `superpowers/brainstorming`, keep the flow of reading context first,
   asking one focused question per turn, using concise option framing when it
-  helps, and giving a recommendation rather than staying neutral when tradeoffs
-  are asymmetric.
+  helps, and putting a recommendation under the preferred option rather than
+  staying neutral when tradeoffs are asymmetric.
 - From `grill-me`, keep the discipline that the agent should investigate
   factual repo questions itself before asking the human.
 - Do not import the whole grill-me posture. Harness discovery should help the
@@ -251,11 +268,13 @@ Use the two reference skills as design input:
 #### Execution Notes
 
 Updated `harness-discovery` source frontmatter and body so discovery is
-size-independent, excludes simple repo orientation/status/code lookup and clear
-implementation-ready work, assigns repo facts to the agent and goals/boundaries
-to the human, defines the current-read/recommendation/plain-question format,
-discourages loaded implementation binaries, and strengthens the required
-end-of-discovery summary before handoff to `harness-plan`.
+interactive and collaborative, size-independent, excludes simple repo
+orientation/status/code lookup and already-approved execution, treats repo
+facts and documented intent as agent-investigated context while preserving
+human final say over ambiguous goals/boundaries/approvals, defines the
+current-read/options/recommendation-under-preferred-option format, discourages
+loaded implementation binaries, and strengthens the required end-of-discovery
+summary before handoff to `harness-plan`.
 
 #### Review Notes
 
@@ -316,37 +335,47 @@ the final full review will cover the prompt wording as one coherent change.
 - Risk: The managed block could make subagent use sound automatic even though
   Codex requires explicit user authorization.
   - Mitigation: Require one harness-run authorization at the first harness
-    workflow boundary, then allow proactive bounded use only after that.
+    workflow boundary, then allow proactive use of specific, well-scoped
+    subagents only after that.
 - Risk: Discovery guidance could become too long or jargon-heavy and increase
   agent/user cognitive load.
   - Mitigation: Prefer direct rules and short examples over abstract labels.
 - Risk: Discovery exclusions could prevent useful discovery for small work.
-  - Mitigation: Make discovery size-independent and exclude only clear factual
-    or implementation-ready cases.
+  - Mitigation: Make discovery size-independent and exclude only simple factual
+    orientation, status/code lookup, and already-approved execution cases.
 
 ## Validation Summary
 
-Validated the prompt-only candidate with:
+Revision 2 validation covers the original prompt-only candidate plus the PR
+feedback repair:
 
 - `git diff --check`
 - `scripts/sync-bootstrap-assets --check`
 - `harness plan lint docs/plans/active/2026-05-29-tighten-harness-subagent-and-discovery-prompts.md`
 - stale-wording search across the edited managed prompt surfaces for old
-  medium/large discovery, Socratic discovery, reviewer-only authorization, and
-  late reviewer-subagent authorization language
+  medium/large discovery, Socratic discovery, reviewer-only authorization,
+  late reviewer-subagent authorization, implementation-ready exclusion,
+  obsolete direct-question format, and status-specific example wording
+- no-context simulation subagents against the materialized prompts:
+  - unclear `harness status` noise request correctly entered discovery and
+    asked for run-level subagent authorization before repo exploration
+  - dashboard watchlist code-lookup request correctly bypassed discovery and
+    did not ask for subagent authorization
 
 ## Review Summary
 
-`review-001-full` passed cleanly with 0 findings. Reviewer slots:
+Revision 1 `review-001-full` passed cleanly with 0 findings before PR feedback.
+Revision 2 requires a fresh finalize review after the comment repairs.
+Revision 1 reviewer slots:
 
 - `docs_consistency`: confirmed the active plan, managed `AGENTS.md` source and
   output, bootstrap skill sources, and materialized skill copies consistently
-  describe run-level bounded-subagent authorization, active post-authorization
-  subagent use, and the tightened discovery boundary.
+  described the revision-1 run-level subagent authorization, active
+  post-authorization subagent use, and the tightened discovery boundary.
 - `agent_ux`: confirmed the updated prompts are direct and usable for future
   agents, including size-independent discovery, agent-owned repo facts, the
-  current-read/recommendation/plain-boundary question format, no loaded
-  implementation binaries, and explicit discovery-summary handoff.
+  earlier direct question format, no loaded implementation binaries, and
+  explicit discovery-summary handoff.
 
 ## Archive Summary
 
@@ -368,15 +397,17 @@ Validated the prompt-only candidate with:
 - Added first-boundary harness-run subagent authorization guidance to the
   managed `AGENTS.md` contract, covering explorer, worker, and reviewer
   subagents.
-- Reframed subagents as a normal authorized harness workflow tool for bounded,
-  independent work while preserving controller ownership and human steering.
-- Aligned `harness-plan` and `harness-execute` with the shared run-level
-  authorization model instead of reviewer-only late authorization wording.
+- Reframed subagents as a normal authorized harness workflow tool for specific,
+  well-scoped work while preserving controller ownership and human steering.
+- Removed duplicated subagent authorization prompts from `harness-plan` and
+  `harness-execute`; the managed `AGENTS.md` block owns the shared run-level
+  authorization model.
 - Updated `harness-discovery` so discovery is size-independent, excludes simple
-  repo Q&A/status/code lookup and clear implementation-ready work, assigns repo
-  facts to the agent, gives a direct question format, discourages loaded
-  implementation binaries, and requires a concise discovery summary before
-  handoff to `harness-plan`.
+  repo Q&A/status/code lookup and already-approved execution, treats repo facts
+  and documented intent as agent-investigated context, gives an option-shaped
+  question format with the recommendation under the preferred option,
+  discourages loaded implementation binaries, and requires a concise discovery
+  summary before handoff to `harness-plan`.
 - Synced bootstrap outputs into root `AGENTS.md` and `.agents/skills/`.
 
 ### Not Delivered

@@ -53,12 +53,6 @@ For `delta` review, use a real git commit anchor. The detailed controller
 dispatch fields, anchor guidance, and reviewer-resume rules live in
 [review-orchestration.md](references/review-orchestration.md).
 
-If subagent authorization for this harness run has not been explicit yet, ask
-once before spawning any explorer, worker, or reviewer subagent. Once the human
-authorizes bounded subagents for the run, actively use them for suitable
-independent work instead of waiting until review orchestration is blocked. If
-authorization is denied, continue locally until the human changes that boundary.
-
 Keep exactly one active review round at a time. The detailed review rules live
 in [review-orchestration.md](references/review-orchestration.md).
 
@@ -152,9 +146,6 @@ Execute is done when:
 - Do not ask the human whether routine step-closeout or finalize review should
   start once `harness status` and the tracked plan make the next review action
   clear.
-- Do not silently stall at review orchestration because subagent authorization
-  is missing; the harness-run authorization should be requested at the first
-  harness workflow boundary, or as soon as the missing authorization is noticed.
 - Do not submit reviewer results from the controller thread or impersonate a
   reviewer slot yourself. Reviewer submissions belong to bounded reviewer
   subagents using `harness review submit --by <reviewer-name>`.
