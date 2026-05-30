@@ -359,8 +359,6 @@ the final full review will cover the prompt wording as one coherent change.
 
 ## Validation Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 Revision 2 validation covers the original prompt-only candidate plus the PR
 feedback repair:
 
@@ -418,10 +416,13 @@ Revision 4 validation covers the discovery-turn rhythm repair:
 - synced bootstrap output into `.agents/skills/harness-discovery/SKILL.md`
 - `scripts/sync-bootstrap-assets --check`
 - `git diff --check`
+- `harness plan lint docs/plans/active/2026-05-29-tighten-harness-subagent-and-discovery-prompts.md`
+- `review-005-delta` verified the discovery-turn rhythm repair in substance
+  and found 1 minor wording slip
+- `review-006-delta` verified the side-question wording follow-up and passed
+  with 0 findings
 
 ## Review Summary
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 Revision 1 `review-001-full` passed cleanly with 0 findings before PR feedback.
 Revision 2 `review-002-full` found 1 blocking `agent_ux` issue: the reusable
@@ -440,7 +441,11 @@ source/materialized output synchronized.
 Revision 4 `review-005-delta` passed with 1 non-blocking `agent_ux` finding:
 the new side-question carveout used "answers a side question" where the prompt
 should say "asks a side question." The wording was repaired in bootstrap
-source and materialized output. A narrow follow-up review is pending.
+source and materialized output.
+Revision 4 `review-006-delta` passed with 0 findings and confirmed the prompt
+now says the human may ask a side question, still tells agents to answer option
+details, side questions, and factual explanations directly, and keeps
+bootstrap source/materialized output synchronized.
 Revision 1 reviewer slots:
 
 - `docs_consistency`: confirmed the active plan, managed `AGENTS.md` source and
@@ -454,17 +459,17 @@ Revision 1 reviewer slots:
 
 ## Archive Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
-- Archived At: UPDATE_REQUIRED_AFTER_REOPEN
+- Archived At: 2026-05-30T23:26:22+08:00
 - Revision: 4
 - PR: https://github.com/catu-ai/easyharness/pull/224
 - Ready: The managed bootstrap source, root managed block, materialized
   harness skills, and active plan now satisfy the approved prompt-only scope
   plus the PR feedback repairs. Validation passed, `review-002-full` feedback
   was repaired, `review-003-delta` passed cleanly, the revision 3 Socratic
-  wording repair passed `review-004-delta` cleanly, and the revision 4
-  discovery-turn rhythm repair is pending review.
+  wording repair passed `review-004-delta` cleanly, the revision 4
+  discovery-turn rhythm repair passed `review-005-delta` with one minor
+  wording finding, and `review-006-delta` verified that follow-up repair
+  cleanly.
 - Merge Handoff: Archive the repaired plan, commit and push revision 4 to PR
   `#224`, refresh publish/CI/sync evidence, and wait for explicit human merge
   approval.
@@ -472,8 +477,6 @@ UPDATE_REQUIRED_AFTER_REOPEN
 ## Outcome Summary
 
 ### Delivered
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - Added first-boundary harness-run subagent authorization guidance to the
   managed `AGENTS.md` contract, covering explorer, worker, and reviewer
@@ -500,13 +503,9 @@ UPDATE_REQUIRED_AFTER_REOPEN
 
 ### Not Delivered
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 No CLI behavior, command schema, state transition, or subagent runtime changes
 were made.
 
 ### Follow-Up Issues
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 NONE
