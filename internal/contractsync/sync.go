@@ -25,6 +25,10 @@ const (
 
 // Sync generates the checked-in contract schemas and removes deprecated generated docs.
 func Sync(workdir string, check bool) error {
+	workdir, err := normalizeWorkdir(workdir)
+	if err != nil {
+		return err
+	}
 	expected, err := expectedFiles(workdir)
 	if err != nil {
 		return err
@@ -42,6 +46,10 @@ func Sync(workdir string, check bool) error {
 }
 
 func expectedFiles(workdir string) (map[string][]byte, error) {
+	workdir, err := normalizeWorkdir(workdir)
+	if err != nil {
+		return nil, err
+	}
 	entries := contracts.SchemaRegistry()
 	comments, err := loadContractComments(workdir)
 	if err != nil {
@@ -107,6 +115,17 @@ func expectedFiles(workdir string) (map[string][]byte, error) {
 	}
 	expected["internal/inputschema/generated_schemas.go"] = generatedGo
 	return expected, nil
+}
+
+func normalizeWorkdir(workdir string) (string, error) {
+	if strings.TrimSpace(workdir) == "" {
+		workdir = "."
+	}
+	abs, err := filepath.Abs(workdir)
+	if err != nil {
+		return "", fmt.Errorf("resolve workdir: %w", err)
+	}
+	return abs, nil
 }
 
 func renderInputSchemaGo(entries []contracts.SchemaEntry, expected map[string][]byte) ([]byte, error) {

@@ -1,6 +1,7 @@
 package contractsync
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -33,6 +34,35 @@ func TestExpectedStatusSchemaAllowsNullableCurrentOutputs(t *testing.T) {
 	nextActionsSchema := statusProps["next_actions"].(map[string]any)
 	if !schemaAllowsNull(nextActionsSchema) {
 		t.Fatalf("expected StatusResult.next_actions to allow null, got %#v", nextActionsSchema)
+	}
+}
+
+func TestExpectedFilesStableForRelativeAndAbsoluteWorkdir(t *testing.T) {
+	relRoot := filepath.Clean(filepath.Join("..", ".."))
+	absRoot, err := filepath.Abs(relRoot)
+	if err != nil {
+		t.Fatalf("abs repo root: %v", err)
+	}
+
+	relFiles, err := expectedFiles(relRoot)
+	if err != nil {
+		t.Fatalf("expectedFiles relative: %v", err)
+	}
+	absFiles, err := expectedFiles(absRoot)
+	if err != nil {
+		t.Fatalf("expectedFiles absolute: %v", err)
+	}
+	if len(relFiles) != len(absFiles) {
+		t.Fatalf("expected same file count for relative and absolute workdir, got %d vs %d", len(relFiles), len(absFiles))
+	}
+	for path, relBytes := range relFiles {
+		absBytes, ok := absFiles[path]
+		if !ok {
+			t.Fatalf("absolute workdir missing generated file %s", path)
+		}
+		if !bytes.Equal(relBytes, absBytes) {
+			t.Fatalf("generated file %s differs between relative and absolute workdir", path)
+		}
 	}
 }
 
