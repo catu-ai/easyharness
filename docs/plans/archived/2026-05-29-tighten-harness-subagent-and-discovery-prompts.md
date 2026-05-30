@@ -459,7 +459,7 @@ Revision 1 reviewer slots:
 
 ## Archive Summary
 
-- Archived At: 2026-05-30T23:26:22+08:00
+- Archived At: 2026-05-30T23:27:07+08:00
 - Revision: 4
 - PR: https://github.com/catu-ai/easyharness/pull/224
 - Ready: The managed bootstrap source, root managed block, materialized
