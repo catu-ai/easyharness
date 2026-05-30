@@ -7,7 +7,7 @@
       "properties": {
         "path": {
           "type": "string",
-          "description": "Path identifies the field, section, or artifact path associated with the error."
+          "description": "Path identifies the field, section, or artifact path associated with the\nerror."
         },
         "message": {
           "type": "string",
@@ -20,7 +20,7 @@
         "path",
         "message"
       ],
-      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in\na command result."
     },
     "EvidenceArtifacts": {
       "properties": {
@@ -44,7 +44,7 @@
         "record_id",
         "kind"
       ],
-      "description": "EvidenceArtifacts lists the evidence-related paths and identifiers touched by `harness evidence submit`."
+      "description": "EvidenceArtifacts lists the evidence-related paths and identifiers touched by\n`harness evidence submit`."
     },
     "EvidenceSubmitResult": {
       "properties": {
@@ -95,7 +95,7 @@
         "summary",
         "next_actions"
       ],
-      "description": "EvidenceSubmitResult is the JSON result returned by `harness evidence submit`."
+      "description": "EvidenceSubmitResult is the JSON result returned by `harness evidence\nsubmit`."
     },
     "NextAction": {
       "properties": {
@@ -103,13 +103,13 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+              "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
             },
             {
               "type": "null"
             }
           ],
-          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+          "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
         },
         "description": {
           "type": "string",
@@ -122,7 +122,7 @@
         "command",
         "description"
       ],
-      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
+      "description": "NextAction describes one concrete follow-up action that the caller should\nconsider after reading a command result."
     }
   },
   "title": "Evidence submit command result",

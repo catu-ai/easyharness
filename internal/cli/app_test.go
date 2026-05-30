@@ -731,32 +731,36 @@ func TestStatusCommandSurfacesRemoteHandoffObservation(t *testing.T) {
 
 	var payload struct {
 		Facts struct {
-			RemoteHandoff *struct {
-				Status string `json:"status"`
-				PR     struct {
-					Number int    `json:"number"`
-					State  string `json:"state"`
-				} `json:"pr"`
-				CI struct {
-					EvidenceStatus string `json:"evidence_status"`
-				} `json:"ci"`
-				Sync struct {
-					EvidenceStatus string `json:"evidence_status"`
-				} `json:"sync"`
-			} `json:"remote_handoff"`
+			Evidence struct {
+				Remote *struct {
+					Observation string `json:"observation"`
+					Assessment  string `json:"assessment"`
+					PR          struct {
+						State string `json:"state"`
+						Draft bool   `json:"draft"`
+					} `json:"pr"`
+					CI struct {
+						Status string `json:"status"`
+					} `json:"ci"`
+					Sync struct {
+						Status string `json:"status"`
+					} `json:"sync"`
+				} `json:"remote"`
+			} `json:"evidence"`
 		} `json:"facts"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("expected JSON status output: %v\n%s", err, stdout.String())
 	}
-	if payload.Facts.RemoteHandoff == nil || payload.Facts.RemoteHandoff.Status != "available" {
-		t.Fatalf("expected available remote handoff facts, got %s", stdout.String())
+	remoteEvidence := payload.Facts.Evidence.Remote
+	if remoteEvidence == nil || remoteEvidence.Observation != "complete" || remoteEvidence.Assessment != "refresh_available" {
+		t.Fatalf("expected complete refresh-available remote evidence facts, got %s", stdout.String())
 	}
-	if payload.Facts.RemoteHandoff.PR.Number != 99 || payload.Facts.RemoteHandoff.PR.State != "OPEN" {
-		t.Fatalf("unexpected remote PR facts: %#v", payload.Facts.RemoteHandoff.PR)
+	if remoteEvidence.PR.State != "OPEN" || remoteEvidence.PR.Draft {
+		t.Fatalf("unexpected remote PR facts: %#v", remoteEvidence.PR)
 	}
-	if payload.Facts.RemoteHandoff.CI.EvidenceStatus != "success" || payload.Facts.RemoteHandoff.Sync.EvidenceStatus != "fresh" {
-		t.Fatalf("unexpected remote evidence statuses: %#v", payload.Facts.RemoteHandoff)
+	if remoteEvidence.CI.Status != "success" || remoteEvidence.Sync.Status != "fresh" {
+		t.Fatalf("unexpected remote evidence statuses: %#v", remoteEvidence)
 	}
 }
 

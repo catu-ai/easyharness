@@ -51,13 +51,13 @@
                 "$ref": "#/$defs/ReviewAggregateFinding"
               },
               "type": "array",
-              "description": "NonBlockingFindings lists the findings that were recorded without blocking progression."
+              "description": "NonBlockingFindings lists the findings that were recorded without blocking\nprogression."
             },
             {
               "type": "null"
             }
           ],
-          "description": "NonBlockingFindings lists the findings that were recorded without blocking progression."
+          "description": "NonBlockingFindings lists the findings that were recorded without blocking\nprogression."
         },
         "aggregated_at": {
           "type": "string",
@@ -75,7 +75,7 @@
         "non_blocking_findings",
         "aggregated_at"
       ],
-      "description": "ReviewAggregate is the command-owned aggregate artifact for a completed review round."
+      "description": "ReviewAggregate is the command-owned aggregate artifact for a completed\nreview round."
     },
     "ReviewAggregateFinding": {
       "properties": {
@@ -104,7 +104,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "Locations optionally lists lightweight repo-relative source anchors for the finding, such as \"path/to/file.go\", \"path/to/file.go#L123\", or \"path/to/file.go#L1-L3\"."
+          "description": "Locations optionally lists lightweight repo-relative source anchors for\nthe finding, such as \"path/to/file.go\", \"path/to/file.go#L123\", or\n\"path/to/file.go#L1-L3\"."
         }
       },
       "additionalProperties": false,
@@ -116,7 +116,7 @@
         "title",
         "details"
       ],
-      "description": "ReviewAggregateFinding is one aggregate finding annotated with its slot and dimension context."
+      "description": "ReviewAggregateFinding is one aggregate finding annotated with its slot and\ndimension context."
     }
   },
   "title": "Review aggregate artifact",

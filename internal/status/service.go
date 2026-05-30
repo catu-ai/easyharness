@@ -115,8 +115,7 @@ func (s Service) Snapshot() Result {
 		OK:      true,
 		Command: "status",
 		Artifacts: &Artifacts{
-			ProjectRoot: s.Workdir,
-			PlanPath:    repoFacingPath(s.Workdir, planPath),
+			PlanPath: repoFacingPath(s.Workdir, planPath),
 		},
 	}
 	supplementsPath := plan.SupplementsDirForPlanPath(planPath)
@@ -187,7 +186,7 @@ func (s Service) Snapshot() Result {
 	case doc.DerivedPlanStatus() == "archived":
 		evidenceCtx, evidenceWarnings := loadEvidenceContext(s.Workdir, planStem, runstate.CurrentRevision(state))
 		result.Warnings = append(result.Warnings, evidenceWarnings...)
-		applyEvidenceFacts(facts, result.Artifacts, evidenceCtx)
+		applyEvidenceFacts(facts, evidenceCtx)
 		if archivedCandidateReadyForMerge(evidenceCtx) {
 			result.State.CurrentNode = "execution/finalize/await_merge"
 		} else {
@@ -240,8 +239,6 @@ func (s Service) Snapshot() Result {
 	if result.Artifacts != nil && result.Artifacts.ProjectRoot == "" &&
 		result.Artifacts.PlanPath == "" && result.Artifacts.SupplementsPath == "" &&
 		result.Artifacts.ReviewRoundID == "" && len(result.Artifacts.ReviewSlots) == 0 &&
-		result.Artifacts.CIRecordID == "" &&
-		result.Artifacts.PublishRecordID == "" && result.Artifacts.SyncRecordID == "" &&
 		result.Artifacts.LastLandedAt == "" {
 		result.Artifacts = nil
 	}
@@ -492,28 +489,28 @@ func loadLatestStepCloseoutTargets(workdir, planStem string, doc *plan.Document,
 	return latestByTarget, scan.Warnings
 }
 
-func applyEvidenceFacts(facts *Facts, artifacts *Artifacts, evidenceCtx *evidenceContext) {
+func applyEvidenceFacts(facts *Facts, evidenceCtx *evidenceContext) {
 	if evidenceCtx == nil {
 		return
 	}
+	if facts.Evidence == nil {
+		facts.Evidence = &contracts.StatusEvidenceFacts{}
+	}
+	recorded := &contracts.StatusRecordedEvidence{}
 	if evidenceCtx.Publish != nil {
-		facts.PublishStatus = evidenceCtx.Publish.Status
-		facts.PRURL = evidenceCtx.Publish.PRURL
-		if artifacts != nil {
-			artifacts.PublishRecordID = evidenceCtx.Publish.RecordID
+		recorded.Publish = &contracts.StatusRecordedPublishEvidence{
+			Status: evidenceCtx.Publish.Status,
+			PRURL:  evidenceCtx.Publish.PRURL,
 		}
 	}
 	if evidenceCtx.CI != nil {
-		facts.CIStatus = evidenceCtx.CI.Status
-		if artifacts != nil {
-			artifacts.CIRecordID = evidenceCtx.CI.RecordID
-		}
+		recorded.CI = &contracts.StatusRecordedEvidenceStatus{Status: evidenceCtx.CI.Status}
 	}
 	if evidenceCtx.Sync != nil {
-		facts.SyncStatus = evidenceCtx.Sync.Status
-		if artifacts != nil {
-			artifacts.SyncRecordID = evidenceCtx.Sync.RecordID
-		}
+		recorded.Sync = &contracts.StatusRecordedEvidenceStatus{Status: evidenceCtx.Sync.Status}
+	}
+	if recorded.Publish != nil || recorded.CI != nil || recorded.Sync != nil {
+		facts.Evidence.Recorded = recorded
 	}
 }
 
@@ -526,84 +523,189 @@ func applyRemoteHandoffFacts(s Service, facts *Facts, evidenceCtx *evidenceConte
 	}
 	identity := remote.ParseRecordedPRURL(evidenceCtx.Publish.PRURL)
 	if identity.Status != remote.PRStatusRecorded {
-		facts.RemoteHandoff = remoteHandoffUnavailable(identity.Degraded)
+		ensureEvidenceFacts(facts).Remote = remoteEvidenceUnavailable(facts, identity.Degraded)
 		return
 	}
 	observation := remote.Service{Workdir: s.Workdir, RunCommand: s.RunCommand}.ObserveHandoff(identity)
-	facts.RemoteHandoff = mapRemoteHandoffObservation(observation)
+	ensureEvidenceFacts(facts).Remote = mapRemoteEvidenceObservation(facts, observation)
 }
 
-func mapRemoteHandoffObservation(observation remote.HandoffObservation) *contracts.StatusRemoteHandoffObservation {
-	return &contracts.StatusRemoteHandoffObservation{
-		Status:   observation.Status,
-		PR:       mapRemotePRObservation(observation.PR),
-		CI:       mapRemoteCIObservation(observation.CI),
-		Sync:     mapRemoteSyncObservation(observation.Sync),
-		Degraded: mapRemoteDegradations(observation.Degraded),
+func ensureEvidenceFacts(facts *Facts) *contracts.StatusEvidenceFacts {
+	if facts.Evidence == nil {
+		facts.Evidence = &contracts.StatusEvidenceFacts{}
+	}
+	return facts.Evidence
+}
+
+func mapRemoteEvidenceObservation(facts *Facts, observation remote.HandoffObservation) *contracts.StatusRemoteEvidence {
+	out := &contracts.StatusRemoteEvidence{
+		Observation: remoteObservationCompleteness(observation),
+		Degraded:    mapRemoteDegradations(observation.Degraded),
+	}
+	if observation.PR.Status == remote.PRObservationAvailable {
+		out.PR = &contracts.StatusRemotePRSummary{
+			State: observation.PR.State,
+			Draft: observation.PR.IsDraft,
+		}
+	}
+	if observation.CI.Status == remote.RemoteCIAvailable {
+		out.CI = &contracts.StatusRemoteEvidenceStatus{Status: observation.CI.EvidenceStatus}
+	}
+	if observation.Sync.Status == remote.RemoteSyncAvailable {
+		out.Sync = &contracts.StatusRemoteEvidenceStatus{Status: observation.Sync.EvidenceStatus}
+	}
+	out.Assessment = remoteAssessment(facts, out)
+	out.Message = remoteMessage(out)
+	return out
+}
+
+func remoteAssessment(facts *Facts, remoteFacts *contracts.StatusRemoteEvidence) string {
+	if remoteFacts == nil || remoteFacts.Observation == "unavailable" {
+		return "manual_evidence_required"
+	}
+	remoteCI := remoteCIStatusFrom(remoteFacts)
+	remoteSync := remoteSyncStatusFrom(remoteFacts)
+	if remoteCI == "" && remoteSync == "" {
+		return "manual_evidence_required"
+	}
+	recordedReady := recordedPublishStatus(facts) == "recorded" &&
+		strings.TrimSpace(recordedPRURL(facts)) != "" &&
+		(recordedCIStatus(facts) == "success" || recordedCIStatus(facts) == "not_applied") &&
+		(recordedSyncStatus(facts) == "fresh" || recordedSyncStatus(facts) == "not_applied")
+	if recordedReady && remoteNonReady(remoteFacts) {
+		return "candidate_invalidated"
+	}
+	if remoteFacts.PR != nil && remoteFacts.PR.Draft {
+		return "wait_for_remote"
+	}
+	if remoteCI == "pending" {
+		return "wait_for_remote"
+	}
+	if remoteCI == "failed" || remoteSync == "stale" || remoteSync == "conflicted" {
+		return "repair_remote"
+	}
+	if remoteCanRefreshRecorded(facts, remoteFacts) {
+		return "refresh_available"
+	}
+	if remoteFacts.Observation == "partial" {
+		return "manual_evidence_required"
+	}
+	return "matches_recorded"
+}
+
+func remoteMessage(remoteFacts *contracts.StatusRemoteEvidence) string {
+	if remoteFacts == nil {
+		return ""
+	}
+	switch remoteFacts.Assessment {
+	case "matches_recorded":
+		return "Remote PR facts match the recorded evidence that already drives the workflow node."
+	case "refresh_available":
+		return "Remote PR facts can be recorded as durable CI and sync evidence."
+	case "wait_for_remote":
+		return "Remote PR facts are not ready yet; wait before recording final evidence."
+	case "repair_remote":
+		return "Remote PR facts show CI or sync repair is needed before merge-ready handoff."
+	case "manual_evidence_required":
+		return "Remote PR facts are unavailable or incomplete; use manual evidence fallback when the facts are known."
+	case "candidate_invalidated":
+		return "Recorded evidence is merge-ready, but live remote facts show the candidate should be repaired or refreshed before merge approval."
+	default:
+		return ""
 	}
 }
 
-func remoteHandoffUnavailable(degradation remote.Degradation) *contracts.StatusRemoteHandoffObservation {
-	return &contracts.StatusRemoteHandoffObservation{
-		Status: remote.HandoffObservationUnavailable,
-		PR: contracts.StatusRemotePRObservation{
-			Status:   remote.PRObservationUnavailable,
-			Degraded: mapRemoteDegradationPtr(degradation),
-		},
-		CI: contracts.StatusRemoteCIObservation{
-			Status:   remote.RemoteCIUnavailable,
-			Degraded: mapRemoteDegradationPtr(degradation),
-		},
-		Sync: contracts.StatusRemoteSyncObservation{
-			Status:   remote.RemoteSyncUnavailable,
-			Degraded: mapRemoteDegradationPtr(degradation),
-		},
-		Degraded: mapRemoteDegradations([]remote.Degradation{degradation}),
-	}
+func remoteCanRefreshRecorded(facts *Facts, remoteFacts *contracts.StatusRemoteEvidence) bool {
+	remoteCI := remoteCIStatusFrom(remoteFacts)
+	remoteSync := remoteSyncStatusFrom(remoteFacts)
+	recordedCI := recordedCIStatus(facts)
+	recordedSync := recordedSyncStatus(facts)
+	ciCanRefresh := remoteCI != "" && remoteCI != "pending" && recordedCI != "not_applied" && remoteCI != recordedCI
+	syncCanRefresh := remoteSync != "" && recordedSync != "not_applied" && remoteSync != recordedSync
+	return ciCanRefresh || syncCanRefresh
 }
 
-func mapRemotePRObservation(observation remote.PRObservation) contracts.StatusRemotePRObservation {
-	return contracts.StatusRemotePRObservation{
-		Status:           observation.Status,
-		URL:              observation.URL,
-		Number:           observation.Number,
-		State:            observation.State,
-		IsDraft:          observation.IsDraft,
-		MergeStateStatus: observation.MergeStateStatus,
-		Mergeable:        observation.Mergeable,
-		ReviewDecision:   observation.ReviewDecision,
-		HeadRefName:      observation.HeadRefName,
-		HeadRefOID:       observation.HeadRefOID,
-		BaseRefName:      observation.BaseRefName,
-		Degraded:         mapRemoteDegradationPtr(observation.Degraded),
-	}
+func remoteNonReady(remoteFacts *contracts.StatusRemoteEvidence) bool {
+	ci := remoteCIStatusFrom(remoteFacts)
+	sync := remoteSyncStatusFrom(remoteFacts)
+	return ci == "pending" || ci == "failed" || sync == "stale" || sync == "conflicted" ||
+		(remoteFacts != nil && remoteFacts.PR != nil && remoteFacts.PR.Draft)
 }
 
-func mapRemoteCIObservation(observation remote.RemoteCIObservation) contracts.StatusRemoteCIObservation {
-	checks := make([]contracts.StatusRemoteCheckRun, 0, len(observation.Checks))
-	for _, check := range observation.Checks {
-		checks = append(checks, contracts.StatusRemoteCheckRun{
-			Name:     check.Name,
-			Workflow: check.Workflow,
-			Bucket:   check.Bucket,
-			State:    check.State,
-			Link:     check.Link,
-		})
+func recordedPublishStatus(facts *Facts) string {
+	if facts == nil || facts.Evidence == nil || facts.Evidence.Recorded == nil || facts.Evidence.Recorded.Publish == nil {
+		return ""
 	}
-	return contracts.StatusRemoteCIObservation{
-		Status:         observation.Status,
-		EvidenceStatus: observation.EvidenceStatus,
-		Checks:         checks,
-		Degraded:       mapRemoteDegradationPtr(observation.Degraded),
-	}
+	return facts.Evidence.Recorded.Publish.Status
 }
 
-func mapRemoteSyncObservation(observation remote.RemoteSyncObservation) contracts.StatusRemoteSyncObservation {
-	return contracts.StatusRemoteSyncObservation{
-		Status:         observation.Status,
-		EvidenceStatus: observation.EvidenceStatus,
-		MergeState:     observation.MergeState,
-		Degraded:       mapRemoteDegradationPtr(observation.Degraded),
+func recordedPRURL(facts *Facts) string {
+	if facts == nil || facts.Evidence == nil || facts.Evidence.Recorded == nil || facts.Evidence.Recorded.Publish == nil {
+		return ""
+	}
+	return facts.Evidence.Recorded.Publish.PRURL
+}
+
+func recordedCIStatus(facts *Facts) string {
+	if facts == nil || facts.Evidence == nil || facts.Evidence.Recorded == nil || facts.Evidence.Recorded.CI == nil {
+		return ""
+	}
+	return facts.Evidence.Recorded.CI.Status
+}
+
+func recordedSyncStatus(facts *Facts) string {
+	if facts == nil || facts.Evidence == nil || facts.Evidence.Recorded == nil || facts.Evidence.Recorded.Sync == nil {
+		return ""
+	}
+	return facts.Evidence.Recorded.Sync.Status
+}
+
+func remoteCIStatus(facts *Facts) string {
+	if facts == nil || facts.Evidence == nil {
+		return ""
+	}
+	return remoteCIStatusFrom(facts.Evidence.Remote)
+}
+
+func remoteSyncStatus(facts *Facts) string {
+	if facts == nil || facts.Evidence == nil {
+		return ""
+	}
+	return remoteSyncStatusFrom(facts.Evidence.Remote)
+}
+
+func remoteCIStatusFrom(remoteFacts *contracts.StatusRemoteEvidence) string {
+	if remoteFacts == nil || remoteFacts.CI == nil {
+		return ""
+	}
+	return remoteFacts.CI.Status
+}
+
+func remoteSyncStatusFrom(remoteFacts *contracts.StatusRemoteEvidence) string {
+	if remoteFacts == nil || remoteFacts.Sync == nil {
+		return ""
+	}
+	return remoteFacts.Sync.Status
+}
+
+func remoteEvidenceUnavailable(facts *Facts, degradation remote.Degradation) *contracts.StatusRemoteEvidence {
+	out := &contracts.StatusRemoteEvidence{
+		Observation: "unavailable",
+		Degraded:    mapRemoteDegradations([]remote.Degradation{degradation}),
+	}
+	out.Assessment = remoteAssessment(facts, out)
+	out.Message = remoteMessage(out)
+	return out
+}
+
+func remoteObservationCompleteness(observation remote.HandoffObservation) string {
+	switch observation.Status {
+	case remote.HandoffObservationAvailable:
+		return "complete"
+	case remote.HandoffObservationDegraded:
+		return "partial"
+	default:
+		return "unavailable"
 	}
 }
 
@@ -622,16 +724,6 @@ func mapRemoteDegradations(degradations []remote.Degradation) []contracts.Status
 		return nil
 	}
 	return out
-}
-
-func mapRemoteDegradationPtr(degradation remote.Degradation) *contracts.StatusRemoteDegradation {
-	if strings.TrimSpace(degradation.Code) == "" {
-		return nil
-	}
-	return &contracts.StatusRemoteDegradation{
-		Code:    degradation.Code,
-		Message: degradation.Message,
-	}
 }
 
 func archivedCandidateReadyForMerge(evidenceCtx *evidenceContext) bool {
@@ -834,9 +926,9 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 	case "execution/finalize/await_merge":
 		actions := remoteHandoffNextActions(facts)
 		actions = append(actions, NextAction{Command: nil, Description: "Wait for explicit human approval before merging the PR."})
-		if facts != nil && strings.TrimSpace(facts.PRURL) != "" {
+		if facts != nil && strings.TrimSpace(recordedPRURL(facts)) != "" {
 			actions = append(actions, NextAction{
-				Command:     strPtr(fmt.Sprintf("harness land --pr %s [--commit <sha>]", facts.PRURL)),
+				Command:     strPtr(fmt.Sprintf("harness land --pr %s [--commit <sha>]", recordedPRURL(facts))),
 				Description: "After the PR is merged outside harness and the worktree is synced, record merge confirmation and enter required post-merge bookkeeping.",
 			})
 		}
@@ -1035,12 +1127,12 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 	actions = append(actions, remoteHandoffNextActions(facts)...)
 
 	switch {
-	case facts == nil || facts.PublishStatus == "":
+	case facts == nil || recordedPublishStatus(facts) == "":
 		actions = append(actions,
 			NextAction{Command: nil, Description: "Open or update the PR for the archived candidate, then record publish evidence with the PR URL."},
 			NextAction{Command: strPtr("harness evidence submit --kind publish --input <json>"), Description: "Record publish evidence for the archived candidate once the PR or handoff record exists."},
 		)
-	case facts.PublishStatus == "not_applied":
+	case recordedPublishStatus(facts) == "not_applied":
 		actions = append(actions, NextAction{
 			Command:     nil,
 			Description: "Publish was marked not_applied, but v0.2 land still requires a PR URL; record publish evidence with a PR URL or reopen if the workflow changed.",
@@ -1053,17 +1145,17 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 	}
 
 	switch {
-	case facts == nil || facts.CIStatus == "":
+	case facts == nil || recordedCIStatus(facts) == "":
 		actions = append(actions, NextAction{
 			Command:     strPtr("harness evidence submit --kind ci --input <json>"),
 			Description: "Record CI evidence once the relevant post-archive check result is known.",
 		})
-	case facts.CIStatus == "pending":
+	case recordedCIStatus(facts) == "pending":
 		actions = append(actions, NextAction{
 			Command:     strPtr("harness evidence submit --kind ci --input <json>"),
 			Description: "Wait for the relevant post-archive CI to finish, then manually record the updated result if refresh is unavailable.",
 		})
-	case facts.CIStatus == "failed":
+	case recordedCIStatus(facts) == "failed":
 		actions = append(actions, NextAction{
 			Command:     nil,
 			Description: "Fix the CI failures or record an explicit not_applied decision before treating the candidate as merge-ready.",
@@ -1071,17 +1163,17 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 	}
 
 	switch {
-	case facts == nil || facts.SyncStatus == "":
+	case facts == nil || recordedSyncStatus(facts) == "":
 		actions = append(actions, NextAction{
 			Command:     strPtr("harness evidence submit --kind sync --input <json>"),
 			Description: "Record sync evidence after checking freshness and conflict status against the merge base.",
 		})
-	case facts.SyncStatus == "stale":
+	case recordedSyncStatus(facts) == "stale":
 		actions = append(actions, NextAction{
 			Command:     strPtr("harness evidence submit --kind sync --input <json>"),
 			Description: "Refresh the branch against the merge base, then manually record a fresh sync result if refresh is unavailable.",
 		})
-	case facts.SyncStatus == "conflicted":
+	case recordedSyncStatus(facts) == "conflicted":
 		actions = append(actions, NextAction{
 			Command:     nil,
 			Description: "Resolve merge conflicts or otherwise repair the branch, then record a fresh sync result before merge approval.",
@@ -1097,13 +1189,13 @@ func buildPublishNextActions(facts *Facts) []NextAction {
 }
 
 func remoteHandoffNextActions(facts *Facts) []NextAction {
-	if facts == nil || facts.RemoteHandoff == nil {
+	if facts == nil || facts.Evidence == nil || facts.Evidence.Remote == nil {
 		return nil
 	}
-	remoteFacts := facts.RemoteHandoff
+	remoteFacts := facts.Evidence.Remote
 	actions := make([]NextAction, 0, 2)
-	if remoteFacts.CI.Status == remote.RemoteCIAvailable {
-		switch remoteFacts.CI.EvidenceStatus {
+	if remoteFacts.CI != nil {
+		switch remoteFacts.CI.Status {
 		case "pending":
 			actions = append(actions, NextAction{
 				Command:     nil,
@@ -1116,8 +1208,8 @@ func remoteHandoffNextActions(facts *Facts) []NextAction {
 			})
 		}
 	}
-	if remoteFacts.Sync.Status == remote.RemoteSyncAvailable {
-		switch remoteFacts.Sync.EvidenceStatus {
+	if remoteFacts.Sync != nil {
+		switch remoteFacts.Sync.Status {
 		case "stale":
 			actions = append(actions, NextAction{
 				Command:     nil,
@@ -1134,22 +1226,22 @@ func remoteHandoffNextActions(facts *Facts) []NextAction {
 }
 
 func shouldSuggestEvidenceRefresh(facts *Facts) bool {
-	if facts == nil || facts.PublishStatus != "recorded" || strings.TrimSpace(facts.PRURL) == "" {
+	if facts == nil || recordedPublishStatus(facts) != "recorded" || strings.TrimSpace(recordedPRURL(facts)) == "" {
 		return false
 	}
-	return facts.CIStatus == "" ||
-		facts.CIStatus == "pending" ||
-		facts.SyncStatus == "" ||
-		facts.SyncStatus == "stale" ||
+	return recordedCIStatus(facts) == "" ||
+		recordedCIStatus(facts) == "pending" ||
+		recordedSyncStatus(facts) == "" ||
+		recordedSyncStatus(facts) == "stale" ||
 		cleanRemoteCanRefreshNonReadyEvidence(facts)
 }
 
 func cleanRemoteCanRefreshNonReadyEvidence(facts *Facts) bool {
-	if facts == nil || facts.RemoteHandoff == nil {
+	if facts == nil || facts.Evidence == nil || facts.Evidence.Remote == nil {
 		return false
 	}
-	return (facts.CIStatus == "failed" && facts.RemoteHandoff.CI.Status == remote.RemoteCIAvailable && facts.RemoteHandoff.CI.EvidenceStatus == "success") ||
-		(facts.SyncStatus == "conflicted" && facts.RemoteHandoff.Sync.Status == remote.RemoteSyncAvailable && facts.RemoteHandoff.Sync.EvidenceStatus == "fresh")
+	return (recordedCIStatus(facts) == "failed" && remoteCIStatus(facts) == "success") ||
+		(recordedSyncStatus(facts) == "conflicted" && remoteSyncStatus(facts) == "fresh")
 }
 
 func idleResult(workdir string, currentPlan *runstate.CurrentPlan) Result {
@@ -1166,7 +1258,6 @@ func idleResult(workdir string, currentPlan *runstate.CurrentPlan) Result {
 	if currentPlan != nil && strings.TrimSpace(currentPlan.LastLandedPlanPath) != "" {
 		result.Summary = "No current plan is active in this worktree. The most recent landed candidate is recorded for handoff context."
 		result.Artifacts = &Artifacts{
-			ProjectRoot:  workdir,
 			PlanPath:     repoFacingPath(workdir, currentPlan.LastLandedPlanPath),
 			LastLandedAt: currentPlan.LastLandedAt,
 		}
@@ -1342,11 +1433,7 @@ func factsEmpty(f *Facts) bool {
 		strings.TrimSpace(f.ReviewTitle) == "" &&
 		strings.TrimSpace(f.ReviewStatus) == "" &&
 		f.ArchiveBlockerCount == 0 &&
-		strings.TrimSpace(f.PublishStatus) == "" &&
-		strings.TrimSpace(f.PRURL) == "" &&
-		strings.TrimSpace(f.CIStatus) == "" &&
-		strings.TrimSpace(f.SyncStatus) == "" &&
-		f.RemoteHandoff == nil &&
+		f.Evidence == nil &&
 		strings.TrimSpace(f.LandPRURL) == "" &&
 		strings.TrimSpace(f.LandCommit) == ""
 }

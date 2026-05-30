@@ -27,7 +27,7 @@
       "required": [
         "status"
       ],
-      "description": "EvidenceSyncInput is the JSON input consumed by `harness evidence submit --kind sync`."
+      "description": "EvidenceSyncInput is the JSON input consumed by `harness evidence submit\n--kind sync`."
     }
   },
   "title": "Sync evidence input",

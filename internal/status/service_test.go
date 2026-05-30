@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/install"
 	"github.com/catu-ai/easyharness/internal/plan"
@@ -1734,18 +1735,18 @@ func TestStatusArchivedPlanSurfacesRemoteHandoffObservation(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("live remote facts must not advance without local evidence, got %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.RemoteHandoff == nil {
-		t.Fatalf("expected remote handoff facts, got %#v", result.Facts)
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Observation != "complete" || remoteEvidence.Assessment != "refresh_available" {
+		t.Fatalf("unexpected remote assessment: %#v", remoteEvidence)
 	}
-	remoteHandoff := result.Facts.RemoteHandoff
-	if remoteHandoff.Status != "available" || remoteHandoff.PR.State != "OPEN" || remoteHandoff.PR.Number != 13 {
-		t.Fatalf("unexpected remote PR observation: %#v", remoteHandoff)
+	if remoteEvidence.PR == nil || remoteEvidence.PR.State != "OPEN" || remoteEvidence.PR.Draft {
+		t.Fatalf("unexpected remote PR summary: %#v", remoteEvidence.PR)
 	}
-	if remoteHandoff.CI.EvidenceStatus != "success" || len(remoteHandoff.CI.Checks) != 1 {
-		t.Fatalf("unexpected remote CI observation: %#v", remoteHandoff.CI)
+	if remoteEvidence.CI == nil || remoteEvidence.CI.Status != "success" {
+		t.Fatalf("unexpected remote CI summary: %#v", remoteEvidence.CI)
 	}
-	if remoteHandoff.Sync.EvidenceStatus != "fresh" || remoteHandoff.Sync.MergeState != "CLEAN" {
-		t.Fatalf("unexpected remote sync observation: %#v", remoteHandoff.Sync)
+	if remoteEvidence.Sync == nil || remoteEvidence.Sync.Status != "fresh" {
+		t.Fatalf("unexpected remote sync summary: %#v", remoteEvidence.Sync)
 	}
 	if !statusNextActionsContain(result, "harness evidence refresh") {
 		t.Fatalf("expected evidence refresh guidance for recorded remote facts, got %#v", result.NextAction)
@@ -1773,17 +1774,12 @@ func TestStatusRemoteHandoffObservationDegradesWithoutFailingLocalStatus(t *test
 	if !result.OK || result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("remote degradation should not fail local status, got %#v", result)
 	}
-	if result.Facts == nil || result.Facts.RemoteHandoff == nil {
-		t.Fatalf("expected degraded remote handoff facts, got %#v", result.Facts)
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Observation != "unavailable" || remoteEvidence.Assessment != "manual_evidence_required" {
+		t.Fatalf("expected unavailable remote evidence, got %#v", remoteEvidence)
 	}
-	if result.Facts.RemoteHandoff.Status != "unavailable" {
-		t.Fatalf("expected unavailable remote handoff, got %#v", result.Facts.RemoteHandoff)
-	}
-	if len(result.Facts.RemoteHandoff.Degraded) != 1 || result.Facts.RemoteHandoff.Degraded[0].Code != "gh_missing" {
-		t.Fatalf("expected gh_missing degradation, got %#v", result.Facts.RemoteHandoff.Degraded)
-	}
-	if result.Facts.RemoteHandoff.PR.Degraded == nil || result.Facts.RemoteHandoff.PR.Degraded.Code != "gh_missing" {
-		t.Fatalf("expected PR degradation pointer, got %#v", result.Facts.RemoteHandoff.PR)
+	if len(remoteEvidence.Degraded) != 1 || remoteEvidence.Degraded[0].Code != "gh_missing" {
+		t.Fatalf("expected gh_missing degradation, got %#v", remoteEvidence.Degraded)
 	}
 	if !statusNextActionsContain(result, "harness evidence submit --kind ci --input <json>") {
 		t.Fatalf("expected manual CI fallback guidance, got %#v", result.NextAction)
@@ -1941,8 +1937,9 @@ func TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode(t *t
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("live remote facts must not regress evidence-driven await_merge node, got %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.RemoteHandoff == nil || result.Facts.RemoteHandoff.CI.EvidenceStatus != "failed" {
-		t.Fatalf("expected failed live remote CI facts, got %#v", result.Facts)
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.CI == nil || remoteEvidence.CI.Status != "failed" || remoteEvidence.Assessment != "candidate_invalidated" {
+		t.Fatalf("expected invalidating failed live remote CI facts, got %#v", remoteEvidence)
 	}
 	foundRemoteGuidance := false
 	foundLandGuidance := false
@@ -1981,8 +1978,8 @@ func TestStatusRemoteHandoffDoesNotGuessPRWhenPublishEvidenceMissing(t *testing.
 	if called {
 		t.Fatal("status should not call gh without recorded publish PR evidence")
 	}
-	if result.Facts != nil && result.Facts.RemoteHandoff != nil {
-		t.Fatalf("did not expect remote handoff facts without recorded PR evidence, got %#v", result.Facts.RemoteHandoff)
+	if result.Facts != nil && result.Facts.Evidence != nil && result.Facts.Evidence.Remote != nil {
+		t.Fatalf("did not expect remote facts without recorded PR evidence, got %#v", result.Facts.Evidence.Remote)
 	}
 }
 
@@ -2256,11 +2253,11 @@ func TestStatusArchivedPlanReadyForAwaitMerge(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.PRURL != "https://github.com/catu-ai/easyharness/pull/13" || result.Facts.CIStatus != "not_applied" || result.Facts.SyncStatus != "fresh" {
+	if recordedPublishURL(result) != "https://github.com/catu-ai/easyharness/pull/13" || recordedCIStatus(result) != "not_applied" || recordedSyncStatus(result) != "fresh" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
-	if result.Artifacts == nil || result.Artifacts.PublishRecordID == "" || result.Artifacts.CIRecordID == "" || result.Artifacts.SyncRecordID == "" {
-		t.Fatalf("unexpected artifacts: %#v", result.Artifacts)
+	if result.Artifacts == nil || result.Artifacts.PlanPath == "" {
+		t.Fatalf("expected plan artifact in status, got %#v", result.Artifacts)
 	}
 }
 
@@ -2356,11 +2353,11 @@ func TestStatusArchivedPlanReadyForAwaitMergeFromEvidenceArtifacts(t *testing.T)
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("expected evidence artifacts to reach await_merge, got %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.PRURL != "https://github.com/catu-ai/easyharness/pull/13" || result.Facts.CIStatus != "success" || result.Facts.SyncStatus != "fresh" {
+	if recordedPublishURL(result) != "https://github.com/catu-ai/easyharness/pull/13" || recordedCIStatus(result) != "success" || recordedSyncStatus(result) != "fresh" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
-	if result.Artifacts == nil || result.Artifacts.PublishRecordID == "" || result.Artifacts.CIRecordID == "" || result.Artifacts.SyncRecordID == "" {
-		t.Fatalf("unexpected artifacts: %#v", result.Artifacts)
+	if result.Artifacts == nil || result.Artifacts.PlanPath == "" {
+		t.Fatalf("expected plan artifact in status, got %#v", result.Artifacts)
 	}
 	assertStateJSONLacksKeys(t, root, "2026-03-18-status-plan", "latest_publish", "latest_ci", "latest_evidence")
 }
@@ -2398,7 +2395,7 @@ func TestStatusArchivedPlanIgnoresOlderRevisionEvidenceArtifacts(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected older revision evidence to keep publish state, got %#v", result.State)
 	}
-	if result.Facts != nil && (result.Facts.PRURL != "" || result.Facts.CIStatus != "" || result.Facts.SyncStatus != "") {
+	if recordedPublishURL(result) != "" || recordedCIStatus(result) != "" || recordedSyncStatus(result) != "" {
 		t.Fatalf("expected older revision evidence to stay hidden, got %#v", result.Facts)
 	}
 }
@@ -2430,7 +2427,7 @@ func TestStatusArchivedPlanReadyForAwaitMergeWithSyncNotApplied(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.CIStatus != "success" || result.Facts.SyncStatus != "not_applied" {
+	if recordedCIStatus(result) != "success" || recordedSyncStatus(result) != "not_applied" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
 }
@@ -2462,7 +2459,7 @@ func TestStatusArchivedPlanReadyForAwaitMergeWhenCIAndSyncAreBothNotApplied(t *t
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.CIStatus != "not_applied" || result.Facts.SyncStatus != "not_applied" {
+	if recordedCIStatus(result) != "not_applied" || recordedSyncStatus(result) != "not_applied" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
 }
@@ -2497,7 +2494,7 @@ func TestStatusArchivedPlanStaysInPublishFromEvidenceArtifactsWhenDirty(t *testi
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected dirty evidence artifacts to stay in publish, got %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.CIStatus != "failed" {
+	if recordedCIStatus(result) != "failed" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
 	foundFixCI := false
@@ -2540,7 +2537,7 @@ func TestStatusArchivedPlanStaysInPublishWhenEvidenceIsDirty(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected dirty evidence to stay in publish, got %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.CIStatus != "pending" {
+	if recordedCIStatus(result) != "pending" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
 	foundPendingCI := false
@@ -2582,7 +2579,7 @@ func TestStatusArchivedPlanStaysInPublishWhenSyncIsDirty(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected dirty sync evidence to stay in publish, got %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.SyncStatus != "conflicted" {
+	if recordedSyncStatus(result) != "conflicted" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
 	foundResolveConflicts := false
@@ -3345,6 +3342,35 @@ func statusNextActionsContain(result status.Result, command string) bool {
 		}
 	}
 	return false
+}
+
+func recordedPublishURL(result status.Result) string {
+	if result.Facts == nil || result.Facts.Evidence == nil || result.Facts.Evidence.Recorded == nil || result.Facts.Evidence.Recorded.Publish == nil {
+		return ""
+	}
+	return result.Facts.Evidence.Recorded.Publish.PRURL
+}
+
+func recordedCIStatus(result status.Result) string {
+	if result.Facts == nil || result.Facts.Evidence == nil || result.Facts.Evidence.Recorded == nil || result.Facts.Evidence.Recorded.CI == nil {
+		return ""
+	}
+	return result.Facts.Evidence.Recorded.CI.Status
+}
+
+func recordedSyncStatus(result status.Result) string {
+	if result.Facts == nil || result.Facts.Evidence == nil || result.Facts.Evidence.Recorded == nil || result.Facts.Evidence.Recorded.Sync == nil {
+		return ""
+	}
+	return result.Facts.Evidence.Recorded.Sync.Status
+}
+
+func requireRemoteEvidence(t *testing.T, result status.Result) *contracts.StatusRemoteEvidence {
+	t.Helper()
+	if result.Facts == nil || result.Facts.Evidence == nil || result.Facts.Evidence.Remote == nil {
+		t.Fatalf("expected remote evidence facts, got %#v", result.Facts)
+	}
+	return result.Facts.Evidence.Remote
 }
 
 func fakeStatusRemoteCommands(mergeStateJSON, checksJSON string) remote.CommandRunner {

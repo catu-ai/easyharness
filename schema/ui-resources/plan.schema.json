@@ -7,7 +7,7 @@
       "properties": {
         "path": {
           "type": "string",
-          "description": "Path identifies the field, section, or artifact path associated with the error."
+          "description": "Path identifies the field, section, or artifact path associated with the\nerror."
         },
         "message": {
           "type": "string",
@@ -20,7 +20,7 @@
         "path",
         "message"
       ],
-      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in\na command result."
     },
     "PlanArtifacts": {
       "properties": {
@@ -30,7 +30,7 @@
         },
         "supplements_path": {
           "type": "string",
-          "description": "SupplementsPath is the current plan's companion supplements directory when one exists."
+          "description": "SupplementsPath is the current plan's companion supplements directory\nwhen one exists."
         }
       },
       "additionalProperties": false,
@@ -156,7 +156,7 @@
       "properties": {
         "status": {
           "type": "string",
-          "description": "Status reports whether the preview is fully supported, plain-text fallback, or unavailable."
+          "description": "Status reports whether the preview is fully supported, plain-text\nfallback, or unavailable."
         },
         "content_type": {
           "type": "string",
@@ -176,7 +176,7 @@
         },
         "extension": {
           "type": "string",
-          "description": "Extension is the normalized lowercase file extension without the leading dot."
+          "description": "Extension is the normalized lowercase file extension without the leading\ndot."
         }
       },
       "additionalProperties": false,
@@ -198,15 +198,15 @@
         },
         "summary": {
           "type": "string",
-          "description": "Summary is the concise human-readable explanation of the loaded plan state."
+          "description": "Summary is the concise human-readable explanation of the loaded plan\nstate."
         },
         "artifacts": {
           "$ref": "#/$defs/PlanArtifacts",
-          "description": "Artifacts points to the current-plan package paths used to build this response."
+          "description": "Artifacts points to the current-plan package paths used to build this\nresponse."
         },
         "document": {
           "$ref": "#/$defs/PlanDocumentView",
-          "description": "Document is the current plan markdown document when one is available for browsing."
+          "description": "Document is the current plan markdown document when one is available for\nbrowsing."
         },
         "supplements": {
           "$ref": "#/$defs/PlanNodeView",
@@ -217,7 +217,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "Warnings lists non-fatal degraded-state notes for the overall plan resource."
+          "description": "Warnings lists non-fatal degraded-state notes for the overall plan\nresource."
         },
         "errors": {
           "items": {

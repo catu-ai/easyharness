@@ -41,7 +41,7 @@
         "updated_at",
         "slots"
       ],
-      "description": "ReviewLedger is the command-owned ledger artifact tracking submission status for a review round."
+      "description": "ReviewLedger is the command-owned ledger artifact tracking submission status\nfor a review round."
     },
     "ReviewLedgerSlot": {
       "properties": {
@@ -74,7 +74,7 @@
         "status",
         "submission_path"
       ],
-      "description": "ReviewLedgerSlot records the current state for one reviewer slot in the ledger."
+      "description": "ReviewLedgerSlot records the current state for one reviewer slot in the\nledger."
     }
   },
   "title": "Review ledger artifact",

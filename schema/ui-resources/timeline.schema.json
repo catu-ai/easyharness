@@ -7,7 +7,7 @@
       "properties": {
         "path": {
           "type": "string",
-          "description": "Path identifies the field, section, or artifact path associated with the error."
+          "description": "Path identifies the field, section, or artifact path associated with the\nerror."
         },
         "message": {
           "type": "string",
@@ -20,7 +20,7 @@
         "path",
         "message"
       ],
-      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in\na command result."
     },
     "TimelineArtifactRef": {
       "properties": {
@@ -38,10 +38,10 @@
         },
         "content_type": {
           "type": "string",
-          "description": "ContentType reports how Content should be rendered in the UI resource. It is omitted from append-only event lines and only populated by the timeline read model when it resolves a referenced file."
+          "description": "ContentType reports how Content should be rendered in the UI resource.\nIt is omitted from append-only event lines and only populated by the\ntimeline read model when it resolves a referenced file."
         },
         "content": {
-          "description": "Content is the resolved artifact file payload for UI tabs when the reference points at a readable file. It is omitted from append-only event lines and only populated by the timeline read model."
+          "description": "Content is the resolved artifact file payload for UI tabs when the\nreference points at a readable file. It is omitted from append-only event\nlines and only populated by the timeline read model."
         }
       },
       "additionalProperties": false,
@@ -50,13 +50,13 @@
         "label",
         "value"
       ],
-      "description": "TimelineArtifactRef points at one existing harness-owned artifact or identifier related to a timeline event."
+      "description": "TimelineArtifactRef points at one existing harness-owned artifact or\nidentifier related to a timeline event."
     },
     "TimelineArtifacts": {
       "properties": {
         "plan_path": {
           "type": "string",
-          "description": "PlanPath is the current or last-landed plan path associated with the timeline."
+          "description": "PlanPath is the current or last-landed plan path associated with the\ntimeline."
         }
       },
       "additionalProperties": false,
@@ -130,21 +130,21 @@
         },
         "synthetic": {
           "type": "boolean",
-          "description": "Synthetic reports that this entry is a read-model bootstrap row derived from durable plan or state data rather than a line from `events.jsonl`."
+          "description": "Synthetic reports that this entry is a read-model bootstrap row derived\nfrom durable plan or state data rather than a line from `events.jsonl`."
         },
         "details": {
           "items": {
             "$ref": "#/$defs/TimelineDetail"
           },
           "type": "array",
-          "description": "Details lists small, display-ready event facts without duplicating full underlying artifact payloads."
+          "description": "Details lists small, display-ready event facts without duplicating full\nunderlying artifact payloads."
         },
         "artifact_refs": {
           "items": {
             "$ref": "#/$defs/TimelineArtifactRef"
           },
           "type": "array",
-          "description": "ArtifactRefs points at high-signal existing harness artifacts related to the event."
+          "description": "ArtifactRefs points at high-signal existing harness artifacts related to\nthe event."
         },
         "input": {
           "description": "Input is the raw JSON input payload when the command accepted one."
@@ -167,7 +167,7 @@
         "summary",
         "plan_stem"
       ],
-      "description": "TimelineEvent is one append-only line in `.local/harness/plans/\u003cplan-stem\u003e/events.jsonl`."
+      "description": "TimelineEvent is one append-only line in\n`.local/harness/plans/\u003cplan-stem\u003e/events.jsonl`."
     },
     "TimelineResult": {
       "properties": {
@@ -185,7 +185,7 @@
         },
         "artifacts": {
           "$ref": "#/$defs/TimelineArtifacts",
-          "description": "Artifacts points to the plan and local timeline artifact paths used to build this response."
+          "description": "Artifacts points to the plan and local timeline artifact paths used to\nbuild this response."
         },
         "events": {
           "oneOf": [

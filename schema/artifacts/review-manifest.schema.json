@@ -15,7 +15,7 @@
         },
         "anchor_sha": {
           "type": "string",
-          "description": "AnchorSHA is the controller-chosen git commit anchor recorded for delta review when the round uses one."
+          "description": "AnchorSHA is the controller-chosen git commit anchor recorded for delta\nreview when the round uses one."
         },
         "step": {
           "type": "integer",
@@ -83,7 +83,7 @@
         "aggregate_path",
         "submissions_dir"
       ],
-      "description": "ReviewManifest is the command-owned review manifest artifact for one review round."
+      "description": "ReviewManifest is the command-owned review manifest artifact for one review\nround."
     },
     "ReviewSlot": {
       "properties": {

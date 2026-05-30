@@ -40,12 +40,12 @@
             "$ref": "#/$defs/DashboardProgressNode"
           },
           "type": "array",
-          "description": "Nodes are the ordered progress nodes for this workspace. The node count varies with the underlying tracked plan and workflow phase structure."
+          "description": "Nodes are the ordered progress nodes for this workspace. The node count\nvaries with the underlying tracked plan and workflow phase structure."
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "DashboardProgress is the compact progress signal rendered on the dashboard home."
+      "description": "DashboardProgress is the compact progress signal rendered on the dashboard\nhome."
     },
     "DashboardProgressNode": {
       "properties": {
@@ -78,7 +78,7 @@
         },
         "summary": {
           "type": "string",
-          "description": "Summary is the concise human-readable explanation of the loaded dashboard model."
+          "description": "Summary is the concise human-readable explanation of the loaded\ndashboard model."
         },
         "groups": {
           "oneOf": [
@@ -111,17 +111,17 @@
         "summary",
         "groups"
       ],
-      "description": "DashboardResult is the read-only UI resource for the machine-local dashboard home."
+      "description": "DashboardResult is the read-only UI resource for the machine-local dashboard\nhome."
     },
     "DashboardWorkspace": {
       "properties": {
         "workspace_key": {
           "type": "string",
-          "description": "WorkspaceKey is the opaque deterministic route key derived from the watched workspace path."
+          "description": "WorkspaceKey is the opaque deterministic route key derived from the\nwatched workspace path."
         },
         "workspace_name": {
           "type": "string",
-          "description": "WorkspaceName is the human-readable folder/workspace name derived from the watched workspace path."
+          "description": "WorkspaceName is the human-readable folder/workspace name derived from the\nwatched workspace path."
         },
         "workspace_path": {
           "type": "string",
@@ -129,7 +129,7 @@
         },
         "watched_at": {
           "type": "string",
-          "description": "WatchedAt is the timestamp when the workspace first entered the watchlist."
+          "description": "WatchedAt is the timestamp when the workspace first entered the\nwatchlist."
         },
         "last_seen_at": {
           "type": "string",
@@ -141,7 +141,7 @@
         },
         "invalid_reason": {
           "type": "string",
-          "description": "InvalidReason refines invalid entries without expanding the dashboard lifecycle state enum."
+          "description": "InvalidReason refines invalid entries without expanding the dashboard\nlifecycle state enum."
         },
         "current_node": {
           "type": "string",
@@ -149,11 +149,11 @@
         },
         "plan_title": {
           "type": "string",
-          "description": "PlanTitle is the current or last-relevant tracked plan title when one can be resolved from status artifacts."
+          "description": "PlanTitle is the current or last-relevant tracked plan title when one can\nbe resolved from status artifacts."
         },
         "facts": {
           "$ref": "#/$defs/StatusFacts",
-          "description": "Facts carries selected status facts that help the dashboard render compact progress and metadata."
+          "description": "Facts carries selected status facts that help the dashboard render compact\nprogress and metadata."
         },
         "progress": {
           "$ref": "#/$defs/DashboardProgress",
@@ -168,7 +168,7 @@
             "$ref": "#/$defs/NextAction"
           },
           "type": "array",
-          "description": "NextAction lists the most relevant status follow-up steps for readable entries."
+          "description": "NextAction lists the most relevant status follow-up steps for readable\nentries."
         },
         "warnings": {
           "items": {
@@ -182,7 +182,7 @@
             "$ref": "#/$defs/ErrorDetail"
           },
           "type": "array",
-          "description": "Blockers lists state issues that block ordinary progression for this workspace."
+          "description": "Blockers lists state issues that block ordinary progression for this\nworkspace."
         },
         "errors": {
           "items": {
@@ -193,7 +193,7 @@
         },
         "artifacts": {
           "$ref": "#/$defs/StatusArtifacts",
-          "description": "Artifacts points to stable status artifact handles for navigation or display."
+          "description": "Artifacts points to stable status artifact handles for navigation or\ndisplay."
         }
       },
       "additionalProperties": false,
@@ -211,7 +211,7 @@
       "properties": {
         "path": {
           "type": "string",
-          "description": "Path identifies the field, section, or artifact path associated with the error."
+          "description": "Path identifies the field, section, or artifact path associated with the\nerror."
         },
         "message": {
           "type": "string",
@@ -224,7 +224,7 @@
         "path",
         "message"
       ],
-      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in\na command result."
     },
     "NextAction": {
       "properties": {
@@ -232,13 +232,13 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+              "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
             },
             {
               "type": "null"
             }
           ],
-          "description": "Command is the suggested command line to run next when the next step is best expressed as a harness command."
+          "description": "Command is the suggested command line to run next when the next step is\nbest expressed as a harness command."
         },
         "description": {
           "type": "string",
@@ -251,7 +251,7 @@
         "command",
         "description"
       ],
-      "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
+      "description": "NextAction describes one concrete follow-up action that the caller should\nconsider after reading a command result."
     },
     "ReviewSlot": {
       "properties": {
@@ -286,44 +286,32 @@
       "properties": {
         "project_root": {
           "type": "string",
-          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing paths."
+          "description": "ProjectRoot is the repository root that anchors surfaced repo-facing\npaths."
         },
         "plan_path": {
           "type": "string",
-          "description": "PlanPath is the active, archived, or last-landed plan path relevant to the current status resolution.",
+          "description": "PlanPath is the active, archived, or last-landed plan path relevant to the\ncurrent status resolution.",
           "examples": [
             "docs/plans/active/2026-03-31-centralize-contract-schemas-and-generated-reference-docs.md"
           ]
         },
         "supplements_path": {
           "type": "string",
-          "description": "SupplementsPath is the companion supplements directory for the current plan package when one exists.",
+          "description": "SupplementsPath is the companion supplements directory for the current\nplan package when one exists.",
           "examples": [
             "docs/plans/active/supplements/2026-03-31-centralize-contract-schemas-and-generated-reference-docs"
           ]
         },
         "review_round_id": {
           "type": "string",
-          "description": "ReviewRoundID is the active review round identifier when review is in flight."
+          "description": "ReviewRoundID is the active review round identifier when review is in\nflight."
         },
         "review_slots": {
           "items": {
             "$ref": "#/$defs/ReviewSlot"
           },
           "type": "array",
-          "description": "ReviewSlots lists the active round's reviewer-owned slot handles when review is in flight."
-        },
-        "ci_record_id": {
-          "type": "string",
-          "description": "CIRecordID is the latest CI evidence record identifier when known."
-        },
-        "publish_record_id": {
-          "type": "string",
-          "description": "PublishRecordID is the latest publish evidence record identifier when known."
-        },
-        "sync_record_id": {
-          "type": "string",
-          "description": "SyncRecordID is the latest sync evidence record identifier when known."
+          "description": "ReviewSlots lists the active round's reviewer-owned slot handles when\nreview is in flight."
         },
         "last_landed_at": {
           "type": "string",
@@ -332,7 +320,22 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "StatusArtifacts lists stable paths or identifiers related to the current status result."
+      "description": "StatusArtifacts lists stable paths or identifiers related to the current\nstatus result."
+    },
+    "StatusEvidenceFacts": {
+      "properties": {
+        "recorded": {
+          "$ref": "#/$defs/StatusRecordedEvidence",
+          "description": "Recorded is durable local evidence. Recorded evidence is authoritative for\nworkflow-node progression."
+        },
+        "remote": {
+          "$ref": "#/$defs/StatusRemoteEvidence",
+          "description": "Remote is a compact read-only projection of live remote facts. It explains\ndrift or refresh opportunities but does not advance workflow state."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "StatusEvidenceFacts groups archived-candidate handoff evidence."
     },
     "StatusFacts": {
       "properties": {
@@ -346,7 +349,7 @@
         },
         "reopen_mode": {
           "type": "string",
-          "description": "ReopenMode is the active reopen mode when a reopen repair path is in effect."
+          "description": "ReopenMode is the active reopen mode when a reopen repair path is in\neffect."
         },
         "review_kind": {
           "type": "string",
@@ -358,7 +361,7 @@
         },
         "review_title": {
           "type": "string",
-          "description": "ReviewTitle is the human-readable title for the active review round when one exists."
+          "description": "ReviewTitle is the human-readable title for the active review round when\none exists."
         },
         "review_status": {
           "type": "string",
@@ -366,27 +369,11 @@
         },
         "archive_blocker_count": {
           "type": "integer",
-          "description": "ArchiveBlockerCount reports how many archive-readiness blockers are still present."
+          "description": "ArchiveBlockerCount reports how many archive-readiness blockers are still\npresent."
         },
-        "publish_status": {
-          "type": "string",
-          "description": "PublishStatus summarizes the latest publish evidence state."
-        },
-        "pr_url": {
-          "type": "string",
-          "description": "PRURL is the currently known pull request URL for the candidate branch."
-        },
-        "ci_status": {
-          "type": "string",
-          "description": "CIStatus summarizes the latest CI evidence state."
-        },
-        "sync_status": {
-          "type": "string",
-          "description": "SyncStatus summarizes the latest remote-sync evidence state."
-        },
-        "remote_handoff": {
-          "$ref": "#/$defs/StatusRemoteHandoffObservation",
-          "description": "RemoteHandoff is a non-authoritative live observation of the recorded PR handoff target. It may explain remote PR, CI, and sync state, but local durable evidence remains the source of truth for workflow progression."
+        "evidence": {
+          "$ref": "#/$defs/StatusEvidenceFacts",
+          "description": "Evidence groups durable recorded evidence and compact read-only remote\nobservation facts for archived-candidate handoff."
         },
         "land_pr_url": {
           "type": "string",
@@ -394,68 +381,57 @@
         },
         "land_commit": {
           "type": "string",
-          "description": "LandCommit is the merge commit or landed commit recorded for the land phase."
+          "description": "LandCommit is the merge commit or landed commit recorded for the land\nphase."
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "StatusFacts carries selected derived details that help interpret a status node without dumping the full local state model."
+      "description": "StatusFacts carries selected derived details that help interpret a status\nnode without dumping the full local state model."
     },
-    "StatusRemoteCIObservation": {
+    "StatusRecordedEvidence": {
+      "properties": {
+        "publish": {
+          "$ref": "#/$defs/StatusRecordedPublishEvidence",
+          "description": "Publish is the latest recorded publish evidence when present."
+        },
+        "ci": {
+          "$ref": "#/$defs/StatusRecordedEvidenceStatus",
+          "description": "CI is the latest recorded CI evidence when present."
+        },
+        "sync": {
+          "$ref": "#/$defs/StatusRecordedEvidenceStatus",
+          "description": "Sync is the latest recorded sync evidence when present."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "StatusRecordedEvidence summarizes durable archived-candidate evidence."
+    },
+    "StatusRecordedEvidenceStatus": {
       "properties": {
         "status": {
           "type": "string",
-          "description": "Status is the CI observation status such as available or unavailable."
-        },
-        "evidence_status": {
-          "type": "string",
-          "description": "EvidenceStatus is the local evidence status that `harness evidence refresh` would record if this remote observation were refreshed now."
-        },
-        "checks": {
-          "items": {
-            "$ref": "#/$defs/StatusRemoteCheckRun"
-          },
-          "type": "array",
-          "description": "Checks lists compact remote check rows."
-        },
-        "degraded": {
-          "$ref": "#/$defs/StatusRemoteDegradation",
-          "description": "Degraded explains why CI checks could not be observed."
+          "description": "Status is the recorded evidence status for this domain."
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "status"
-      ],
-      "description": "StatusRemoteCIObservation summarizes live remote CI/check state for a recorded pull request."
+      "description": "StatusRecordedEvidenceStatus summarizes one recorded evidence domain."
     },
-    "StatusRemoteCheckRun": {
+    "StatusRecordedPublishEvidence": {
       "properties": {
-        "name": {
+        "status": {
           "type": "string",
-          "description": "Name is the check run name when available."
+          "description": "Status is the recorded publish evidence status."
         },
-        "workflow": {
+        "pr_url": {
           "type": "string",
-          "description": "Workflow is the workflow name when available."
-        },
-        "bucket": {
-          "type": "string",
-          "description": "Bucket is the provider's coarse check bucket when available."
-        },
-        "state": {
-          "type": "string",
-          "description": "State is the provider's check state when available."
-        },
-        "link": {
-          "type": "string",
-          "description": "Link is the provider URL for the check run when available."
+          "description": "PRURL is the recorded pull request URL when one is available."
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "StatusRemoteCheckRun is a compact provider check row surfaced through `harness status`."
+      "description": "StatusRecordedPublishEvidence summarizes recorded publish evidence."
     },
     "StatusRemoteDegradation": {
       "properties": {
@@ -473,127 +449,71 @@
       "required": [
         "code"
       ],
-      "description": "StatusRemoteDegradation explains a non-fatal live remote observation failure."
+      "description": "StatusRemoteDegradation explains a non-fatal live remote observation\nfailure."
     },
-    "StatusRemoteHandoffObservation": {
+    "StatusRemoteEvidence": {
       "properties": {
-        "status": {
+        "observation": {
           "type": "string",
-          "description": "Status is the overall remote observation status such as available, degraded, or unavailable."
+          "description": "Observation describes how complete the live remote observation was, such\nas complete, partial, or unavailable."
+        },
+        "assessment": {
+          "type": "string",
+          "description": "Assessment describes the workflow meaning of the remote facts relative to\ndurable recorded evidence. Commands remain exclusively in next_actions."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message explains the remote evidence relationship in concise human-readable\nlanguage."
         },
         "pr": {
-          "$ref": "#/$defs/StatusRemotePRObservation",
-          "description": "PR summarizes the recorded pull request when it can be observed."
+          "$ref": "#/$defs/StatusRemotePRSummary",
+          "description": "PR summarizes only the high-signal pull request state needed for workflow\nguidance."
         },
         "ci": {
-          "$ref": "#/$defs/StatusRemoteCIObservation",
-          "description": "CI summarizes the live PR check state when it can be observed."
+          "$ref": "#/$defs/StatusRemoteEvidenceStatus",
+          "description": "CI reports the CI evidence status that refresh would record when it can be\nobserved."
         },
         "sync": {
-          "$ref": "#/$defs/StatusRemoteSyncObservation",
-          "description": "Sync summarizes the live PR merge or freshness state when it can be observed."
+          "$ref": "#/$defs/StatusRemoteEvidenceStatus",
+          "description": "Sync reports the sync evidence status that refresh would record when it can\nbe observed."
         },
         "degraded": {
           "items": {
             "$ref": "#/$defs/StatusRemoteDegradation"
           },
           "type": "array",
-          "description": "Degraded lists non-fatal remote observation failures."
+          "description": "Degraded lists compact non-fatal remote observation failures."
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "status",
-        "pr",
-        "ci",
-        "sync"
-      ],
-      "description": "StatusRemoteHandoffObservation is the live, read-only remote state surfaced by `harness status` for an archived candidate with recorded publish PR evidence."
+      "description": "StatusRemoteEvidence is the compact live, read-only remote state surfaced by\n`harness status` for an archived candidate with recorded publish PR evidence."
     },
-    "StatusRemotePRObservation": {
+    "StatusRemoteEvidenceStatus": {
       "properties": {
         "status": {
           "type": "string",
-          "description": "Status is the PR observation status such as available or unavailable."
-        },
-        "url": {
-          "type": "string",
-          "description": "URL is the recorded pull request URL."
-        },
-        "number": {
-          "type": "integer",
-          "description": "Number is the pull request number when available."
-        },
+          "description": "Status is the evidence status that refresh would record."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "StatusRemoteEvidenceStatus reports the evidence status that a refresh would\nrecord for one remote-observed domain."
+    },
+    "StatusRemotePRSummary": {
+      "properties": {
         "state": {
           "type": "string",
           "description": "State is the provider PR state such as OPEN, CLOSED, or MERGED."
         },
-        "is_draft": {
+        "draft": {
           "type": "boolean",
-          "description": "IsDraft reports whether the observed pull request is a draft."
-        },
-        "merge_state_status": {
-          "type": "string",
-          "description": "MergeStateStatus is the provider merge-state status when available."
-        },
-        "mergeable": {
-          "type": "string",
-          "description": "Mergeable is the provider mergeability value when available."
-        },
-        "review_decision": {
-          "type": "string",
-          "description": "ReviewDecision is the provider review decision when available."
-        },
-        "head_ref_name": {
-          "type": "string",
-          "description": "HeadRefName is the pull request head branch name when available."
-        },
-        "head_ref_oid": {
-          "type": "string",
-          "description": "HeadRefOID is the pull request head commit OID when available."
-        },
-        "base_ref_name": {
-          "type": "string",
-          "description": "BaseRefName is the pull request base branch name when available."
-        },
-        "degraded": {
-          "$ref": "#/$defs/StatusRemoteDegradation",
-          "description": "Degraded explains why the PR could not be observed."
+          "description": "Draft reports whether the observed pull request is a draft."
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "status"
-      ],
-      "description": "StatusRemotePRObservation summarizes the recorded pull request observed by `harness status`."
-    },
-    "StatusRemoteSyncObservation": {
-      "properties": {
-        "status": {
-          "type": "string",
-          "description": "Status is the sync observation status such as available or unavailable."
-        },
-        "evidence_status": {
-          "type": "string",
-          "description": "EvidenceStatus is the local evidence status that `harness evidence refresh` would record if this remote observation were refreshed now."
-        },
-        "merge_state": {
-          "type": "string",
-          "description": "MergeState is the provider merge-state value used for sync classification."
-        },
-        "degraded": {
-          "$ref": "#/$defs/StatusRemoteDegradation",
-          "description": "Degraded explains why sync state could not be observed."
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "status"
-      ],
-      "description": "StatusRemoteSyncObservation summarizes live remote merge/sync state for a recorded pull request."
+      "description": "StatusRemotePRSummary summarizes only remote pull request state that can\naffect controller guidance."
     }
   },
   "title": "Dashboard UI resource",

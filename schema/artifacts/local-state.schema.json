@@ -42,7 +42,7 @@
         },
         "active_review_round": {
           "$ref": "#/$defs/ReviewRoundState",
-          "description": "ActiveReviewRound records the current active review round when review is in flight."
+          "description": "ActiveReviewRound records the current active review round when review is in\nflight."
         },
         "land": {
           "$ref": "#/$defs/LandState",
@@ -51,7 +51,7 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "LocalStateFile is the plan-local runtime control artifact under `.local/harness/plans/\u003cplan-stem\u003e/state.json`."
+      "description": "LocalStateFile is the plan-local runtime control artifact under\n`.local/harness/plans/\u003cplan-stem\u003e/state.json`."
     },
     "ReopenState": {
       "properties": {
@@ -109,7 +109,7 @@
         "kind",
         "aggregated"
       ],
-      "description": "ReviewRoundState records the current active review round in the local state file."
+      "description": "ReviewRoundState records the current active review round in the local state\nfile."
     }
   },
   "title": "Plan-local state file",

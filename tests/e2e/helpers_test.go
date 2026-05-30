@@ -188,25 +188,37 @@ type statusResult struct {
 		CurrentNode string `json:"current_node"`
 	} `json:"state"`
 	Facts struct {
-		CurrentStep   string `json:"current_step"`
-		ReviewStatus  string `json:"review_status"`
-		ReviewTitle   string `json:"review_title"`
-		ReopenMode    string `json:"reopen_mode"`
-		Revision      int    `json:"revision"`
-		PublishStatus string `json:"publish_status"`
-		CIStatus      string `json:"ci_status"`
-		SyncStatus    string `json:"sync_status"`
-		LandPRURL     string `json:"land_pr_url"`
+		CurrentStep  string `json:"current_step"`
+		ReviewStatus string `json:"review_status"`
+		ReviewTitle  string `json:"review_title"`
+		ReopenMode   string `json:"reopen_mode"`
+		Revision     int    `json:"revision"`
+		Evidence     struct {
+			Recorded struct {
+				Publish struct {
+					Status string `json:"status"`
+					PRURL  string `json:"pr_url"`
+				} `json:"publish"`
+				CI struct {
+					Status string `json:"status"`
+				} `json:"ci"`
+				Sync struct {
+					Status string `json:"status"`
+				} `json:"sync"`
+			} `json:"recorded"`
+			Remote struct {
+				Observation string `json:"observation"`
+				Assessment  string `json:"assessment"`
+			} `json:"remote"`
+		} `json:"evidence"`
+		LandPRURL string `json:"land_pr_url"`
 	} `json:"facts"`
 	Artifacts struct {
-		ProjectRoot     string       `json:"project_root"`
-		PlanPath        string       `json:"plan_path"`
-		ReviewRoundID   string       `json:"review_round_id"`
-		ReviewSlots     []reviewSlot `json:"review_slots"`
-		PublishRecordID string       `json:"publish_record_id"`
-		CIRecordID      string       `json:"ci_record_id"`
-		SyncRecordID    string       `json:"sync_record_id"`
-		LastLandedAt    string       `json:"last_landed_at"`
+		ProjectRoot   string       `json:"project_root"`
+		PlanPath      string       `json:"plan_path"`
+		ReviewRoundID string       `json:"review_round_id"`
+		ReviewSlots   []reviewSlot `json:"review_slots"`
+		LastLandedAt  string       `json:"last_landed_at"`
 	} `json:"artifacts"`
 	NextAction []struct {
 		Command     *string `json:"command"`

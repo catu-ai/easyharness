@@ -7,7 +7,7 @@
       "properties": {
         "path": {
           "type": "string",
-          "description": "Path identifies the field, section, or artifact path associated with the error."
+          "description": "Path identifies the field, section, or artifact path associated with the\nerror."
         },
         "message": {
           "type": "string",
@@ -20,7 +20,7 @@
         "path",
         "message"
       ],
-      "description": "ErrorDetail describes one machine-readable validation or execution problem in a command result."
+      "description": "ErrorDetail describes one machine-readable validation or execution problem in\na command result."
     },
     "ReviewAggregateFinding": {
       "properties": {
@@ -49,7 +49,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "Locations optionally lists lightweight repo-relative source anchors for the finding, such as \"path/to/file.go\", \"path/to/file.go#L123\", or \"path/to/file.go#L1-L3\"."
+          "description": "Locations optionally lists lightweight repo-relative source anchors for\nthe finding, such as \"path/to/file.go\", \"path/to/file.go#L123\", or\n\"path/to/file.go#L1-L3\"."
         }
       },
       "additionalProperties": false,
@@ -61,7 +61,7 @@
         "title",
         "details"
       ],
-      "description": "ReviewAggregateFinding is one aggregate finding annotated with its slot and dimension context."
+      "description": "ReviewAggregateFinding is one aggregate finding annotated with its slot and\ndimension context."
     },
     "ReviewArtifactView": {
       "properties": {
@@ -104,7 +104,7 @@
         },
         "active_round_id": {
           "type": "string",
-          "description": "ActiveRoundID is the currently active review round when one exists in local state."
+          "description": "ActiveRoundID is the currently active review round when one exists in\nlocal state."
         }
       },
       "additionalProperties": false,
@@ -130,7 +130,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "Locations optionally lists lightweight repo-relative source anchors for the finding, such as \"path/to/file.go\", \"path/to/file.go#L123\", or \"path/to/file.go#L1-L3\"."
+          "description": "Locations optionally lists lightweight repo-relative source anchors for\nthe finding, such as \"path/to/file.go\", \"path/to/file.go#L123\", or\n\"path/to/file.go#L1-L3\"."
         }
       },
       "additionalProperties": false,
@@ -154,11 +154,11 @@
         },
         "summary": {
           "type": "string",
-          "description": "Summary is the concise human-readable explanation of the loaded review rounds."
+          "description": "Summary is the concise human-readable explanation of the loaded review\nrounds."
         },
         "artifacts": {
           "$ref": "#/$defs/ReviewArtifacts",
-          "description": "Artifacts points to the current-plan review artifact paths used to build this response."
+          "description": "Artifacts points to the current-plan review artifact paths used to build\nthis response."
         },
         "rounds": {
           "oneOf": [
@@ -180,7 +180,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "Warnings lists non-fatal degraded-state notes for the overall review resource."
+          "description": "Warnings lists non-fatal degraded-state notes for the overall review\nresource."
         },
         "errors": {
           "items": {
@@ -264,7 +264,7 @@
         },
         "pending_slots": {
           "type": "integer",
-          "description": "PendingSlots is the number of reviewer slots still waiting on a submission."
+          "description": "PendingSlots is the number of reviewer slots still waiting on a\nsubmission."
         },
         "reviewers": {
           "items": {
@@ -285,7 +285,7 @@
             "$ref": "#/$defs/ReviewAggregateFinding"
           },
           "type": "array",
-          "description": "NonBlockingFindings lists aggregate non-blocking findings when they exist."
+          "description": "NonBlockingFindings lists aggregate non-blocking findings when they\nexist."
         },
         "artifacts": {
           "items": {
@@ -321,7 +321,7 @@
         },
         "instructions": {
           "type": "string",
-          "description": "Instructions is the reviewer prompt for this slot when it is available in surfaced review data."
+          "description": "Instructions is the reviewer prompt for this slot when it is available in\nsurfaced review data."
         },
         "status": {
           "type": "string",
@@ -337,7 +337,7 @@
         },
         "summary": {
           "type": "string",
-          "description": "Summary is the reviewer's concise overall assessment when one was submitted."
+          "description": "Summary is the reviewer's concise overall assessment when one was\nsubmitted."
         },
         "findings": {
           "items": {
@@ -348,10 +348,10 @@
         },
         "worklog": {
           "$ref": "#/$defs/ReviewWorklogView",
-          "description": "Worklog contains normalized progressive reviewer-worklog fields derived from the submission payload when available."
+          "description": "Worklog contains normalized progressive reviewer-worklog fields derived\nfrom the submission payload when available."
         },
         "raw_submission": {
-          "description": "RawSubmission preserves the raw reviewer submission payload for secondary UI inspection."
+          "description": "RawSubmission preserves the raw reviewer submission payload for secondary\nUI inspection."
         },
         "warnings": {
           "items": {
@@ -366,28 +366,28 @@
       "required": [
         "slot"
       ],
-      "description": "ReviewSlotView is one reviewer-centric view of a surfaced reviewer slot plus any submission that was returned for that slot."
+      "description": "ReviewSlotView is one reviewer-centric view of a surfaced reviewer slot plus\nany submission that was returned for that slot."
     },
     "ReviewWorklogView": {
       "properties": {
         "review_kind": {
           "type": "string",
-          "description": "ReviewKind is the reviewer-reported kind from the coverage payload when available."
+          "description": "ReviewKind is the reviewer-reported kind from the coverage payload when\navailable."
         },
         "anchor_sha": {
           "type": "string",
-          "description": "AnchorSHA is the reviewer-reported anchor SHA from the coverage payload when available."
+          "description": "AnchorSHA is the reviewer-reported anchor SHA from the coverage payload\nwhen available."
         },
         "full_plan_read": {
           "type": "boolean",
-          "description": "FullPlanRead reports whether the reviewer marked the full active plan as read."
+          "description": "FullPlanRead reports whether the reviewer marked the full active plan as\nread."
         },
         "checked_areas": {
           "items": {
             "type": "string"
           },
           "type": "array",
-          "description": "CheckedAreas lists the files, checkpoints, or areas the reviewer says it already covered."
+          "description": "CheckedAreas lists the files, checkpoints, or areas the reviewer says it\nalready covered."
         },
         "open_questions": {
           "items": {
@@ -401,12 +401,12 @@
             "type": "string"
           },
           "type": "array",
-          "description": "CandidateFindings lists provisional findings captured during review before they were finalized into the canonical findings payload."
+          "description": "CandidateFindings lists provisional findings captured during review before\nthey were finalized into the canonical findings payload."
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "ReviewWorklogView contains normalized reviewer-progress fields derived from the richer submission payload."
+      "description": "ReviewWorklogView contains normalized reviewer-progress fields derived from\nthe richer submission payload."
     }
   },
   "title": "Review UI resource",
