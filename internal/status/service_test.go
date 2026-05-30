@@ -1927,6 +1927,57 @@ func TestStatusRemoteAssessmentHandlesClosedPR(t *testing.T) {
 	if statusNextActionsContain(result, "harness evidence refresh") {
 		t.Fatalf("closed PR must not suggest evidence refresh, got %#v", result.NextAction)
 	}
+	for _, action := range result.NextAction {
+		if strings.Contains(action.Description, "harness evidence refresh") {
+			t.Fatalf("closed PR must not mention evidence refresh guidance, got %#v", result.NextAction)
+		}
+	}
+}
+
+func TestStatusRemoteClosedPRDoesNotMentionRefreshForPendingOrStaleRemoteFacts(t *testing.T) {
+	tests := []struct {
+		name       string
+		mergeState string
+		checks     string
+	}{
+		{
+			name:       "pending checks",
+			mergeState: `"CLEAN"`,
+			checks:     `[{"name":"Go Test","bucket":"pending","state":"IN_PROGRESS"}]`,
+		},
+		{
+			name:       "stale sync",
+			mergeState: `"BEHIND"`,
+			checks:     `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+				return completeAllSteps(content, true)
+			})
+			writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+			if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+				t.Fatalf("publish evidence: %#v", result)
+			}
+
+			result := status.Service{
+				Workdir:       root,
+				ObserveRemote: true,
+				RunCommand:    fakeStatusRemoteCommandsWithPRState(`"CLOSED"`, false, tt.mergeState, tt.checks),
+			}.Snapshot()
+			remoteEvidence := requireRemoteEvidence(t, result)
+			if remoteEvidence.Assessment != "manual_evidence_required" {
+				t.Fatalf("closed PR should require manual handoff repair, got %#v", remoteEvidence)
+			}
+			for _, action := range result.NextAction {
+				if strings.Contains(action.Description, "harness evidence refresh") {
+					t.Fatalf("closed PR must not mention evidence refresh guidance, got %#v", result.NextAction)
+				}
+			}
+		})
+	}
 }
 
 func TestStatusRemoteAssessmentInvalidatesReadyClosedPR(t *testing.T) {

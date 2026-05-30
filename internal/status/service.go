@@ -1220,6 +1220,7 @@ func remoteHandoffNextActions(facts *Facts) []NextAction {
 			Command:     nil,
 			Description: "Recorded PR is no longer open; repair or replace the publish handoff before recording merge-ready evidence.",
 		})
+		return actions
 	}
 	if remoteFacts.CI != nil {
 		switch remoteFacts.CI.Status {
