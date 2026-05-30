@@ -126,6 +126,7 @@ is:
    - upside
    - downside
    - best when ...
+   - recommendation: I recommend this when ...
 2. `Option B`
    - upside
    - downside
@@ -135,7 +136,9 @@ is:
    - downside
    - best when ...
 
-Then add a short recommendation and why.
+Include the recommendation under the option the agent prefers. If no option is
+clearly better, say that briefly after the list instead of forcing a weak
+recommendation.
 
 ## Output
 

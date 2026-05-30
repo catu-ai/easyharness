@@ -361,11 +361,18 @@ feedback repair:
     asked for run-level subagent authorization before repo exploration
   - dashboard watchlist code-lookup request correctly bypassed discovery and
     did not ask for subagent authorization
+- after `review-002-full` found the reusable option pattern still placed the
+  recommendation after the list, updated both bootstrap source and materialized
+  output so the recommendation lives under the preferred option, then reran
+  `scripts/sync-bootstrap-assets --check` and `git diff --check`
 
 ## Review Summary
 
 Revision 1 `review-001-full` passed cleanly with 0 findings before PR feedback.
-Revision 2 requires a fresh finalize review after the comment repairs.
+Revision 2 `review-002-full` found 1 blocking `agent_ux` issue: the reusable
+`Option Framing Pattern` still told agents to add the recommendation after the
+options. The source and materialized skill were repaired so the reusable
+pattern now puts the recommendation under the preferred option.
 Revision 1 reviewer slots:
 
 - `docs_consistency`: confirmed the active plan, managed `AGENTS.md` source and
