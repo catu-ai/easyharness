@@ -44,18 +44,18 @@ for future release triage, not encode a one-off example from the conversation.
 
 ## Acceptance Criteria
 
-- [ ] `release-triage` requires `Consider a minor release PR` to be grounded in
+- [x] `release-triage` requires `Consider a minor release PR` to be grounded in
       an existing concrete milestone whose release-critical issues are complete.
-- [ ] `release-triage` directs single-landed-PR follow-up toward
+- [x] `release-triage` directs single-landed-PR follow-up toward
       `No release recommended yet`, `Consider a patch release PR`, or
       `Shape or adjust the milestone first` unless that PR is already part of
       the completed minor milestone.
-- [ ] `docs/releasing.md` says minor releases are selected release promises,
+- [x] `docs/releasing.md` says minor releases are selected release promises,
       not automatic version bumps for any public or agent-facing contract
       change.
-- [ ] The final wording is general and does not depend on any one PR number,
+- [x] The final wording is general and does not depend on any one PR number,
       title, or recent incident.
-- [ ] No release publication, `VERSION` change, or milestone mutation is made.
+- [x] No release publication, `VERSION` change, or milestone mutation is made.
 
 ## Deferred Items
 
@@ -145,14 +145,24 @@ Clarified `docs/releasing.md` so minor releases are selected release promises,
 not automatic version bumps for every public, user-facing, or agent-facing
 contract change. Preserved patch flexibility by saying such changes can wait
 for a later selected promise or ship as a patch when they fit the patch
-criteria. TDD was not practical because this step changes policy guidance text
-rather than runtime behavior.
+criteria. Final review found that `docs/releasing.md` still made minor
+milestones sound optional, so the repair changed the policy to say a minor
+release must be selected through a concrete GitHub milestone. TDD was not
+practical because this step changes policy guidance text rather than runtime
+behavior.
 
 #### Review Notes
 
-NO_STEP_REVIEW_NEEDED: this is a narrow release-policy wording update and will
-be covered by the final consistency review for the combined policy and skill
-change.
+NO_STEP_REVIEW_NEEDED: this release-policy wording step was reviewed as part of
+the combined finalize review because the risk was consistency between the
+policy and the repo-local skill, not the policy file in isolation.
+
+Initial full finalize review `review-001-full` found one blocking
+policy-consistency issue: `docs/releasing.md` still said minor releases were
+usually represented by milestones while the skill required an existing concrete
+milestone. The focused repair was checked by `review-002-delta` with no
+findings, and the repaired full candidate passed `review-003-full` with no
+findings.
 
 ## Validation Strategy
 
@@ -174,25 +184,48 @@ change.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `harness plan lint docs/plans/active/2026-05-31-tighten-release-triage-minor-milestone-rule.md`
+  passed before execution and before archive.
+- `git diff --check` passed after implementation and after the review repair.
+- Direct wording inspection confirmed the changed policy and skill are general:
+  no PR number, recent incident, `VERSION` bump, release workflow change, or
+  milestone mutation was introduced.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-full` found one blocking policy-consistency issue: the release
+  policy still used optional milestone wording while the skill used a strict
+  milestone requirement.
+- The repair aligned `docs/releasing.md` with the strict concrete milestone
+  rule.
+- `review-002-delta` passed with no findings on the focused repair.
+- `review-003-full` passed with no findings on the repaired full candidate.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: PENDING_UNTIL_PUBLISH
+- Ready: The candidate passed validation and final full review, and is ready
+  for archive/publish handoff.
+- Merge Handoff: Open a PR with a readable merge memo, record publish evidence,
+  refresh CI/sync evidence, and wait for explicit human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Tightened the repo-local `release-triage` skill so `Consider a minor release
+  PR` requires an existing concrete version milestone whose selected release
+  promise is complete.
+- Clarified `docs/releasing.md` so minor releases must be selected through a
+  concrete GitHub milestone and are not automatic responses to public,
+  user-facing, or agent-facing contract changes.
+- Preserved patch-release flexibility for qualifying repairs, low-risk
+  follow-ups, documentation or CI corrections, and same-theme improvements.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No `VERSION` change, release PR, release publication, milestone mutation, or
+  release mechanics change was made.
 
 ### Follow-Up Issues
 
