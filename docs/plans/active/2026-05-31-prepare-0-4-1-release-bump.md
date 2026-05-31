@@ -62,12 +62,12 @@ assets, and update the Homebrew formula when configured.
 - [x] `VERSION` contains exactly `0.4.1`.
 - [x] `scripts/read-release-version` returns `0.4.1`, and
       `scripts/read-release-version --tag` returns `v0.4.1`.
-- [ ] The final source diff contains only the release bump plus tracked harness
+- [x] The final source diff contains only the release bump plus tracked harness
       lifecycle updates needed to drive this work.
-- [ ] The candidate is ready for a dedicated release PR that can merge to
+- [x] The candidate is ready for a dedicated release PR that can merge to
       `main` and let CI/CD perform tagging, release publication, and Homebrew
       update work.
-- [ ] The PR handoff says not to create the tag manually and to let automation
+- [x] The PR handoff says not to create the tag manually and to let automation
       publish `v0.4.1`.
 
 ## Deferred Items
@@ -125,7 +125,7 @@ still receive finalize review before archive.
 
 ### Step 2: Confirm release handoff bookkeeping
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -157,11 +157,17 @@ current open milestone is `v0.5.0`; it remains out of scope for this patch.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Confirmed recent `main` CI runs for PRs #220, #223, #224, #225, and #226 are
+green. Reviewed the open issue list and found no release blocker that needs to
+join this patch: #71 remains selected for the later `v0.5.0` milestone, and
+the remaining accepted or deferred backlog stays outside this patch release.
+Patch releases do not require a milestone under `docs/releasing.md`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: This step only records release-handoff scope discipline
+and remote issue/CI facts; the source change remains the one-line `VERSION`
+bump, and finalize review will cover the candidate.
 
 ## Validation Strategy
 
