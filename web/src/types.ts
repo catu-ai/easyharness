@@ -24,6 +24,11 @@ export type ErrorDetail = {
   message: string;
 };
 
+export type StatusRemoteDegradation = {
+  code: string;
+  message?: string;
+};
+
 export type StatusFacts = {
   current_step?: string;
   revision?: number;
@@ -33,10 +38,36 @@ export type StatusFacts = {
   review_title?: string;
   review_status?: string;
   archive_blocker_count?: number;
-  publish_status?: string;
-  pr_url?: string;
-  ci_status?: string;
-  sync_status?: string;
+  evidence?: {
+    recorded?: {
+      publish?: {
+        status?: string;
+        pr_url?: string;
+      } | null;
+      ci?: {
+        status?: string;
+      } | null;
+      sync?: {
+        status?: string;
+      } | null;
+    } | null;
+    remote?: {
+      observation?: string;
+      assessment?: string;
+      message?: string;
+      pr?: {
+        state?: string;
+        draft: boolean;
+      } | null;
+      ci?: {
+        status?: string;
+      } | null;
+      sync?: {
+        status?: string;
+      } | null;
+      degraded?: StatusRemoteDegradation[] | null;
+    } | null;
+  } | null;
   land_pr_url?: string;
   land_commit?: string;
 };

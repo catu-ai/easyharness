@@ -99,6 +99,37 @@ func TestRefreshWritesCIAndSyncEvidenceFromRecordedPR(t *testing.T) {
 	}
 }
 
+func TestRefreshRejectsNonOpenRecordedPR(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	svc := evidence.Service{Workdir: root}
+	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+		t.Fatalf("seed publish evidence: %#v", result)
+	}
+
+	result := evidence.Service{
+		Workdir:    root,
+		RunCommand: fakeRefreshCommandsWithPRState(`"CLOSED"`, `"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Refresh()
+
+	if result.OK {
+		t.Fatalf("expected closed PR refresh failure, got %#v", result)
+	}
+	assertRefreshError(t, result, "publish.pr_url")
+	if result.Refreshed != nil {
+		t.Fatalf("closed PR refresh must not report refreshed statuses, got %#v", result.Refreshed)
+	}
+	if ci, err := evidence.LoadLatestCI(root, "2026-03-21-evidence-plan", 1); err != nil || ci != nil {
+		t.Fatalf("expected no CI evidence, got %#v err=%v", ci, err)
+	}
+	if sync, err := evidence.LoadLatestSync(root, "2026-03-21-evidence-plan", 1); err != nil || sync != nil {
+		t.Fatalf("expected no sync evidence, got %#v err=%v", sync, err)
+	}
+}
+
 func TestRefreshRejectsMissingRecordedPRWithoutGuessing(t *testing.T) {
 	root := t.TempDir()
 	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
@@ -726,6 +757,16 @@ func assertEvidenceError(t *testing.T, result evidence.Result, path string) {
 	t.Fatalf("expected evidence error for %s, got %#v", path, result.Errors)
 }
 
+func assertRefreshError(t *testing.T, result evidence.RefreshResult, path string) {
+	t.Helper()
+	for _, issue := range result.Errors {
+		if issue.Path == path {
+			return
+		}
+	}
+	t.Fatalf("expected refresh error for %s, got %#v", path, result.Errors)
+}
+
 func assertStateFileAbsent(t *testing.T, root, planStem string) {
 	t.Helper()
 	path := filepath.Join(root, ".local", "harness", "plans", planStem, "state.json")
@@ -735,12 +776,16 @@ func assertStateFileAbsent(t *testing.T, root, planStem string) {
 }
 
 func fakeRefreshCommands(mergeStateJSON, checksJSON string) remote.CommandRunner {
+	return fakeRefreshCommandsWithPRState(`"OPEN"`, mergeStateJSON, checksJSON)
+}
+
+func fakeRefreshCommandsWithPRState(prStateJSON, mergeStateJSON, checksJSON string) remote.CommandRunner {
 	return func(name string, args ...string) remote.CommandResult {
 		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
 			return remote.CommandResult{Stdout: `{
 				"url":"https://github.com/catu-ai/easyharness/pull/99",
 				"number":99,
-				"state":"OPEN",
+				"state":` + prStateJSON + `,
 				"isDraft":false,
 				"mergeStateStatus":` + mergeStateJSON + `,
 				"mergeable":"MERGEABLE",

@@ -53,8 +53,8 @@ Archive still needs an explicit handoff flow:
 7. If publish evidence records a supported PR URL, run
    `harness evidence refresh` to record CI and sync facts from that PR.
 8. Run `harness status` after refresh so the archived candidate summary and
-   next actions reflect the evidence that was just written and any live
-   `facts.remote_handoff` observations that still need controller action.
+   next actions reflect the evidence that was just written and any compact
+   `facts.evidence.remote` assessment that still needs controller action.
 9. If refresh degrades, is unavailable, or publish evidence lacks a recorded
    PR URL, manually record the affected domains with
    `harness evidence submit --kind publish|ci|sync`.

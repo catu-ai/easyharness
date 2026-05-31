@@ -2,6 +2,7 @@ package status_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/install"
 	"github.com/catu-ai/easyharness/internal/plan"
@@ -1734,18 +1736,25 @@ func TestStatusArchivedPlanSurfacesRemoteHandoffObservation(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("live remote facts must not advance without local evidence, got %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.RemoteHandoff == nil {
-		t.Fatalf("expected remote handoff facts, got %#v", result.Facts)
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Observation != "complete" || remoteEvidence.Assessment != "refresh_available" {
+		t.Fatalf("unexpected remote assessment: %#v", remoteEvidence)
 	}
-	remoteHandoff := result.Facts.RemoteHandoff
-	if remoteHandoff.Status != "available" || remoteHandoff.PR.State != "OPEN" || remoteHandoff.PR.Number != 13 {
-		t.Fatalf("unexpected remote PR observation: %#v", remoteHandoff)
+	if remoteEvidence.PR == nil || remoteEvidence.PR.State != "OPEN" || remoteEvidence.PR.Draft {
+		t.Fatalf("unexpected remote PR summary: %#v", remoteEvidence.PR)
 	}
-	if remoteHandoff.CI.EvidenceStatus != "success" || len(remoteHandoff.CI.Checks) != 1 {
-		t.Fatalf("unexpected remote CI observation: %#v", remoteHandoff.CI)
+	payload, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal status result: %v", err)
 	}
-	if remoteHandoff.Sync.EvidenceStatus != "fresh" || remoteHandoff.Sync.MergeState != "CLEAN" {
-		t.Fatalf("unexpected remote sync observation: %#v", remoteHandoff.Sync)
+	if !strings.Contains(string(payload), `"draft":false`) {
+		t.Fatalf("expected status JSON to include explicit draft:false, got %s", string(payload))
+	}
+	if remoteEvidence.CI == nil || remoteEvidence.CI.Status != "success" {
+		t.Fatalf("unexpected remote CI summary: %#v", remoteEvidence.CI)
+	}
+	if remoteEvidence.Sync == nil || remoteEvidence.Sync.Status != "fresh" {
+		t.Fatalf("unexpected remote sync summary: %#v", remoteEvidence.Sync)
 	}
 	if !statusNextActionsContain(result, "harness evidence refresh") {
 		t.Fatalf("expected evidence refresh guidance for recorded remote facts, got %#v", result.NextAction)
@@ -1773,17 +1782,12 @@ func TestStatusRemoteHandoffObservationDegradesWithoutFailingLocalStatus(t *test
 	if !result.OK || result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("remote degradation should not fail local status, got %#v", result)
 	}
-	if result.Facts == nil || result.Facts.RemoteHandoff == nil {
-		t.Fatalf("expected degraded remote handoff facts, got %#v", result.Facts)
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Observation != "unavailable" || remoteEvidence.Assessment != "manual_evidence_required" {
+		t.Fatalf("expected unavailable remote evidence, got %#v", remoteEvidence)
 	}
-	if result.Facts.RemoteHandoff.Status != "unavailable" {
-		t.Fatalf("expected unavailable remote handoff, got %#v", result.Facts.RemoteHandoff)
-	}
-	if len(result.Facts.RemoteHandoff.Degraded) != 1 || result.Facts.RemoteHandoff.Degraded[0].Code != "gh_missing" {
-		t.Fatalf("expected gh_missing degradation, got %#v", result.Facts.RemoteHandoff.Degraded)
-	}
-	if result.Facts.RemoteHandoff.PR.Degraded == nil || result.Facts.RemoteHandoff.PR.Degraded.Code != "gh_missing" {
-		t.Fatalf("expected PR degradation pointer, got %#v", result.Facts.RemoteHandoff.PR)
+	if len(remoteEvidence.Degraded) != 1 || remoteEvidence.Degraded[0].Code != "gh_missing" {
+		t.Fatalf("expected gh_missing degradation, got %#v", remoteEvidence.Degraded)
 	}
 	if !statusNextActionsContain(result, "harness evidence submit --kind ci --input <json>") {
 		t.Fatalf("expected manual CI fallback guidance, got %#v", result.NextAction)
@@ -1792,34 +1796,39 @@ func TestStatusRemoteHandoffObservationDegradesWithoutFailingLocalStatus(t *test
 
 func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) {
 	tests := []struct {
-		name       string
-		mergeState string
-		checks     string
-		wantCue    string
+		name           string
+		mergeState     string
+		checks         string
+		wantCue        string
+		wantAssessment string
 	}{
 		{
-			name:       "pending checks",
-			mergeState: `"CLEAN"`,
-			checks:     `[{"name":"Go Test","bucket":"pending","state":"IN_PROGRESS"}]`,
-			wantCue:    "Remote PR checks are still pending",
+			name:           "pending checks",
+			mergeState:     `"CLEAN"`,
+			checks:         `[{"name":"Go Test","bucket":"pending","state":"IN_PROGRESS"}]`,
+			wantCue:        "Remote PR checks are still pending",
+			wantAssessment: "wait_for_remote",
 		},
 		{
-			name:       "failed checks",
-			mergeState: `"CLEAN"`,
-			checks:     `[{"name":"Go Test","bucket":"fail","state":"FAILURE"}]`,
-			wantCue:    "Remote PR checks are failing",
+			name:           "failed checks",
+			mergeState:     `"CLEAN"`,
+			checks:         `[{"name":"Go Test","bucket":"fail","state":"FAILURE"}]`,
+			wantCue:        "Remote PR checks are failing",
+			wantAssessment: "repair_remote",
 		},
 		{
-			name:       "stale sync",
-			mergeState: `"BEHIND"`,
-			checks:     `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
-			wantCue:    "Remote PR merge state is stale",
+			name:           "stale sync",
+			mergeState:     `"BEHIND"`,
+			checks:         `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
+			wantCue:        "Remote PR merge state is stale",
+			wantAssessment: "repair_remote",
 		},
 		{
-			name:       "conflicted sync",
-			mergeState: `"DIRTY"`,
-			checks:     `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
-			wantCue:    "Remote PR merge state is conflicted",
+			name:           "conflicted sync",
+			mergeState:     `"DIRTY"`,
+			checks:         `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
+			wantCue:        "Remote PR merge state is conflicted",
+			wantAssessment: "repair_remote",
 		},
 	}
 
@@ -1839,6 +1848,10 @@ func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) 
 				ObserveRemote: true,
 				RunCommand:    fakeStatusRemoteCommands(tt.mergeState, tt.checks),
 			}.Snapshot()
+			remoteEvidence := requireRemoteEvidence(t, result)
+			if remoteEvidence.Assessment != tt.wantAssessment {
+				t.Fatalf("expected remote assessment %q, got %#v", tt.wantAssessment, remoteEvidence)
+			}
 			found := false
 			for _, action := range result.NextAction {
 				if strings.Contains(action.Description, tt.wantCue) {
@@ -1849,7 +1862,182 @@ func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) 
 			if !found {
 				t.Fatalf("expected next action containing %q, got %#v", tt.wantCue, result.NextAction)
 			}
+			if statusNextActionsContain(result, "harness evidence refresh") {
+				t.Fatalf("remote assessment %s must not suggest immediate evidence refresh, got %#v", tt.wantAssessment, result.NextAction)
+			}
 		})
+	}
+}
+
+func TestStatusDraftRemoteAssessmentDoesNotSuggestImmediateRefresh(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand:    fakeStatusRemoteCommandsWithPRState(`"OPEN"`, true, `"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Snapshot()
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Assessment != "wait_for_remote" || remoteEvidence.PR == nil || !remoteEvidence.PR.Draft {
+		t.Fatalf("expected draft PR wait assessment, got %#v", remoteEvidence)
+	}
+	if statusNextActionsContain(result, "harness evidence refresh") {
+		t.Fatalf("draft PR must not suggest immediate evidence refresh, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusRemoteAssessmentMatchesRecordedEvidence(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+	svc := evidence.Service{Workdir: root}
+	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
+		t.Fatalf("ci evidence: %#v", result)
+	}
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+		t.Fatalf("sync evidence: %#v", result)
+	}
+
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand:    fakeStatusRemoteCommands(`"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Snapshot()
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Assessment != "matches_recorded" {
+		t.Fatalf("expected matching recorded and remote evidence assessment, got %#v", remoteEvidence)
+	}
+}
+
+func TestStatusRemoteAssessmentHandlesClosedPR(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand:    fakeStatusRemoteCommandsWithPRState(`"CLOSED"`, false, `"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Snapshot()
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Assessment != "manual_evidence_required" {
+		t.Fatalf("closed PR without ready recorded evidence should require manual handoff repair, got %#v", remoteEvidence)
+	}
+	found := false
+	for _, action := range result.NextAction {
+		if strings.Contains(action.Description, "Recorded PR is no longer open") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected closed PR guidance, got %#v", result.NextAction)
+	}
+	if statusNextActionsContain(result, "harness evidence refresh") {
+		t.Fatalf("closed PR must not suggest evidence refresh, got %#v", result.NextAction)
+	}
+	for _, action := range result.NextAction {
+		if strings.Contains(action.Description, "harness evidence refresh") {
+			t.Fatalf("closed PR must not mention evidence refresh guidance, got %#v", result.NextAction)
+		}
+	}
+}
+
+func TestStatusRemoteClosedPRDoesNotMentionRefreshForPendingOrStaleRemoteFacts(t *testing.T) {
+	tests := []struct {
+		name       string
+		mergeState string
+		checks     string
+	}{
+		{
+			name:       "pending checks",
+			mergeState: `"CLEAN"`,
+			checks:     `[{"name":"Go Test","bucket":"pending","state":"IN_PROGRESS"}]`,
+		},
+		{
+			name:       "stale sync",
+			mergeState: `"BEHIND"`,
+			checks:     `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+				return completeAllSteps(content, true)
+			})
+			writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+			if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+				t.Fatalf("publish evidence: %#v", result)
+			}
+
+			result := status.Service{
+				Workdir:       root,
+				ObserveRemote: true,
+				RunCommand:    fakeStatusRemoteCommandsWithPRState(`"CLOSED"`, false, tt.mergeState, tt.checks),
+			}.Snapshot()
+			remoteEvidence := requireRemoteEvidence(t, result)
+			if remoteEvidence.Assessment != "manual_evidence_required" {
+				t.Fatalf("closed PR should require manual handoff repair, got %#v", remoteEvidence)
+			}
+			for _, action := range result.NextAction {
+				if strings.Contains(action.Description, "harness evidence refresh") {
+					t.Fatalf("closed PR must not mention evidence refresh guidance, got %#v", result.NextAction)
+				}
+			}
+		})
+	}
+}
+
+func TestStatusRemoteAssessmentInvalidatesReadyClosedPR(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	svc := evidence.Service{Workdir: root}
+	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
+		t.Fatalf("ci evidence: %#v", result)
+	}
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+		t.Fatalf("sync evidence: %#v", result)
+	}
+
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand:    fakeStatusRemoteCommandsWithPRState(`"CLOSED"`, false, `"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Snapshot()
+	if result.State.CurrentNode != "execution/finalize/await_merge" {
+		t.Fatalf("remote facts must not regress evidence-driven node, got %#v", result.State)
+	}
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Assessment != "candidate_invalidated" {
+		t.Fatalf("closed PR should invalidate recorded merge-ready candidate, got %#v", remoteEvidence)
+	}
+	if statusNextActionsContain(result, "harness land --pr https://github.com/catu-ai/easyharness/pull/13 [--commit <sha>]") {
+		t.Fatalf("closed PR must not suggest land guidance, got %#v", result.NextAction)
 	}
 }
 
@@ -1941,8 +2129,9 @@ func TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode(t *t
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("live remote facts must not regress evidence-driven await_merge node, got %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.RemoteHandoff == nil || result.Facts.RemoteHandoff.CI.EvidenceStatus != "failed" {
-		t.Fatalf("expected failed live remote CI facts, got %#v", result.Facts)
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.CI == nil || remoteEvidence.CI.Status != "failed" || remoteEvidence.Assessment != "candidate_invalidated" {
+		t.Fatalf("expected invalidating failed live remote CI facts, got %#v", remoteEvidence)
 	}
 	foundRemoteGuidance := false
 	foundLandGuidance := false
@@ -1957,8 +2146,8 @@ func TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode(t *t
 	if !foundRemoteGuidance {
 		t.Fatalf("expected await_merge next actions to include remote failure guidance, got %#v", result.NextAction)
 	}
-	if !foundLandGuidance {
-		t.Fatalf("expected ordinary land guidance to remain after remote guidance, got %#v", result.NextAction)
+	if foundLandGuidance {
+		t.Fatalf("invalidating remote facts must suppress ordinary land guidance, got %#v", result.NextAction)
 	}
 }
 
@@ -1981,8 +2170,8 @@ func TestStatusRemoteHandoffDoesNotGuessPRWhenPublishEvidenceMissing(t *testing.
 	if called {
 		t.Fatal("status should not call gh without recorded publish PR evidence")
 	}
-	if result.Facts != nil && result.Facts.RemoteHandoff != nil {
-		t.Fatalf("did not expect remote handoff facts without recorded PR evidence, got %#v", result.Facts.RemoteHandoff)
+	if result.Facts != nil && result.Facts.Evidence != nil && result.Facts.Evidence.Remote != nil {
+		t.Fatalf("did not expect remote facts without recorded PR evidence, got %#v", result.Facts.Evidence.Remote)
 	}
 }
 
@@ -2256,11 +2445,11 @@ func TestStatusArchivedPlanReadyForAwaitMerge(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.PRURL != "https://github.com/catu-ai/easyharness/pull/13" || result.Facts.CIStatus != "not_applied" || result.Facts.SyncStatus != "fresh" {
+	if recordedPublishURL(result) != "https://github.com/catu-ai/easyharness/pull/13" || recordedCIStatus(result) != "not_applied" || recordedSyncStatus(result) != "fresh" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
-	if result.Artifacts == nil || result.Artifacts.PublishRecordID == "" || result.Artifacts.CIRecordID == "" || result.Artifacts.SyncRecordID == "" {
-		t.Fatalf("unexpected artifacts: %#v", result.Artifacts)
+	if result.Artifacts == nil || result.Artifacts.PlanPath == "" {
+		t.Fatalf("expected plan artifact in status, got %#v", result.Artifacts)
 	}
 }
 
@@ -2356,11 +2545,11 @@ func TestStatusArchivedPlanReadyForAwaitMergeFromEvidenceArtifacts(t *testing.T)
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("expected evidence artifacts to reach await_merge, got %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.PRURL != "https://github.com/catu-ai/easyharness/pull/13" || result.Facts.CIStatus != "success" || result.Facts.SyncStatus != "fresh" {
+	if recordedPublishURL(result) != "https://github.com/catu-ai/easyharness/pull/13" || recordedCIStatus(result) != "success" || recordedSyncStatus(result) != "fresh" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
-	if result.Artifacts == nil || result.Artifacts.PublishRecordID == "" || result.Artifacts.CIRecordID == "" || result.Artifacts.SyncRecordID == "" {
-		t.Fatalf("unexpected artifacts: %#v", result.Artifacts)
+	if result.Artifacts == nil || result.Artifacts.PlanPath == "" {
+		t.Fatalf("expected plan artifact in status, got %#v", result.Artifacts)
 	}
 	assertStateJSONLacksKeys(t, root, "2026-03-18-status-plan", "latest_publish", "latest_ci", "latest_evidence")
 }
@@ -2398,7 +2587,7 @@ func TestStatusArchivedPlanIgnoresOlderRevisionEvidenceArtifacts(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected older revision evidence to keep publish state, got %#v", result.State)
 	}
-	if result.Facts != nil && (result.Facts.PRURL != "" || result.Facts.CIStatus != "" || result.Facts.SyncStatus != "") {
+	if recordedPublishURL(result) != "" || recordedCIStatus(result) != "" || recordedSyncStatus(result) != "" {
 		t.Fatalf("expected older revision evidence to stay hidden, got %#v", result.Facts)
 	}
 }
@@ -2430,7 +2619,7 @@ func TestStatusArchivedPlanReadyForAwaitMergeWithSyncNotApplied(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.CIStatus != "success" || result.Facts.SyncStatus != "not_applied" {
+	if recordedCIStatus(result) != "success" || recordedSyncStatus(result) != "not_applied" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
 }
@@ -2462,7 +2651,7 @@ func TestStatusArchivedPlanReadyForAwaitMergeWhenCIAndSyncAreBothNotApplied(t *t
 	if result.State.CurrentNode != "execution/finalize/await_merge" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.CIStatus != "not_applied" || result.Facts.SyncStatus != "not_applied" {
+	if recordedCIStatus(result) != "not_applied" || recordedSyncStatus(result) != "not_applied" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
 }
@@ -2497,7 +2686,7 @@ func TestStatusArchivedPlanStaysInPublishFromEvidenceArtifactsWhenDirty(t *testi
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected dirty evidence artifacts to stay in publish, got %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.CIStatus != "failed" {
+	if recordedCIStatus(result) != "failed" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
 	foundFixCI := false
@@ -2540,7 +2729,7 @@ func TestStatusArchivedPlanStaysInPublishWhenEvidenceIsDirty(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected dirty evidence to stay in publish, got %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.CIStatus != "pending" {
+	if recordedCIStatus(result) != "pending" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
 	foundPendingCI := false
@@ -2582,7 +2771,7 @@ func TestStatusArchivedPlanStaysInPublishWhenSyncIsDirty(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/publish" {
 		t.Fatalf("expected dirty sync evidence to stay in publish, got %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.SyncStatus != "conflicted" {
+	if recordedSyncStatus(result) != "conflicted" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
 	foundResolveConflicts := false
@@ -3347,7 +3536,40 @@ func statusNextActionsContain(result status.Result, command string) bool {
 	return false
 }
 
+func recordedPublishURL(result status.Result) string {
+	if result.Facts == nil || result.Facts.Evidence == nil || result.Facts.Evidence.Recorded == nil || result.Facts.Evidence.Recorded.Publish == nil {
+		return ""
+	}
+	return result.Facts.Evidence.Recorded.Publish.PRURL
+}
+
+func recordedCIStatus(result status.Result) string {
+	if result.Facts == nil || result.Facts.Evidence == nil || result.Facts.Evidence.Recorded == nil || result.Facts.Evidence.Recorded.CI == nil {
+		return ""
+	}
+	return result.Facts.Evidence.Recorded.CI.Status
+}
+
+func recordedSyncStatus(result status.Result) string {
+	if result.Facts == nil || result.Facts.Evidence == nil || result.Facts.Evidence.Recorded == nil || result.Facts.Evidence.Recorded.Sync == nil {
+		return ""
+	}
+	return result.Facts.Evidence.Recorded.Sync.Status
+}
+
+func requireRemoteEvidence(t *testing.T, result status.Result) *contracts.StatusRemoteEvidence {
+	t.Helper()
+	if result.Facts == nil || result.Facts.Evidence == nil || result.Facts.Evidence.Remote == nil {
+		t.Fatalf("expected remote evidence facts, got %#v", result.Facts)
+	}
+	return result.Facts.Evidence.Remote
+}
+
 func fakeStatusRemoteCommands(mergeStateJSON, checksJSON string) remote.CommandRunner {
+	return fakeStatusRemoteCommandsWithPRState(`"OPEN"`, false, mergeStateJSON, checksJSON)
+}
+
+func fakeStatusRemoteCommandsWithPRState(prStateJSON string, draft bool, mergeStateJSON, checksJSON string) remote.CommandRunner {
 	return func(name string, args ...string) remote.CommandResult {
 		if name != "gh" {
 			return remote.CommandResult{}
@@ -3356,8 +3578,8 @@ func fakeStatusRemoteCommands(mergeStateJSON, checksJSON string) remote.CommandR
 			return remote.CommandResult{Stdout: `{
 				"url":"https://github.com/catu-ai/easyharness/pull/13",
 				"number":13,
-				"state":"OPEN",
-				"isDraft":false,
+				"state":` + prStateJSON + `,
+				"isDraft":` + fmt.Sprintf("%t", draft) + `,
 				"mergeStateStatus":` + mergeStateJSON + `,
 				"mergeable":"MERGEABLE",
 				"reviewDecision":"APPROVED",

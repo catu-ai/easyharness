@@ -91,8 +91,10 @@ func TestArchivedRunstateInterleavingsIgnoreStaleEvidenceAndFailClearlyUnderLock
 
 	postRearchiveStatus := runStatus(t, workspace.Root)
 	assertNode(t, postRearchiveStatus, "execution/finalize/publish")
-	if postRearchiveStatus.Artifacts.PublishRecordID != "" || postRearchiveStatus.Artifacts.CIRecordID != "" || postRearchiveStatus.Artifacts.SyncRecordID != "" {
-		t.Fatalf("expected revision-1 evidence to stay ignored after reopen, got %#v", postRearchiveStatus.Artifacts)
+	if postRearchiveStatus.Facts.Evidence.Recorded.Publish.Status != "" ||
+		postRearchiveStatus.Facts.Evidence.Recorded.CI.Status != "" ||
+		postRearchiveStatus.Facts.Evidence.Recorded.Sync.Status != "" {
+		t.Fatalf("expected revision-1 evidence to stay ignored after reopen, got %#v", postRearchiveStatus.Facts.Evidence.Recorded)
 	}
 
 	release, err := runstate.AcquireStateMutationLock(workspace.Root, "2026-04-11-runstate-concurrency-coverage")
@@ -147,8 +149,10 @@ func TestArchivedRunstateInterleavingsIgnoreStaleEvidenceAndFailClearlyUnderLock
 
 	finalStatus := runStatus(t, workspace.Root)
 	assertNode(t, finalStatus, "execution/finalize/await_merge")
-	if finalStatus.Artifacts.PublishRecordID != "publish-002" || finalStatus.Artifacts.CIRecordID != "ci-002" || finalStatus.Artifacts.SyncRecordID != "sync-002" {
-		t.Fatalf("expected revision-2 evidence to drive merge-ready status, got %#v", finalStatus.Artifacts)
+	if finalStatus.Facts.Evidence.Recorded.Publish.Status != "recorded" ||
+		finalStatus.Facts.Evidence.Recorded.CI.Status != "success" ||
+		finalStatus.Facts.Evidence.Recorded.Sync.Status != "fresh" {
+		t.Fatalf("expected revision-2 evidence to drive merge-ready status, got %#v", finalStatus.Facts.Evidence.Recorded)
 	}
 }
 

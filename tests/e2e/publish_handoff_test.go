@@ -53,11 +53,11 @@ func TestPublishHandoffWithBuiltBinary(t *testing.T) {
 
 	postPublishStatus := runStatus(t, workspace.Root)
 	assertNode(t, postPublishStatus, "execution/finalize/publish")
-	if postPublishStatus.Facts.PublishStatus != "recorded" {
+	if postPublishStatus.Facts.Evidence.Recorded.Publish.Status != "recorded" {
 		t.Fatalf("expected publish status after publish evidence, got %#v", postPublishStatus)
 	}
-	if postPublishStatus.Artifacts.PublishRecordID != publish.Artifacts.RecordID {
-		t.Fatalf("expected publish record id %q in status, got %#v", publish.Artifacts.RecordID, postPublishStatus)
+	if postPublishStatus.Facts.Evidence.Recorded.Publish.PRURL != "https://github.com/catu-ai/easyharness/pull/99" {
+		t.Fatalf("expected publish PR URL in status, got %#v", postPublishStatus)
 	}
 
 	ci := submitEvidence(t, workspace, "ci", "tmp/ci.json", map[string]any{
@@ -71,11 +71,8 @@ func TestPublishHandoffWithBuiltBinary(t *testing.T) {
 
 	postCIStatus := runStatus(t, workspace.Root)
 	assertNode(t, postCIStatus, "execution/finalize/publish")
-	if postCIStatus.Facts.CIStatus != "success" {
+	if postCIStatus.Facts.Evidence.Recorded.CI.Status != "success" {
 		t.Fatalf("expected CI success to remain in publish until sync exists, got %#v", postCIStatus)
-	}
-	if postCIStatus.Artifacts.CIRecordID != ci.Artifacts.RecordID {
-		t.Fatalf("expected CI record id %q in status, got %#v", ci.Artifacts.RecordID, postCIStatus)
 	}
 
 	sync := submitEvidence(t, workspace, "sync", "tmp/sync.json", map[string]any{
@@ -89,13 +86,10 @@ func TestPublishHandoffWithBuiltBinary(t *testing.T) {
 
 	postSyncStatus := runStatus(t, workspace.Root)
 	assertNode(t, postSyncStatus, "execution/finalize/await_merge")
-	if postSyncStatus.Facts.PublishStatus != "recorded" || postSyncStatus.Facts.CIStatus != "success" || postSyncStatus.Facts.SyncStatus != "fresh" {
+	if postSyncStatus.Facts.Evidence.Recorded.Publish.Status != "recorded" ||
+		postSyncStatus.Facts.Evidence.Recorded.CI.Status != "success" ||
+		postSyncStatus.Facts.Evidence.Recorded.Sync.Status != "fresh" {
 		t.Fatalf("expected merge-ready evidence facts after sync, got %#v", postSyncStatus)
-	}
-	if postSyncStatus.Artifacts.PublishRecordID != publish.Artifacts.RecordID ||
-		postSyncStatus.Artifacts.CIRecordID != ci.Artifacts.RecordID ||
-		postSyncStatus.Artifacts.SyncRecordID != sync.Artifacts.RecordID {
-		t.Fatalf("expected latest evidence record ids in status, got %#v", postSyncStatus)
 	}
 }
 

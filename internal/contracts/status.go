@@ -71,22 +71,9 @@ type StatusFacts struct {
 	// present.
 	ArchiveBlockerCount int `json:"archive_blocker_count,omitempty"`
 
-	// PublishStatus summarizes the latest publish evidence state.
-	PublishStatus string `json:"publish_status,omitempty"`
-
-	// PRURL is the currently known pull request URL for the candidate branch.
-	PRURL string `json:"pr_url,omitempty"`
-
-	// CIStatus summarizes the latest CI evidence state.
-	CIStatus string `json:"ci_status,omitempty"`
-
-	// SyncStatus summarizes the latest remote-sync evidence state.
-	SyncStatus string `json:"sync_status,omitempty"`
-
-	// RemoteHandoff is a non-authoritative live observation of the recorded PR
-	// handoff target. It may explain remote PR, CI, and sync state, but local
-	// durable evidence remains the source of truth for workflow progression.
-	RemoteHandoff *StatusRemoteHandoffObservation `json:"remote_handoff,omitempty"`
+	// Evidence groups durable recorded evidence and compact read-only remote
+	// observation facts for archived-candidate handoff.
+	Evidence *StatusEvidenceFacts `json:"evidence,omitempty"`
 
 	// LandPRURL is the pull request URL recorded for the land phase.
 	LandPRURL string `json:"land_pr_url,omitempty"`
@@ -96,119 +83,90 @@ type StatusFacts struct {
 	LandCommit string `json:"land_commit,omitempty"`
 }
 
-// StatusRemoteHandoffObservation is the live, read-only remote state surfaced
-// by `harness status` for an archived candidate with recorded publish PR
-// evidence.
-type StatusRemoteHandoffObservation struct {
-	// Status is the overall remote observation status such as available,
-	// degraded, or unavailable.
-	Status string `json:"status"`
+// StatusEvidenceFacts groups archived-candidate handoff evidence.
+type StatusEvidenceFacts struct {
+	// Recorded is durable local evidence. Recorded evidence is authoritative for
+	// workflow-node progression.
+	Recorded *StatusRecordedEvidence `json:"recorded,omitempty"`
 
-	// PR summarizes the recorded pull request when it can be observed.
-	PR StatusRemotePRObservation `json:"pr"`
+	// Remote is a compact read-only projection of live remote facts. It explains
+	// drift or refresh opportunities but does not advance workflow state.
+	Remote *StatusRemoteEvidence `json:"remote,omitempty"`
+}
 
-	// CI summarizes the live PR check state when it can be observed.
-	CI StatusRemoteCIObservation `json:"ci"`
+// StatusRecordedEvidence summarizes durable archived-candidate evidence.
+type StatusRecordedEvidence struct {
+	// Publish is the latest recorded publish evidence when present.
+	Publish *StatusRecordedPublishEvidence `json:"publish,omitempty"`
 
-	// Sync summarizes the live PR merge or freshness state when it can be
+	// CI is the latest recorded CI evidence when present.
+	CI *StatusRecordedEvidenceStatus `json:"ci,omitempty"`
+
+	// Sync is the latest recorded sync evidence when present.
+	Sync *StatusRecordedEvidenceStatus `json:"sync,omitempty"`
+}
+
+// StatusRecordedPublishEvidence summarizes recorded publish evidence.
+type StatusRecordedPublishEvidence struct {
+	// Status is the recorded publish evidence status.
+	Status string `json:"status,omitempty"`
+
+	// PRURL is the recorded pull request URL when one is available.
+	PRURL string `json:"pr_url,omitempty"`
+}
+
+// StatusRecordedEvidenceStatus summarizes one recorded evidence domain.
+type StatusRecordedEvidenceStatus struct {
+	// Status is the recorded evidence status for this domain.
+	Status string `json:"status,omitempty"`
+}
+
+// StatusRemoteEvidence is the compact live, read-only remote state surfaced by
+// `harness status` for an archived candidate with recorded publish PR evidence.
+type StatusRemoteEvidence struct {
+	// Observation describes how complete the live remote observation was, such
+	// as complete, partial, or unavailable.
+	Observation string `json:"observation,omitempty"`
+
+	// Assessment describes the workflow meaning of the remote facts relative to
+	// durable recorded evidence. Commands remain exclusively in next_actions.
+	Assessment string `json:"assessment,omitempty"`
+
+	// Message explains the remote evidence relationship in concise human-readable
+	// language.
+	Message string `json:"message,omitempty"`
+
+	// PR summarizes only the high-signal pull request state needed for workflow
+	// guidance.
+	PR *StatusRemotePRSummary `json:"pr,omitempty"`
+
+	// CI reports the CI evidence status that refresh would record when it can be
 	// observed.
-	Sync StatusRemoteSyncObservation `json:"sync"`
+	CI *StatusRemoteEvidenceStatus `json:"ci,omitempty"`
 
-	// Degraded lists non-fatal remote observation failures.
+	// Sync reports the sync evidence status that refresh would record when it can
+	// be observed.
+	Sync *StatusRemoteEvidenceStatus `json:"sync,omitempty"`
+
+	// Degraded lists compact non-fatal remote observation failures.
 	Degraded []StatusRemoteDegradation `json:"degraded,omitempty"`
 }
 
-// StatusRemotePRObservation summarizes the recorded pull request observed by
-// `harness status`.
-type StatusRemotePRObservation struct {
-	// Status is the PR observation status such as available or unavailable.
-	Status string `json:"status"`
-
-	// URL is the recorded pull request URL.
-	URL string `json:"url,omitempty"`
-
-	// Number is the pull request number when available.
-	Number int `json:"number,omitempty"`
-
+// StatusRemotePRSummary summarizes only remote pull request state that can
+// affect controller guidance.
+type StatusRemotePRSummary struct {
 	// State is the provider PR state such as OPEN, CLOSED, or MERGED.
 	State string `json:"state,omitempty"`
 
-	// IsDraft reports whether the observed pull request is a draft.
-	IsDraft bool `json:"is_draft,omitempty"`
-
-	// MergeStateStatus is the provider merge-state status when available.
-	MergeStateStatus string `json:"merge_state_status,omitempty"`
-
-	// Mergeable is the provider mergeability value when available.
-	Mergeable string `json:"mergeable,omitempty"`
-
-	// ReviewDecision is the provider review decision when available.
-	ReviewDecision string `json:"review_decision,omitempty"`
-
-	// HeadRefName is the pull request head branch name when available.
-	HeadRefName string `json:"head_ref_name,omitempty"`
-
-	// HeadRefOID is the pull request head commit OID when available.
-	HeadRefOID string `json:"head_ref_oid,omitempty"`
-
-	// BaseRefName is the pull request base branch name when available.
-	BaseRefName string `json:"base_ref_name,omitempty"`
-
-	// Degraded explains why the PR could not be observed.
-	Degraded *StatusRemoteDegradation `json:"degraded,omitempty"`
+	// Draft reports whether the observed pull request is a draft.
+	Draft bool `json:"draft"`
 }
 
-// StatusRemoteCIObservation summarizes live remote CI/check state for a
-// recorded pull request.
-type StatusRemoteCIObservation struct {
-	// Status is the CI observation status such as available or unavailable.
-	Status string `json:"status"`
-
-	// EvidenceStatus is the local evidence status that `harness evidence
-	// refresh` would record if this remote observation were refreshed now.
-	EvidenceStatus string `json:"evidence_status,omitempty"`
-
-	// Checks lists compact remote check rows.
-	Checks []StatusRemoteCheckRun `json:"checks,omitempty"`
-
-	// Degraded explains why CI checks could not be observed.
-	Degraded *StatusRemoteDegradation `json:"degraded,omitempty"`
-}
-
-// StatusRemoteSyncObservation summarizes live remote merge/sync state for a
-// recorded pull request.
-type StatusRemoteSyncObservation struct {
-	// Status is the sync observation status such as available or unavailable.
-	Status string `json:"status"`
-
-	// EvidenceStatus is the local evidence status that `harness evidence
-	// refresh` would record if this remote observation were refreshed now.
-	EvidenceStatus string `json:"evidence_status,omitempty"`
-
-	// MergeState is the provider merge-state value used for sync classification.
-	MergeState string `json:"merge_state,omitempty"`
-
-	// Degraded explains why sync state could not be observed.
-	Degraded *StatusRemoteDegradation `json:"degraded,omitempty"`
-}
-
-// StatusRemoteCheckRun is a compact provider check row surfaced through
-// `harness status`.
-type StatusRemoteCheckRun struct {
-	// Name is the check run name when available.
-	Name string `json:"name,omitempty"`
-
-	// Workflow is the workflow name when available.
-	Workflow string `json:"workflow,omitempty"`
-
-	// Bucket is the provider's coarse check bucket when available.
-	Bucket string `json:"bucket,omitempty"`
-
-	// State is the provider's check state when available.
-	State string `json:"state,omitempty"`
-
-	// Link is the provider URL for the check run when available.
-	Link string `json:"link,omitempty"`
+// StatusRemoteEvidenceStatus reports the evidence status that a refresh would
+// record for one remote-observed domain.
+type StatusRemoteEvidenceStatus struct {
+	// Status is the evidence status that refresh would record.
+	Status string `json:"status,omitempty"`
 }
 
 // StatusRemoteDegradation explains a non-fatal live remote observation
@@ -243,16 +201,6 @@ type StatusArtifacts struct {
 	// ReviewSlots lists the active round's reviewer-owned slot handles when
 	// review is in flight.
 	ReviewSlots []ReviewSlot `json:"review_slots,omitempty"`
-
-	// CIRecordID is the latest CI evidence record identifier when known.
-	CIRecordID string `json:"ci_record_id,omitempty"`
-
-	// PublishRecordID is the latest publish evidence record identifier when
-	// known.
-	PublishRecordID string `json:"publish_record_id,omitempty"`
-
-	// SyncRecordID is the latest sync evidence record identifier when known.
-	SyncRecordID string `json:"sync_record_id,omitempty"`
 
 	// LastLandedAt is the timestamp of the most recent landed plan.
 	LastLandedAt string `json:"last_landed_at,omitempty"`

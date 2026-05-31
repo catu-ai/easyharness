@@ -250,25 +250,35 @@ help explain the node:
   - optional derived human-readable review title
 - `review_status`
 - `archive_blocker_count`
-- `publish_status`
-- `pr_url`
-- `ci_status`
-- `sync_status`
-- `remote_handoff`
-  - optional non-authoritative live observation of the recorded PR handoff
-    target; local evidence remains the source of truth for workflow
-    progression
+- `evidence`
+  - optional archived-candidate evidence group
+  - `recorded`
+    - durable local evidence that remains authoritative for workflow
+      progression
+    - `publish.status` and `publish.pr_url`
+    - `ci.status`
+    - `sync.status`
+  - `remote`
+    - compact, non-authoritative live observation of the recorded PR handoff
+      target
+    - `observation`: `complete`, `partial`, or `unavailable`
+    - `assessment`: workflow meaning such as `matches_recorded`,
+      `refresh_available`, `wait_for_remote`, `repair_remote`,
+      `manual_evidence_required`, or `candidate_invalidated`
+    - `message`: concise human-readable explanation
+    - optional minimal `pr.state`/`pr.draft`, `ci.status`, `sync.status`, and
+      degradation codes
 - `land_pr_url`
 - `land_commit`
 
 `artifacts` may include stable pointers such as:
 
-- `project_root`
 - `plan_path`
 - `supplements_path`
 - `review_round_id`
 - `review_slots` for an in-flight active review round
-- latest evidence record IDs
+- `project_root` only when a contention or error result needs an absolute
+  workspace anchor
 - `last_landed_at`
 
 Legacy v0.1 fields are not part of the `harness status` contract and must not
@@ -508,9 +518,10 @@ Contract:
 - for archived publish and await-merge handoff states, default to live
   read-only observation of the recorded PR URL when that URL is available and
   supported
-- surface live remote observation under `facts.remote_handoff` as a
-  non-authoritative hint containing normalized PR, CI/check, sync/merge, and
-  degraded observation facts
+- surface live remote observation under `facts.evidence.remote` as a compact,
+  non-authoritative hint containing observation completeness, workflow
+  assessment, a concise message, minimal PR state, CI/sync statuses that
+  refresh would record, and compact degradation facts
 - keep live remote observation read-only and non-authoritative: `gh` may be
   used to observe a recorded PR URL when available, but missing `gh`, missing
   auth, network/API failure, an unreadable PR, or mismatched local git context
@@ -521,10 +532,13 @@ Contract:
   CI, and sync evidence
 - never append evidence from `harness status`; automatic remote-to-evidence
   updates belong to the explicit `harness evidence refresh` command
-- when recorded publish evidence has a PR URL but CI or sync evidence is
-  missing or still non-ready (`ci: pending` or `sync: stale`), include
-  `harness evidence refresh` in status next actions while preserving manual
-  `harness evidence submit` fallback commands
+- when recorded publish evidence has a PR URL and remote observation says the
+  recorded PR facts are refreshable, include `harness evidence refresh` in
+  status next actions while preserving manual `harness evidence submit`
+  fallback commands
+- when remote observation says to wait, repair, use manual evidence, or treat
+  the candidate as invalidated, do not also include an immediate
+  `harness evidence refresh` command in status next actions
 - if no current plan is active but `.local/harness/current-plan.json` records a
   landed candidate, return `state.current_node: idle` with landed context in
   `artifacts`
@@ -839,9 +853,9 @@ once the PR or handoff target exists.
 When `harness status` observes a recorded PR through `gh`, it must treat `gh`
 as an optional read-through provider rather than a hard workflow dependency.
 Missing `gh`, missing auth, network or API errors, invalid provider output, and
-unreadable PRs should produce degraded `facts.remote_handoff` output or
-next-action guidance while preserving the local status result and the manual
-`harness evidence submit --kind publish|ci|sync` fallback. Live remote
+unreadable PRs should produce compact `facts.evidence.remote` degradation
+output or next-action guidance while preserving the local status result and the
+manual `harness evidence submit --kind publish|ci|sync` fallback. Live remote
 observation is useful for explaining what to do next, but it is not durable
 evidence: status must not enter `execution/finalize/await_merge` from passing
 remote checks or clean merge state until those facts have been recorded through

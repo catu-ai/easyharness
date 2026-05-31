@@ -74,14 +74,16 @@ During archived-candidate handoff, treat `harness status` as the first
 orientation surface. Read these parts together:
 
 - `state.current_node`: the durable local workflow node
-- local publish, CI, and sync evidence facts
-- `facts.remote_handoff`: optional live read-only observation of the recorded PR
+- `facts.evidence.recorded`: durable local publish, CI, and sync evidence
+- `facts.evidence.remote`: optional compact live read-only observation and
+  assessment of the recorded PR
 - `warnings` and `next_actions`: the controller-facing interpretation
 
 The remote handoff surface is deliberately read-only and non-authoritative.
-Passing checks or clean merge state in `facts.remote_handoff` explain what the
-controller should do next; they do not move `state.current_node` to
-`execution/finalize/await_merge` until local evidence records the facts.
+Passing checks or clean merge state in `facts.evidence.remote` explain why
+`next_actions` may ask for refresh, wait, repair, or manual fallback; they do
+not move `state.current_node` to `execution/finalize/await_merge` until
+recorded evidence stores the facts.
 
 Use these cases as the controller decision guide:
 
