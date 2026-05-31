@@ -203,6 +203,8 @@ findings.
 
 ## Archive Summary
 
+- Archived At: 2026-05-31T13:40:35+08:00
+- Revision: 1
 - PR: PENDING_UNTIL_PUBLISH
 - Ready: The candidate passed validation and final full review, and is ready
   for archive/publish handoff.
