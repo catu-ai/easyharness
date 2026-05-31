@@ -198,26 +198,63 @@ bump, and finalize review will cover the candidate.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `scripts/read-release-version` returned `0.4.1`.
+- `scripts/read-release-version --tag` returned `v0.4.1`.
+- `harness plan lint docs/plans/active/2026-05-31-prepare-0-4-1-release-bump.md`
+  passed before execution and again before archive.
+- Recent `main` CI for PRs #220, #223, #224, #225, and #226 was confirmed
+  green before release handoff.
+- Final diff review confirmed the source release change is limited to the
+  `VERSION` bump plus tracked harness lifecycle updates.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step review was skipped with `NO_STEP_REVIEW_NEEDED` because the
+  implementation was a one-line `VERSION` bump plus release-handoff scope
+  confirmation validated through existing helpers, CI observations, and issue
+  queries.
+- Finalize review `review-001-full` passed on 2026-05-31 with 0 blocking and 0
+  non-blocking findings.
+- Reviewer slots covered `release_correctness` and `handoff_scope`; both
+  reported no findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-05-31T14:11:55+08:00
+- Revision: 1
+- PR: Prepare a dedicated `0.4.1` release PR from branch
+  `codex/release-0-4-1`.
+- Ready: The candidate is ready for PR publication after archive; merge to
+  `main` should let the VERSION-driven automation create `v0.4.1` and dispatch
+  the release workflow.
+- Merge Handoff: Do not create the tag manually. After merge, confirm the
+  `Tag Release From VERSION` workflow creates `v0.4.1`, the `Release` workflow
+  publishes archives and `SHA256SUMS`, and the Homebrew tap update/verification
+  completes when configured.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Bumped the root `VERSION` file from `0.4.0` to `0.4.1`.
+- Confirmed the release-version helper derives raw version `0.4.1` and tag
+  `v0.4.1`.
+- Recorded the patch-release scope, validation, review outcome, and automation
+  handoff in the tracked plan.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No release workflow, tag automation, packaging, Homebrew, changelog, release
+  notes, or announcement behavior changed.
+- No manual tag was created; publication remains merge-triggered automation.
+- Post-merge release verification remains deferred until after the release PR
+  lands.
 
 ### Follow-Up Issues
 
-NONE
+- #71 remains selected for the later `v0.5.0` milestone and is outside this
+  patch release.
+- #206 and #155 remain deferred UI/workbench follow-up examples outside this
+  patch release.
+- Post-merge `v0.4.1` release publication verification is release-handoff
+  bookkeeping for the release PR rather than a new durable issue.
