@@ -26,12 +26,12 @@ PR merges.
 Minor releases such as `v0.5.0` represent a coherent user promise. They do not
 need to finish every possible idea in a feature family, but they should deliver
 enough of the promise that users can understand and start relying on it. A
-minor release is usually represented by a concrete GitHub milestone whose
-issues are release-critical for that promise.
+minor release must be selected through a concrete GitHub milestone whose issues
+are release-critical for that promise.
 
 Minor releases are selected release promises, not automatic version bumps for
 every public, user-facing, or agent-facing contract change. A contract change
-outside the current minor milestone can still be release-worthy, but it should
+outside the selected minor milestone can still be release-worthy, but it should
 wait for a later selected promise or ship as a patch when it fits the patch
 criteria below.
 
