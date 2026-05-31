@@ -37,8 +37,9 @@ milestones, and release-readiness judgment.
    consideration, minor release consideration, or release repair.
 2. Read `docs/releasing.md` before making a recommendation.
 3. Inspect the relevant GitHub issue or milestone:
-   - for minor candidates, check whether the milestone represents one coherent
-     user promise and whether its release-critical issues are closed
+   - for minor candidates, start from an existing concrete version milestone;
+     check whether it represents the selected coherent user promise and
+     whether its release-critical issues are closed
    - for patch candidates, check whether the work is a small repair,
      same-theme fast-follow, documentation/CI correction, or another low-risk
      improvement worth shipping without waiting for a later minor
@@ -64,14 +65,22 @@ low-risk fast-follow, or same-theme improvement that users should get before
 the next minor. Do not require a patch milestone unless the patch needs an
 explicit coordinated bucket.
 
-Recommend `Consider a minor release PR` when the target milestone's
-release-critical issues are complete and together deliver a coherent
-user-facing promise. Minor releases should feel like a complete first version
-of the promise, not only a specification or a half-finished feature family.
+Recommend `Consider a minor release PR` only when an existing concrete version
+milestone is the selected release promise, its release-critical issues are
+complete, and those issues together deliver a coherent user-facing promise.
+Minor releases should feel like a complete first version of the promise, not
+only a specification or a half-finished feature family.
+
+Do not recommend a minor release merely because one landed change touches a
+public, user-facing, or agent-facing contract. If that change is not already
+part of a completed minor milestone, recommend `No release recommended yet`,
+`Consider a patch release PR`, or `Shape or adjust the milestone first`
+according to the policy source and the current release context.
 
 Recommend `Shape or adjust the milestone first` when the issue list does not
-yet match the release promise: the milestone includes broad backlog ideas,
-misses release-critical work, carries open blockers, or needs clearer
+yet match the release promise: there is no concrete minor milestone, the
+milestone includes broad backlog ideas, misses release-critical work, carries
+open blockers, is not clearly connected to the candidate work, or needs clearer
 must-deliver versus follow-up boundaries in issue bodies.
 
 ## Guardrails
