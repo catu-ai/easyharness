@@ -121,6 +121,36 @@ func TestInitConfigDryRunDoesNotWrite(t *testing.T) {
 	}
 }
 
+func TestInitConfigRejectsObstructedHarnessDirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".harness"), []byte("not a directory"), 0o644); err != nil {
+		t.Fatalf("write obstructing .harness file: %v", err)
+	}
+
+	result := testService(root).InitConfig(Options{})
+	if result.OK {
+		t.Fatalf("expected obstructed config init to fail, got %#v", result)
+	}
+	if len(result.Errors) == 0 || !strings.Contains(result.Errors[0].Message, "inspect repo config target") {
+		t.Fatalf("expected inspect error, got %#v", result.Errors)
+	}
+}
+
+func TestInitConfigRejectsConfigDirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".harness/config.yaml"), 0o755); err != nil {
+		t.Fatalf("mkdir config directory: %v", err)
+	}
+
+	result := testService(root).InitConfig(Options{})
+	if result.OK {
+		t.Fatalf("expected config directory init to fail, got %#v", result)
+	}
+	if len(result.Errors) == 0 || !strings.Contains(result.Errors[0].Message, "repo config target is a directory") {
+		t.Fatalf("expected directory error, got %#v", result.Errors)
+	}
+}
+
 func TestInitRefreshesManagedBlockWithoutTouchingUserContent(t *testing.T) {
 	root := t.TempDir()
 	original := strings.Join([]string{

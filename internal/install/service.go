@@ -567,6 +567,21 @@ func (s Service) planSkillsUninstall(targetDir string) ([]plannedWrite, []Comman
 }
 
 func (s Service) planRepoConfigInit() ([]plannedWrite, []string, []CommandError) {
+	configPath := filepath.Join(s.Workdir, filepath.FromSlash(repoconfig.File))
+	info, statErr := os.Stat(configPath)
+	if statErr != nil && !os.IsNotExist(statErr) {
+		return nil, nil, []CommandError{{
+			Path:    pathLabel(s.Workdir, configPath),
+			Message: fmt.Sprintf("inspect repo config target: %v", statErr),
+		}}
+	}
+	if statErr == nil && info.IsDir() {
+		return nil, nil, []CommandError{{
+			Path:    pathLabel(s.Workdir, configPath),
+			Message: "repo config target is a directory",
+		}}
+	}
+
 	result := repoconfig.Load(s.Workdir)
 	if result.Exists {
 		return []plannedWrite{{
