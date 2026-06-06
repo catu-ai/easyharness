@@ -351,6 +351,7 @@ Validation completed:
 - `scripts/sync-bootstrap-assets --check`
 - `go test ./tests/smoke`
 - `go test ./tests/smoke -run 'TestHelpShowsTopLevelUsage|TestInit|TestRepo|TestSkills|TestInstructions|TestStatusIdle'`
+- `go test ./tests/smoke -run 'TestSkillsInstall|TestInstructionsInstall|TestRepoInit|TestInit|TestRepoConfig|TestSkillsAndInstructions'`
 - `go test ./...`
 - `scripts/install-dev-harness`
 
@@ -364,6 +365,12 @@ Finalize review `review-001-full` requested two blocking fixes:
 
 Both were fixed in commit `4e168b4`. Delta repair review `review-002-delta`
 passed with zero findings.
+
+Final full review `review-003-full` then requested one blocking fix: granular
+`harness repo skills ...` and `harness repo instructions ...` commands skipped
+invalid repo config warnings. Commit `ae416fa` fixed the repo-scope warning
+behavior while keeping user-scope commands independent from repo config.
+Delta repair review `review-004-delta` passed with zero findings.
 
 ## Archive Summary
 
