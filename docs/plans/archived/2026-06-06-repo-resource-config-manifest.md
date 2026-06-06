@@ -372,20 +372,61 @@ invalid repo config warnings. Commit `ae416fa` fixed the repo-scope warning
 behavior while keeping user-scope commands independent from repo config.
 Delta repair review `review-004-delta` passed with zero findings.
 
+Archive-readiness review `review-005-full` then requested plan-only closeout
+repairs: the archive and outcome summaries still contained archive-time
+placeholder text, and deferred items had not been tied to durable follow-up
+issues. This finalize-fix records the archive handoff and follow-up issue
+links before a fresh finalize review.
+
+Fresh archive-readiness review `review-006-full` passed with zero findings
+after the closeout-summary repair.
+
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-06-07T00:37:59+08:00
+- Revision: 1
+- PR: PENDING_UNTIL_PUBLISH
+- Ready: The candidate satisfies the acceptance criteria, focused and full
+  validation passed, generated contract/bootstrap checks passed, and the only
+  remaining work is the post-archive publish/CI/sync handoff.
+- Merge Handoff: Archive the plan, commit the tracked archive move and summary
+  updates, push branch `codex/repo-resource-config-manifest`, open a PR for
+  issue #228, record publish evidence with the PR URL, run
+  `harness evidence refresh`, then wait at `execution/finalize/await_merge`
+  for explicit human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added the v1 `.harness/config.yaml` manifest contract with `version: 1` as
+  the minimal valid shape, missing-config default behavior, and invalid-config
+  warning plus whole-config fallback behavior.
+- Added `internal/repoconfig` and wired repo resource commands so malformed,
+  unsupported-version, or non-object config files warn clearly and fall back to
+  built-in defaults instead of blocking command execution.
+- Moved repo resource commands under the `harness repo ...` group:
+  `repo init`, `repo skills install|uninstall`,
+  `repo instructions install|uninstall`, and `repo config init`.
+- Updated `harness repo init` and `harness repo config init` to create
+  `.harness/config.yaml` when missing, preserve existing config files, support
+  dry-run behavior, and hard-error on obstructed config paths.
+- Updated docs, CLI contract/spec references, generated schemas, managed
+  bootstrap assets, root repo guidance, and smoke/unit coverage for the new
+  repo resource command shape and config manifest behavior.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- `harness repo config lint`; tracked separately in #235.
+- A broader `harness doctor` diagnostic; tracked separately in #236.
+- An agent-facing repo config guide/skill; tracked separately in #237 after the
+  first real customization field exists.
+- Concrete business customization fields or workflow-wide config consumption;
+  tracked separately in #229.
 
 ### Follow-Up Issues
 
-NONE
+- #229: Support custom harness path roots from `.harness/config`.
+- #235: Add `harness repo config lint`.
+- #236: Consider a broader `harness doctor` command.
+- #237: Add an agent-facing repo config guide after first customization fields.
