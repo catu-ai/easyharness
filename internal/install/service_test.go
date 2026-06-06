@@ -54,6 +54,71 @@ func TestInitCreatesManagedInstructionsAndSkills(t *testing.T) {
 	if !strings.Contains(skillBody, "easyharness-version: v9.9.9") {
 		t.Fatalf("expected version metadata in skill frontmatter, got:\n%s", skillBody)
 	}
+
+	configData, err := os.ReadFile(filepath.Join(root, ".harness/config.yaml"))
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != "version: 1\n" {
+		t.Fatalf("expected minimal repo config, got:\n%s", configData)
+	}
+}
+
+func TestInitPreservesExistingRepoConfigAndWarnsWhenInvalid(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: 2\n"), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	result := testService(root).Init(Options{})
+	if !result.OK {
+		t.Fatalf("expected init success despite invalid config, got %#v", result)
+	}
+	if len(result.Warnings) == 0 || !strings.Contains(strings.Join(result.Warnings, "\n"), "unsupported version 2") {
+		t.Fatalf("expected invalid-config warning, got %#v", result.Warnings)
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	if string(configData) != "version: 2\n" {
+		t.Fatalf("expected existing config to be preserved, got:\n%s", configData)
+	}
+}
+
+func TestInitConfigCreatesMinimalConfig(t *testing.T) {
+	root := t.TempDir()
+
+	result := testService(root).InitConfig(Options{})
+	if !result.OK {
+		t.Fatalf("expected config init success, got %#v", result)
+	}
+	if result.Command != "repo config init" || result.Resource != ResourceConfig {
+		t.Fatalf("unexpected config init payload: %#v", result)
+	}
+	configData, err := os.ReadFile(filepath.Join(root, ".harness/config.yaml"))
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != "version: 1\n" {
+		t.Fatalf("expected minimal repo config, got:\n%s", configData)
+	}
+}
+
+func TestInitConfigDryRunDoesNotWrite(t *testing.T) {
+	root := t.TempDir()
+
+	result := testService(root).InitConfig(Options{DryRun: true})
+	if !result.OK {
+		t.Fatalf("expected config init dry-run success, got %#v", result)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".harness/config.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("expected dry-run to leave config absent, got err=%v", err)
+	}
 }
 
 func TestInitRefreshesManagedBlockWithoutTouchingUserContent(t *testing.T) {

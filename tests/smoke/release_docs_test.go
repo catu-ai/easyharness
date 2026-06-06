@@ -20,7 +20,7 @@ func TestReleaseDocsPresentStableOnboardingSurface(t *testing.T) {
 	normalizedReadme := strings.Join(strings.Fields(readme), " ")
 	support.RequireContains(t, normalizedReadme, "Harnesses matter. Building one shouldn't be the project.")
 	support.RequireContains(t, normalizedReadme, "brew install easyharness")
-	support.RequireContains(t, normalizedReadme, "harness init")
+	support.RequireContains(t, normalizedReadme, "harness repo init")
 	support.RequireContains(t, normalizedReadme, "breaking changes may happen between releases")
 	support.RequireContains(t, readme, "./docs/development.md")
 	if strings.Contains(strings.ToLower(readme), "public alpha") {

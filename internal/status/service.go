@@ -1323,10 +1323,10 @@ func idleResult(workdir string, currentPlan *runstate.CurrentPlan) Result {
 	}
 	if drift.Stale() {
 		result.Warnings = append(result.Warnings, buildIdleBootstrapDriftWarning(drift))
-		command := "harness init --dry-run"
+		command := "harness repo init --dry-run"
 		action := NextAction{
 			Command:     &command,
-			Description: "Optionally inspect the default repo bootstrap refresh with harness init --dry-run, then rerun harness init if you and the human want to update AGENTS.md and the managed skills.",
+			Description: "Optionally inspect the default repo resource refresh with harness repo init --dry-run, then rerun harness repo init if you and the human want to update AGENTS.md, the managed skills, and the repo config.",
 		}
 		result.NextAction = append([]NextAction{action}, result.NextAction...)
 	}

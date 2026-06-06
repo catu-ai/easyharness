@@ -11,6 +11,7 @@ import (
 
 	bootstrapassets "github.com/catu-ai/easyharness/assets/bootstrap"
 	"github.com/catu-ai/easyharness/internal/contracts"
+	"github.com/catu-ai/easyharness/internal/repoconfig"
 	versioninfo "github.com/catu-ai/easyharness/internal/version"
 	"gopkg.in/yaml.v3"
 )
@@ -22,6 +23,7 @@ const (
 	ResourceBootstrap    = "bootstrap"
 	ResourceSkills       = "skills"
 	ResourceInstructions = "instructions"
+	ResourceConfig       = "config"
 
 	OperationInstall   = "install"
 	OperationUninstall = "uninstall"
@@ -78,7 +80,7 @@ func (s Service) Init(opts Options) Result {
 		resolvedScope = ScopeRepo
 	}
 	if resolvedScope != ScopeRepo {
-		return s.errorResult("init", ResourceBootstrap, OperationInstall, resolvedScope, normalizeAgent(opts.Agent), opts.DryRun, "Unsupported init scope.", []CommandError{{
+		return s.errorResult("repo init", ResourceBootstrap, OperationInstall, resolvedScope, normalizeAgent(opts.Agent), opts.DryRun, "Unsupported init scope.", []CommandError{{
 			Path:    "scope",
 			Message: fmt.Sprintf("supported init scope is %q", ScopeRepo),
 		}})
@@ -87,41 +89,57 @@ func (s Service) Init(opts Options) Result {
 	agent := normalizeAgent(opts.Agent)
 	instructionsFile, err := s.resolveInstructionsFile(agent, ScopeRepo, opts.InstructionsFile)
 	if err != nil {
-		return s.errorResult("init", ResourceBootstrap, OperationInstall, resolvedScope, agent, opts.DryRun, "Unable to resolve init targets.", []CommandError{{Path: "instructions.file", Message: err.Error()}})
+		return s.errorResult("repo init", ResourceBootstrap, OperationInstall, resolvedScope, agent, opts.DryRun, "Unable to resolve init targets.", []CommandError{{Path: "instructions.file", Message: err.Error()}})
 	}
 	skillsDir, err := s.resolveSkillsDir(agent, ScopeRepo, opts.SkillsDir)
 	if err != nil {
-		return s.errorResult("init", ResourceBootstrap, OperationInstall, resolvedScope, agent, opts.DryRun, "Unable to resolve init targets.", []CommandError{{Path: "skills.dir", Message: err.Error()}})
+		return s.errorResult("repo init", ResourceBootstrap, OperationInstall, resolvedScope, agent, opts.DryRun, "Unable to resolve init targets.", []CommandError{{Path: "skills.dir", Message: err.Error()}})
 	}
 
 	writes, errs := s.planInstructionsInstall(instructionsFile, skillsDir)
 	skillWrites, skillErrs := s.planSkillsInstall(skillsDir)
 	writes = append(writes, skillWrites...)
 	errs = append(errs, skillErrs...)
+	configWrites, configWarnings, configErrs := s.planRepoConfigInit()
+	writes = append(writes, configWrites...)
+	errs = append(errs, configErrs...)
 	if len(errs) > 0 {
-		return s.errorResult("init", ResourceBootstrap, OperationInstall, resolvedScope, agent, opts.DryRun, "Unable to prepare the bootstrap targets.", errs)
+		return s.errorResult("repo init", ResourceBootstrap, OperationInstall, resolvedScope, agent, opts.DryRun, "Unable to prepare the bootstrap targets.", errs)
 	}
 	if err := s.applyWrites(writes, opts.DryRun); err != nil {
-		return s.errorResult("init", ResourceBootstrap, OperationInstall, resolvedScope, agent, opts.DryRun, "Unable to write the bootstrap targets.", []CommandError{*err})
+		return s.errorResult("repo init", ResourceBootstrap, OperationInstall, resolvedScope, agent, opts.DryRun, "Unable to write the bootstrap targets.", []CommandError{*err})
 	}
 
-	return s.successResult("init", ResourceBootstrap, OperationInstall, resolvedScope, agent, opts.DryRun, writes)
+	return s.successResultWithWarnings("repo init", ResourceBootstrap, OperationInstall, resolvedScope, agent, opts.DryRun, writes, configWarnings)
 }
 
 func (s Service) InstallSkills(opts Options) Result {
-	return s.runSkillCommand("skills install", OperationInstall, opts)
+	return s.runSkillCommand("repo skills install", OperationInstall, opts)
 }
 
 func (s Service) UninstallSkills(opts Options) Result {
-	return s.runSkillCommand("skills uninstall", OperationUninstall, opts)
+	return s.runSkillCommand("repo skills uninstall", OperationUninstall, opts)
 }
 
 func (s Service) InstallInstructions(opts Options) Result {
-	return s.runInstructionsCommand("instructions install", OperationInstall, opts)
+	return s.runInstructionsCommand("repo instructions install", OperationInstall, opts)
 }
 
 func (s Service) UninstallInstructions(opts Options) Result {
-	return s.runInstructionsCommand("instructions uninstall", OperationUninstall, opts)
+	return s.runInstructionsCommand("repo instructions uninstall", OperationUninstall, opts)
+}
+
+func (s Service) InitConfig(opts Options) Result {
+	scope := ScopeRepo
+	agent := normalizeAgent(opts.Agent)
+	writes, warnings, errs := s.planRepoConfigInit()
+	if len(errs) > 0 {
+		return s.errorResult("repo config init", ResourceConfig, OperationInstall, scope, agent, opts.DryRun, "Unable to prepare the repo config target.", errs)
+	}
+	if err := s.applyWrites(writes, opts.DryRun); err != nil {
+		return s.errorResult("repo config init", ResourceConfig, OperationInstall, scope, agent, opts.DryRun, "Unable to write the repo config target.", []CommandError{*err})
+	}
+	return s.successResultWithWarnings("repo config init", ResourceConfig, OperationInstall, scope, agent, opts.DryRun, writes, warnings)
 }
 
 func (s Service) runSkillCommand(command, operation string, opts Options) Result {
@@ -548,6 +566,23 @@ func (s Service) planSkillsUninstall(targetDir string) ([]plannedWrite, []Comman
 	return writes, nil
 }
 
+func (s Service) planRepoConfigInit() ([]plannedWrite, []string, []CommandError) {
+	result := repoconfig.Load(s.Workdir)
+	if result.Exists {
+		return []plannedWrite{{
+			path:    result.Path,
+			kind:    ActionNoop,
+			details: "Repo config already exists and will not be overwritten.",
+		}}, repoConfigWarningsForWorkdir(s.Workdir, result.Warnings), nil
+	}
+	return []plannedWrite{{
+		path:    result.Path,
+		kind:    ActionCreate,
+		details: "Create the repo customization manifest with the minimal v1 config.",
+		content: []byte(repoconfig.DefaultContent),
+	}}, repoConfigWarningsForWorkdir(s.Workdir, result.Warnings), nil
+}
+
 func (s Service) renderCanonicalSkillFiles() (map[string]map[string]string, error) {
 	files, err := bootstrapassets.SkillFiles()
 	if err != nil {
@@ -602,6 +637,10 @@ func (s Service) applyWrites(writes []plannedWrite, dryRun bool) *CommandError {
 }
 
 func (s Service) successResult(command, resource, operation, scope, agent string, dryRun bool, writes []plannedWrite) Result {
+	return s.successResultWithWarnings(command, resource, operation, scope, agent, dryRun, writes, nil)
+}
+
+func (s Service) successResultWithWarnings(command, resource, operation, scope, agent string, dryRun bool, writes []plannedWrite, warnings []string) Result {
 	return Result{
 		OK:         true,
 		Command:    command,
@@ -613,6 +652,7 @@ func (s Service) successResult(command, resource, operation, scope, agent string
 		Agent:      agent,
 		Actions:    toActions(s.Workdir, writes),
 		NextAction: []NextAction{},
+		Warnings:   warnings,
 	}
 }
 
@@ -786,6 +826,18 @@ func pathLabel(workdir, path string) string {
 		return filepath.ToSlash(rel)
 	}
 	return filepath.Clean(path)
+}
+
+func repoConfigWarningsForWorkdir(workdir string, warnings []string) []string {
+	if len(warnings) == 0 {
+		return nil
+	}
+	replacer := strings.NewReplacer(filepath.ToSlash(workdir)+"/", "")
+	result := make([]string, 0, len(warnings))
+	for _, warning := range warnings {
+		result = append(result, replacer.Replace(warning))
+	}
+	return result
 }
 
 func walkFiles(root string) ([]string, error) {

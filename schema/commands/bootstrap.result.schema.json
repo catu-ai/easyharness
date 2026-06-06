@@ -25,7 +25,7 @@
         "kind",
         "details"
       ],
-      "description": "BootstrapAction describes one path-level change planned or applied by a bootstrap resource command."
+      "description": "BootstrapAction describes one path-level change planned or applied by a repo resource command."
     },
     "BootstrapResult": {
       "properties": {
@@ -47,7 +47,7 @@
         },
         "resource": {
           "type": "string",
-          "description": "Resource identifies the managed bootstrap surface."
+          "description": "Resource identifies the managed repo resource surface."
         },
         "operation": {
           "type": "string",
@@ -91,6 +91,13 @@
           ],
           "description": "NextAction lists the most relevant follow-up steps in priority order."
         },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Warnings lists non-blocking repo resource issues that did not prevent the command from continuing with built-in defaults."
+        },
         "errors": {
           "items": {
             "$ref": "#/$defs/ErrorDetail"
@@ -113,7 +120,7 @@
         "actions",
         "next_actions"
       ],
-      "description": "BootstrapResult is the JSON result returned by bootstrap resource commands such as `harness init`, `harness skills install`, or `harness instructions uninstall`."
+      "description": "BootstrapResult is the JSON result returned by repo resource commands such as `harness repo init`, `harness repo skills install`, or `harness repo instructions uninstall`."
     },
     "ErrorDetail": {
       "properties": {
@@ -163,5 +170,5 @@
     }
   },
   "title": "Bootstrap command result",
-  "description": "JSON output shared by bootstrap resource commands such as `harness init`, `harness skills install`, and `harness instructions uninstall`."
+  "description": "JSON output shared by repo resource commands such as `harness repo init`, `harness repo skills install`, and `harness repo instructions uninstall`."
 }

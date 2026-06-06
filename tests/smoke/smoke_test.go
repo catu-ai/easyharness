@@ -49,6 +49,7 @@ type bootstrapResult struct {
 		Path string `json:"path"`
 		Kind string `json:"kind"`
 	} `json:"actions"`
+	Warnings []string `json:"warnings"`
 }
 
 func TestHelpShowsTopLevelUsage(t *testing.T) {
@@ -71,9 +72,7 @@ func TestHelpShowsTopLevelUsage(t *testing.T) {
 	support.RequireContains(t, result.CombinedOutput(), "archive         Freeze the current active plan")
 	support.RequireContains(t, result.CombinedOutput(), "reopen          Restore the current archived plan")
 	support.RequireContains(t, result.CombinedOutput(), "status          Summarize the current plan and local execution state")
-	support.RequireContains(t, result.CombinedOutput(), "init            Install or refresh the managed bootstrap resources for the current repository")
-	support.RequireContains(t, result.CombinedOutput(), "skills          Manage easyharness skill packages")
-	support.RequireContains(t, result.CombinedOutput(), "instructions    Manage easyharness instruction files and managed blocks")
+	support.RequireContains(t, result.CombinedOutput(), "repo            Manage repo-level easyharness resources")
 }
 
 func TestLandHelpShowsRequiredBookkeepingContract(t *testing.T) {
@@ -162,7 +161,7 @@ func TestStatusReportsIdleWorkspace(t *testing.T) {
 func TestStatusIdleReportsNonBlockingBootstrapReminderWhenManagedAssetsAreStale(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 
-	initResult := support.Run(t, workspace.Root, "init")
+	initResult := support.Run(t, workspace.Root, "repo", "init")
 	support.RequireSuccess(t, initResult)
 	support.RequireNoStderr(t, initResult)
 
@@ -180,7 +179,7 @@ func TestStatusIdleReportsNonBlockingBootstrapReminderWhenManagedAssetsAreStale(
 	if len(payload.Warnings) == 0 || !strings.Contains(strings.Join(payload.Warnings, "\n"), "non-blocking reminder") {
 		t.Fatalf("expected non-blocking bootstrap reminder, got %#v", payload.Warnings)
 	}
-	if len(payload.NextAction) == 0 || payload.NextAction[0].Command == nil || *payload.NextAction[0].Command != "harness init --dry-run" {
+	if len(payload.NextAction) == 0 || payload.NextAction[0].Command == nil || *payload.NextAction[0].Command != "harness repo init --dry-run" {
 		t.Fatalf("expected optional refresh command first, got %#v", payload.NextAction)
 	}
 }
@@ -188,7 +187,7 @@ func TestStatusIdleReportsNonBlockingBootstrapReminderWhenManagedAssetsAreStale(
 func TestStatusIdleReportsReminderWhenOnlyManagedInstructionsAreStale(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 
-	initResult := support.Run(t, workspace.Root, "init")
+	initResult := support.Run(t, workspace.Root, "repo", "init")
 	support.RequireSuccess(t, initResult)
 	support.RequireNoStderr(t, initResult)
 
@@ -207,7 +206,7 @@ func TestStatusIdleReportsReminderWhenOnlyManagedInstructionsAreStale(t *testing
 func TestStatusIdleReportsReminderWhenOnlyManagedSkillsAreStale(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 
-	initResult := support.Run(t, workspace.Root, "init")
+	initResult := support.Run(t, workspace.Root, "repo", "init")
 	support.RequireSuccess(t, initResult)
 	support.RequireNoStderr(t, initResult)
 
@@ -270,12 +269,12 @@ func staleManagedSkillAtPath(t *testing.T, skillPath string) {
 func TestInitBootstrapsFreshRepository(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 
-	result := support.Run(t, workspace.Root, "init")
+	result := support.Run(t, workspace.Root, "repo", "init")
 	support.RequireSuccess(t, result)
 	support.RequireNoStderr(t, result)
 
 	payload := support.RequireJSONResult[bootstrapResult](t, result)
-	if !payload.OK || payload.Command != "init" {
+	if !payload.OK || payload.Command != "repo init" {
 		t.Fatalf("expected init payload, got %#v", payload)
 	}
 	if payload.Mode != "apply" || payload.Scope != "repo" || payload.Resource != "bootstrap" {
@@ -293,12 +292,19 @@ func TestInitBootstrapsFreshRepository(t *testing.T) {
 
 	support.RequireFileExists(t, workspace.Path(".agents/skills/harness-execute/SKILL.md"))
 	support.RequireFileExists(t, workspace.Path(".agents/skills/harness-reviewer/SKILL.md"))
+	configData, err := os.ReadFile(workspace.Path(".harness/config.yaml"))
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != "version: 1\n" {
+		t.Fatalf("expected minimal repo config, got:\n%s", configData)
+	}
 }
 
 func TestInitDryRunDoesNotWriteRepositoryFiles(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 
-	result := support.Run(t, workspace.Root, "init", "--dry-run")
+	result := support.Run(t, workspace.Root, "repo", "init", "--dry-run")
 	support.RequireSuccess(t, result)
 	support.RequireNoStderr(t, result)
 
@@ -312,16 +318,17 @@ func TestInitDryRunDoesNotWriteRepositoryFiles(t *testing.T) {
 
 	support.RequireFileMissing(t, workspace.Path("AGENTS.md"))
 	support.RequireFileMissing(t, workspace.Path(".agents"))
+	support.RequireFileMissing(t, workspace.Path(".harness/config.yaml"))
 }
 
 func TestInitRepeatRunReportsNoopActions(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 
-	first := support.Run(t, workspace.Root, "init")
+	first := support.Run(t, workspace.Root, "repo", "init")
 	support.RequireSuccess(t, first)
 	support.RequireNoStderr(t, first)
 
-	second := support.Run(t, workspace.Root, "init")
+	second := support.Run(t, workspace.Root, "repo", "init")
 	support.RequireSuccess(t, second)
 	support.RequireNoStderr(t, second)
 
@@ -336,10 +343,57 @@ func TestInitRepeatRunReportsNoopActions(t *testing.T) {
 	}
 }
 
+func TestRepoInitPreservesExistingInvalidConfigWithWarning(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	configPath := workspace.Path(".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: 2\n"), 0o644); err != nil {
+		t.Fatalf("write invalid config: %v", err)
+	}
+
+	result := support.Run(t, workspace.Root, "repo", "init")
+	support.RequireSuccess(t, result)
+	support.RequireNoStderr(t, result)
+
+	payload := support.RequireJSONResult[bootstrapResult](t, result)
+	if len(payload.Warnings) == 0 || !strings.Contains(strings.Join(payload.Warnings, "\n"), "unsupported version 2") {
+		t.Fatalf("expected invalid config warning, got %#v", payload.Warnings)
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	if string(configData) != "version: 2\n" {
+		t.Fatalf("expected existing config to be preserved, got:\n%s", configData)
+	}
+}
+
+func TestRepoConfigInitCreatesMinimalConfig(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+
+	result := support.Run(t, workspace.Root, "repo", "config", "init")
+	support.RequireSuccess(t, result)
+	support.RequireNoStderr(t, result)
+
+	payload := support.RequireJSONResult[bootstrapResult](t, result)
+	if !payload.OK || payload.Command != "repo config init" || payload.Resource != "config" {
+		t.Fatalf("unexpected config init payload: %#v", payload)
+	}
+	configData, err := os.ReadFile(workspace.Path(".harness/config.yaml"))
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != "version: 1\n" {
+		t.Fatalf("expected minimal repo config, got:\n%s", configData)
+	}
+}
+
 func TestSkillsInstallRejectsInvalidScopeViaCLI(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 
-	result := support.Run(t, workspace.Root, "skills", "install", "--scope", "bogus")
+	result := support.Run(t, workspace.Root, "repo", "skills", "install", "--scope", "bogus")
 	support.RequireExitCode(t, result, 1)
 	support.RequireNoStderr(t, result)
 
@@ -347,7 +401,7 @@ func TestSkillsInstallRejectsInvalidScopeViaCLI(t *testing.T) {
 	if payload.OK {
 		t.Fatalf("expected skills install failure payload, got %#v", payload)
 	}
-	if payload.Command != "skills install" || payload.Scope != "bogus" {
+	if payload.Command != "repo skills install" || payload.Scope != "bogus" {
 		t.Fatalf("unexpected invalid-scope payload: %#v", payload)
 	}
 }
@@ -371,7 +425,7 @@ func TestInstructionsInstallRejectsDuplicateManagedBlocksViaCLI(t *testing.T) {
 		t.Fatalf("write AGENTS.md: %v", err)
 	}
 
-	result := support.Run(t, workspace.Root, "instructions", "install")
+	result := support.Run(t, workspace.Root, "repo", "instructions", "install")
 	support.RequireExitCode(t, result, 1)
 	support.RequireNoStderr(t, result)
 
@@ -379,7 +433,7 @@ func TestInstructionsInstallRejectsDuplicateManagedBlocksViaCLI(t *testing.T) {
 	if payload.OK {
 		t.Fatalf("expected duplicate-block instructions failure, got %#v", payload)
 	}
-	if payload.Command != "instructions install" || payload.Scope != "repo" {
+	if payload.Command != "repo instructions install" || payload.Scope != "repo" {
 		t.Fatalf("unexpected duplicate-block payload: %#v", payload)
 	}
 }
@@ -387,7 +441,7 @@ func TestInstructionsInstallRejectsDuplicateManagedBlocksViaCLI(t *testing.T) {
 func TestSkillsInstallBootstrapsOnlySkills(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 
-	result := support.Run(t, workspace.Root, "skills", "install")
+	result := support.Run(t, workspace.Root, "repo", "skills", "install")
 	support.RequireSuccess(t, result)
 	support.RequireNoStderr(t, result)
 
@@ -406,7 +460,7 @@ func TestSkillsInstallRecoversAfterApplyWriteFailure(t *testing.T) {
 		t.Fatalf("write blocking .agents file: %v", err)
 	}
 
-	failed := support.Run(t, workspace.Root, "skills", "install")
+	failed := support.Run(t, workspace.Root, "repo", "skills", "install")
 	support.RequireExitCode(t, failed, 1)
 	support.RequireNoStderr(t, failed)
 
@@ -419,7 +473,7 @@ func TestSkillsInstallRecoversAfterApplyWriteFailure(t *testing.T) {
 		t.Fatalf("remove blocking .agents file: %v", err)
 	}
 
-	retry := support.Run(t, workspace.Root, "skills", "install")
+	retry := support.Run(t, workspace.Root, "repo", "skills", "install")
 	support.RequireSuccess(t, retry)
 	support.RequireNoStderr(t, retry)
 
@@ -432,7 +486,7 @@ func TestSkillsInstallRecoversAfterApplyWriteFailure(t *testing.T) {
 
 func TestInitRecoversAfterMidFlightFailure(t *testing.T) {
 	workspace := support.NewWorkspace(t)
-	initial := support.Run(t, workspace.Root, "init")
+	initial := support.Run(t, workspace.Root, "repo", "init")
 	support.RequireSuccess(t, initial)
 	support.RequireNoStderr(t, initial)
 
@@ -449,7 +503,7 @@ func TestInitRecoversAfterMidFlightFailure(t *testing.T) {
 		t.Fatalf("chmod blocked skill file: %v", err)
 	}
 
-	failed := support.Run(t, workspace.Root, "init")
+	failed := support.Run(t, workspace.Root, "repo", "init")
 	support.RequireExitCode(t, failed, 1)
 	support.RequireNoStderr(t, failed)
 
@@ -463,7 +517,7 @@ func TestInitRecoversAfterMidFlightFailure(t *testing.T) {
 		t.Fatalf("chmod blocked skill file: %v", err)
 	}
 
-	retry := support.Run(t, workspace.Root, "init")
+	retry := support.Run(t, workspace.Root, "repo", "init")
 	support.RequireSuccess(t, retry)
 	support.RequireNoStderr(t, retry)
 
@@ -496,7 +550,7 @@ func TestInstructionsInstallRefreshesExistingManagedBlockAndThenNoops(t *testing
 		t.Fatalf("write AGENTS.md: %v", err)
 	}
 
-	refresh := support.Run(t, workspace.Root, "instructions", "install")
+	refresh := support.Run(t, workspace.Root, "repo", "instructions", "install")
 	support.RequireSuccess(t, refresh)
 	support.RequireNoStderr(t, refresh)
 
@@ -512,7 +566,7 @@ func TestInstructionsInstallRefreshesExistingManagedBlockAndThenNoops(t *testing
 		t.Fatalf("expected refreshed managed block, got:\n%s", agentsBody)
 	}
 
-	second := support.Run(t, workspace.Root, "instructions", "install")
+	second := support.Run(t, workspace.Root, "repo", "instructions", "install")
 	support.RequireSuccess(t, second)
 	support.RequireNoStderr(t, second)
 
@@ -528,12 +582,12 @@ func TestInstructionsInstallRefreshesExistingManagedBlockAndThenNoops(t *testing
 func TestInitSupportsExplicitOverrideTargetsViaCLI(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 
-	result := support.Run(t, workspace.Root, "init", "--agent", "claude", "--dir", ".claude/skills", "--file", "CLAUDE.md")
+	result := support.Run(t, workspace.Root, "repo", "init", "--agent", "claude", "--skills-dir", ".claude/skills", "--instructions-file", "CLAUDE.md")
 	support.RequireSuccess(t, result)
 	support.RequireNoStderr(t, result)
 
 	payload := support.RequireJSONResult[bootstrapResult](t, result)
-	if !payload.OK || payload.Command != "init" || payload.Resource != "bootstrap" {
+	if !payload.OK || payload.Command != "repo init" || payload.Resource != "bootstrap" {
 		t.Fatalf("unexpected init override payload: %#v", payload)
 	}
 	instructionsPath := workspace.Path("CLAUDE.md")
@@ -564,7 +618,7 @@ func TestInitSupportsExplicitOverrideTargetsViaCLI(t *testing.T) {
 		t.Fatalf("write stale custom skill file: %v", err)
 	}
 
-	refresh := support.Run(t, workspace.Root, "init", "--agent", "claude", "--dir", ".claude/skills", "--file", "CLAUDE.md")
+	refresh := support.Run(t, workspace.Root, "repo", "init", "--agent", "claude", "--skills-dir", ".claude/skills", "--instructions-file", "CLAUDE.md")
 	support.RequireSuccess(t, refresh)
 	support.RequireNoStderr(t, refresh)
 
@@ -593,14 +647,14 @@ func TestSkillsAndInstructionsInstallSupportUserScopeViaCLI(t *testing.T) {
 
 	skillsResult := support.RunWithOptions(t, support.RunOptions{
 		Workdir: workspace.Root,
-		Args:    []string{"skills", "install", "--scope", "user"},
+		Args:    []string{"repo", "skills", "install", "--scope", "user"},
 		Env:     []string{"CODEX_HOME=" + codexHome},
 	})
 	support.RequireSuccess(t, skillsResult)
 	support.RequireNoStderr(t, skillsResult)
 
 	skillsPayload := support.RequireJSONResult[bootstrapResult](t, skillsResult)
-	if !skillsPayload.OK || skillsPayload.Command != "skills install" || skillsPayload.Scope != "user" {
+	if !skillsPayload.OK || skillsPayload.Command != "repo skills install" || skillsPayload.Scope != "user" {
 		t.Fatalf("unexpected user-scope skills payload: %#v", skillsPayload)
 	}
 	support.RequireFileExists(t, filepath.Join(codexHome, "skills/harness-discovery/SKILL.md"))
@@ -609,14 +663,14 @@ func TestSkillsAndInstructionsInstallSupportUserScopeViaCLI(t *testing.T) {
 
 	instructionsResult := support.RunWithOptions(t, support.RunOptions{
 		Workdir: workspace.Root,
-		Args:    []string{"instructions", "install", "--scope", "user"},
+		Args:    []string{"repo", "instructions", "install", "--scope", "user"},
 		Env:     []string{"CODEX_HOME=" + codexHome},
 	})
 	support.RequireSuccess(t, instructionsResult)
 	support.RequireNoStderr(t, instructionsResult)
 
 	instructionsPayload := support.RequireJSONResult[bootstrapResult](t, instructionsResult)
-	if !instructionsPayload.OK || instructionsPayload.Command != "instructions install" || instructionsPayload.Scope != "user" {
+	if !instructionsPayload.OK || instructionsPayload.Command != "repo instructions install" || instructionsPayload.Scope != "user" {
 		t.Fatalf("unexpected user-scope instructions payload: %#v", instructionsPayload)
 	}
 	support.RequireFileExists(t, filepath.Join(codexHome, "AGENTS.md"))
@@ -625,7 +679,7 @@ func TestSkillsAndInstructionsInstallSupportUserScopeViaCLI(t *testing.T) {
 
 	skillsUninstall := support.RunWithOptions(t, support.RunOptions{
 		Workdir: workspace.Root,
-		Args:    []string{"skills", "uninstall", "--scope", "user"},
+		Args:    []string{"repo", "skills", "uninstall", "--scope", "user"},
 		Env:     []string{"CODEX_HOME=" + codexHome},
 	})
 	support.RequireSuccess(t, skillsUninstall)
@@ -633,7 +687,7 @@ func TestSkillsAndInstructionsInstallSupportUserScopeViaCLI(t *testing.T) {
 
 	instructionsUninstall := support.RunWithOptions(t, support.RunOptions{
 		Workdir: workspace.Root,
-		Args:    []string{"instructions", "uninstall", "--scope", "user"},
+		Args:    []string{"repo", "instructions", "uninstall", "--scope", "user"},
 		Env:     []string{"CODEX_HOME=" + codexHome},
 	})
 	support.RequireSuccess(t, instructionsUninstall)
@@ -649,14 +703,14 @@ func TestSkillsAndInstructionsInstallSupportExplicitOverrideTargetsViaCLI(t *tes
 	skillPath := workspace.Path(filepath.Join(skillsDir, "harness-discovery/SKILL.md"))
 	instructionsPath := workspace.Path(instructionsFile)
 
-	skillsInstall := support.Run(t, workspace.Root, "skills", "install", "--agent", "claude", "--dir", skillsDir)
+	skillsInstall := support.Run(t, workspace.Root, "repo", "skills", "install", "--agent", "claude", "--dir", skillsDir)
 	support.RequireSuccess(t, skillsInstall)
 	support.RequireNoStderr(t, skillsInstall)
 	support.RequireFileExists(t, skillPath)
 	support.RequireFileMissing(t, workspace.Path(".agents/skills"))
 	support.RequireFileMissing(t, workspace.Path("AGENTS.md"))
 
-	instructionsInstall := support.Run(t, workspace.Root, "instructions", "install", "--agent", "claude", "--file", instructionsFile, "--dir", skillsDir)
+	instructionsInstall := support.Run(t, workspace.Root, "repo", "instructions", "install", "--agent", "claude", "--file", instructionsFile, "--dir", skillsDir)
 	support.RequireSuccess(t, instructionsInstall)
 	support.RequireNoStderr(t, instructionsInstall)
 	support.RequireFileExists(t, instructionsPath)
@@ -681,11 +735,11 @@ func TestSkillsAndInstructionsInstallSupportExplicitOverrideTargetsViaCLI(t *tes
 		t.Fatalf("write stale override instructions file: %v", err)
 	}
 
-	skillsRefresh := support.Run(t, workspace.Root, "skills", "install", "--agent", "claude", "--dir", skillsDir)
+	skillsRefresh := support.Run(t, workspace.Root, "repo", "skills", "install", "--agent", "claude", "--dir", skillsDir)
 	support.RequireSuccess(t, skillsRefresh)
 	support.RequireNoStderr(t, skillsRefresh)
 
-	instructionsRefresh := support.Run(t, workspace.Root, "instructions", "install", "--agent", "claude", "--file", instructionsFile, "--dir", skillsDir)
+	instructionsRefresh := support.Run(t, workspace.Root, "repo", "instructions", "install", "--agent", "claude", "--file", instructionsFile, "--dir", skillsDir)
 	support.RequireSuccess(t, instructionsRefresh)
 	support.RequireNoStderr(t, instructionsRefresh)
 
@@ -705,11 +759,11 @@ func TestSkillsAndInstructionsInstallSupportExplicitOverrideTargetsViaCLI(t *tes
 		t.Fatalf("expected override instructions refresh to replace stale version marker, got:\n%s", refreshedInstructions)
 	}
 
-	skillsUninstall := support.Run(t, workspace.Root, "skills", "uninstall", "--agent", "claude", "--dir", skillsDir)
+	skillsUninstall := support.Run(t, workspace.Root, "repo", "skills", "uninstall", "--agent", "claude", "--dir", skillsDir)
 	support.RequireSuccess(t, skillsUninstall)
 	support.RequireNoStderr(t, skillsUninstall)
 
-	instructionsUninstall := support.Run(t, workspace.Root, "instructions", "uninstall", "--agent", "claude", "--file", instructionsFile)
+	instructionsUninstall := support.Run(t, workspace.Root, "repo", "instructions", "uninstall", "--agent", "claude", "--file", instructionsFile)
 	support.RequireSuccess(t, instructionsUninstall)
 	support.RequireNoStderr(t, instructionsUninstall)
 	support.RequireFileMissing(t, skillPath)
@@ -735,7 +789,7 @@ func TestInstructionsInstallRejectsOutOfOrderManagedMarkersViaCLI(t *testing.T) 
 		t.Fatalf("write malformed AGENTS.md: %v", err)
 	}
 
-	result := support.Run(t, workspace.Root, "instructions", "install")
+	result := support.Run(t, workspace.Root, "repo", "instructions", "install")
 	support.RequireExitCode(t, result, 1)
 	support.RequireNoStderr(t, result)
 

@@ -41,14 +41,14 @@ Bootstrap a repository:
 
 ```bash
 cd /path/to/your-repo
-harness init
+harness repo init
 ```
 
-`harness init` installs the managed `AGENTS.md` block and repo-local
-`.agents/skills/` pack that tell your coding agent how to work in that
-repository. After running it, restart your coding agent so it picks up the new
-instructions and skills cleanly. In practice, that is the point where the
-repository starts telling the agent what it needs to know.
+`harness repo init` installs the managed `AGENTS.md` block and repo-local
+`.agents/skills/` pack, and creates the tracked `.harness/config.yaml`
+manifest when it is missing. After running it, restart your coding agent so it
+picks up the new instructions and skills cleanly. In practice, that is the
+point where the repository starts telling the agent what it needs to know.
 
 When you or the agent need the current workflow position, use:
 
@@ -146,11 +146,12 @@ The root CLI currently ships:
 
 - `harness plan template`
 - `harness plan lint`
-- `harness init`
-- `harness skills install`
-- `harness skills uninstall`
-- `harness instructions install`
-- `harness instructions uninstall`
+- `harness repo init`
+- `harness repo skills install`
+- `harness repo skills uninstall`
+- `harness repo instructions install`
+- `harness repo instructions uninstall`
+- `harness repo config init`
 - `harness execute start`
 - `harness evidence submit`
 - `harness status`

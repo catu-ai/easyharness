@@ -29,11 +29,12 @@ The current command surface is:
 
 - `harness plan template`
 - `harness plan lint`
-- `harness init`
-- `harness skills install`
-- `harness skills uninstall`
-- `harness instructions install`
-- `harness instructions uninstall`
+- `harness repo init`
+- `harness repo skills install`
+- `harness repo skills uninstall`
+- `harness repo instructions install`
+- `harness repo instructions uninstall`
+- `harness repo config init`
 - `harness execute start`
 - `harness evidence submit`
 - `harness evidence refresh`
@@ -303,14 +304,14 @@ before the candidate is treated as ready to wait for merge approval.
 
 Purpose:
 
-- bootstrap or refresh repo/user instructions and skill packages without
-  mutating tracked plan lifecycle state
+- bootstrap or refresh repo/user instructions, skill packages, and repo config
+  manifests without mutating tracked plan lifecycle state
 
 Contract:
 
-- `harness init` is the quick-start repo bootstrap entrypoint
-- `harness skills ...` and `harness instructions ...` provide the granular
-  resource commands
+- `harness repo init` is the quick-start repo resource entrypoint
+- `harness repo skills ...`, `harness repo instructions ...`, and
+  `harness repo config ...` provide granular resource commands
 - bootstrap resource semantics, ownership/version rules, and support boundaries
   are defined in [Bootstrap Install](./bootstrap-install.md)
 - bootstrap commands share a JSON result envelope documented by the checked-in

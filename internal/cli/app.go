@@ -85,12 +85,8 @@ func (a *App) Run(args []string) int {
 		return a.runReopen(args[1:])
 	case "status":
 		return a.runStatus(args[1:])
-	case "init":
-		return a.runInit(args[1:])
-	case "skills":
-		return a.runSkills(args[1:])
-	case "instructions":
-		return a.runInstructions(args[1:])
+	case "repo":
+		return a.runRepo(args[1:])
 	case "dashboard":
 		return a.runDashboard(args[1:])
 	case "ui":
@@ -358,17 +354,41 @@ func (a *App) runLandEntry(args []string) int {
 	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
-func (a *App) runInit(args []string) int {
-	fs := flag.NewFlagSet("harness init", flag.ContinueOnError)
+func (a *App) runRepo(args []string) int {
+	if len(args) == 0 {
+		a.printRepoUsage()
+		return 2
+	}
+	switch args[0] {
+	case "init":
+		return a.runRepoInit(args[1:])
+	case "skills":
+		return a.runRepoSkills(args[1:])
+	case "instructions":
+		return a.runRepoInstructions(args[1:])
+	case "config":
+		return a.runRepoConfig(args[1:])
+	case "-h", "--help", "help":
+		a.printRepoUsage()
+		return 0
+	default:
+		fmt.Fprintf(a.Stderr, "unknown repo subcommand %q\n\n", args[0])
+		a.printRepoUsage()
+		return 2
+	}
+}
+
+func (a *App) runRepoInit(args []string) int {
+	fs := flag.NewFlagSet("harness repo init", flag.ContinueOnError)
 	fs.SetOutput(a.Stderr)
 	agent := fs.String("agent", "", "Agent profile name used for default targets. Defaults to codex.")
-	skillsDir := fs.String("dir", "", "Override the skills target directory.")
-	instructionsFile := fs.String("file", "", "Override the instructions target file.")
+	skillsDir := fs.String("skills-dir", "", "Override the skills target directory.")
+	instructionsFile := fs.String("instructions-file", "", "Override the instructions target file.")
 	dryRun := fs.Bool("dry-run", false, "Show the planned repository changes without writing files.")
 	fs.Usage = func() {
-		fmt.Fprintln(a.Stderr, "Usage: harness init [--agent <name>] [--dir <path>] [--file <path>] [--dry-run]")
+		fmt.Fprintln(a.Stderr, "Usage: harness repo init [--agent <name>] [--skills-dir <path>] [--instructions-file <path>] [--dry-run]")
 		fmt.Fprintln(a.Stderr)
-		fmt.Fprintln(a.Stderr, "Install or refresh the managed bootstrap instructions and skill pack for the current repository.")
+		fmt.Fprintln(a.Stderr, "Install or refresh the managed repo instructions, skill pack, and config manifest.")
 		fmt.Fprintln(a.Stderr)
 		fs.PrintDefaults()
 	}
@@ -396,52 +416,70 @@ func (a *App) runInit(args []string) int {
 	return a.writeJSONResult(result)
 }
 
-func (a *App) runSkills(args []string) int {
+func (a *App) runRepoSkills(args []string) int {
 	if len(args) == 0 {
-		a.printSkillsUsage()
+		a.printRepoSkillsUsage()
 		return 2
 	}
 	switch args[0] {
 	case "install":
-		return a.runSkillsInstall(args[1:])
+		return a.runRepoSkillsInstall(args[1:])
 	case "uninstall":
-		return a.runSkillsUninstall(args[1:])
+		return a.runRepoSkillsUninstall(args[1:])
 	case "-h", "--help", "help":
-		a.printSkillsUsage()
+		a.printRepoSkillsUsage()
 		return 0
 	default:
-		fmt.Fprintf(a.Stderr, "unknown skills subcommand %q\n\n", args[0])
-		a.printSkillsUsage()
+		fmt.Fprintf(a.Stderr, "unknown repo skills subcommand %q\n\n", args[0])
+		a.printRepoSkillsUsage()
 		return 2
 	}
 }
 
-func (a *App) runInstructions(args []string) int {
+func (a *App) runRepoInstructions(args []string) int {
 	if len(args) == 0 {
-		a.printInstructionsUsage()
+		a.printRepoInstructionsUsage()
 		return 2
 	}
 	switch args[0] {
 	case "install":
-		return a.runInstructionsInstall(args[1:])
+		return a.runRepoInstructionsInstall(args[1:])
 	case "uninstall":
-		return a.runInstructionsUninstall(args[1:])
+		return a.runRepoInstructionsUninstall(args[1:])
 	case "-h", "--help", "help":
-		a.printInstructionsUsage()
+		a.printRepoInstructionsUsage()
 		return 0
 	default:
-		fmt.Fprintf(a.Stderr, "unknown instructions subcommand %q\n\n", args[0])
-		a.printInstructionsUsage()
+		fmt.Fprintf(a.Stderr, "unknown repo instructions subcommand %q\n\n", args[0])
+		a.printRepoInstructionsUsage()
 		return 2
 	}
 }
 
-func (a *App) runSkillsInstall(args []string) int {
-	return a.runSkillsCommand("harness skills install", args, true)
+func (a *App) runRepoConfig(args []string) int {
+	if len(args) == 0 {
+		a.printRepoConfigUsage()
+		return 2
+	}
+	switch args[0] {
+	case "init":
+		return a.runRepoConfigInit(args[1:])
+	case "-h", "--help", "help":
+		a.printRepoConfigUsage()
+		return 0
+	default:
+		fmt.Fprintf(a.Stderr, "unknown repo config subcommand %q\n\n", args[0])
+		a.printRepoConfigUsage()
+		return 2
+	}
 }
 
-func (a *App) runSkillsUninstall(args []string) int {
-	return a.runSkillsCommand("harness skills uninstall", args, false)
+func (a *App) runRepoSkillsInstall(args []string) int {
+	return a.runSkillsCommand("harness repo skills install", args, true)
+}
+
+func (a *App) runRepoSkillsUninstall(args []string) int {
+	return a.runSkillsCommand("harness repo skills uninstall", args, false)
 }
 
 func (a *App) runSkillsCommand(name string, args []string, installOp bool) int {
@@ -485,12 +523,12 @@ func (a *App) runSkillsCommand(name string, args []string, installOp bool) int {
 	return a.writeJSONResult(service.UninstallSkills(opts))
 }
 
-func (a *App) runInstructionsInstall(args []string) int {
-	return a.runInstructionsCommand("harness instructions install", args, true)
+func (a *App) runRepoInstructionsInstall(args []string) int {
+	return a.runInstructionsCommand("harness repo instructions install", args, true)
 }
 
-func (a *App) runInstructionsUninstall(args []string) int {
-	return a.runInstructionsCommand("harness instructions uninstall", args, false)
+func (a *App) runRepoInstructionsUninstall(args []string) int {
+	return a.runInstructionsCommand("harness repo instructions uninstall", args, false)
 }
 
 func (a *App) runInstructionsCommand(name string, args []string, installOp bool) int {
@@ -548,6 +586,36 @@ func (a *App) runInstructionsCommand(name string, args []string, installOp bool)
 		return a.writeJSONResult(service.InstallInstructions(opts))
 	}
 	return a.writeJSONResult(service.UninstallInstructions(opts))
+}
+
+func (a *App) runRepoConfigInit(args []string) int {
+	fs := flag.NewFlagSet("harness repo config init", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	dryRun := fs.Bool("dry-run", false, "Show the planned repo config change without writing files.")
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness repo config init [--dry-run]")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Create the minimal .harness/config.yaml manifest when it is missing.")
+		fmt.Fprintln(a.Stderr)
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	result := install.Service{Workdir: workdir}.InitConfig(install.Options{DryRun: *dryRun})
+	return a.writeJSONResult(result)
 }
 
 func (a *App) runDashboard(args []string) int {
@@ -1148,9 +1216,7 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "  archive         Freeze the current active plan")
 	fmt.Fprintln(a.Stderr, "  reopen          Restore the current archived plan")
 	fmt.Fprintln(a.Stderr, "  status          Summarize the current plan and local execution state")
-	fmt.Fprintln(a.Stderr, "  init            Install or refresh the managed bootstrap resources for the current repository")
-	fmt.Fprintln(a.Stderr, "  skills          Manage easyharness skill packages")
-	fmt.Fprintln(a.Stderr, "  instructions    Manage easyharness instruction files and managed blocks")
+	fmt.Fprintln(a.Stderr, "  repo            Manage repo-level easyharness resources")
 	fmt.Fprintln(a.Stderr, "  dashboard       Start the local machine-local dashboard home")
 	fmt.Fprintln(a.Stderr, "  ui              Start the local read-only harness UI workbench")
 }
@@ -1188,20 +1254,37 @@ func (a *App) printEvidenceUsage() {
 	fmt.Fprintln(a.Stderr, "  refresh    Refresh CI and sync evidence from a recorded PR")
 }
 
-func (a *App) printSkillsUsage() {
-	fmt.Fprintln(a.Stderr, "Usage: harness skills <subcommand> [flags]")
+func (a *App) printRepoUsage() {
+	fmt.Fprintln(a.Stderr, "Usage: harness repo <subcommand> [flags]")
+	fmt.Fprintln(a.Stderr)
+	fmt.Fprintln(a.Stderr, "Subcommands:")
+	fmt.Fprintln(a.Stderr, "  init          Install or refresh repo instructions, skills, and config")
+	fmt.Fprintln(a.Stderr, "  skills        Manage easyharness-managed skill packages")
+	fmt.Fprintln(a.Stderr, "  instructions  Manage easyharness instruction files and managed blocks")
+	fmt.Fprintln(a.Stderr, "  config        Manage the .harness/config.yaml manifest")
+}
+
+func (a *App) printRepoSkillsUsage() {
+	fmt.Fprintln(a.Stderr, "Usage: harness repo skills <subcommand> [flags]")
 	fmt.Fprintln(a.Stderr)
 	fmt.Fprintln(a.Stderr, "Subcommands:")
 	fmt.Fprintln(a.Stderr, "  install    Install or refresh easyharness-managed skill packages")
 	fmt.Fprintln(a.Stderr, "  uninstall  Remove easyharness-managed skill packages")
 }
 
-func (a *App) printInstructionsUsage() {
-	fmt.Fprintln(a.Stderr, "Usage: harness instructions <subcommand> [flags]")
+func (a *App) printRepoInstructionsUsage() {
+	fmt.Fprintln(a.Stderr, "Usage: harness repo instructions <subcommand> [flags]")
 	fmt.Fprintln(a.Stderr)
 	fmt.Fprintln(a.Stderr, "Subcommands:")
 	fmt.Fprintln(a.Stderr, "  install    Install or refresh the easyharness-managed bootstrap block")
 	fmt.Fprintln(a.Stderr, "  uninstall  Remove the easyharness-managed bootstrap block")
+}
+
+func (a *App) printRepoConfigUsage() {
+	fmt.Fprintln(a.Stderr, "Usage: harness repo config <subcommand> [flags]")
+	fmt.Fprintln(a.Stderr)
+	fmt.Fprintln(a.Stderr, "Subcommands:")
+	fmt.Fprintln(a.Stderr, "  init       Create the minimal .harness/config.yaml manifest")
 }
 
 func (a *App) printLandUsage() {
