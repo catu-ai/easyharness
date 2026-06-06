@@ -151,6 +151,62 @@ func TestInitConfigRejectsConfigDirectory(t *testing.T) {
 	}
 }
 
+func TestRepoSkillsAndInstructionsSurfaceInvalidConfigWarnings(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: 2\n"), 0o644); err != nil {
+		t.Fatalf("write invalid config: %v", err)
+	}
+	svc := testService(root)
+
+	skills := svc.InstallSkills(Options{DryRun: true})
+	if !skills.OK {
+		t.Fatalf("expected skills install dry-run success, got %#v", skills)
+	}
+	if len(skills.Warnings) == 0 || !strings.Contains(strings.Join(skills.Warnings, "\n"), "unsupported version 2") {
+		t.Fatalf("expected skills invalid-config warning, got %#v", skills.Warnings)
+	}
+
+	instructions := svc.InstallInstructions(Options{DryRun: true})
+	if !instructions.OK {
+		t.Fatalf("expected instructions install dry-run success, got %#v", instructions)
+	}
+	if len(instructions.Warnings) == 0 || !strings.Contains(strings.Join(instructions.Warnings, "\n"), "unsupported version 2") {
+		t.Fatalf("expected instructions invalid-config warning, got %#v", instructions.Warnings)
+	}
+}
+
+func TestUserScopeSkillsAndInstructionsIgnoreRepoConfigWarnings(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: 2\n"), 0o644); err != nil {
+		t.Fatalf("write invalid config: %v", err)
+	}
+	svc := testService(root)
+
+	skills := svc.InstallSkills(Options{Scope: ScopeUser, DryRun: true})
+	if !skills.OK {
+		t.Fatalf("expected user-scope skills install dry-run success, got %#v", skills)
+	}
+	if len(skills.Warnings) != 0 {
+		t.Fatalf("expected user-scope skills to ignore repo config warnings, got %#v", skills.Warnings)
+	}
+
+	instructions := svc.InstallInstructions(Options{Scope: ScopeUser, DryRun: true})
+	if !instructions.OK {
+		t.Fatalf("expected user-scope instructions install dry-run success, got %#v", instructions)
+	}
+	if len(instructions.Warnings) != 0 {
+		t.Fatalf("expected user-scope instructions to ignore repo config warnings, got %#v", instructions.Warnings)
+	}
+}
+
 func TestInitRefreshesManagedBlockWithoutTouchingUserContent(t *testing.T) {
 	root := t.TempDir()
 	original := strings.Join([]string{

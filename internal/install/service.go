@@ -174,7 +174,7 @@ func (s Service) runSkillCommand(command, operation string, opts Options) Result
 	if err := s.applyWrites(writes, opts.DryRun); err != nil {
 		return s.errorResult(command, ResourceSkills, operation, scope, agent, opts.DryRun, "Unable to write the skills target.", []CommandError{*err})
 	}
-	return s.successResult(command, ResourceSkills, operation, scope, agent, opts.DryRun, writes)
+	return s.successResultWithWarnings(command, ResourceSkills, operation, scope, agent, opts.DryRun, writes, s.repoConfigWarnings(scope))
 }
 
 func (s Service) runInstructionsCommand(command, operation string, opts Options) Result {
@@ -213,7 +213,7 @@ func (s Service) runInstructionsCommand(command, operation string, opts Options)
 	if err := s.applyWrites(writes, opts.DryRun); err != nil {
 		return s.errorResult(command, ResourceInstructions, operation, scope, agent, opts.DryRun, "Unable to write the instructions target.", []CommandError{*err})
 	}
-	return s.successResult(command, ResourceInstructions, operation, scope, agent, opts.DryRun, writes)
+	return s.successResultWithWarnings(command, ResourceInstructions, operation, scope, agent, opts.DryRun, writes, s.repoConfigWarnings(scope))
 }
 
 func (s Service) resolveSkillsDir(agent, scope, override string) (string, error) {
@@ -853,6 +853,13 @@ func repoConfigWarningsForWorkdir(workdir string, warnings []string) []string {
 		result = append(result, replacer.Replace(warning))
 	}
 	return result
+}
+
+func (s Service) repoConfigWarnings(scope string) []string {
+	if scope != ScopeRepo {
+		return nil
+	}
+	return repoConfigWarningsForWorkdir(s.Workdir, repoconfig.Load(s.Workdir).Warnings)
 }
 
 func walkFiles(root string) ([]string, error) {
