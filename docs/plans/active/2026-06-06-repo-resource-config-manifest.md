@@ -157,7 +157,9 @@ resource surface.
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: This step was implemented as part of one integrated
-CLI/docs/schema slice and will receive a full finalize review before archive.
+CLI/docs/schema slice. Finalized by full review `review-001-full`, which
+requested AGENTS guidance and config-path obstruction repairs, followed by
+clean delta repair review `review-002-delta`.
 
 ### Step 2: Add config loader and init behavior
 
@@ -200,8 +202,10 @@ existing config files, and surface invalid config as warnings.
 
 #### Review Notes
 
-NO_STEP_REVIEW_NEEDED: Covered by focused loader/install/CLI tests and the
-planned full finalize review for the integrated branch.
+NO_STEP_REVIEW_NEEDED: This step was implemented as part of one integrated
+CLI/docs/schema slice. Finalized by full review `review-001-full`; repaired
+the obstructed `.harness` path finding and verified it with clean delta repair
+review `review-002-delta`.
 
 ### Step 3: Move repo resource commands under `harness repo`
 
@@ -257,8 +261,9 @@ coverage.
 
 #### Review Notes
 
-NO_STEP_REVIEW_NEEDED: Command regrouping is validated by CLI and smoke tests
-and will receive a full finalize review before archive.
+NO_STEP_REVIEW_NEEDED: This step was implemented as part of one integrated
+CLI/docs/schema slice. Finalized by full review `review-001-full` and clean
+delta repair review `review-002-delta`.
 
 ### Step 4: Refresh generated assets and end-to-end evidence
 
@@ -306,8 +311,9 @@ harness, and validated the integrated change.
 
 #### Review Notes
 
-NO_STEP_REVIEW_NEEDED: Generated artifacts and smoke coverage were validated
-directly; full candidate review remains required before archive.
+NO_STEP_REVIEW_NEEDED: This step was implemented as part of one integrated
+CLI/docs/schema slice. Finalized by full review `review-001-full` and clean
+delta repair review `review-002-delta`.
 
 ## Validation Strategy
 
@@ -336,11 +342,28 @@ directly; full candidate review remains required before archive.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+Validation completed:
+
+- `go test ./internal/repoconfig ./internal/install ./internal/cli ./internal/status`
+- `go test ./internal/repoconfig ./internal/install ./internal/cli ./internal/status ./internal/contractsync ./internal/bootstrapsync`
+- `go test ./internal/contractsync ./internal/bootstrapsync`
+- `scripts/sync-contract-artifacts --check`
+- `scripts/sync-bootstrap-assets --check`
+- `go test ./tests/smoke`
+- `go test ./tests/smoke -run 'TestHelpShowsTopLevelUsage|TestInit|TestRepo|TestSkills|TestInstructions|TestStatusIdle'`
+- `go test ./...`
+- `scripts/install-dev-harness`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Finalize review `review-001-full` requested two blocking fixes:
+
+- `harness repo config init` could report no-op success when `.harness` was an
+  obstructing non-directory path.
+- Root `AGENTS.md` still referenced removed top-level repo-resource commands.
+
+Both were fixed in commit `4e168b4`. Delta repair review `review-002-delta`
+passed with zero findings.
 
 ## Archive Summary
 
