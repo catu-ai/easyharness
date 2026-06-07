@@ -59,20 +59,20 @@ issue #229 without adding compatibility shims for obsolete layouts.
 
 ## Acceptance Criteria
 
-- [ ] A valid `.harness/config.yaml` can configure active tracked plans,
+- [x] A valid `.harness/config.yaml` can configure active tracked plans,
       standard archived tracked plans, and command-owned local runtime roots.
-- [ ] Missing config and default config preserve the current default paths and
+- [x] Missing config and default config preserve the current default paths and
       existing tests continue to pass.
-- [ ] Invalid path config rejects absolute paths, `..` escape, ambiguous or
+- [x] Invalid path config rejects absolute paths, `..` escape, ambiguous or
       overlapping roots, and unsupported path shapes with clear errors.
-- [ ] `harness status`, `archive`, `reopen`, `plan lint`, plan UI, review UI,
+- [x] `harness status`, `archive`, `reopen`, `plan lint`, plan UI, review UI,
       review commands, evidence commands, timeline reads, and lifecycle outputs
       all use the configured roots for their own plan/runtime artifacts.
-- [ ] Supplements are derived from the configured plan roots rather than
+- [x] Supplements are derived from the configured plan roots rather than
       configured independently.
-- [ ] Lightweight archived snapshots and all local runtime artifacts live under
+- [x] Lightweight archived snapshots and all local runtime artifacts live under
       the configured local runtime root.
-- [ ] Focused unit and end-to-end coverage proves default-root behavior and a
+- [x] Focused unit and end-to-end coverage proves default-root behavior and a
       custom-root workflow through active plan detection, runtime writes,
       archive/reopen, review/evidence reads, and UI read models.
 
@@ -314,26 +314,51 @@ full review as the review gate for this integrated behavior slice.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `go test ./internal/plan ./internal/runstate ./internal/repoconfig ./internal/evidence ./internal/review ./internal/status ./internal/stepcloseout ./internal/timeline ./internal/reviewui ./internal/planui ./internal/lifecycle ./internal/cli`
+- `go test ./tests/e2e -run 'Test(CustomPathRoots(Workflow|Reopen)WithBuiltBinary|CanonicalTransitionCatalogMatchesTrackedSpecMatrix)' -count=1`
+- `go test ./tests/e2e ./tests/smoke`
+- `scripts/sync-contract-artifacts --check`
+- `scripts/install-dev-harness`
+- `harness plan lint docs/plans/active/2026-06-07-support-custom-harness-path-roots.md`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Finalize review passed in `review-009-full` with zero blocking and zero
+non-blocking findings after earlier rounds drove repairs for stale default-root
+classification, custom-root coverage gaps, configured archived/root UI reads,
+runtime-root documentation, escaped current-plan pointers, escaped
+last-landed pointers, schema registry path descriptions, and managed AGENTS
+guidance.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-06-08T01:26:11+08:00
+- Revision: 1
+- PR: NONE
+- Ready: The configured path-root slice has passed focused package, e2e,
+  smoke, schema-sync, dev-harness install, plan-lint, and full finalize review
+  validation.
+- Merge Handoff: Publish this branch, record PR/CI/sync evidence, then wait for
+  explicit human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+Implemented repo-configurable active plan roots, archived plan roots, and local
+runtime roots with strict path validation and built-in defaults. Core plan,
+status, archive/reopen, review, evidence, timeline, lifecycle, UI read-model,
+schema, and bootstrap guidance surfaces now use configured roots while
+preserving default behavior.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+Dashboard/watchlist root customization, a standalone repo config lint command,
+and additional `.harness` customization fields remain out of scope.
 
 ### Follow-Up Issues
 
-NONE
+- #232 tracks dashboard/watchlist workspace grouping and dashboard-specific
+  configured-root reads.
+- #235 tracks a standalone `harness repo config lint` command.
+- Additional `.harness` customization fields remain deferred to future issues.
