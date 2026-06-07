@@ -272,6 +272,26 @@ paths:
 	assertHasError(t, result, "path")
 }
 
+func TestLintFileAcceptsConfiguredArchivedPlanRoot(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".harness", "config.yaml"), `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: workflow/plans/done
+  local_runtime: tmp/harness
+`)
+	path := filepath.Join(root, "workflow/plans/done/2026-03-17-archived-custom-root.md")
+	content := mustRenderTemplate(t, "Archived Custom Root")
+	content = makeArchiveReady(checkAllBoxes(strings.ReplaceAll(content, "- Done: [ ]", "- Done: [x]")))
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if !result.OK {
+		t.Fatalf("expected configured archived lint success, got %#v", result)
+	}
+}
+
 func TestLintFileAllowsValidPlanWhenAncestorDirectoryIsNamedSupplements(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "supplements-parent", "project")
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-valid-plan.md")

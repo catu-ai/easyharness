@@ -124,7 +124,9 @@ Where:
 - `YYYY-MM-DD` is the creation date
 - `short-topic` is a compact kebab-case topic slug
 
-The file stem is the durable identifier used by command-owned local state:
+The file stem is the durable identifier used by command-owned local state under
+the configured local runtime root. With the default runtime root, that looks
+like:
 
 - `.local/harness/plans/<plan-stem>/...`
 - matching `supplements/<plan-stem>/` package directories

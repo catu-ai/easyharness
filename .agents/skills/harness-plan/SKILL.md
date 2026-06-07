@@ -27,8 +27,9 @@ Use this skill to create or update the tracked plan that will drive execution.
      `XXS` bounded low-risk work such as README/docs/comments/copy cleanup, a
      very small CI condition tweak, or another tiny fix whose blast radius is
      easy to explain
-   - even in lightweight mode, keep the active plan under `docs/plans/active/`
-     and use the field plus archive behavior to distinguish the profile
+   - even in lightweight mode, keep the active plan under the configured
+     active plan root and use the field plus archive behavior to distinguish
+     the profile
    - if the slice touches normative contract meaning, core runtime state,
      review/archive/evidence semantics, release safety, security-sensitive
      logic, or another non-trivial risk surface, stay on the standard
@@ -67,8 +68,8 @@ Use this skill to create or update the tracked plan that will drive execution.
      only for bulky durable detail such as spec drafts, formulas, or structured
      design notes
    - lightweight plans should avoid supplements by default; if one is truly
-     needed, keep it minimal and remember that its archived snapshot belongs in
-     `.local/harness/plans/archived/supplements/<plan-stem>/`, not tracked git
+     needed, keep it minimal and remember that its archived snapshot belongs
+     under the configured local runtime root, not tracked git
 7. Reread the plan as if the chat history were unavailable. Fix anything that
    still depends on hidden context.
 8. Run `harness plan lint <plan-path>`.

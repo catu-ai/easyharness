@@ -40,9 +40,9 @@ approves it, the agent should record that boundary with
 `harness plan approve --by human` before `harness execute start`.
 
 For approved low-risk work that explicitly uses `workflow_profile:
-lightweight`, keep the same workflow shape but store the active plan under
-`docs/plans/active/` like any other plan. Only the archived lightweight
-snapshot moves to `.local/harness/plans/archived/<plan-stem>.md`. That
+lightweight`, keep the same workflow shape but store the active plan under the
+configured active plan root like any other plan. Only the archived lightweight
+snapshot moves under the configured local runtime root. That
 shortcut does not remove human steering, low-risk eligibility checks, or the
 requirement to leave a repo-visible breadcrumb such as a readable PR body
 merge memo.
@@ -147,8 +147,9 @@ When entering the repository or resuming after compaction:
 1. Read `README.md` if you need repository purpose or setup context.
 2. Run `harness status`.
 3. If `harness status` reports a current plan artifact, open that plan.
-   Active work always uses a tracked plan under `docs/plans/active/`; archived
-   lightweight candidates may live under `.local/harness/plans/archived/`.
+   Active work always uses a tracked plan under the configured active plan
+   root; archived lightweight candidates may live under the configured local
+   runtime root.
    If status reports `idle`, there is no current plan to resume yet.
 4. Most resumed work should continue in `harness-execute`.
 5. Switch only when `harness status` and the workflow boundary clearly call for

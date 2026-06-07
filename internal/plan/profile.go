@@ -198,12 +198,19 @@ func inferWorkdirForPath(path string) string {
 		}
 		return ""
 	}
+	if workdir := findWorkdirFromPath(path); workdir != "" {
+		return workdir
+	}
 	clean := filepath.ToSlash(filepath.Clean(path))
 	for _, marker := range []string{"/docs/plans/active/", "/docs/plans/archived/", "/.local/harness/plans/archived/"} {
 		if idx := strings.Index(clean, marker); idx >= 0 {
 			return filepath.FromSlash(clean[:idx])
 		}
 	}
+	return ""
+}
+
+func findWorkdirFromPath(path string) string {
 	dir := filepath.Dir(filepath.Clean(path))
 	for {
 		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(repoconfig.File))); err == nil {
