@@ -18,6 +18,11 @@ func TestLoadMissingConfigUsesDefaults(t *testing.T) {
 	if result.Config.Version != CurrentVersion {
 		t.Fatalf("expected default version %d, got %#v", CurrentVersion, result)
 	}
+	if result.Config.Paths.Plans.Active != DefaultActivePlansRoot ||
+		result.Config.Paths.Plans.Archived != DefaultArchivedPlansRoot ||
+		result.Config.Paths.LocalRuntime != DefaultLocalRuntimeRoot {
+		t.Fatalf("expected default paths, got %#v", result.Config.Paths)
+	}
 }
 
 func TestLoadValidConfig(t *testing.T) {
@@ -33,6 +38,54 @@ func TestLoadValidConfig(t *testing.T) {
 	}
 }
 
+func TestLoadValidCustomPathRoots(t *testing.T) {
+	root := t.TempDir()
+	writeConfig(t, root, `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: workflow/plans/done
+  local_runtime: tmp/harness-runtime
+`)
+
+	result := Load(root)
+	if !result.Exists || !result.Valid {
+		t.Fatalf("expected valid custom config, got %#v", result)
+	}
+	if got, want := result.Config.Paths.Plans.Active, "workflow/plans/open"; got != want {
+		t.Fatalf("active root = %q, want %q", got, want)
+	}
+	if got, want := result.Config.Paths.Plans.Archived, "workflow/plans/done"; got != want {
+		t.Fatalf("archived root = %q, want %q", got, want)
+	}
+	if got, want := result.Config.Paths.LocalRuntime, "tmp/harness-runtime"; got != want {
+		t.Fatalf("local runtime root = %q, want %q", got, want)
+	}
+}
+
+func TestLoadPartiallySpecifiedPathsUseDefaults(t *testing.T) {
+	root := t.TempDir()
+	writeConfig(t, root, `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+`)
+
+	result := Load(root)
+	if !result.Valid {
+		t.Fatalf("expected valid partial paths config, got %#v", result)
+	}
+	if got, want := result.Config.Paths.Plans.Active, "workflow/plans/open"; got != want {
+		t.Fatalf("active root = %q, want %q", got, want)
+	}
+	if got, want := result.Config.Paths.Plans.Archived, DefaultArchivedPlansRoot; got != want {
+		t.Fatalf("archived root = %q, want %q", got, want)
+	}
+	if got, want := result.Config.Paths.LocalRuntime, DefaultLocalRuntimeRoot; got != want {
+		t.Fatalf("local runtime root = %q, want %q", got, want)
+	}
+}
+
 func TestLoadInvalidConfigWarnsAndUsesDefaults(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -45,6 +98,14 @@ func TestLoadInvalidConfigWarnsAndUsesDefaults(t *testing.T) {
 		{name: "unsupported version", content: "version: 2\n", want: "unsupported version 2"},
 		{name: "string version", content: "version: \"1\"\n", want: "field version must be the integer 1"},
 		{name: "unknown field", content: "version: 1\nreview: {}\n", want: "unsupported field"},
+		{name: "paths non object", content: "version: 1\npaths: []\n", want: "field paths must be a YAML object"},
+		{name: "unknown paths field", content: "version: 1\npaths:\n  hooks: {}\n", want: "unsupported field \"paths.hooks\""},
+		{name: "unknown plans field", content: "version: 1\npaths:\n  plans:\n    current: docs/current\n", want: "unsupported field \"paths.plans.current\""},
+		{name: "absolute path", content: "version: 1\npaths:\n  plans:\n    active: /tmp/plans\n", want: "paths.plans.active must be repo-relative"},
+		{name: "escaping path", content: "version: 1\npaths:\n  plans:\n    active: ../plans\n", want: "paths.plans.active must stay within the repository"},
+		{name: "empty path", content: "version: 1\npaths:\n  local_runtime: \"\"\n", want: "paths.local_runtime must not be empty"},
+		{name: "overlapping plan roots", content: "version: 1\npaths:\n  plans:\n    active: workflow/plans\n    archived: workflow/plans/archived\n", want: "configured path roots must not overlap"},
+		{name: "runtime inside plan root", content: "version: 1\npaths:\n  plans:\n    active: workflow\n  local_runtime: workflow/.local\n", want: "configured path roots must not overlap"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()

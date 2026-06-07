@@ -320,7 +320,7 @@ func AppendEvent(workdir, planStem string, event Event) (string, Event, error) {
 }
 
 func EventIndexPath(workdir, planStem string) string {
-	return filepath.Join(workdir, ".local", "harness", "plans", planStem, "events.jsonl")
+	return runstate.TimelineEventsPath(workdir, planStem)
 }
 
 func loadEvents(path string) ([]Event, error) {

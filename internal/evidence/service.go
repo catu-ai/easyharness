@@ -334,7 +334,7 @@ func loadLatestRecord[T any](workdir, planStem, kind string, revision int) (*T, 
 	if strings.TrimSpace(planStem) == "" {
 		return nil, nil
 	}
-	dir := filepath.Join(workdir, ".local", "harness", "plans", planStem, "evidence", kind)
+	dir := runstate.EvidenceKindDir(workdir, planStem, kind)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -430,7 +430,7 @@ func validateSyncInput(input SyncInput) []CommandError {
 }
 
 func nextRecordLocation(workdir, planStem, kind string) (string, string, error) {
-	dir := filepath.Join(workdir, ".local", "harness", "plans", planStem, "evidence", kind)
+	dir := runstate.EvidenceKindDir(workdir, planStem, kind)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", "", err
 	}

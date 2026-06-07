@@ -212,6 +212,83 @@ func TestServiceReadReturnsActivePlanRoundsWithConservativeStatuses(t *testing.T
 	}
 }
 
+func TestServiceReadUsesConfiguredRuntimeForReviewRounds(t *testing.T) {
+	workdir := t.TempDir()
+	writeJSONFileFixture(t, filepath.Join(workdir, ".harness", "config.yaml"), map[string]any{
+		"version": 1,
+		"paths": map[string]any{
+			"plans": map[string]any{
+				"active":   "workflow/plans/open",
+				"archived": "workflow/plans/done",
+			},
+			"local_runtime": "tmp/harness-runtime",
+		},
+	})
+
+	relPlanPath := "workflow/plans/open/2026-06-07-review-ui.md"
+	planPath := filepath.Join(workdir, filepath.FromSlash(relPlanPath))
+	if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	rendered, err := plan.RenderTemplate(plan.TemplateOptions{Title: "Configured Review UI"})
+	if err != nil {
+		t.Fatalf("render plan: %v", err)
+	}
+	rendered = strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
+	if err := os.WriteFile(planPath, []byte(rendered), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	if _, err := runstate.SaveCurrentPlan(workdir, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	planStem := "2026-06-07-review-ui"
+	saveReviewState(t, workdir, planStem, relPlanPath, 1, "review-001-full")
+	writeReviewRoundFixture(t, workdir, planStem, "review-001-full", map[string]any{
+		"round_id":        "review-001-full",
+		"kind":            "full",
+		"revision":        1,
+		"review_title":    "Configured review",
+		"plan_path":       relPlanPath,
+		"plan_stem":       planStem,
+		"created_at":      "2026-06-07T10:00:00Z",
+		"ledger_path":     roundArtifactPath(workdir, planStem, "review-001-full", "ledger.json"),
+		"aggregate_path":  roundArtifactPath(workdir, planStem, "review-001-full", "aggregate.json"),
+		"submissions_dir": filepath.Join(runstate.ReviewRoundDir(workdir, planStem, "review-001-full"), "submissions"),
+		"dimensions": []map[string]any{
+			{
+				"name":            "Correctness",
+				"slot":            "correctness",
+				"instructions":    "Check correctness.",
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
+			},
+		},
+	}, map[string]any{
+		"round_id":   "review-001-full",
+		"kind":       "full",
+		"updated_at": "2026-06-07T10:05:00Z",
+		"slots": []map[string]any{
+			{
+				"name":            "Correctness",
+				"slot":            "correctness",
+				"status":          "pending",
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
+			},
+		},
+	}, nil, nil)
+
+	result := Service{Workdir: workdir}.Read()
+	if !result.OK || result.Artifacts == nil || result.Artifacts.PlanPath != relPlanPath {
+		t.Fatalf("expected configured review UI result, got %#v", result)
+	}
+	if len(result.Rounds) != 1 || result.Rounds[0].RoundID != "review-001-full" {
+		t.Fatalf("expected configured review round, got %#v", result.Rounds)
+	}
+	manifestPath := filepath.Join(runstate.ReviewRoundDir(workdir, planStem, "review-001-full"), "manifest.json")
+	if _, err := os.Stat(manifestPath); err != nil {
+		t.Fatalf("expected manifest under configured runtime, got %v", err)
+	}
+}
+
 func TestServiceReadReturnsArchivedPlanRounds(t *testing.T) {
 	workdir := t.TempDir()
 	relPlanPath, planStem := seedArchivedPlan(t, workdir, "2026-04-02-review-ui-archived.md", "Review UI Archived")
@@ -1236,7 +1313,7 @@ func saveReviewStateWithLand(t *testing.T, workdir, planStem, relPlanPath string
 
 func writeReviewRoundFixture(t *testing.T, workdir, planStem, roundID string, manifest, ledger, aggregate map[string]any, submissions map[string]map[string]any) {
 	t.Helper()
-	roundDir := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", roundID)
+	roundDir := runstate.ReviewRoundDir(workdir, planStem, roundID)
 	if err := os.MkdirAll(filepath.Join(roundDir, "submissions"), 0o755); err != nil {
 		t.Fatalf("mkdir round dir: %v", err)
 	}
@@ -1269,5 +1346,5 @@ func writeJSONFileFixture(t *testing.T, path string, payload any) {
 }
 
 func roundArtifactPath(workdir, planStem, roundID, suffix string) string {
-	return filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", roundID, suffix)
+	return filepath.Join(runstate.ReviewRoundDir(workdir, planStem, roundID), suffix)
 }

@@ -120,6 +120,27 @@ func TestDetectCurrentPathPrefersSingleTrackedPlanOverArchivedLightweightPointer
 	}
 }
 
+func TestDetectCurrentPathUsesConfiguredActivePlanRoot(t *testing.T) {
+	root := t.TempDir()
+	writeTestFileContent(t, filepath.Join(root, ".harness", "config.yaml"), `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: workflow/plans/done
+  local_runtime: tmp/harness
+`)
+	activePath := filepath.Join(root, "workflow", "plans", "open", "2026-06-07-custom-root.md")
+	writeTestFile(t, activePath)
+
+	got, err := DetectCurrentPath(root)
+	if err != nil {
+		t.Fatalf("detect current path: %v", err)
+	}
+	if got != activePath {
+		t.Fatalf("expected configured active plan %s, got %s", activePath, got)
+	}
+}
+
 func TestDetectCurrentPathKeepsArchivedLightweightPointerWhenNoActivePlanExists(t *testing.T) {
 	root := t.TempDir()
 	archivedLightweightPath := filepath.Join(root, ".local", "harness", "plans", "archived", "2026-03-18-lightweight.md")
@@ -135,6 +156,25 @@ func TestDetectCurrentPathKeepsArchivedLightweightPointerWhenNoActivePlanExists(
 	}
 	if got != archivedLightweightPath {
 		t.Fatalf("expected archived lightweight plan %s, got %s", archivedLightweightPath, got)
+	}
+}
+
+func TestArchivePathsUseConfiguredRoots(t *testing.T) {
+	root := t.TempDir()
+	writeTestFileContent(t, filepath.Join(root, ".harness", "config.yaml"), `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: workflow/plans/done
+  local_runtime: tmp/harness
+`)
+	currentPath := filepath.Join(root, "workflow", "plans", "open", "2026-06-07-custom-root.md")
+
+	if got, want := ArchivedPathFor(root, "2026-06-07-custom-root", currentPath, WorkflowProfileStandard), filepath.Join(root, "workflow", "plans", "done", "2026-06-07-custom-root.md"); got != want {
+		t.Fatalf("standard archived path = %q, want %q", got, want)
+	}
+	if got, want := ArchivedPathFor(root, "2026-06-07-custom-root", currentPath, WorkflowProfileLightweight), filepath.Join(root, "tmp", "harness", "plans", "archived", "2026-06-07-custom-root.md"); got != want {
+		t.Fatalf("lightweight archived path = %q, want %q", got, want)
 	}
 }
 
@@ -172,10 +212,15 @@ func TestSupplementsDirForPlanPath(t *testing.T) {
 
 func writeTestFile(t *testing.T, path string) {
 	t.Helper()
+	writeTestFileContent(t, path, "# test\n")
+}
+
+func writeTestFileContent(t *testing.T, path, content string) {
+	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, []byte("# test\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
 }

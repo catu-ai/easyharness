@@ -40,6 +40,34 @@ func TestSaveCurrentPlanWritesExactJSON(t *testing.T) {
 	}
 }
 
+func TestCurrentPlanUsesConfiguredRuntimeRoot(t *testing.T) {
+	root := t.TempDir()
+	writeRunstateFile(t, filepath.Join(root, ".harness", "config.yaml"), `version: 1
+paths:
+  local_runtime: tmp/harness-runtime
+`)
+	wantPath := filepath.Join(root, "tmp", "harness-runtime", "current-plan.json")
+
+	savedPath, err := SaveCurrentPlan(root, "docs/plans/active/example.md")
+	if err != nil {
+		t.Fatalf("SaveCurrentPlan: %v", err)
+	}
+	if savedPath != wantPath {
+		t.Fatalf("saved path = %q, want %q", savedPath, wantPath)
+	}
+	if _, err := os.Stat(wantPath); err != nil {
+		t.Fatalf("expected current-plan at configured runtime root: %v", err)
+	}
+
+	loaded, err := LoadCurrentPlan(root)
+	if err != nil {
+		t.Fatalf("LoadCurrentPlan: %v", err)
+	}
+	if loaded == nil || loaded.PlanPath != "docs/plans/active/example.md" {
+		t.Fatalf("unexpected loaded current plan: %#v", loaded)
+	}
+}
+
 func TestSaveStateWritesExactJSON(t *testing.T) {
 	root := t.TempDir()
 	planStem := "2026-03-26-atomic-save"
@@ -99,6 +127,37 @@ func TestSaveStateWritesExactJSON(t *testing.T) {
 	}
 }
 
+func TestStateAndLocksUseConfiguredRuntimeRoot(t *testing.T) {
+	root := t.TempDir()
+	writeRunstateFile(t, filepath.Join(root, ".harness", "config.yaml"), `version: 1
+paths:
+  local_runtime: tmp/harness-runtime
+`)
+	planStem := "2026-06-07-custom-runtime"
+	wantStatePath := filepath.Join(root, "tmp", "harness-runtime", "plans", planStem, "state.json")
+
+	savedPath, err := SaveState(root, planStem, &State{Revision: 1})
+	if err != nil {
+		t.Fatalf("SaveState: %v", err)
+	}
+	if savedPath != wantStatePath {
+		t.Fatalf("saved path = %q, want %q", savedPath, wantStatePath)
+	}
+	if _, err := os.Stat(wantStatePath); err != nil {
+		t.Fatalf("expected state at configured runtime root: %v", err)
+	}
+
+	release, err := AcquireStateMutationLock(root, planStem)
+	if err != nil {
+		t.Fatalf("AcquireStateMutationLock: %v", err)
+	}
+	defer release()
+	lockPath := filepath.Join(root, "tmp", "harness-runtime", "plans", planStem, ".state-mutation.lock")
+	if _, err := os.Stat(lockPath); err != nil {
+		t.Fatalf("expected lock at configured runtime root: %v", err)
+	}
+}
+
 func TestWriteJSONAtomicPreservesOriginalFileWhenRenameFails(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".local", "harness", "current-plan.json")
@@ -136,6 +195,16 @@ func TestWriteJSONAtomicPreservesOriginalFileWhenRenameFails(t *testing.T) {
 	}
 	if len(entries) != 1 || entries[0].Name() != "current-plan.json" {
 		t.Fatalf("expected failed atomic write to clean up temp files, got %#v", entries)
+	}
+}
+
+func writeRunstateFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
 	}
 }
 

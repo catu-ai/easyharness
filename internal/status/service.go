@@ -406,7 +406,7 @@ func loadReviewSlots(workdir, planStem, roundID string) ([]contracts.ReviewSlot,
 	if strings.TrimSpace(roundID) == "" {
 		return nil, nil
 	}
-	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", roundID, "manifest.json")
+	path := filepath.Join(runstate.ReviewRoundDir(workdir, planStem, roundID), "manifest.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

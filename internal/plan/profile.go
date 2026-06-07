@@ -1,9 +1,12 @@
 package plan
 
 import (
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/catu-ai/easyharness/internal/repoconfig"
 )
 
 const (
@@ -24,6 +27,13 @@ func normalizeWorkflowProfile(value string) string {
 }
 
 func inferWorkflowProfileFromPath(path string) string {
+	paths := pathsForPath(path)
+	if pathUnderRoot(path, paths.archivedPlansRoot) {
+		return WorkflowProfileStandard
+	}
+	if pathUnderRoot(path, paths.lightweightArchivedRoot) {
+		return WorkflowProfileLightweight
+	}
 	clean := filepath.ToSlash(filepath.Clean(path))
 	switch {
 	case strings.Contains(clean, "/docs/plans/archived/") || strings.HasPrefix(clean, "docs/plans/archived/"):
@@ -36,6 +46,13 @@ func inferWorkflowProfileFromPath(path string) string {
 }
 
 func inferPathKind(path string) string {
+	paths := pathsForPath(path)
+	if pathUnderRoot(path, paths.activePlansRoot) {
+		return "active"
+	}
+	if pathUnderRoot(path, paths.archivedPlansRoot) || pathUnderRoot(path, paths.lightweightArchivedRoot) {
+		return "archived"
+	}
 	clean := filepath.ToSlash(filepath.Clean(path))
 	switch {
 	case strings.Contains(clean, "/docs/plans/active/") || strings.HasPrefix(clean, "docs/plans/active/"):
@@ -48,8 +65,13 @@ func inferPathKind(path string) string {
 	return ""
 }
 
+func PathKindFor(path string) string {
+	return inferPathKind(path)
+}
+
 func activeCandidatePaths(workdir string) ([]string, error) {
-	paths, err := filepath.Glob(filepath.Join(workdir, "docs", "plans", "active", "*.md"))
+	layout := pathsForWorkdir(workdir)
+	paths, err := filepath.Glob(filepath.Join(layout.activePlansRoot, "*.md"))
 	if err != nil {
 		return nil, err
 	}
@@ -62,16 +84,17 @@ func currentLooksArchived(path string) bool {
 }
 
 func ArchivedPathFor(workdir, planStem, currentPath string, profile string) string {
+	layout := pathsForWorkdir(workdir)
 	switch normalizeWorkflowProfile(profile) {
 	case WorkflowProfileLightweight:
-		return filepath.Join(workdir, ".local", "harness", "plans", "archived", filepath.Base(currentPath))
+		return filepath.Join(layout.lightweightArchivedRoot, filepath.Base(currentPath))
 	default:
-		return filepath.Join(workdir, "docs", "plans", "archived", filepath.Base(currentPath))
+		return filepath.Join(layout.archivedPlansRoot, filepath.Base(currentPath))
 	}
 }
 
 func ActivePathFor(workdir, planStem, currentPath string, profile string) string {
-	return filepath.Join(workdir, "docs", "plans", "active", filepath.Base(currentPath))
+	return filepath.Join(pathsForWorkdir(workdir).activePlansRoot, filepath.Base(currentPath))
 }
 
 func SupplementsDirForPlanPath(path string) string {
@@ -83,19 +106,11 @@ func SupplementsDirForPlanPath(path string) string {
 
 func AlternateSupplementsDirsForPlanPath(path string) []string {
 	stem := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	clean := filepath.ToSlash(filepath.Clean(path))
-	prefix := ""
-	for _, marker := range []string{"/docs/plans/active/", "/docs/plans/archived/", "/.local/harness/plans/archived/"} {
-		if idx := strings.Index(clean, marker); idx >= 0 {
-			prefix = clean[:idx]
-			break
-		}
-	}
-	base := filepath.FromSlash(prefix)
+	paths := pathsForPath(path)
 	candidates := []string{
-		filepath.Join(base, "docs", "plans", "active", SupplementsDirName, stem),
-		filepath.Join(base, "docs", "plans", "archived", SupplementsDirName, stem),
-		filepath.Join(base, ".local", "harness", "plans", "archived", SupplementsDirName, stem),
+		filepath.Join(paths.activePlansRoot, SupplementsDirName, stem),
+		filepath.Join(paths.archivedPlansRoot, SupplementsDirName, stem),
+		filepath.Join(paths.lightweightArchivedRoot, SupplementsDirName, stem),
 	}
 
 	expected := filepath.Clean(SupplementsDirForPlanPath(path))
@@ -110,6 +125,12 @@ func AlternateSupplementsDirsForPlanPath(path string) []string {
 }
 
 func relativePathWithinPlanRoot(path string) string {
+	paths := pathsForPath(path)
+	for _, root := range []string{paths.activePlansRoot, paths.archivedPlansRoot, paths.lightweightArchivedRoot} {
+		if rel, ok := relPathUnderRoot(path, root); ok {
+			return rel
+		}
+	}
 	clean := filepath.ToSlash(filepath.Clean(path))
 	for _, marker := range []string{"/docs/plans/active/", "/docs/plans/archived/", "/.local/harness/plans/archived/"} {
 		if idx := strings.Index(clean, marker); idx >= 0 {
@@ -130,4 +151,85 @@ func ArchivedSupplementsDirFor(workdir, planStem, currentPath string, profile st
 
 func ActiveSupplementsDirFor(workdir, planStem, currentPath string, profile string) string {
 	return SupplementsDirForPlanPath(ActivePathFor(workdir, planStem, currentPath, profile))
+}
+
+type configuredPlanPaths struct {
+	workdir                 string
+	activePlansRoot         string
+	archivedPlansRoot       string
+	localRuntimeRoot        string
+	lightweightArchivedRoot string
+}
+
+func pathsForWorkdir(workdir string) configuredPlanPaths {
+	config := repoconfig.Load(workdir).Config
+	return configuredPlanPaths{
+		workdir:                 workdir,
+		activePlansRoot:         filepath.Join(workdir, filepath.FromSlash(config.Paths.Plans.Active)),
+		archivedPlansRoot:       filepath.Join(workdir, filepath.FromSlash(config.Paths.Plans.Archived)),
+		localRuntimeRoot:        filepath.Join(workdir, filepath.FromSlash(config.Paths.LocalRuntime)),
+		lightweightArchivedRoot: filepath.Join(workdir, filepath.FromSlash(config.Paths.LocalRuntime), "plans", "archived"),
+	}
+}
+
+func pathsForPath(path string) configuredPlanPaths {
+	if workdir := inferWorkdirForPath(path); workdir != "" {
+		return pathsForWorkdir(workdir)
+	}
+	return pathsForWorkdir("")
+}
+
+func inferWorkdirForPath(path string) string {
+	if !filepath.IsAbs(path) {
+		if cwd, err := os.Getwd(); err == nil {
+			return cwd
+		}
+		return ""
+	}
+	clean := filepath.ToSlash(filepath.Clean(path))
+	for _, marker := range []string{"/docs/plans/active/", "/docs/plans/archived/", "/.local/harness/plans/archived/"} {
+		if idx := strings.Index(clean, marker); idx >= 0 {
+			return filepath.FromSlash(clean[:idx])
+		}
+	}
+	dir := filepath.Dir(filepath.Clean(path))
+	for {
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(repoconfig.File))); err == nil {
+			return dir
+		}
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+func pathUnderRoot(path, root string) bool {
+	_, ok := relPathUnderRoot(path, root)
+	return ok
+}
+
+func relPathUnderRoot(path, root string) (string, bool) {
+	cleanPath := filepath.Clean(path)
+	cleanRoot := filepath.Clean(root)
+	if filepath.IsAbs(cleanRoot) && !filepath.IsAbs(cleanPath) {
+		if cwd, err := os.Getwd(); err == nil {
+			cleanPath = filepath.Join(cwd, cleanPath)
+		}
+	}
+	if cleanPath == cleanRoot {
+		return "", false
+	}
+	rel, err := filepath.Rel(cleanRoot, cleanPath)
+	if err != nil {
+		return "", false
+	}
+	if rel == "." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." || filepath.IsAbs(rel) {
+		return "", false
+	}
+	return filepath.ToSlash(rel), true
 }
