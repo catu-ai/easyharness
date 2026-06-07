@@ -72,8 +72,7 @@ the repository root itself. Configured path roots must not overlap with each
 other.
 
 Consumers must not partially consume invalid config. Whole-config fallback
-keeps precedence and debugging simple until concrete customization fields
-exist.
+keeps precedence and debugging simple when any configured field is invalid.
 
 ## Repo Resource Initialization
 

@@ -96,9 +96,8 @@ The plan is ready when:
   recorded
 - when the plan is lightweight, a future agent could still explain why
   lightweight was eligible, know that lightweight is only for `XXS` work, know
-  that archive snapshots move to
-  `.local/harness/plans/archived/<plan-stem>.md`, and know that archive-time
-  breadcrumb guidance remains required
+  that archive snapshots move under the configured local runtime root, and know
+  that archive-time breadcrumb guidance remains required
 - when the plan is sized `XXL`, the plan or approval handoff makes clear that
   the human explicitly confirmed not splitting it further yet and that obvious
   spillover moved into `Deferred Items` or follow-up issues where appropriate
