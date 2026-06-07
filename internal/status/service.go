@@ -1307,12 +1307,15 @@ func idleResult(workdir string, currentPlan *runstate.CurrentPlan) Result {
 		},
 	}
 	if currentPlan != nil && strings.TrimSpace(currentPlan.LastLandedPlanPath) != "" {
-		result.Summary = "No current plan is active in this worktree. The most recent landed candidate is recorded for handoff context."
-		result.Artifacts = &Artifacts{
-			PlanPath:     repoFacingPath(workdir, currentPlan.LastLandedPlanPath),
-			LastLandedAt: currentPlan.LastLandedAt,
+		if lastLandedPlanPath, ok := repoRelativePointerPath(currentPlan.LastLandedPlanPath); ok {
+			result.Summary = "No current plan is active in this worktree. The most recent landed candidate is recorded for handoff context."
+			result.Artifacts = &Artifacts{
+				PlanPath:     lastLandedPlanPath,
+				LastLandedAt: currentPlan.LastLandedAt,
+			}
 		}
-	} else {
+	}
+	if result.Summary == "" {
 		result.Summary = "No current plan is active in this worktree."
 	}
 
@@ -1353,6 +1356,18 @@ func repoFacingPath(workdir, path string) string {
 		return filepath.ToSlash(filepath.Clean(trimmed))
 	}
 	return filepath.ToSlash(filepath.Clean(relPath))
+}
+
+func repoRelativePointerPath(path string) (string, bool) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" || filepath.IsAbs(trimmed) {
+		return "", false
+	}
+	relPath := filepath.Clean(filepath.FromSlash(trimmed))
+	if relPath == "." || relPath == ".." || strings.HasPrefix(relPath, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return filepath.ToSlash(relPath), true
 }
 
 func buildIdleBootstrapDriftWarning(drift install.RepoBootstrapDrift) string {

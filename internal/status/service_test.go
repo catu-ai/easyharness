@@ -2849,6 +2849,25 @@ func TestStatusIdleNodeAfterLand(t *testing.T) {
 	}
 }
 
+func TestStatusIdleIgnoresEscapedLastLandedPlanPath(t *testing.T) {
+	root := t.TempDir()
+	writeCurrentPlanPayload(t, root, map[string]any{
+		"last_landed_plan_path": "../sibling/docs/plans/archived/2026-03-18-status-plan.md",
+		"last_landed_at":        "2026-03-19T12:00:00Z",
+	})
+
+	result := status.Service{Workdir: root}.Snapshot()
+	if !result.OK {
+		t.Fatalf("expected idle result, got %#v", result)
+	}
+	if result.State.CurrentNode != "idle" {
+		t.Fatalf("unexpected node: %#v", result.State)
+	}
+	if result.Artifacts != nil {
+		t.Fatalf("expected escaped landed pointer to be ignored, got %#v", result.Artifacts)
+	}
+}
+
 func TestStatusIdleSurfacesNonBlockingBootstrapReminderWhenManagedAssetsAreStale(t *testing.T) {
 	root := t.TempDir()
 	svc := install.Service{Workdir: root}
