@@ -51,7 +51,7 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "LocalStateFile is the plan-local runtime control artifact under `.local/harness/plans/\u003cplan-stem\u003e/state.json`."
+      "description": "LocalStateFile is the plan-local runtime control artifact under the configured local runtime root's plans directory."
     },
     "ReopenState": {
       "properties": {
@@ -113,5 +113,5 @@
     }
   },
   "title": "Plan-local state file",
-  "description": "Plan-local runtime state artifact at `.local/harness/plans/\u003cplan-stem\u003e/state.json`."
+  "description": "Plan-local runtime state artifact under the configured local runtime root's plans directory."
 }

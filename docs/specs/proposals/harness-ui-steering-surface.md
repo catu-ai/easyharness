@@ -81,10 +81,11 @@ marketing-style dashboard:
 - collapsible bottom status drawer
 
 The dashboard should read from the machine-local watchlist plus
-`harness status`, tracked plan files, git diff, and `.local/harness`
-artifacts for the selected workspace. It should present those sources through
-one machine-local entrypoint and one dense document-oriented workspace surface
-instead of inventing new product-only state.
+`harness status`, tracked plan files, git diff, and artifacts under the
+configured local runtime root for the selected workspace. It should present
+those sources through one machine-local entrypoint and one dense
+document-oriented workspace surface instead of inventing new product-only
+state.
 
 The dashboard home should consume a read-only dashboard read model: a
 read-time projection over `watchlist.json` plus per-workspace harness status.

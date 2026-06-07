@@ -1,7 +1,7 @@
 package contracts
 
-// CurrentPlanFile is the worktree-level pointer file under
-// `.local/harness/current-plan.json`.
+// CurrentPlanFile is the worktree-level pointer file under the configured
+// local runtime root.
 type CurrentPlanFile struct {
 	// PlanPath is the current active or archived plan path when work is in
 	// flight.
@@ -15,8 +15,8 @@ type CurrentPlanFile struct {
 	LastLandedAt string `json:"last_landed_at,omitempty"`
 }
 
-// LocalStateFile is the plan-local runtime control artifact under
-// `.local/harness/plans/<plan-stem>/state.json`.
+// LocalStateFile is the plan-local runtime control artifact under the
+// configured local runtime root's plans directory.
 type LocalStateFile struct {
 	// ExecutionStartedAt is the execution-start timestamp for the plan.
 	ExecutionStartedAt string `json:"execution_started_at,omitempty"`

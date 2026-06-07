@@ -20,9 +20,9 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "CurrentPlanFile is the worktree-level pointer file under `.local/harness/current-plan.json`."
+      "description": "CurrentPlanFile is the worktree-level pointer file under the configured local runtime root."
     }
   },
   "title": "Current plan pointer file",
-  "description": "Worktree-level pointer artifact at `.local/harness/current-plan.json`."
+  "description": "Worktree-level pointer artifact under the configured local runtime root."
 }
