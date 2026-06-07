@@ -64,8 +64,9 @@ If you change Go CLI code, rerun the installer before relying on the direct
 
 ## Bootstrap Asset Editing
 
-This repository dogsfoods the same bootstrap assets that `harness init` and
-the bootstrap resource commands package for other repositories.
+This repository dogfoods the same repo resource assets that
+`harness repo init` and the granular repo resource commands package for other
+repositories.
 
 - Edit `assets/bootstrap/` when changing the harness-managed skill pack or the
   managed `AGENTS.md` block content.
@@ -86,7 +87,7 @@ When triaging this repository's GitHub issues, use the repo-local
 the self-contained triage contract lives in the skill package.
 
 The block below is the same harness-managed repository contract that
-`harness instructions install` would install into another repository.
+`harness repo instructions install` would install into another repository.
 Keep easyharness-specific guidance outside the managed markers.
 
 <!-- easyharness:begin version="dev" -->

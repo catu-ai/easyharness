@@ -69,7 +69,7 @@ func SchemaRegistry() []SchemaEntry {
 			Group:       "command_results",
 			Path:        "schema/commands/bootstrap.result.schema.json",
 			Title:       "Bootstrap command result",
-			Description: "JSON output shared by bootstrap resource commands such as `harness init`, `harness skills install`, and `harness instructions uninstall`.",
+			Description: "JSON output shared by repo resource commands such as `harness repo init`, `harness repo skills install`, and `harness repo instructions uninstall`.",
 			Shape:       "output",
 			Type:        reflect.TypeFor[BootstrapResult](),
 		},

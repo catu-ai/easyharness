@@ -5,11 +5,13 @@
 Define the normative resource model for bootstrap installation and refresh.
 This spec owns:
 
-- `harness init`
-- `harness skills install|uninstall`
-- `harness instructions install|uninstall`
+- `harness repo init`
+- `harness repo skills install|uninstall`
+- `harness repo instructions install|uninstall`
+- `harness repo config init`
 - scope semantics for repository and user targets
 - managed ownership and version markers for bootstrap skills and instructions
+- repo config manifest creation and no-overwrite behavior
 - current agent-profile support boundaries
 
 The CLI contract should reference this spec for bootstrap semantics instead of
@@ -28,7 +30,7 @@ baseline Agent Skills format rather than a replacement for it.
 
 ## Resource Model
 
-Bootstrap resources split into two independently managed surfaces:
+Repo resources split into three managed surfaces:
 
 - `instructions`
   - a target instruction file such as `AGENTS.md`
@@ -37,18 +39,23 @@ Bootstrap resources split into two independently managed surfaces:
 - `skills`
   - a target skill directory containing zero or more easyharness-managed skill
     packages
+- `config`
+  - the tracked repo customization manifest at `.harness/config.yaml`
+  - a minimal v1 file containing `version: 1`
 
-`harness init` is the quick-start repo bootstrap entrypoint. It installs or
-refreshes both resources for the current repository in one idempotent action.
+`harness repo init` is the quick-start repo resource entrypoint. It installs
+or refreshes instructions and skills, and creates `.harness/config.yaml` when
+it is missing, in one idempotent action.
 
 ## Commands
 
-### `harness init`
+### `harness repo init`
 
 Purpose:
 
-- install or refresh the default bootstrap instructions and skills for the
-  current repository
+- install or refresh the default repo instructions and skills for the current
+  repository
+- create the minimal `.harness/config.yaml` v1 manifest when it is missing
 
 Contract:
 
@@ -56,13 +63,17 @@ Contract:
 - be safe to rerun idempotently
 - refresh managed bootstrap assets after an easyharness version upgrade
 - use the same underlying install logic as the resource commands
+- never overwrite an existing `.harness/config.yaml`
+- warn and continue with built-in defaults when an existing repo config is
+  invalid
 - support `--dry-run`
-- support `--agent`, `--dir`, and `--file` overrides for non-default layouts
+- support `--agent`, `--skills-dir`, and `--instructions-file` overrides for
+  non-default layouts
 - allow other commands such as `harness status` to reuse the same managed-asset
   comparison logic for non-blocking reminders about stale default repo
   bootstrap assets
 
-### `harness skills install|uninstall`
+### `harness repo skills install|uninstall`
 
 Purpose:
 
@@ -78,7 +89,7 @@ Contract:
 - uninstall only easyharness-managed skill packages
 - never silently overwrite unrelated user-owned skills
 
-### `harness instructions install|uninstall`
+### `harness repo instructions install|uninstall`
 
 Purpose:
 
@@ -95,6 +106,24 @@ Contract:
 - update or remove only the easyharness-managed block unless the whole target
   file is bootstrap-owned
 - never silently overwrite unrelated user-owned instruction content
+
+### `harness repo config init`
+
+Purpose:
+
+- create `.harness/config.yaml` without installing or refreshing other repo
+  resources
+
+Contract:
+
+- create `.harness/config.yaml` with exactly the minimal v1 content when it is
+  missing
+- support `--dry-run`
+- never overwrite an existing config file
+- warn and continue with built-in defaults when an existing repo config is
+  invalid
+- leave explicit validation commands such as `harness repo config lint` to
+  future work
 
 ## Scopes
 

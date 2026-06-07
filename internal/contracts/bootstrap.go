@@ -1,8 +1,8 @@
 package contracts
 
-// BootstrapResult is the JSON result returned by bootstrap resource commands
-// such as `harness init`, `harness skills install`, or
-// `harness instructions uninstall`.
+// BootstrapResult is the JSON result returned by repo resource commands such
+// as `harness repo init`, `harness repo skills install`, or
+// `harness repo instructions uninstall`.
 type BootstrapResult struct {
 	// OK reports whether the command succeeded.
 	OK bool `json:"ok"`
@@ -16,7 +16,7 @@ type BootstrapResult struct {
 	// Mode indicates whether the command applied changes or only planned them.
 	Mode string `json:"mode"`
 
-	// Resource identifies the managed bootstrap surface.
+	// Resource identifies the managed repo resource surface.
 	Resource string `json:"resource"`
 
 	// Operation identifies the resource action such as install or uninstall.
@@ -34,12 +34,16 @@ type BootstrapResult struct {
 	// NextAction lists the most relevant follow-up steps in priority order.
 	NextAction []NextAction `json:"next_actions"`
 
+	// Warnings lists non-blocking repo resource issues that did not prevent the
+	// command from continuing with built-in defaults.
+	Warnings []string `json:"warnings,omitempty"`
+
 	// Errors lists hard failures that prevented planning or writes.
 	Errors []ErrorDetail `json:"errors,omitempty"`
 }
 
-// BootstrapAction describes one path-level change planned or applied by a
-// bootstrap resource command.
+// BootstrapAction describes one path-level change planned or applied by a repo
+// resource command.
 type BootstrapAction struct {
 	// Path is the file or directory path touched by the action.
 	Path string `json:"path"`

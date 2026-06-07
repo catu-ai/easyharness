@@ -2872,7 +2872,7 @@ func TestStatusIdleSurfacesNonBlockingBootstrapReminderWhenManagedAssetsAreStale
 	if !strings.Contains(strings.Join(result.Warnings, "\n"), "non-blocking reminder") {
 		t.Fatalf("expected non-blocking reminder wording, got %#v", result.Warnings)
 	}
-	if len(result.NextAction) == 0 || result.NextAction[0].Command == nil || *result.NextAction[0].Command != "harness init --dry-run" {
+	if len(result.NextAction) == 0 || result.NextAction[0].Command == nil || *result.NextAction[0].Command != "harness repo init --dry-run" {
 		t.Fatalf("expected optional bootstrap refresh guidance first, got %#v", result.NextAction)
 	}
 	if !strings.Contains(result.NextAction[0].Description, "Optionally inspect") {

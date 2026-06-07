@@ -123,8 +123,9 @@ HARNESS_UI_API_TARGET=http://127.0.0.1:<actual-port> pnpm --dir web dev
 
 ## Bootstrap Asset Editing
 
-This repository dogsfoods the same bootstrap assets that `harness init` and
-the bootstrap resource commands package for other repositories.
+This repository dogfoods the same repo resource assets that
+`harness repo init` and the granular repo resource commands package for other
+repositories.
 
 Edit `assets/bootstrap/` when changing the harness-managed skill pack or the
 managed `AGENTS.md` block content. Treat `.agents/skills/` in this repository

@@ -309,14 +309,8 @@ func TestRootHelpMentionsVersionFlag(t *testing.T) {
 	if !strings.Contains(stderr.String(), "--version       Print JSON build information for the running harness binary") {
 		t.Fatalf("expected root help to mention --version, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "init            Install or refresh the managed bootstrap resources for the current repository") {
-		t.Fatalf("expected root help to mention init, got %q", stderr.String())
-	}
-	if !strings.Contains(stderr.String(), "skills          Manage easyharness skill packages") {
-		t.Fatalf("expected root help to mention skills, got %q", stderr.String())
-	}
-	if !strings.Contains(stderr.String(), "instructions    Manage easyharness instruction files and managed blocks") {
-		t.Fatalf("expected root help to mention instructions, got %q", stderr.String())
+	if !strings.Contains(stderr.String(), "repo            Manage repo-level easyharness resources") {
+		t.Fatalf("expected root help to mention repo, got %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "dashboard       Start the local machine-local dashboard home") {
 		t.Fatalf("expected root help to mention dashboard, got %q", stderr.String())
@@ -418,16 +412,16 @@ func TestInitCommandReturnsJSON(t *testing.T) {
 	root := t.TempDir()
 	app.Getwd = func() (string, error) { return root, nil }
 
-	exitCode := app.Run([]string{"init", "--dry-run"})
+	exitCode := app.Run([]string{"repo", "init", "--dry-run"})
 	if exitCode != 0 {
-		t.Fatalf("init dry-run failed with %d: %s", exitCode, stderr.String())
+		t.Fatalf("repo init dry-run failed with %d: %s", exitCode, stderr.String())
 	}
 
 	var payload map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("expected JSON init output: %v\n%s", err, stdout.String())
 	}
-	if payload["command"] != "init" {
+	if payload["command"] != "repo init" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
 	if payload["mode"] != "dry_run" {
@@ -444,22 +438,50 @@ func TestInstructionsInstallCommandWritesManagedAssets(t *testing.T) {
 	app.Getwd = func() (string, error) { return root, nil }
 	app.UserHomeDir = func() (string, error) { return home, nil }
 
-	exitCode := app.Run([]string{"instructions", "install"})
+	exitCode := app.Run([]string{"repo", "instructions", "install"})
 	if exitCode != 0 {
-		t.Fatalf("instructions install failed with %d: %s", exitCode, stderr.String())
+		t.Fatalf("repo instructions install failed with %d: %s", exitCode, stderr.String())
 	}
 
 	var payload map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("expected JSON instructions output: %v\n%s", err, stdout.String())
 	}
-	if payload["command"] != "instructions install" {
+	if payload["command"] != "repo instructions install" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
 	if _, err := os.Stat(filepath.Join(root, "AGENTS.md")); err != nil {
 		t.Fatalf("expected AGENTS.md to be written: %v", err)
 	}
 	assertWatchlistAbsent(t, home)
+}
+
+func TestRepoConfigInitCommandWritesMinimalConfig(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+
+	exitCode := app.Run([]string{"repo", "config", "init"})
+	if exitCode != 0 {
+		t.Fatalf("repo config init failed with %d: %s", exitCode, stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON config output: %v\n%s", err, stdout.String())
+	}
+	if payload["command"] != "repo config init" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+	configData, err := os.ReadFile(filepath.Join(root, ".harness/config.yaml"))
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != "version: 1\n" {
+		t.Fatalf("expected minimal repo config, got:\n%s", configData)
+	}
 }
 
 func TestSkillsCommandRejectsInvalidScope(t *testing.T) {
@@ -469,7 +491,7 @@ func TestSkillsCommandRejectsInvalidScope(t *testing.T) {
 	root := t.TempDir()
 	app.Getwd = func() (string, error) { return root, nil }
 
-	exitCode := app.Run([]string{"skills", "install", "--scope", "bogus"})
+	exitCode := app.Run([]string{"repo", "skills", "install", "--scope", "bogus"})
 	if exitCode != 1 {
 		t.Fatalf("expected invalid scope exit code 1, got %d", exitCode)
 	}
@@ -478,7 +500,7 @@ func TestSkillsCommandRejectsInvalidScope(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("expected JSON skills output: %v\n%s", err, stdout.String())
 	}
-	if payload["command"] != "skills install" {
+	if payload["command"] != "repo skills install" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
 	if ok, _ := payload["ok"].(bool); ok {
@@ -486,20 +508,41 @@ func TestSkillsCommandRejectsInvalidScope(t *testing.T) {
 	}
 }
 
-func TestSkillsHelpExitsZero(t *testing.T) {
+func TestRepoSkillsHelpExitsZero(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
 
-	exitCode := app.Run([]string{"skills", "--help"})
+	exitCode := app.Run([]string{"repo", "skills", "--help"})
 	if exitCode != 0 {
 		t.Fatalf("expected help exit code 0, got %d", exitCode)
 	}
-	if !strings.Contains(stderr.String(), "Usage: harness skills") {
+	if !strings.Contains(stderr.String(), "Usage: harness repo skills") {
 		t.Fatalf("expected skills help text, got %q", stderr.String())
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("expected no stdout for skills help, got %q", stdout.String())
+	}
+}
+
+func TestOldRepoResourceCommandsAreRemoved(t *testing.T) {
+	for _, args := range [][]string{
+		{"init", "--dry-run"},
+		{"skills", "install"},
+		{"instructions", "install"},
+	} {
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		app := cli.New(stdout, stderr)
+		app.Getwd = func() (string, error) { return t.TempDir(), nil }
+
+		exitCode := app.Run(args)
+		if exitCode != 2 {
+			t.Fatalf("expected old command %v to be rejected with exit code 2, got %d", args, exitCode)
+		}
+		if !strings.Contains(stderr.String(), "unknown command") {
+			t.Fatalf("expected unknown command for %v, got %q", args, stderr.String())
+		}
 	}
 }
 
@@ -927,9 +970,9 @@ func TestInitDryRunDoesNotTouchWatchlist(t *testing.T) {
 	app.Getwd = func() (string, error) { return root, nil }
 	app.UserHomeDir = func() (string, error) { return home, nil }
 
-	exitCode := app.Run([]string{"init", "--dry-run"})
+	exitCode := app.Run([]string{"repo", "init", "--dry-run"})
 	if exitCode != 0 {
-		t.Fatalf("init --dry-run failed with %d: %s", exitCode, stderr.String())
+		t.Fatalf("repo init --dry-run failed with %d: %s", exitCode, stderr.String())
 	}
 	assertWatchlistAbsent(t, home)
 }
@@ -943,9 +986,9 @@ func TestSkillsInstallDryRunDoesNotTouchWatchlist(t *testing.T) {
 	app.Getwd = func() (string, error) { return root, nil }
 	app.UserHomeDir = func() (string, error) { return home, nil }
 
-	exitCode := app.Run([]string{"skills", "install", "--dry-run"})
+	exitCode := app.Run([]string{"repo", "skills", "install", "--dry-run"})
 	if exitCode != 0 {
-		t.Fatalf("skills install --dry-run failed with %d: %s", exitCode, stderr.String())
+		t.Fatalf("repo skills install --dry-run failed with %d: %s", exitCode, stderr.String())
 	}
 	assertWatchlistAbsent(t, home)
 }

@@ -10,9 +10,12 @@
   and `lightweight` plans, their markdown-led package layout, and local state
   expectations.
 - [Bootstrap Install](./bootstrap-install.md): normative bootstrap resource
-  model for `harness init`, `harness skills ...`, and
-  `harness instructions ...`, including ownership, version markers, and
-  support boundaries.
+  model for `harness repo init`, `harness repo skills ...`,
+  `harness repo instructions ...`, and `harness repo config ...`, including
+  ownership, version markers, and support boundaries.
+- [Repo Config](./repo-config.md): normative `.harness/config.yaml` v1
+  manifest contract, including missing/valid/invalid behavior and future
+  field-extension rules.
 - [CLI Contract](./cli-contract.md): agent-facing command surface and JSON
   contract, including how the bootstrap commands fit into the overall CLI.
 - [Contract Registry](./contract.md): normative guide to the checked-in JSON
