@@ -34,6 +34,9 @@ func inferWorkflowProfileFromPath(path string) string {
 	if pathUnderRoot(path, paths.lightweightArchivedRoot) {
 		return WorkflowProfileLightweight
 	}
+	if paths.hasValidConfig {
+		return ""
+	}
 	clean := filepath.ToSlash(filepath.Clean(path))
 	switch {
 	case strings.Contains(clean, "/docs/plans/archived/") || strings.HasPrefix(clean, "docs/plans/archived/"):
@@ -52,6 +55,9 @@ func inferPathKind(path string) string {
 	}
 	if pathUnderRoot(path, paths.archivedPlansRoot) || pathUnderRoot(path, paths.lightweightArchivedRoot) {
 		return "archived"
+	}
+	if paths.hasValidConfig {
+		return ""
 	}
 	clean := filepath.ToSlash(filepath.Clean(path))
 	switch {
@@ -131,6 +137,9 @@ func relativePathWithinPlanRoot(path string) string {
 			return rel
 		}
 	}
+	if paths.hasValidConfig {
+		return ""
+	}
 	clean := filepath.ToSlash(filepath.Clean(path))
 	for _, marker := range []string{"/docs/plans/active/", "/docs/plans/archived/", "/.local/harness/plans/archived/"} {
 		if idx := strings.Index(clean, marker); idx >= 0 {
@@ -159,16 +168,19 @@ type configuredPlanPaths struct {
 	archivedPlansRoot       string
 	localRuntimeRoot        string
 	lightweightArchivedRoot string
+	hasValidConfig          bool
 }
 
 func pathsForWorkdir(workdir string) configuredPlanPaths {
-	config := repoconfig.Load(workdir).Config
+	load := repoconfig.Load(workdir)
+	config := load.Config
 	return configuredPlanPaths{
 		workdir:                 workdir,
 		activePlansRoot:         filepath.Join(workdir, filepath.FromSlash(config.Paths.Plans.Active)),
 		archivedPlansRoot:       filepath.Join(workdir, filepath.FromSlash(config.Paths.Plans.Archived)),
 		localRuntimeRoot:        filepath.Join(workdir, filepath.FromSlash(config.Paths.LocalRuntime)),
 		lightweightArchivedRoot: filepath.Join(workdir, filepath.FromSlash(config.Paths.LocalRuntime), "plans", "archived"),
+		hasValidConfig:          load.Exists && load.Valid,
 	}
 }
 

@@ -252,6 +252,26 @@ func TestLintFileRejectsPlanMarkdownInsideSupplementsDirectory(t *testing.T) {
 	assertHasError(t, result, "path")
 }
 
+func TestLintFileRejectsDefaultRootWhenCustomPlanRootsAreConfigured(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".harness", "config.yaml"), `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: workflow/plans/done
+  local_runtime: tmp/harness
+`)
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-stale-default.md")
+	content := mustRenderTemplate(t, "Stale Default Root")
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected lint failure for stale default-root plan, got %#v", result)
+	}
+	assertHasError(t, result, "path")
+}
+
 func TestLintFileAllowsValidPlanWhenAncestorDirectoryIsNamedSupplements(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "supplements-parent", "project")
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-valid-plan.md")

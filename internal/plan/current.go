@@ -38,7 +38,9 @@ func DetectCurrentPath(workdir string) (string, error) {
 		}
 
 		if _, err := os.Stat(currentPath); err == nil {
-			return currentPath, nil
+			if inferPathKind(currentPath) != "" {
+				return currentPath, nil
+			}
 		} else if !os.IsNotExist(err) {
 			return "", err
 		}

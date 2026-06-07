@@ -57,6 +57,57 @@ func TestReadLoadsCurrentPlanTimelineEvents(t *testing.T) {
 	}
 }
 
+func TestReadLoadsConfiguredRuntimeTimelineEvents(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".harness"), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".harness", "config.yaml"), []byte(`version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: workflow/plans/done
+  local_runtime: tmp/harness-runtime
+`), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	relPlanPath := writeActivePlanForTimeline(t, root, "workflow/plans/open/2026-04-01-timeline-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if _, err := runstate.SaveState(root, "2026-04-01-timeline-plan", &runstate.State{
+		ExecutionStartedAt: "2026-04-01T10:00:00Z",
+		Revision:           1,
+	}); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+	if _, _, err := timeline.AppendEvent(root, "2026-04-01-timeline-plan", timeline.Event{
+		RecordedAt: "2026-04-01T10:00:00Z",
+		Kind:       "lifecycle",
+		Command:    "execute start",
+		Summary:    "Execution started for the current active plan.",
+		PlanPath:   relPlanPath,
+		Revision:   1,
+	}); err != nil {
+		t.Fatalf("append timeline event: %v", err)
+	}
+
+	configuredEventsPath := runstate.TimelineEventsPath(root, "2026-04-01-timeline-plan")
+	if _, err := os.Stat(configuredEventsPath); err != nil {
+		t.Fatalf("expected timeline events under configured runtime: %v", err)
+	}
+	result := timeline.Service{Workdir: root}.Read()
+	if !result.OK {
+		t.Fatalf("expected timeline read success, got %#v", result)
+	}
+	if len(result.Events) != 2 || result.Events[1].Command != "execute start" {
+		t.Fatalf("expected configured runtime event to load, got %#v", result.Events)
+	}
+	if result.Artifacts == nil || result.Artifacts.PlanPath != relPlanPath {
+		t.Fatalf("expected configured plan path artifact, got %#v", result.Artifacts)
+	}
+}
+
 func TestReadReturnsEmptyTimelineWithoutCurrentPlan(t *testing.T) {
 	result := timeline.Service{Workdir: t.TempDir()}.Read()
 	if !result.OK {

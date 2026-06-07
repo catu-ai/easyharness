@@ -208,6 +208,40 @@ paths:
 	findNode(t, result.Supplements, "workflow/plans/open/supplements/2026-06-07-plan-page/notes.md")
 }
 
+func TestServiceReadLoadsConfiguredArchivedPlanPackage(t *testing.T) {
+	workdir := t.TempDir()
+	mustWriteFile(t, filepath.Join(workdir, ".harness", "config.yaml"), []byte(`version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: workflow/plans/done
+  local_runtime: tmp/harness-runtime
+`))
+	relPlanPath := "workflow/plans/done/2026-06-07-archived-plan-page.md"
+	planPath := filepath.Join(workdir, filepath.FromSlash(relPlanPath))
+	mustWriteFile(t, planPath, []byte(renderPlanFixture(t, "Configured Archived Plan Browser")))
+	if _, err := runstate.SaveCurrentPlan(workdir, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	supplementsDir := filepath.Join(workdir, "workflow", "plans", "done", "supplements", "2026-06-07-archived-plan-page")
+	mustWriteFile(t, filepath.Join(supplementsDir, "notes.md"), []byte("# Notes\n\nConfigured archived roots.\n"))
+
+	result := Service{Workdir: workdir}.Read()
+	if !result.OK || result.Document == nil {
+		t.Fatalf("expected configured archived plan to load, got %#v", result)
+	}
+	if result.Document.Path != relPlanPath {
+		t.Fatalf("expected document path %q, got %#v", relPlanPath, result.Document)
+	}
+	if result.Artifacts == nil || result.Artifacts.SupplementsPath != "workflow/plans/done/supplements/2026-06-07-archived-plan-page" {
+		t.Fatalf("expected configured archived supplements path, got %#v", result.Artifacts)
+	}
+	if result.Supplements == nil {
+		t.Fatalf("expected configured archived supplements tree, got %#v", result)
+	}
+	findNode(t, result.Supplements, "workflow/plans/done/supplements/2026-06-07-archived-plan-page/notes.md")
+}
+
 func mustWriteFile(t *testing.T, path string, data []byte) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

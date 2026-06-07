@@ -141,6 +141,28 @@ paths:
 	}
 }
 
+func TestDetectCurrentPathIgnoresDefaultRootPointerWhenCustomRootsAreConfigured(t *testing.T) {
+	root := t.TempDir()
+	writeTestFileContent(t, filepath.Join(root, ".harness", "config.yaml"), `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: workflow/plans/done
+  local_runtime: tmp/harness
+`)
+	staleDefaultPath := filepath.Join(root, "docs", "plans", "active", "2026-06-07-stale-default.md")
+	writeTestFile(t, staleDefaultPath)
+
+	if _, err := runstate.SaveCurrentPlan(root, filepath.ToSlash(filepath.Join("docs", "plans", "active", "2026-06-07-stale-default.md"))); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+
+	_, err := DetectCurrentPath(root)
+	if !errors.Is(err, ErrNoCurrentPlan) {
+		t.Fatalf("expected ErrNoCurrentPlan for stale default-root pointer, got %v", err)
+	}
+}
+
 func TestDetectCurrentPathKeepsArchivedLightweightPointerWhenNoActivePlanExists(t *testing.T) {
 	root := t.TempDir()
 	archivedLightweightPath := filepath.Join(root, ".local", "harness", "plans", "archived", "2026-03-18-lightweight.md")

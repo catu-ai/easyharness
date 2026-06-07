@@ -361,6 +361,89 @@ func TestServiceReadReturnsArchivedPlanRounds(t *testing.T) {
 	}
 }
 
+func TestServiceReadReturnsConfiguredArchivedPlanRounds(t *testing.T) {
+	workdir := t.TempDir()
+	writeJSONFileFixture(t, filepath.Join(workdir, ".harness", "config.yaml"), map[string]any{
+		"version": 1,
+		"paths": map[string]any{
+			"plans": map[string]any{
+				"active":   "workflow/plans/open",
+				"archived": "workflow/plans/done",
+			},
+			"local_runtime": "tmp/harness-runtime",
+		},
+	})
+	relPlanPath, planStem := seedPlan(t, workdir, "workflow/plans/done/2026-06-07-review-ui-archived.md", "Configured Review UI Archived")
+	saveReviewStateWithNode(t, workdir, planStem, relPlanPath, 1, "", "execution/finalize/await_merge")
+
+	writeReviewRoundFixture(t, workdir, planStem, "review-001-full", map[string]any{
+		"round_id":        "review-001-full",
+		"kind":            "full",
+		"revision":        1,
+		"review_title":    "Configured archived finalize review",
+		"plan_path":       relPlanPath,
+		"plan_stem":       planStem,
+		"created_at":      "2026-06-07T12:00:00Z",
+		"ledger_path":     roundArtifactPath(workdir, planStem, "review-001-full", "ledger.json"),
+		"aggregate_path":  roundArtifactPath(workdir, planStem, "review-001-full", "aggregate.json"),
+		"submissions_dir": filepath.Join(runstate.ReviewRoundDir(workdir, planStem, "review-001-full"), "submissions"),
+		"dimensions": []map[string]any{
+			{
+				"name":            "Correctness",
+				"slot":            "correctness",
+				"instructions":    "Check configured archived candidate correctness.",
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
+			},
+		},
+	}, map[string]any{
+		"round_id":   "review-001-full",
+		"kind":       "full",
+		"updated_at": "2026-06-07T12:10:00Z",
+		"slots": []map[string]any{
+			{
+				"name":            "Correctness",
+				"slot":            "correctness",
+				"status":          "submitted",
+				"submitted_at":    "2026-06-07T12:07:00Z",
+				"submission_path": roundArtifactPath(workdir, planStem, "review-001-full", filepath.Join("submissions", "correctness", "submission.json")),
+			},
+		},
+	}, map[string]any{
+		"round_id":              "review-001-full",
+		"kind":                  "full",
+		"revision":              1,
+		"review_title":          "Configured archived finalize review",
+		"decision":              "pass",
+		"aggregated_at":         "2026-06-07T12:12:00Z",
+		"blocking_findings":     []any{},
+		"non_blocking_findings": []any{},
+	}, map[string]map[string]any{
+		"correctness": {
+			"round_id":     "review-001-full",
+			"slot":         "correctness",
+			"dimension":    "Correctness",
+			"submitted_at": "2026-06-07T12:07:00Z",
+			"summary":      "Configured archived candidate still looks good.",
+			"findings":     []any{},
+		},
+	})
+
+	result := Service{Workdir: workdir}.Read()
+	if !result.OK {
+		t.Fatalf("expected review read to succeed, got %#v", result)
+	}
+	if len(result.Rounds) != 1 || result.Rounds[0].RoundID != "review-001-full" || result.Rounds[0].Status != "pass" {
+		t.Fatalf("expected configured archived review round to stay readable, got %#v", result.Rounds)
+	}
+	if result.Artifacts == nil || result.Artifacts.PlanPath != relPlanPath {
+		t.Fatalf("expected configured archived plan artifacts, got %#v", result.Artifacts)
+	}
+	manifestPath := filepath.Join(runstate.ReviewRoundDir(workdir, planStem, "review-001-full"), "manifest.json")
+	if _, err := os.Stat(manifestPath); err != nil {
+		t.Fatalf("expected manifest under configured runtime, got %v", err)
+	}
+}
+
 func TestServiceReadHidesArchivedRoundsDuringLandCleanup(t *testing.T) {
 	workdir := t.TempDir()
 	relPlanPath, planStem := seedArchivedPlan(t, workdir, "2026-04-02-review-ui-landed.md", "Review UI Landed")
