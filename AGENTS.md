@@ -95,7 +95,8 @@ Keep easyharness-specific guidance outside the managed markers.
 
 1. Humans steer. Agents execute.
 2. Approved scope lives in a git-tracked plan.
-3. Raw execution trajectory lives in `.local/` and is disposable.
+3. Raw execution trajectory lives under the configured local runtime root and
+   is disposable.
 4. Durable summaries, contracts, and behavior changes must be written back to
    tracked docs or code before archive.
 5. Evidence beats memory. Use `harness status`, tracked plans, and owned local
@@ -109,8 +110,10 @@ The default harness split in this repository is:
 - tracked plan in `docs/plans/`: markdown-led plan packages, durable step
   closeout, archive-ready summaries, and any matching `supplements/`
   companion directories
-- `.local/harness/plans/archived/`: archived lightweight plan snapshots
-- `.local/harness/`: disposable runtime state, review artifacts, evidence artifacts, and trajectory
+- configured local runtime root, defaulting to `.local/harness/`: disposable
+  runtime state, review artifacts, evidence artifacts, and trajectory
+- configured local runtime root's `plans/archived/`, defaulting to
+  `.local/harness/plans/archived/`: archived lightweight plan snapshots
 - `docs/specs/`: normative harness contracts
 - `.agents/skills`: repo-local harness workflow skills
 
