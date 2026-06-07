@@ -10,9 +10,9 @@ Archive is a freeze-and-summarize step, not just a file move.
    - If `status` returns `blockers`, fix those first instead of learning them
      from a failing `harness archive`.
 3. Make sure acceptance criteria are checked and steps are completed.
-4. Read the latest finalize review artifacts under `.local` and confirm the
-   branch really is in `execution/finalize/archive` rather than still needing
-   review or repair.
+4. Read the latest finalize review artifacts under the configured local
+   runtime root and confirm the branch really is in
+   `execution/finalize/archive` rather than still needing review or repair.
 5. Update the tracked plan's durable summaries from those artifacts:
    - `Validation Summary`
    - `Review Summary`

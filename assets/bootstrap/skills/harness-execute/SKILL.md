@@ -67,7 +67,7 @@ when it is genuinely impractical, and record the reason in the step's
    approved for execution, stay in `harness-execute` and open that plan from
    `plan_path`.
    Active work uses a tracked plan even when the profile is lightweight; only
-   archived lightweight snapshots move into `.local/`.
+   archived lightweight snapshots move under the configured local runtime root.
    If status still resolves to `plan`, do not start execution until approval is
    explicit and `harness plan approve --by human` has been recorded.
 3. Identify the active or next plan step.
@@ -154,5 +154,5 @@ Execute is done when:
   Red/Green/Refactor loop was not practical.
 - Do not rely on chat memory when `harness status`, the tracked plan, or local
   artifacts can tell you the truth more directly.
-- Do not archive based on memory alone; use the current plan plus `.local`
-  artifacts.
+- Do not archive based on memory alone; use the current plan plus configured
+  local runtime artifacts.

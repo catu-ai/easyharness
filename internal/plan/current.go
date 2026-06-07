@@ -24,25 +24,29 @@ func DetectCurrentPath(workdir string) (string, error) {
 	if current, err := runstate.LoadCurrentPlan(workdir); err != nil {
 		return "", err
 	} else if current != nil && strings.TrimSpace(current.PlanPath) != "" {
-		currentPath := filepath.Join(workdir, current.PlanPath)
-		currentPath = filepath.Clean(currentPath)
+		currentPath, ok := currentPathWithinWorkdir(workdir, current.PlanPath)
+		if !ok {
+			currentPath = ""
+		}
 
-		if containsPath(activeMatches, currentPath) {
+		if currentPath != "" && containsPath(activeMatches, currentPath) {
 			return currentPath, nil
 		}
 
-		if currentLooksArchived(currentPath) {
+		if currentPath != "" && currentLooksArchived(currentPath) {
 			if len(activeMatches) == 1 {
 				return activeMatches[0], nil
 			}
 		}
 
-		if _, err := os.Stat(currentPath); err == nil {
-			if inferPathKind(currentPath) != "" {
-				return currentPath, nil
+		if currentPath != "" {
+			if _, err := os.Stat(currentPath); err == nil {
+				if inferPathKind(currentPath) != "" {
+					return currentPath, nil
+				}
+			} else if !os.IsNotExist(err) {
+				return "", err
 			}
-		} else if !os.IsNotExist(err) {
-			return "", err
 		}
 	}
 
@@ -63,6 +67,18 @@ func DetectCurrentPathLocked(workdir, lockedPlanStem string) (string, error) {
 		return "", fmt.Errorf("current plan changed from %q to %q while acquiring the local state lock; retry", lockedPlanStem, currentStem)
 	}
 	return currentPath, nil
+}
+
+func currentPathWithinWorkdir(workdir, planPath string) (string, bool) {
+	trimmed := strings.TrimSpace(planPath)
+	if trimmed == "" || filepath.IsAbs(trimmed) {
+		return "", false
+	}
+	rel := filepath.Clean(filepath.FromSlash(trimmed))
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return filepath.Clean(filepath.Join(workdir, rel)), true
 }
 
 func containsPath(paths []string, target string) bool {

@@ -163,6 +163,39 @@ paths:
 	}
 }
 
+func TestDetectCurrentPathRejectsAbsoluteCurrentPointerOutsideWorkdir(t *testing.T) {
+	root := t.TempDir()
+	sibling := t.TempDir()
+	externalPlan := filepath.Join(sibling, "docs", "plans", "archived", "2026-06-07-external.md")
+	writeTestFile(t, externalPlan)
+
+	if _, err := runstate.SaveCurrentPlan(root, externalPlan); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+
+	_, err := DetectCurrentPath(root)
+	if !errors.Is(err, ErrNoCurrentPlan) {
+		t.Fatalf("expected ErrNoCurrentPlan for absolute external pointer, got %v", err)
+	}
+}
+
+func TestDetectCurrentPathRejectsRelativeCurrentPointerOutsideWorkdir(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "repo")
+	externalPlan := filepath.Join(parent, "sibling", "docs", "plans", "archived", "2026-06-07-external.md")
+	writeTestFile(t, filepath.Join(root, ".keep"))
+	writeTestFile(t, externalPlan)
+
+	if _, err := runstate.SaveCurrentPlan(root, filepath.ToSlash(filepath.Join("..", "sibling", "docs", "plans", "archived", "2026-06-07-external.md"))); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+
+	_, err := DetectCurrentPath(root)
+	if !errors.Is(err, ErrNoCurrentPlan) {
+		t.Fatalf("expected ErrNoCurrentPlan for relative external pointer, got %v", err)
+	}
+}
+
 func TestDetectCurrentPathKeepsArchivedLightweightPointerWhenNoActivePlanExists(t *testing.T) {
 	root := t.TempDir()
 	archivedLightweightPath := filepath.Join(root, ".local", "harness", "plans", "archived", "2026-03-18-lightweight.md")
