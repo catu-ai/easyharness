@@ -72,7 +72,9 @@ func (s Service) Read() Result {
 	if err != nil {
 		if errors.Is(err, plan.ErrNoCurrentPlan) {
 			if currentPlan != nil && strings.TrimSpace(currentPlan.LastLandedPlanPath) != "" {
-				return s.readPlanTimeline(filepath.ToSlash(strings.TrimSpace(currentPlan.LastLandedPlanPath)))
+				if relPlanPath, ok := relativePlanPathWithinWorkdir(currentPlan.LastLandedPlanPath); ok {
+					return s.readPlanTimeline(relPlanPath)
+				}
 			}
 			return Result{
 				OK:       true,
@@ -125,9 +127,16 @@ func (s Service) readPlanTimeline(relPlanPath string) Result {
 	if err != nil {
 		errors = append(errors, TimelineError{Path: "state", Message: "Unable to read local harness state."})
 	}
-	doc, err := plan.LoadFile(resolvePlanPath(s.Workdir, relPlanPath))
-	if err != nil {
-		errors = append(errors, TimelineError{Path: "plan", Message: "Unable to read the current plan."})
+	planFilePath, ok := resolvePlanPath(s.Workdir, relPlanPath)
+	if !ok {
+		errors = append(errors, TimelineError{Path: "plan", Message: "Plan path is outside the current worktree."})
+	}
+	var doc *plan.Document
+	if ok {
+		doc, err = plan.LoadFile(planFilePath)
+		if err != nil {
+			errors = append(errors, TimelineError{Path: "plan", Message: "Unable to read the current plan."})
+		}
 	}
 	bootstrapEvents := buildBootstrapEvents(relPlanPath, planStem, doc, state, events)
 	mergedEvents := mergeTimelineEvents(bootstrapEvents, events)
@@ -518,11 +527,24 @@ func hasCommand(events []Event, command string) bool {
 	return false
 }
 
-func resolvePlanPath(workdir, relPlanPath string) string {
-	if filepath.IsAbs(relPlanPath) {
-		return relPlanPath
+func resolvePlanPath(workdir, relPlanPath string) (string, bool) {
+	rel, ok := relativePlanPathWithinWorkdir(relPlanPath)
+	if !ok {
+		return "", false
 	}
-	return filepath.Join(workdir, filepath.FromSlash(relPlanPath))
+	return filepath.Join(workdir, filepath.FromSlash(rel)), true
+}
+
+func relativePlanPathWithinWorkdir(planPath string) (string, bool) {
+	trimmed := strings.TrimSpace(planPath)
+	if trimmed == "" || filepath.IsAbs(trimmed) {
+		return "", false
+	}
+	rel := filepath.Clean(filepath.FromSlash(trimmed))
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return filepath.ToSlash(rel), true
 }
 
 func parseTimelineTime(value string) (time.Time, bool) {

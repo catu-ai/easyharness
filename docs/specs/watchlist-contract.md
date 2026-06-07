@@ -255,7 +255,7 @@ The explicit user-facing membership-removal action is `unwatch`.
 - remove the selected workspace record from the machine-local watchlist
 - preserve unrelated workspace records in the same watchlist file
 - leave the watched repository, git worktree, tracked plan files, and
-  `.local/harness` workflow artifacts untouched
+  workflow artifacts under the configured local runtime root untouched
 
 `Unwatch` does not mean `harness archive`. It must not advance, reopen,
 archive, land, or otherwise mutate harness workflow state. It also must not

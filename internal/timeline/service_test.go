@@ -118,6 +118,35 @@ func TestReadReturnsEmptyTimelineWithoutCurrentPlan(t *testing.T) {
 	}
 }
 
+func TestReadIgnoresEscapedLastLandedPlanPointer(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "repo")
+	externalRelPlanPath := "docs/plans/archived/2026-04-01-external.md"
+	externalRoot := filepath.Join(parent, "sibling")
+	writeActivePlanForTimeline(t, externalRoot, externalRelPlanPath)
+	if _, _, err := timeline.AppendEvent(externalRoot, "2026-04-01-external", timeline.Event{
+		RecordedAt: "2026-04-01T10:00:00Z",
+		Kind:       "lifecycle",
+		Command:    "external",
+		Summary:    "External timeline event.",
+		PlanPath:   externalRelPlanPath,
+		Revision:   1,
+	}); err != nil {
+		t.Fatalf("append external timeline event: %v", err)
+	}
+	if _, err := runstate.SaveLandedPlan(root, filepath.ToSlash(filepath.Join("..", "sibling", externalRelPlanPath)), "2026-04-01T10:00:00Z"); err != nil {
+		t.Fatalf("save escaped last landed pointer: %v", err)
+	}
+
+	result := timeline.Service{Workdir: root}.Read()
+	if !result.OK {
+		t.Fatalf("expected empty timeline success, got %#v", result)
+	}
+	if len(result.Events) != 0 {
+		t.Fatalf("expected escaped last-landed pointer to be ignored, got %#v", result.Events)
+	}
+}
+
 func TestReadLoadsEventsWhenStateCacheIsMissing(t *testing.T) {
 	root := t.TempDir()
 	relPlanPath := writeActivePlanForTimeline(t, root, "docs/plans/active/2026-04-01-timeline-plan.md")
