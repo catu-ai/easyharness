@@ -251,6 +251,10 @@ recorded it in this plan.
 - Manual command checks passed: `harness repo config refresh` updated the
   dogfood config, a second refresh reported `noop`, `harness repo config
   --help` listed `refresh`, and `harness plan lint` passed for this plan.
+- Revision 2 reopened for remote-sync repair after `origin/main` advanced via
+  PR #242. The branch merged `origin/main` cleanly, `go test ./tests/smoke`
+  passed on retry after a transient Corepack network timeout, and a subsequent
+  full `go test ./...` passed.
 
 ## Review Summary
 
@@ -265,19 +269,21 @@ recorded it in this plan.
   - created and recorded follow-up issue #244 for repo config result-envelope
     cleanup
 - Finalize review `review-002-full` passed with no findings after the repair.
+- Finalize review `review-003-full` passed with no findings after the revision
+  2 remote-sync merge from `origin/main`.
 
 ## Archive Summary
 
-- Archived At: 2026-06-08T23:34:21+08:00
-- Revision: 1
-- PR: pending post-archive publish handoff from branch
-  `codex/refresh-repo-config-canonical-template`.
-- Ready: Acceptance criteria are satisfied; the branch has clean focused
-  validation, full `go test ./...`, and a passing finalize review
-  (`review-002-full`).
-- Merge Handoff: After archive, commit the tracked plan move and closeout
-  summaries, push the branch, open a draft PR for issue #240, record publish
-  evidence, refresh CI/sync evidence, and stop once `harness status` reaches
+- Archived At: 2026-06-08T23:52:10+08:00
+- Revision: 2
+- PR: https://github.com/catu-ai/easyharness/pull/245
+- Ready: Acceptance criteria are satisfied, the branch has merged
+  `origin/main` cleanly, and full `go test ./...` passed after the remote-sync
+  repair. Finalize review `review-003-full` passed with no findings.
+- Merge Handoff: Re-archive the plan, commit the tracked archive move and
+  closeout summaries, push branch
+  `codex/refresh-repo-config-canonical-template` to PR #245, refresh
+  publish/CI/sync evidence, and stop once `harness status` reaches
   `execution/finalize/await_merge`.
 
 ## Outcome Summary
@@ -297,6 +303,8 @@ recorded it in this plan.
   canonical, and refuses invalid existing config without overwriting it.
 - README, bootstrap/config/CLI specs, tests, and this repository's
   `.harness/config.yaml` now match the canonical refresh behavior.
+- Revision 2 also includes the clean merge from `origin/main` after PR #242
+  landed.
 
 ### Not Delivered
 
