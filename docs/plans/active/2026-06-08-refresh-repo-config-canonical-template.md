@@ -117,7 +117,7 @@ will cover the combined config-refresh surface.
 
 ### Step 2: Add the refresh command
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -149,11 +149,18 @@ for this slice even though config-specific result-envelope cleanup is deferred.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added `harness repo config refresh` through the install service and CLI. The
+command creates missing config, refreshes old/default-equivalent config,
+preserves valid custom paths, noops when already canonical, and rejects invalid
+config without overwriting it. Validation passed with
+`go test ./internal/install ./internal/cli ./tests/smoke`; smoke took the
+expected longer release-build path. Reinstalled the dev harness with
+`scripts/install-dev-harness` after changing Go CLI code.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: The step has focused install, CLI, and smoke coverage;
+the final review should inspect the integrated command/docs/dogfood behavior.
 
 ### Step 3: Update contracts and dogfood config
 

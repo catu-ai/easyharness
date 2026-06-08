@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/catu-ai/easyharness/internal/repoconfig"
 	versioninfo "github.com/catu-ai/easyharness/internal/version"
 )
 
@@ -59,8 +60,8 @@ func TestInitCreatesManagedInstructionsAndSkills(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read repo config: %v", err)
 	}
-	if string(configData) != "version: 1\n" {
-		t.Fatalf("expected minimal repo config, got:\n%s", configData)
+	if string(configData) != repoconfig.DefaultContent {
+		t.Fatalf("expected canonical repo config, got:\n%s", configData)
 	}
 }
 
@@ -90,7 +91,7 @@ func TestInitPreservesExistingRepoConfigAndWarnsWhenInvalid(t *testing.T) {
 	}
 }
 
-func TestInitConfigCreatesMinimalConfig(t *testing.T) {
+func TestInitConfigCreatesCanonicalConfig(t *testing.T) {
 	root := t.TempDir()
 
 	result := testService(root).InitConfig(Options{})
@@ -104,8 +105,139 @@ func TestInitConfigCreatesMinimalConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read repo config: %v", err)
 	}
-	if string(configData) != "version: 1\n" {
-		t.Fatalf("expected minimal repo config, got:\n%s", configData)
+	if string(configData) != repoconfig.DefaultContent {
+		t.Fatalf("expected canonical repo config, got:\n%s", configData)
+	}
+}
+
+func TestRefreshConfigCreatesMissingConfig(t *testing.T) {
+	root := t.TempDir()
+
+	result := testService(root).RefreshConfig(Options{})
+	if !result.OK {
+		t.Fatalf("expected config refresh success, got %#v", result)
+	}
+	if result.Command != "repo config refresh" || result.Resource != ResourceConfig || result.Operation != OperationRefresh {
+		t.Fatalf("unexpected config refresh payload: %#v", result)
+	}
+	if len(result.Actions) != 1 || result.Actions[0].Kind != ActionCreate {
+		t.Fatalf("expected create action, got %#v", result.Actions)
+	}
+	configData, err := os.ReadFile(filepath.Join(root, ".harness/config.yaml"))
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != repoconfig.DefaultContent {
+		t.Fatalf("expected canonical repo config, got:\n%s", configData)
+	}
+}
+
+func TestRefreshConfigUpdatesOldDefaultConfig(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: 1\n"), 0o644); err != nil {
+		t.Fatalf("write old config: %v", err)
+	}
+
+	result := testService(root).RefreshConfig(Options{})
+	if !result.OK {
+		t.Fatalf("expected config refresh success, got %#v", result)
+	}
+	if len(result.Actions) != 1 || result.Actions[0].Kind != ActionUpdate {
+		t.Fatalf("expected update action, got %#v", result.Actions)
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != repoconfig.DefaultContent {
+		t.Fatalf("expected refreshed canonical repo config, got:\n%s", configData)
+	}
+}
+
+func TestRefreshConfigPreservesCustomPathRoots(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte(`version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+  local_runtime: tmp/harness-runtime
+`), 0o644); err != nil {
+		t.Fatalf("write custom config: %v", err)
+	}
+
+	result := testService(root).RefreshConfig(Options{})
+	if !result.OK {
+		t.Fatalf("expected config refresh success, got %#v", result)
+	}
+	if len(result.Actions) != 1 || result.Actions[0].Kind != ActionUpdate {
+		t.Fatalf("expected update action, got %#v", result.Actions)
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	want := `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: docs/plans/archived
+  local_runtime: tmp/harness-runtime
+`
+	if string(configData) != want {
+		t.Fatalf("expected custom repo config values preserved, got:\n%s", configData)
+	}
+}
+
+func TestRefreshConfigNoopsWhenAlreadyCanonical(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte(repoconfig.DefaultContent), 0o644); err != nil {
+		t.Fatalf("write canonical config: %v", err)
+	}
+
+	result := testService(root).RefreshConfig(Options{})
+	if !result.OK {
+		t.Fatalf("expected config refresh success, got %#v", result)
+	}
+	if len(result.Actions) != 1 || result.Actions[0].Kind != ActionNoop {
+		t.Fatalf("expected noop action, got %#v", result.Actions)
+	}
+}
+
+func TestRefreshConfigRejectsInvalidConfigWithoutOverwrite(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: 2\n"), 0o644); err != nil {
+		t.Fatalf("write invalid config: %v", err)
+	}
+
+	result := testService(root).RefreshConfig(Options{})
+	if result.OK {
+		t.Fatalf("expected config refresh failure, got %#v", result)
+	}
+	if len(result.Errors) == 0 || !strings.Contains(result.Errors[0].Message, "unsupported version 2") {
+		t.Fatalf("expected unsupported version error, got %#v", result.Errors)
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != "version: 2\n" {
+		t.Fatalf("expected invalid config to remain untouched, got:\n%s", configData)
 	}
 }
 

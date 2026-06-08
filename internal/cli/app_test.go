@@ -17,6 +17,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/remote"
+	"github.com/catu-ai/easyharness/internal/repoconfig"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/status"
 	"github.com/catu-ai/easyharness/internal/timeline"
@@ -456,7 +457,7 @@ func TestInstructionsInstallCommandWritesManagedAssets(t *testing.T) {
 	assertWatchlistAbsent(t, home)
 }
 
-func TestRepoConfigInitCommandWritesMinimalConfig(t *testing.T) {
+func TestRepoConfigInitCommandWritesCanonicalConfig(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	app := cli.New(stdout, stderr)
@@ -479,8 +480,78 @@ func TestRepoConfigInitCommandWritesMinimalConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read repo config: %v", err)
 	}
-	if string(configData) != "version: 1\n" {
-		t.Fatalf("expected minimal repo config, got:\n%s", configData)
+	if string(configData) != repoconfig.DefaultContent {
+		t.Fatalf("expected canonical repo config, got:\n%s", configData)
+	}
+}
+
+func TestRepoConfigRefreshCommandUpdatesOldDefaultConfig(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: 1\n"), 0o644); err != nil {
+		t.Fatalf("write old config: %v", err)
+	}
+
+	exitCode := app.Run([]string{"repo", "config", "refresh"})
+	if exitCode != 0 {
+		t.Fatalf("repo config refresh failed with %d: %s", exitCode, stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON config output: %v\n%s", err, stdout.String())
+	}
+	if payload["command"] != "repo config refresh" || payload["operation"] != "refresh" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != repoconfig.DefaultContent {
+		t.Fatalf("expected refreshed canonical repo config, got:\n%s", configData)
+	}
+}
+
+func TestRepoConfigRefreshCommandRejectsInvalidConfig(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: 2\n"), 0o644); err != nil {
+		t.Fatalf("write invalid config: %v", err)
+	}
+
+	exitCode := app.Run([]string{"repo", "config", "refresh"})
+	if exitCode != 1 {
+		t.Fatalf("expected config refresh exit code 1, got %d", exitCode)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON config output: %v\n%s", err, stdout.String())
+	}
+	if ok, _ := payload["ok"].(bool); ok {
+		t.Fatalf("expected config refresh failure, got %#v", payload)
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != "version: 2\n" {
+		t.Fatalf("expected invalid config to remain untouched, got:\n%s", configData)
 	}
 }
 
