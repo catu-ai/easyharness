@@ -617,6 +617,63 @@ func TestRepoConfigListFiltersByPrefix(t *testing.T) {
 	}
 }
 
+func TestRepoConfigListUsesResolvedCustomValues(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	writeCLIRepoConfig(t, root, `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+  local_runtime: tmp/harness-runtime
+`)
+
+	exitCode := app.Run([]string{"repo", "config", "list"})
+	if exitCode != 0 {
+		t.Fatalf("repo config list failed with %d: %s", exitCode, stderr.String())
+	}
+	want := strings.Join([]string{
+		"paths.plans.active=workflow/plans/open",
+		"paths.plans.archived=docs/plans/archived",
+		"paths.local_runtime=tmp/harness-runtime",
+		"",
+	}, "\n")
+	if got := stdout.String(); got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr, got %q", stderr.String())
+	}
+}
+
+func TestRepoConfigListWarnsAndUsesDefaultsForInvalidConfig(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	writeCLIRepoConfig(t, root, "version: 2\n")
+
+	exitCode := app.Run([]string{"repo", "config", "list", "paths"})
+	if exitCode != 0 {
+		t.Fatalf("repo config list failed with %d: %s", exitCode, stderr.String())
+	}
+	want := strings.Join([]string{
+		"paths.plans.active=docs/plans/active",
+		"paths.plans.archived=docs/plans/archived",
+		"paths.local_runtime=.local/harness",
+		"",
+	}, "\n")
+	if got := stdout.String(); got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if !strings.Contains(stderr.String(), "Ignoring") || !strings.Contains(stderr.String(), "using built-in defaults") {
+		t.Fatalf("expected invalid config warning, got %q", stderr.String())
+	}
+}
+
 func TestRepoConfigListRejectsUnknownPrefix(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
