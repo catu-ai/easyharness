@@ -188,7 +188,7 @@ Why `resilience` instead of `chaos`:
 
 Typical `easyharness` resilience coverage should include:
 
-- corrupted `.local/harness/current-plan.json`
+- corrupted current-plan pointers under the configured local runtime root
 - missing or unreadable review aggregate artifacts
 - archive operations that fail mid-write and must roll back cleanly
 - conflicting active plans or ambiguous current-plan pointers

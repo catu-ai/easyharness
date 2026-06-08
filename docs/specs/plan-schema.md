@@ -6,39 +6,44 @@ This document defines the normative v0.2 plan contract for `easyharness`.
 
 In v0.2, standard and lightweight plans share one markdown schema, but the
 durable planning unit is a markdown-led plan package rather than a lone file.
-Active plans for both profiles live in tracked markdown under
-`docs/plans/active/`, and may carry approval-scoped companion material under a
-matching `supplements/<plan-stem>/` directory. Lightweight diverges only at
-archive time, when the archived snapshot moves into command-owned local
-storage. Runtime lifecycle, milestone timestamps, review rounds, evidence
-history, and resolved node state live in `.local/harness/`.
+Active plans for both profiles live in tracked markdown under the configured
+active plan root, which defaults to `docs/plans/active/`, and may carry
+approval-scoped companion material under a matching `supplements/<plan-stem>/`
+directory. Lightweight diverges only at archive time, when the archived
+snapshot moves into command-owned local storage. Runtime lifecycle, milestone
+timestamps, review rounds, evidence history, and resolved node state live in
+the configured local runtime root, which defaults to `.local/harness/`.
 
 ## Directory Layout
 
-Tracked plan locations live in:
+Tracked plan locations live in the configured active and archived plan roots,
+which default to:
 
 - `docs/plans/active/`
 - `docs/plans/archived/`
 
-Tracked plan package companion locations live in:
+Tracked plan package companion locations live under the matching configured
+plan root, defaulting to:
 
 - `docs/plans/active/supplements/<plan-stem>/`
 - `docs/plans/archived/supplements/<plan-stem>/`
 
-Lightweight local archived snapshots live in:
+Lightweight local archived snapshots live under the configured local runtime
+root, defaulting to:
 
 - `.local/harness/plans/archived/<plan-stem>.md`
 - `.local/harness/plans/archived/supplements/<plan-stem>/`
 
 There is no local active lightweight plan path in v0.2. Both `standard` and
-`lightweight` active plans live under `docs/plans/active/`.
+`lightweight` active plans live under the configured active plan root.
 
 The markdown file remains the canonical plan path for status resolution,
 current-plan pointers, and most command artifacts. When a matching
 `supplements/<plan-stem>/` directory exists, it is part of the same approved
 plan package and must move with the markdown plan during archive and reopen.
 
-Command-owned local artifacts live under:
+Command-owned local artifacts live under the configured local runtime root,
+defaulting to:
 
 - `.local/harness/current-plan.json`
 - `.local/harness/plans/<plan-stem>/state.json`
@@ -119,7 +124,9 @@ Where:
 - `YYYY-MM-DD` is the creation date
 - `short-topic` is a compact kebab-case topic slug
 
-The file stem is the durable identifier used by command-owned local state:
+The file stem is the durable identifier used by command-owned local state under
+the configured local runtime root. With the default runtime root, that looks
+like:
 
 - `.local/harness/plans/<plan-stem>/...`
 - matching `supplements/<plan-stem>/` package directories
@@ -217,11 +224,11 @@ approved_at: 2026-03-17T10:30:00+08:00
   - omitted means `standard`
   - `standard` must not be written explicitly; omitting the field preserves
     the current standard behavior
-  - tracked plans under `docs/plans/active/` may set this field only to
-    `lightweight`
-  - tracked plans under `docs/plans/archived/` must omit this field
-  - local archived plans under `.local/harness/plans/archived/` must set it to
-    `lightweight`
+  - tracked plans under the configured active plan root may set this field
+    only to `lightweight`
+  - tracked plans under the configured archived plan root must omit this field
+  - local archived plans under the lightweight archived snapshot root must set
+    it to `lightweight`
 
 ## Lightweight Eligibility
 
@@ -463,8 +470,8 @@ The lightweight profile is not eligible when any of these are true:
 Lightweight plans should normally avoid `supplements/`. If a lightweight plan
 temporarily needs one, keep it minimal, treat it with the same approval
 governance as the markdown plan, and ensure archive writes it only to
-`.local/harness/plans/archived/supplements/<plan-stem>/` rather than treating
-it as durable tracked history.
+the lightweight archived snapshot supplements root under the configured local
+runtime root rather than treating it as durable tracked history.
 
 When there is any doubt, escalate to the standard tracked-plan workflow.
 
@@ -472,8 +479,8 @@ When there is any doubt, escalate to the standard tracked-plan workflow.
 
 An active plan must satisfy all of these:
 
-- the file lives under `docs/plans/active/`
-- the file does not live inside `docs/plans/active/supplements/`
+- the file lives under the configured active plan root
+- the file does not live inside the active root's `supplements/` subtree
 - lightweight does not create a separate local active-plan location
 - the required frontmatter fields are present
 - any optional `workflow_profile` field is compatible with the path:
@@ -484,8 +491,8 @@ An active plan must satisfy all of these:
   placeholders
 - reopen update markers are allowed only while the plan is active again after
   a reopen
-- when a matching `docs/plans/active/supplements/<plan-stem>/` directory
-  exists, it is part of the same approved package
+- when a matching `supplements/<plan-stem>/` directory exists under the active
+  root, it is part of the same approved package
 - when the active plan uses `workflow_profile: lightweight`, supplements are
   supported but should be exceptional rather than the default way to carry plan
   detail
@@ -495,8 +502,9 @@ An active plan must satisfy all of these:
 An archived plan must satisfy all of these:
 
 - the file lives under either:
-  - `docs/plans/archived/`
-  - `.local/harness/plans/archived/`
+  - the configured archived plan root
+  - the lightweight archived snapshot root under the configured local runtime
+    root
 - any optional `workflow_profile` field is compatible with the path:
   - tracked archived plans must omit `workflow_profile`
   - local archived plans require `workflow_profile: lightweight`
@@ -519,8 +527,8 @@ An archived plan must satisfy all of these:
   exist; content that still matters after archive must already be absorbed into
   formal tracked locations outside the supplements tree
 - when the archived plan is `lightweight`, any supplements snapshot lives only
-  under `.local/harness/plans/archived/supplements/<plan-stem>/` and must not
-  be treated as tracked repository history
+  under the lightweight archived snapshot supplements root and must not be
+  treated as tracked repository history
 
 ### Required Archive Summary Contents
 
@@ -550,8 +558,9 @@ tracked archive summary. It is no longer tracked as frontmatter.
 active:
 
 - move the file from the archived path back to the corresponding active path:
-  - `docs/plans/archived/` -> `docs/plans/active/` for `standard`
-  - `.local/harness/plans/archived/` -> `docs/plans/active/` for
+  - configured archived plan root -> configured active plan root for
+    `standard`
+  - lightweight archived snapshot root -> configured active plan root for
     `lightweight`
 - move the matching `supplements/<plan-stem>/` directory with the markdown
   plan when it exists
@@ -589,9 +598,10 @@ Mode-specific rules:
 - missing required step subsections
 - unsupported `workflow_profile` values
 - plans stored outside:
-  - `docs/plans/active/`
-  - `docs/plans/archived/`
-  - `.local/harness/plans/archived/`
+  - the configured active plan root
+  - the configured archived plan root
+  - the lightweight archived snapshot root under the configured local runtime
+    root
 - plan markdown stored under a `supplements/` subtree
 - plans whose path and `workflow_profile` disagree
 - supplements paths that are present but are not directories

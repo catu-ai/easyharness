@@ -531,7 +531,7 @@ func validatePathRules(ctx *lintContext) []LintIssue {
 	case "active":
 	case "archived":
 	default:
-		issues = append(issues, LintIssue{Path: "path", Message: "plan must live under docs/plans or .local/harness/plans in an active or archived location"})
+		issues = append(issues, LintIssue{Path: "path", Message: "plan must live under a configured active or archived plan root"})
 	}
 	relativeWithinRoot := relativePathWithinPlanRoot(ctx.path)
 	if strings.HasPrefix(relativeWithinRoot, SupplementsDirName+"/") {
@@ -550,15 +550,14 @@ func validatePathRules(ctx *lintContext) []LintIssue {
 	switch pathProfile {
 	case WorkflowProfileStandard:
 		if declaredProfile == WorkflowProfileLightweight {
-			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "tracked docs/plans/archived paths must omit workflow_profile"})
+			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "standard archived paths must omit workflow_profile"})
 		}
 	case WorkflowProfileLightweight:
 		if declaredProfile != WorkflowProfileLightweight {
-			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "local .local/harness/plans/archived paths require workflow_profile: lightweight"})
+			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "lightweight archived paths require workflow_profile: lightweight"})
 		}
 	default:
-		clean := filepath.ToSlash(filepath.Clean(ctx.path))
-		if (strings.Contains(clean, "/docs/plans/active/") || strings.HasPrefix(clean, "docs/plans/active/")) && declaredProfile != "" && declaredProfile != WorkflowProfileLightweight {
+		if ctx.pathKind == "active" && declaredProfile != "" && declaredProfile != WorkflowProfileLightweight {
 			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "tracked active plans must omit workflow_profile unless they explicitly use lightweight"})
 		}
 	}

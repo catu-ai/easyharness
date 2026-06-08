@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/catu-ai/easyharness/internal/plan"
+	"github.com/catu-ai/easyharness/internal/runstate"
 )
 
 type ActiveReviewContext struct {
@@ -89,7 +90,7 @@ func LoadReminder(workdir, planStem string, doc *plan.Document, currentNode stri
 }
 
 func LoadLatestScan(workdir, planStem string, doc *plan.Document, active *ActiveReviewContext) Scan {
-	reviewsDir := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews")
+	reviewsDir := runstate.ReviewsDir(workdir, planStem)
 	entries, err := os.ReadDir(reviewsDir)
 	if err != nil {
 		if os.IsNotExist(err) {

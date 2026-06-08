@@ -167,7 +167,7 @@
         "summary",
         "plan_stem"
       ],
-      "description": "TimelineEvent is one append-only line in `.local/harness/plans/\u003cplan-stem\u003e/events.jsonl`."
+      "description": "TimelineEvent is one append-only line in a plan timeline under the configured local runtime root."
     },
     "TimelineResult": {
       "properties": {

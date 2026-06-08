@@ -20,14 +20,40 @@ The manifest file is:
 
 ## Version 1
 
-The first supported config shape is intentionally minimal:
+The smallest valid config is:
 
 ```yaml
 version: 1
 ```
 
 `version` is required when the file exists. The value must be integer `1`.
-No other fields are defined in v1.
+
+Version 1 also supports the first concrete customization field, `paths`, for
+repo-configured harness path roots:
+
+```yaml
+version: 1
+paths:
+  plans:
+    active: docs/plans/active
+    archived: docs/plans/archived
+  local_runtime: .local/harness
+```
+
+All path fields are optional. Omitted fields use the defaults shown above.
+
+Path roots mean:
+
+- `paths.plans.active`: the tracked active plan root
+- `paths.plans.archived`: the tracked standard archived plan root
+- `paths.local_runtime`: the command-owned disposable local runtime root
+
+Supplements are not independently configured. They are derived from the
+matching plan root as `supplements/<plan-stem>`.
+
+Lightweight archived plan snapshots, current-plan pointer, plan-local state,
+reviews, evidence, timeline events, locks, and other command-owned local
+runtime files are derived from `paths.local_runtime`.
 
 ## Loading Behavior
 
@@ -37,11 +63,16 @@ No other fields are defined in v1.
   falls back to built-in defaults
 
 Invalid config includes malformed YAML, non-object YAML, missing `version`,
-unsupported versions, and fields not defined by the current config version.
+unsupported versions, fields not defined by the current config version, unsafe
+path values, and ambiguous path roots.
+
+Path values must be slash-separated repo-relative paths. They must not be
+empty, absolute, home-relative, backslash-separated, outside the repository, or
+the repository root itself. Configured path roots must not overlap with each
+other.
 
 Consumers must not partially consume invalid config. Whole-config fallback
-keeps precedence and debugging simple until concrete customization fields
-exist.
+keeps precedence and debugging simple when any configured field is invalid.
 
 ## Repo Resource Initialization
 
@@ -58,6 +89,5 @@ Future customization fields should keep `.harness/config.yaml` as a manifest
 and index. Long-form customization text belongs in referenced
 `.harness/**/*.md` files rather than inline YAML.
 
-This v1 contract does not define review defaults, remote mappings, plan paths,
-instruction content customization, executable hooks, plugins, or provider
-mapping.
+This v1 contract does not define review defaults, remote mappings, instruction
+content customization, executable hooks, plugins, or provider mapping.

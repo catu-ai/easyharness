@@ -66,7 +66,7 @@ func (s Service) Read() Result {
 		}
 	}
 	relPlanPath = filepath.ToSlash(relPlanPath)
-	if !isSupportedReviewPlanPath(relPlanPath) {
+	if !isSupportedReviewPlanPath(s.Workdir, relPlanPath) {
 		return Result{
 			OK:       true,
 			Resource: "review",
@@ -84,7 +84,7 @@ func (s Service) Read() Result {
 	if err != nil {
 		warnings = append(warnings, fmt.Sprintf("Unable to read local review state for %s; active-round hints may be incomplete.", planStem))
 	}
-	if isArchivedReviewPlanPath(relPlanPath) && archivedReviewHiddenDuringLand(state) {
+	if isArchivedReviewPlanPath(s.Workdir, relPlanPath) && archivedReviewHiddenDuringLand(state) {
 		return Result{
 			OK:       true,
 			Resource: "review",
@@ -97,7 +97,7 @@ func (s Service) Read() Result {
 		}
 	}
 
-	reviewsDir := filepath.Join(s.Workdir, ".local", "harness", "plans", planStem, "reviews")
+	reviewsDir := runstate.ReviewsDir(s.Workdir, planStem)
 	roundIDs, discoverWarnings, discoverErr := discoverRoundIDs(reviewsDir, state)
 	warnings = append(warnings, discoverWarnings...)
 	if discoverErr != nil {
@@ -150,15 +150,17 @@ func archivedReviewHiddenDuringLand(state *runstate.State) bool {
 		strings.TrimSpace(state.Land.CompletedAt) == ""
 }
 
-func isSupportedReviewPlanPath(relPlanPath string) bool {
-	return strings.HasPrefix(relPlanPath, "docs/plans/active/") ||
-		strings.HasPrefix(relPlanPath, "docs/plans/archived/") ||
-		strings.HasPrefix(relPlanPath, ".local/harness/plans/archived/")
+func isSupportedReviewPlanPath(workdir, relPlanPath string) bool {
+	switch plan.PathKindFor(filepath.Join(workdir, filepath.FromSlash(relPlanPath))) {
+	case "active", "archived":
+		return true
+	default:
+		return false
+	}
 }
 
-func isArchivedReviewPlanPath(relPlanPath string) bool {
-	return strings.HasPrefix(relPlanPath, "docs/plans/archived/") ||
-		strings.HasPrefix(relPlanPath, ".local/harness/plans/archived/")
+func isArchivedReviewPlanPath(workdir, relPlanPath string) bool {
+	return plan.PathKindFor(filepath.Join(workdir, filepath.FromSlash(relPlanPath))) == "archived"
 }
 
 func discoverRoundIDs(reviewsDir string, state *runstate.State) ([]string, []string, error) {
@@ -260,7 +262,7 @@ func sortRounds(rounds []Round) {
 }
 
 func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
-	roundDir := filepath.Join(s.Workdir, ".local", "harness", "plans", planStem, "reviews", roundID)
+	roundDir := runstate.ReviewRoundDir(s.Workdir, planStem, roundID)
 	manifestPath := filepath.Join(roundDir, "manifest.json")
 	ledgerPath := filepath.Join(roundDir, "ledger.json")
 	aggregatePath := filepath.Join(roundDir, "aggregate.json")

@@ -56,10 +56,10 @@ latest `current_node`.
 CLI-owned runstate files must stay parseable even when commands run close
 together or a process exits during persistence.
 
-- `.local/harness/current-plan.json` must be written with atomic replacement
-  rather than in-place overwrite writes
-- `.local/harness/plans/<plan-stem>/state.json` must also use atomic
-  replacement
+- the current-plan pointer under the configured local runtime root must be
+  written with atomic replacement rather than in-place overwrite writes
+- each plan-local `state.json` under the configured local runtime root must
+  also use atomic replacement
 - any command that mutates a plan-local `state.json` must acquire a shared
   per-plan state-mutation lock before it loads and rewrites that file
 - if the per-plan state lock is already held, the command should fail with a
@@ -92,11 +92,11 @@ resolving the snapshot.
 
 Tracked active plans remain the durable source of scope, step closeout, and
 archive summaries for both profiles. Lightweight work uses the same schema and
-the same tracked active-plan location, but its archived snapshot moves into
-`.local/harness/plans/archived/` so the workflow can stay lightweight for
+the same configured active-plan root, but its archived snapshot moves under
+the configured local runtime root so the workflow can stay lightweight for
 narrow low-risk changes. Runtime trajectory, milestone timestamps, and
-external-fact capture also belong in `.local/harness/`. There is no separate
-local active lightweight plan path in this model.
+external-fact capture also belong in the configured local runtime root. There
+is no separate local active lightweight plan path in this model.
 
 ### Explicit Command Boundaries
 
@@ -135,9 +135,11 @@ root
 - archive-time summaries and outcome notes
 
 For active work in both profiles, this plan artifact is a tracked file under
-`docs/plans/active/`. Standard archives stay tracked under
-`docs/plans/archived/`. Lightweight archived snapshots move to
-`.local/harness/plans/archived/`.
+the configured active plan root, which defaults to `docs/plans/active/`.
+Standard archives stay tracked under the configured archived plan root, which
+defaults to `docs/plans/archived/`. Lightweight archived snapshots move under
+the configured local runtime root, defaulting to
+`.local/harness/plans/archived/` for the snapshot directory.
 
 ### Command-Owned Runtime Artifacts Own
 
@@ -146,8 +148,8 @@ For active work in both profiles, this plan artifact is a tracked file under
 - review round metadata, submission-tracking data, reviewer submissions, and
   persisted review decisions, including optional reviewer-provided finding
   locations preserved in submission and decision artifacts
-- append-only timeline event indexes under
-  `.local/harness/plans/<plan-stem>/events.jsonl`
+- append-only timeline event indexes under the configured local runtime root,
+  defaulting to `.local/harness/plans/<plan-stem>/events.jsonl`
 - append-only `ci`, `publish`, and `sync` evidence records
 - archive milestones
 - reopen milestones, including the explicit reopen mode
@@ -175,15 +177,15 @@ v0.2 assumes one active plan artifact per repository.
 
 Resolution rules:
 
-- if more than one active tracked plan exists under `docs/plans/active/`,
-  state resolution is invalid and should fail rather than guess
-- lightweight archived snapshots under `.local/harness/plans/archived/` do not
+- if more than one active tracked plan exists under the configured active plan
+  root, state resolution is invalid and should fail rather than guess
+- lightweight archived snapshots under the configured local runtime root do not
   count as active-plan candidates
-- if `.local/harness/current-plan.json` points to the sole active plan path and
-  that path still exists, that plan is current
+- if the current-plan pointer under the configured local runtime root points
+  to the sole active plan path and that path still exists, that plan is current
 - otherwise, if exactly one active tracked plan exists under
-  `docs/plans/active/`, that plan is current for `plan` and `execution/...`
-  nodes
+  the configured active plan root, that plan is current for `plan` and
+  `execution/...` nodes
 - if no active plan exists, CLI-owned archived or landed context may still
   identify the current archived candidate or the most recent landed candidate
 

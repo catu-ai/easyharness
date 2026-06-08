@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/catu-ai/easyharness/internal/contracts"
+	"github.com/catu-ai/easyharness/internal/repoconfig"
 )
 
 var renameFile = os.Rename
@@ -32,7 +33,7 @@ type reviewManifest struct {
 }
 
 func LoadCurrentPlan(workdir string) (*CurrentPlan, error) {
-	path := filepath.Join(workdir, ".local", "harness", "current-plan.json")
+	path := CurrentPlanPath(workdir)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -59,7 +60,7 @@ func SaveLandedPlan(workdir, planPath, landedAt string) (string, error) {
 }
 
 func WriteCurrentPlan(workdir string, current *CurrentPlan) (string, error) {
-	path := filepath.Join(workdir, ".local", "harness", "current-plan.json")
+	path := CurrentPlanPath(workdir)
 	if current == nil {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return "", err
@@ -70,7 +71,7 @@ func WriteCurrentPlan(workdir string, current *CurrentPlan) (string, error) {
 }
 
 func saveCurrentPlan(workdir string, current CurrentPlan) (string, error) {
-	path := filepath.Join(workdir, ".local", "harness", "current-plan.json")
+	path := CurrentPlanPath(workdir)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}
@@ -85,7 +86,7 @@ func saveCurrentPlan(workdir string, current CurrentPlan) (string, error) {
 }
 
 func LoadState(workdir, planStem string) (*State, string, error) {
-	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "state.json")
+	path := StatePath(workdir, planStem)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -101,7 +102,7 @@ func LoadState(workdir, planStem string) (*State, string, error) {
 }
 
 func SaveState(workdir, planStem string, state *State) (string, error) {
-	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "state.json")
+	path := StatePath(workdir, planStem)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}
@@ -197,7 +198,7 @@ func writeJSONAtomic(path string, data []byte, perm os.FileMode) (err error) {
 }
 
 func acquirePlanFileLock(workdir, planStem, lockFileName, contentionMessage string) (func(), error) {
-	lockPath := filepath.Join(workdir, ".local", "harness", "plans", planStem, lockFileName)
+	lockPath := PlanRuntimePath(workdir, planStem, lockFileName)
 	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
 		return nil, err
 	}
@@ -219,7 +220,7 @@ func acquirePlanFileLock(workdir, planStem, lockFileName, contentionMessage stri
 }
 
 func planFileLockHeld(workdir, planStem, lockFileName string) (bool, error) {
-	lockPath := filepath.Join(workdir, ".local", "harness", "plans", planStem, lockFileName)
+	lockPath := PlanRuntimePath(workdir, planStem, lockFileName)
 	file, err := os.OpenFile(lockPath, os.O_RDWR, 0)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -237,6 +238,48 @@ func planFileLockHeld(workdir, planStem, lockFileName string) (bool, error) {
 	}
 	_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 	return false, nil
+}
+
+func RuntimeRoot(workdir string) string {
+	config := repoconfig.Load(workdir).Config
+	return filepath.Join(workdir, filepath.FromSlash(config.Paths.LocalRuntime))
+}
+
+func CurrentPlanPath(workdir string) string {
+	return filepath.Join(RuntimeRoot(workdir), "current-plan.json")
+}
+
+func PlanRuntimeDir(workdir, planStem string) string {
+	return filepath.Join(RuntimeRoot(workdir), "plans", planStem)
+}
+
+func PlanRuntimePath(workdir, planStem string, elems ...string) string {
+	parts := append([]string{PlanRuntimeDir(workdir, planStem)}, elems...)
+	return filepath.Join(parts...)
+}
+
+func StatePath(workdir, planStem string) string {
+	return PlanRuntimePath(workdir, planStem, "state.json")
+}
+
+func ReviewsDir(workdir, planStem string) string {
+	return PlanRuntimePath(workdir, planStem, "reviews")
+}
+
+func ReviewRoundDir(workdir, planStem, roundID string) string {
+	return PlanRuntimePath(workdir, planStem, "reviews", roundID)
+}
+
+func EvidenceKindDir(workdir, planStem, kind string) string {
+	return PlanRuntimePath(workdir, planStem, "evidence", kind)
+}
+
+func TimelineEventsPath(workdir, planStem string) string {
+	return PlanRuntimePath(workdir, planStem, "events.jsonl")
+}
+
+func LightweightArchivedPlansDir(workdir string) string {
+	return filepath.Join(RuntimeRoot(workdir), "plans", "archived")
 }
 
 func CurrentRevision(state *State) int {
@@ -257,7 +300,7 @@ func EffectiveReviewDecision(workdir, planStem string, round *ReviewRound) (stri
 		return "", false, nil
 	}
 
-	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", round.RoundID, "aggregate.json")
+	path := filepath.Join(ReviewRoundDir(workdir, planStem, round.RoundID), "aggregate.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -281,7 +324,7 @@ func EffectiveReviewTitle(workdir, planStem string, round *ReviewRound) (string,
 		return "", false, nil
 	}
 
-	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", round.RoundID, "manifest.json")
+	path := filepath.Join(ReviewRoundDir(workdir, planStem, round.RoundID), "manifest.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -311,7 +354,7 @@ func EffectiveReviewStep(workdir, planStem string, round *ReviewRound) (int, boo
 		return 0, false, nil
 	}
 
-	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", round.RoundID, "manifest.json")
+	path := filepath.Join(ReviewRoundDir(workdir, planStem, round.RoundID), "manifest.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -341,7 +384,7 @@ func EffectiveReviewRevision(workdir, planStem string, round *ReviewRound) (int,
 		return 0, false, nil
 	}
 
-	path := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews", round.RoundID, "manifest.json")
+	path := filepath.Join(ReviewRoundDir(workdir, planStem, round.RoundID), "manifest.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

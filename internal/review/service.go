@@ -129,7 +129,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 			Errors:  []CommandError{{Path: "review.round", Message: sanitizedReadMessage("the next review round identifier", err)}},
 		}
 	}
-	roundDir := filepath.Join(s.Workdir, ".local", "harness", "plans", planStem, "reviews", roundID)
+	roundDir := runstate.ReviewRoundDir(s.Workdir, planStem, roundID)
 	submissionsDir := filepath.Join(roundDir, "submissions")
 	manifestPath := filepath.Join(roundDir, "manifest.json")
 	ledgerPath := filepath.Join(roundDir, "ledger.json")
@@ -292,7 +292,7 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 		}
 	}
 
-	manifestPath := filepath.Join(s.Workdir, ".local", "harness", "plans", planStem, "reviews", roundID, "manifest.json")
+	manifestPath := filepath.Join(runstate.ReviewRoundDir(s.Workdir, planStem, roundID), "manifest.json")
 	manifest, err := loadManifest(manifestPath)
 	if err != nil {
 		return SubmitResult{
@@ -451,7 +451,7 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		return *guard
 	}
 
-	manifestPath := filepath.Join(s.Workdir, ".local", "harness", "plans", planStem, "reviews", roundID, "manifest.json")
+	manifestPath := filepath.Join(runstate.ReviewRoundDir(s.Workdir, planStem, roundID), "manifest.json")
 	manifest, err := loadManifest(manifestPath)
 	if err != nil {
 		return AggregateResult{
@@ -678,7 +678,7 @@ func (s Service) acquireReviewMutationLock() (string, func(), error) {
 		return "", func() {}, nil
 	}
 	planStem := strings.TrimSuffix(filepath.Base(planPath), filepath.Ext(planPath))
-	lockPath := filepath.Join(s.Workdir, ".local", "harness", "plans", planStem, ".review-mutation.lock")
+	lockPath := runstate.PlanRuntimePath(s.Workdir, planStem, ".review-mutation.lock")
 	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
 		return "", nil, err
 	}
@@ -972,7 +972,7 @@ func nextRoundID(workdir, planStem, kind string) (string, error) {
 }
 
 func nextRoundSequence(workdir, planStem string) (int, error) {
-	reviewsDir := filepath.Join(workdir, ".local", "harness", "plans", planStem, "reviews")
+	reviewsDir := runstate.ReviewsDir(workdir, planStem)
 	entries, err := os.ReadDir(reviewsDir)
 	if err != nil {
 		if os.IsNotExist(err) {

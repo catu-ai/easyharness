@@ -99,6 +99,56 @@ func TestRefreshWritesCIAndSyncEvidenceFromRecordedPR(t *testing.T) {
 	}
 }
 
+func TestRefreshWritesCIAndSyncEvidenceUnderConfiguredRuntime(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".harness"), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".harness", "config.yaml"), []byte(`version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: workflow/plans/done
+  local_runtime: tmp/harness-runtime
+`), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	relPlanPath := writeArchivedPlan(t, root, "workflow/plans/done/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	svc := evidence.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
+		},
+	}
+	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+		t.Fatalf("seed publish evidence: %#v", result)
+	}
+
+	refresh := evidence.Service{
+		Workdir:    root,
+		Now:        svc.Now,
+		RunCommand: fakeRefreshCommands(`"CLEAN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS","link":"https://ci.example/run"}]`),
+	}.Refresh()
+
+	if !refresh.OK {
+		t.Fatalf("expected refresh success, got %#v", refresh)
+	}
+	configuredCIPath := filepath.Join(root, "tmp", "harness-runtime", "plans", "2026-03-21-evidence-plan", "evidence", "ci", "ci-001.json")
+	configuredSyncPath := filepath.Join(root, "tmp", "harness-runtime", "plans", "2026-03-21-evidence-plan", "evidence", "sync", "sync-001.json")
+	for _, path := range []string{configuredCIPath, configuredSyncPath} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected refreshed evidence under configured runtime at %s: %v", path, err)
+		}
+	}
+	defaultCIPath := filepath.Join(root, ".local", "harness", "plans", "2026-03-21-evidence-plan", "evidence", "ci", "ci-001.json")
+	if _, err := os.Stat(defaultCIPath); !os.IsNotExist(err) {
+		t.Fatalf("expected no refreshed evidence under default runtime, stat err=%v", err)
+	}
+}
+
 func TestRefreshRejectsNonOpenRecordedPR(t *testing.T) {
 	root := t.TempDir()
 	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")

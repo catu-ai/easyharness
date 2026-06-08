@@ -7,7 +7,7 @@
       "group": "artifacts",
       "surface": "cli_owned_runtime",
       "title": "Current plan pointer file",
-      "description": "Worktree-level pointer artifact at `.local/harness/current-plan.json`.",
+      "description": "Worktree-level pointer artifact under the configured local runtime root.",
       "path": "schema/artifacts/current-plan.schema.json",
       "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/current-plan.schema.json",
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.CurrentPlanFile"
@@ -47,7 +47,7 @@
       "group": "artifacts",
       "surface": "cli_owned_runtime",
       "title": "Plan-local state file",
-      "description": "Plan-local runtime state artifact at `.local/harness/plans/\u003cplan-stem\u003e/state.json`.",
+      "description": "Plan-local runtime state artifact under the configured local runtime root's plans directory.",
       "path": "schema/artifacts/local-state.schema.json",
       "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/local-state.schema.json",
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.LocalStateFile"
@@ -67,7 +67,7 @@
       "group": "artifacts",
       "surface": "cli_owned_runtime",
       "title": "Timeline event artifact line",
-      "description": "One append-only JSONL event line from `.local/harness/plans/\u003cplan-stem\u003e/events.jsonl`.",
+      "description": "One append-only JSONL event line under the configured local runtime root's plan timeline.",
       "path": "schema/artifacts/timeline-event.schema.json",
       "id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/timeline-event.schema.json",
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.TimelineEvent"

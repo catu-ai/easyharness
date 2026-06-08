@@ -2,7 +2,8 @@
 
 1. Humans steer. Agents execute.
 2. Approved scope lives in a git-tracked plan.
-3. Raw execution trajectory lives in `.local/` and is disposable.
+3. Raw execution trajectory lives under the configured local runtime root and
+   is disposable.
 4. Durable summaries, contracts, and behavior changes must be written back to
    tracked docs or code before archive.
 5. Evidence beats memory. Use `harness status`, tracked plans, and owned local
@@ -13,11 +14,14 @@
 
 The default harness split in this repository is:
 
-- tracked plan in `docs/plans/`: markdown-led plan packages, durable step
-  closeout, archive-ready summaries, and any matching `supplements/`
-  companion directories
-- `.local/harness/plans/archived/`: archived lightweight plan snapshots
-- `.local/harness/`: disposable runtime state, review artifacts, evidence artifacts, and trajectory
+- configured active and archived plan roots, defaulting to
+  `docs/plans/active/` and `docs/plans/archived/`: markdown-led plan
+  packages, durable step closeout, archive-ready summaries, and any matching
+  `supplements/` companion directories
+- configured local runtime root, defaulting to `.local/harness/`: disposable
+  runtime state, review artifacts, evidence artifacts, and trajectory
+- configured local runtime root's `plans/archived/`, defaulting to
+  `.local/harness/plans/archived/`: archived lightweight plan snapshots
 - `docs/specs/`: normative harness contracts
 - `.agents/skills/`: repo-local harness workflow skills
 
@@ -40,9 +44,9 @@ approves it, the agent should record that boundary with
 `harness plan approve --by human` before `harness execute start`.
 
 For approved low-risk work that explicitly uses `workflow_profile:
-lightweight`, keep the same workflow shape but store the active plan under
-`docs/plans/active/` like any other plan. Only the archived lightweight
-snapshot moves to `.local/harness/plans/archived/<plan-stem>.md`. That
+lightweight`, keep the same workflow shape but store the active plan under the
+configured active plan root like any other plan. Only the archived lightweight
+snapshot moves under the configured local runtime root. That
 shortcut does not remove human steering, low-risk eligibility checks, or the
 requirement to leave a repo-visible breadcrumb such as a readable PR body
 merge memo.
@@ -147,8 +151,9 @@ When entering the repository or resuming after compaction:
 1. Read `README.md` if you need repository purpose or setup context.
 2. Run `harness status`.
 3. If `harness status` reports a current plan artifact, open that plan.
-   Active work always uses a tracked plan under `docs/plans/active/`; archived
-   lightweight candidates may live under `.local/harness/plans/archived/`.
+   Active work always uses a tracked plan under the configured active plan
+   root; archived lightweight candidates may live under the configured local
+   runtime root.
    If status reports `idle`, there is no current plan to resume yet.
 4. Most resumed work should continue in `harness-execute`.
 5. Switch only when `harness status` and the workflow boundary clearly call for

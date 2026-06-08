@@ -2,8 +2,8 @@ package contracts
 
 import "encoding/json"
 
-// TimelineEvent is one append-only line in
-// `.local/harness/plans/<plan-stem>/events.jsonl`.
+// TimelineEvent is one append-only line in a plan timeline under the
+// configured local runtime root.
 type TimelineEvent struct {
 	// EventID is the stable identifier for this event within one plan timeline.
 	EventID string `json:"event_id"`

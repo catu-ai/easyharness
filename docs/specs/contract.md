@@ -26,7 +26,7 @@ The schema registry currently covers:
 - JSON command inputs such as review and evidence payloads
 - read-only UI resource payloads served by `harness ui`
 - shared reusable JSON shapes
-- CLI-owned `.local/harness/` JSON artifacts
+- CLI-owned runtime JSON artifacts under the configured local runtime root
 
 The registry does not cover the markdown tracked-plan schema.
 
@@ -49,7 +49,8 @@ In `schema/index.json`, these entries are marked with `"surface": "public"`.
 ### CLI-Owned Runtime Artifacts
 
 Schemas under `schema/artifacts/` describe harness-owned runtime files such as
-`.local/harness/current-plan.json` and plan-local `state.json`.
+the current-plan pointer and plan-local `state.json` under the configured local
+runtime root.
 
 They are documented so agents and developers can inspect current runtime state
 without reverse-engineering Go structs, but they are still CLI-owned runtime
