@@ -344,6 +344,12 @@ materialized `.agents/skills/` copy. Follow-up delta review
   - `git diff --check`
   - `go test ./internal/repoconfig ./internal/cli`
   - `go test ./internal/repoconfig ./internal/cli ./tests/smoke`
+- Reopened revision 3 CI repair validation:
+  - `gh run view 27151499234 --log-failed`
+  - `go test ./tests/e2e -run TestCanonicalTransitionCatalogMatchesTrackedSpecMatrix -count=1`
+  - `harness plan lint docs/plans/active/2026-06-08-add-repo-config-query-commands.md`
+  - `git diff --check`
+  - full `go test ./...` after the catalog repair
 
 ## Review Summary
 
@@ -367,20 +373,26 @@ materialized `.agents/skills/` copy. Follow-up delta review
   next finalize review.
 - Finalize repair recheck `review-009-delta` passed with no findings after the
   closeout summaries were refreshed.
+- Post-push CI failed because `docs/specs/state-transitions.md` changed the
+  `idle -> plan` required-input wording but the maintained e2e canonical
+  transition catalog still carried the prior text. Revision 3 reopens the
+  candidate in `finalize-fix` mode to sync that catalog and rerun focused/full
+  validation before re-archive.
 
 ## Archive Summary
 
-- Archived At: 2026-06-09T00:21:11+08:00
-- Revision: 2
+- Archived At: pending revision-3 re-archive
+- Revision: 3
 - PR: https://github.com/catu-ai/easyharness/pull/243
 - Ready: Acceptance criteria are satisfied, including the reopened Step 4
   criterion that agent-facing docs and skills point to
   `harness repo config get ...` for concrete path roots. Focused unit, smoke,
   bootstrap-sync, stale-guidance search, direct config-get probes, and plan
-  lint validation passed. Finalize repair recheck `review-009-delta` passed
-  with no findings after repairing the stale summary placeholders found by
-  `review-008-full`.
-- Merge Handoff: Re-archive revision 2, commit the archive move and closeout
+  lint validation passed. The revision-3 CI repair synced the e2e transition
+  catalog with the updated state-transition spec and the focused catalog test
+  passed locally; full validation and final repair review must pass before
+  re-archive.
+- Merge Handoff: Re-archive revision 3, commit the archive move and closeout
   updates, push PR #243, refresh publish/CI/sync evidence, and wait for
   explicit human merge approval once `harness status` reaches
   `execution/finalize/await_merge`.
@@ -406,6 +418,9 @@ materialized `.agents/skills/` copy. Follow-up delta review
   `harness repo config get paths.local_runtime`,
   `harness repo config get paths.plans.active`, and
   `harness repo config get paths.plans.archived` lookups.
+- Synced the maintained e2e transition catalog with the updated
+  `idle -> plan` state-transition wording so `go test ./...` can enforce the
+  spec/catalog match.
 
 ### Not Delivered
 
