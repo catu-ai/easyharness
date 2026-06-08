@@ -125,7 +125,7 @@ steps.
 
 ### Step 2: Implement query commands
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -183,7 +183,8 @@ plain-text `get`, `list`, prefixed `list`, and non-leaf `get` behavior.
 Delta review `review-001-delta` found one blocking tests finding: `list`
 coverage did not directly prove custom/partial resolved output or invalid
 config fallback warning placement. Added CLI-level coverage for both cases and
-reran `go test ./internal/repoconfig ./internal/cli` successfully.
+reran `go test ./internal/repoconfig ./internal/cli` successfully. Follow-up
+delta review `review-002-delta` passed with no findings.
 
 ### Step 3: Prove script-facing behavior
 
