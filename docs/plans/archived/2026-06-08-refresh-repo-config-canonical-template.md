@@ -239,25 +239,69 @@ recorded it in this plan.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `go test ./internal/repoconfig` passed after adding canonical rendering and
+  ambiguous YAML scalar round-trip coverage.
+- `go test ./internal/install ./internal/cli ./tests/smoke` passed after
+  adding `harness repo config refresh`, service/CLI/smoke coverage, and
+  canonical config assertions.
+- `go test ./internal/repoconfig ./internal/cli ./internal/install` passed
+  after finalize review repairs.
+- `go test ./...` passed after the review repairs; the smoke package took the
+  expected release-build path.
+- Manual command checks passed: `harness repo config refresh` updated the
+  dogfood config, a second refresh reported `noop`, `harness repo config
+  --help` listed `refresh`, and `harness plan lint` passed for this plan.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step-local reviews were skipped with recorded `NO_STEP_REVIEW_NEEDED`
+  markers because focused tests covered the local slices and the integrated
+  behavior was reviewed at finalize.
+- Finalize review `review-001-full` requested changes:
+  - fixed custom path rendering so YAML-ambiguous string values such as
+    `"true"` and `"2026"` round-trip as strings after refresh
+  - added automated CLI help coverage for `repo config --help` and
+    `repo config refresh --help`
+  - created and recorded follow-up issue #244 for repo config result-envelope
+    cleanup
+- Finalize review `review-002-full` passed with no findings after the repair.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-06-08T23:34:21+08:00
+- Revision: 1
+- PR: pending post-archive publish handoff from branch
+  `codex/refresh-repo-config-canonical-template`.
+- Ready: Acceptance criteria are satisfied; the branch has clean focused
+  validation, full `go test ./...`, and a passing finalize review
+  (`review-002-full`).
+- Merge Handoff: After archive, commit the tracked plan move and closeout
+  summaries, push the branch, open a draft PR for issue #240, record publish
+  evidence, refresh CI/sync evidence, and stop once `harness status` reaches
+  `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- `repoconfig.DefaultContent` now shows commented default path roots while
+  remaining default-equivalent.
+- `repoconfig.Render` renders default config as the commented canonical
+  template and renders custom path roots through the YAML encoder so valid
+  string values are preserved safely.
+- `harness repo init` and `harness repo config init` create the canonical
+  default-equivalent config when the file is missing and continue preserving
+  existing config files.
+- `harness repo config refresh` creates missing config, updates old/default or
+  custom valid config to the canonical shape, reports noop when already
+  canonical, and refuses invalid existing config without overwriting it.
+- README, bootstrap/config/CLI specs, tests, and this repository's
+  `.harness/config.yaml` now match the canonical refresh behavior.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Repo config command result-envelope cleanup was intentionally deferred to
+  issue #244.
 
 ### Follow-Up Issues
 
