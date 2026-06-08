@@ -378,6 +378,8 @@ materialized `.agents/skills/` copy. Follow-up delta review
   transition catalog still carried the prior text. Revision 3 reopens the
   candidate in `finalize-fix` mode to sync that catalog and rerun focused/full
   validation before re-archive.
+- Revision 3 repair review `review-010-delta` passed with no tests or
+  docs-consistency findings after the catalog sync and full validation.
 
 ## Archive Summary
 
@@ -390,8 +392,8 @@ materialized `.agents/skills/` copy. Follow-up delta review
   bootstrap-sync, stale-guidance search, direct config-get probes, and plan
   lint validation passed. The revision-3 CI repair synced the e2e transition
   catalog with the updated state-transition spec and the focused catalog test
-  passed locally; full validation and final repair review must pass before
-  re-archive.
+  plus full `go test ./...` passed locally. Revision 3 repair review
+  `review-010-delta` passed with no findings.
 - Merge Handoff: Re-archive revision 3, commit the archive move and closeout
   updates, push PR #243, refresh publish/CI/sync evidence, and wait for
   explicit human merge approval once `harness status` reaches
