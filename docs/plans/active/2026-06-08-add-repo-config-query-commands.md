@@ -322,8 +322,6 @@ materialized `.agents/skills/` copy. Follow-up delta review
 
 ## Validation Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 - `go test ./internal/repoconfig ./internal/cli`
 - `scripts/install-dev-harness`
 - Manual probes after reinstall:
@@ -333,10 +331,21 @@ UPDATE_REQUIRED_AFTER_REOPEN
   - `harness repo config get paths`
 - `go test ./tests/smoke`
 - `go test ./internal/repoconfig ./internal/cli ./tests/smoke`
+- Reopened Step 4 validation:
+  - `scripts/sync-bootstrap-assets`
+  - `scripts/sync-bootstrap-assets --check`
+  - strict `rg` search for stale configured-root guidance in README,
+    `AGENTS.md`, bootstrap assets, materialized skills, and specs
+  - direct probes:
+    - `harness repo config get paths.local_runtime`
+    - `harness repo config get paths.plans.active`
+    - `harness repo config get paths.plans.archived`
+  - `harness plan lint docs/plans/active/2026-06-08-add-repo-config-query-commands.md`
+  - `git diff --check`
+  - `go test ./internal/repoconfig ./internal/cli`
+  - `go test ./internal/repoconfig ./internal/cli ./tests/smoke`
 
 ## Review Summary
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - Step 2 delta review `review-001-delta` found one blocking tests gap around
   `list` custom/fallback coverage. The gap was fixed with CLI-level tests.
@@ -346,25 +355,36 @@ UPDATE_REQUIRED_AFTER_REOPEN
 - Finalize docs recheck `review-004-delta` passed after updating README.
 - Final repaired-candidate full review `review-005-full` passed with zero
   blocking and zero non-blocking findings.
+- Reopened Step 4 delta review `review-006-delta` passed with one minor
+  docs-consistency finding: a lightweight closeout note was misindented in the
+  bootstrap and materialized closeout reference.
+- Follow-up Step 4 recheck `review-007-delta` passed with no findings after
+  fixing the indentation and rerunning `scripts/sync-bootstrap-assets`.
+- Reopened finalize review `review-008-full` found no correctness issues, but
+  requested changes because the archive-facing summaries still carried
+  stale reopen placeholders. This repair replaces those placeholders with the
+  current revision-2 validation, review, archive, and outcome record before the
+  next finalize review.
 
 ## Archive Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
-- Archived At: 2026-06-08T23:22:04+08:00
-- Revision: 1
+- Archived At: pending revision-2 re-archive
+- Revision: 2
 - PR: https://github.com/catu-ai/easyharness/pull/243
-- Ready: Acceptance criteria are satisfied, focused unit and smoke validation
-  passed, and the final repaired-candidate full review passed.
-- Merge Handoff: Publish evidence is recorded for PR #243. Refresh CI and sync
-  evidence after the branch is current with `origin/main` and GitHub checks
-  finish, then wait for explicit human merge approval.
+- Ready: Acceptance criteria are satisfied, including the reopened Step 4
+  criterion that agent-facing docs and skills point to
+  `harness repo config get ...` for concrete path roots. Focused unit, smoke,
+  bootstrap-sync, stale-guidance search, direct config-get probes, and plan
+  lint validation passed. Finalize review is being rerun after repairing the
+  stale summary placeholders found by `review-008-full`.
+- Merge Handoff: Re-archive revision 2, commit the archive move and closeout
+  updates, push PR #243, refresh publish/CI/sync evidence, and wait for
+  explicit human merge approval once `harness status` reaches
+  `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - Added plain-text `harness repo config get <key>` for resolved scalar repo
   config values.
@@ -377,17 +397,19 @@ UPDATE_REQUIRED_AFTER_REOPEN
   spec.
 - Added unit and smoke coverage for default, custom/partial, invalid fallback,
   non-leaf, unknown-key, and script-facing output behavior.
+- Replaced ambiguous configured-root guidance in agent-facing README/specs,
+  bootstrap-managed skills, materialized `.agents/skills/`, and the managed
+  root `AGENTS.md` block with concrete
+  `harness repo config get paths.local_runtime`,
+  `harness repo config get paths.plans.active`, and
+  `harness repo config get paths.plans.archived` lookups.
 
 ### Not Delivered
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - JSON output, config mutation, new config fields, and root-level aliases were
   intentionally out of scope.
 
 ### Follow-Up Issues
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - No new follow-up issues were created. JSON output remains deferred until a
   concrete agent or script workflow needs structured source metadata. Query
