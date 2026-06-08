@@ -72,7 +72,7 @@ the behavior stable as `.harness/config.yaml` grows deeper over time.
       prefix in deterministic order.
 - [x] Docs and help describe `get` as exact scalar lookup and `list` as prefix
       enumeration.
-- [ ] Agent-facing docs and skills that need the resolved active, archived, or
+- [x] Agent-facing docs and skills that need the resolved active, archived, or
       local runtime roots point to `harness repo config get ...` instead of
       asking agents to infer configured roots.
 
@@ -231,7 +231,7 @@ implemented and reviewed in Step 2; no new production behavior was introduced.
 
 ### Step 4: Replace configured-root inference guidance
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -293,7 +293,12 @@ and `go test ./internal/repoconfig ./internal/cli`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Delta review `review-006-delta` passed with no blocking findings and one
+minor docs-consistency finding: the lightweight note in
+`closeout-and-archive.md` was misindented after the root-guidance edit. Fixed
+the bootstrap source, reran `scripts/sync-bootstrap-assets`, and validated the
+materialized `.agents/skills/` copy. Follow-up delta review
+`review-007-delta` passed with no findings.
 
 ## Validation Strategy
 

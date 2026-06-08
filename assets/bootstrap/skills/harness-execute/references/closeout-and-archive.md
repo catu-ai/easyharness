@@ -19,9 +19,9 @@ Archive is a freeze-and-summarize step, not just a file move.
    - `Review Summary`
    - `Archive Summary`
    - `Outcome Summary`
-  - for lightweight work, the active plan is still tracked before archive,
-    while the archived snapshot later moves under the local runtime root
-    resolved by `harness repo config get paths.local_runtime`
+   - for lightweight work, the active plan is still tracked before archive,
+     while the archived snapshot later moves under the local runtime root
+     resolved by `harness repo config get paths.local_runtime`
 6. If `## Deferred Items` still contains real items, replace `Follow-Up Issues`
    with durable handoff details before archive. Issue links are fine, but the
    main rule is that it must not stay `NONE`.
