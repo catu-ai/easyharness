@@ -365,6 +365,8 @@ materialized `.agents/skills/` copy. Follow-up delta review
   stale reopen placeholders. This repair replaces those placeholders with the
   current revision-2 validation, review, archive, and outcome record before the
   next finalize review.
+- Finalize repair recheck `review-009-delta` passed with no findings after the
+  closeout summaries were refreshed.
 
 ## Archive Summary
 
@@ -375,8 +377,9 @@ materialized `.agents/skills/` copy. Follow-up delta review
   criterion that agent-facing docs and skills point to
   `harness repo config get ...` for concrete path roots. Focused unit, smoke,
   bootstrap-sync, stale-guidance search, direct config-get probes, and plan
-  lint validation passed. Finalize review is being rerun after repairing the
-  stale summary placeholders found by `review-008-full`.
+  lint validation passed. Finalize repair recheck `review-009-delta` passed
+  with no findings after repairing the stale summary placeholders found by
+  `review-008-full`.
 - Merge Handoff: Re-archive revision 2, commit the archive move and closeout
   updates, push PR #243, refresh publish/CI/sync evidence, and wait for
   explicit human merge approval once `harness status` reaches
