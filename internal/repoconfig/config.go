@@ -13,10 +13,16 @@ const (
 	Dir                      = ".harness"
 	File                     = ".harness/config.yaml"
 	CurrentVersion           = 1
-	DefaultContent           = "version: 1\n"
 	DefaultActivePlansRoot   = "docs/plans/active"
 	DefaultArchivedPlansRoot = "docs/plans/archived"
 	DefaultLocalRuntimeRoot  = ".local/harness"
+	DefaultContent           = "version: 1\n\n" +
+		"# Optional path roots. Omit this block to use the built-in defaults.\n" +
+		"# paths:\n" +
+		"#   plans:\n" +
+		"#     active: " + DefaultActivePlansRoot + "\n" +
+		"#     archived: " + DefaultArchivedPlansRoot + "\n" +
+		"#   local_runtime: " + DefaultLocalRuntimeRoot + "\n"
 )
 
 type Config struct {
@@ -35,11 +41,12 @@ type PlanPathsConfig struct {
 }
 
 type LoadResult struct {
-	Config   Config
-	Path     string
-	Exists   bool
-	Valid    bool
-	Warnings []string
+	Config        Config
+	Path          string
+	Exists        bool
+	Valid         bool
+	InvalidReason string
+	Warnings      []string
 }
 
 func Load(workdir string) LoadResult {
@@ -121,16 +128,45 @@ func DefaultConfig() Config {
 	}
 }
 
+func Render(config Config) string {
+	config.Version = CurrentVersion
+	if config.Paths.Plans.Active == "" {
+		config.Paths.Plans.Active = DefaultActivePlansRoot
+	}
+	if config.Paths.Plans.Archived == "" {
+		config.Paths.Plans.Archived = DefaultArchivedPlansRoot
+	}
+	if config.Paths.LocalRuntime == "" {
+		config.Paths.LocalRuntime = DefaultLocalRuntimeRoot
+	}
+	if isDefaultPaths(config.Paths) {
+		return DefaultContent
+	}
+	return fmt.Sprintf("version: %d\npaths:\n  plans:\n    active: %s\n    archived: %s\n  local_runtime: %s\n",
+		CurrentVersion,
+		config.Paths.Plans.Active,
+		config.Paths.Plans.Archived,
+		config.Paths.LocalRuntime,
+	)
+}
+
 func invalid(path, reason string) LoadResult {
 	return LoadResult{
-		Config: DefaultConfig(),
-		Path:   path,
-		Exists: true,
-		Valid:  false,
+		Config:        DefaultConfig(),
+		Path:          path,
+		Exists:        true,
+		Valid:         false,
+		InvalidReason: reason,
 		Warnings: []string{
 			fmt.Sprintf("Ignoring %s because %s; using built-in defaults.", filepath.ToSlash(path), reason),
 		},
 	}
+}
+
+func isDefaultPaths(paths PathsConfig) bool {
+	return paths.Plans.Active == DefaultActivePlansRoot &&
+		paths.Plans.Archived == DefaultArchivedPlansRoot &&
+		paths.LocalRuntime == DefaultLocalRuntimeRoot
 }
 
 func parsePaths(node *yaml.Node) (PathsConfig, error) {
