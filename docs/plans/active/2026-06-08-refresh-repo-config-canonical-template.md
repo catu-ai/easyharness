@@ -49,21 +49,21 @@ result envelopes.
 
 ## Acceptance Criteria
 
-- [ ] `repoconfig.DefaultContent` includes commented default path roots and is
+- [x] `repoconfig.DefaultContent` includes commented default path roots and is
       used by `harness repo init` and `harness repo config init` when they
       create a missing config file.
-- [ ] `harness repo config init` continues to preserve any existing
+- [x] `harness repo config init` continues to preserve any existing
       `.harness/config.yaml` without rewriting it.
-- [ ] `harness repo config refresh` exists, returns the existing repo resource
+- [x] `harness repo config refresh` exists, returns the existing repo resource
       JSON result shape, supports create/update/noop action reporting, and does
       not introduce `--dry-run` in this slice.
-- [ ] Refreshing a valid config preserves custom path-root values while
+- [x] Refreshing a valid config preserves custom path-root values while
       rendering the current canonical file shape.
-- [ ] Refreshing an invalid config does not overwrite the file and reports the
+- [x] Refreshing an invalid config does not overwrite the file and reports the
       invalid-config reason.
-- [ ] Tests and specs no longer describe generated config content as exactly
+- [x] Tests and specs no longer describe generated config content as exactly
       `version: 1` only.
-- [ ] This repository's `.harness/config.yaml` is refreshed with the supported
+- [x] This repository's `.harness/config.yaml` is refreshed with the supported
       command path.
 
 ## Deferred Items
@@ -164,7 +164,7 @@ the final review should inspect the integrated command/docs/dogfood behavior.
 
 ### Step 3: Update contracts and dogfood config
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -195,11 +195,18 @@ editing.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Refreshed this repository's `.harness/config.yaml` with
+`harness repo config refresh`, then reran the command to verify it reports a
+noop once canonical. Updated README and the normative config/bootstrap/CLI
+specs to describe canonical default-equivalent config creation and the new
+refresh command. `harness repo config --help` lists `refresh`, and
+`harness plan lint docs/plans/active/2026-06-08-refresh-repo-config-canonical-template.md`
+passed.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: This step is docs plus dogfood config alignment; final
+review should inspect the complete code/docs/test/config candidate.
 
 ## Validation Strategy
 

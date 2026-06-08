@@ -1,1 +1,8 @@
 version: 1
+
+# Optional path roots. Omit this block to use the built-in defaults.
+# paths:
+#   plans:
+#     active: docs/plans/active
+#     archived: docs/plans/archived
+#   local_runtime: .local/harness
