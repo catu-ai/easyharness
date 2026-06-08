@@ -86,6 +86,28 @@ paths:
 	}
 }
 
+func TestRenderCustomPathRootsQuotesAmbiguousScalars(t *testing.T) {
+	config := DefaultConfig()
+	config.Paths.Plans.Active = "true"
+	config.Paths.Plans.Archived = "2026"
+	config.Paths.LocalRuntime = "tmp/harness-runtime"
+
+	rendered := Render(config)
+	root := t.TempDir()
+	writeConfig(t, root, rendered)
+
+	result := Load(root)
+	if !result.Valid {
+		t.Fatalf("expected rendered config to remain valid, got %#v\n%s", result, rendered)
+	}
+	if got, want := result.Config.Paths.Plans.Active, "true"; got != want {
+		t.Fatalf("active root = %q, want %q\n%s", got, want, rendered)
+	}
+	if got, want := result.Config.Paths.Plans.Archived, "2026"; got != want {
+		t.Fatalf("archived root = %q, want %q\n%s", got, want, rendered)
+	}
+}
+
 func TestLoadValidCustomPathRoots(t *testing.T) {
 	root := t.TempDir()
 	writeConfig(t, root, `version: 1

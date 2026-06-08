@@ -596,6 +596,40 @@ func TestRepoSkillsHelpExitsZero(t *testing.T) {
 	}
 }
 
+func TestRepoConfigHelpExitsZero(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"repo", "config", "--help"})
+	if exitCode != 0 {
+		t.Fatalf("expected help exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "Usage: harness repo config") || !strings.Contains(stderr.String(), "refresh") {
+		t.Fatalf("expected config help text, got %q", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout for config help, got %q", stdout.String())
+	}
+}
+
+func TestRepoConfigRefreshHelpExitsZero(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"repo", "config", "refresh", "--help"})
+	if exitCode != 0 {
+		t.Fatalf("expected help exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "Usage: harness repo config refresh") {
+		t.Fatalf("expected config refresh help text, got %q", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout for config refresh help, got %q", stdout.String())
+	}
+}
+
 func TestOldRepoResourceCommandsAreRemoved(t *testing.T) {
 	for _, args := range [][]string{
 		{"init", "--dry-run"},

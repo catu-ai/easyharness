@@ -160,7 +160,10 @@ expected longer release-build path. Reinstalled the dev harness with
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: The step has focused install, CLI, and smoke coverage;
-the final review should inspect the integrated command/docs/dogfood behavior.
+the final review inspected the integrated command/docs/dogfood behavior.
+Finalize review `review-001-full` found one minor automated-help coverage gap;
+added CLI help tests for `repo config --help` and
+`repo config refresh --help`.
 
 ### Step 3: Update contracts and dogfood config
 
@@ -206,7 +209,10 @@ passed.
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: This step is docs plus dogfood config alignment; final
-review should inspect the complete code/docs/test/config candidate.
+review inspected the complete code/docs/test/config candidate.
+Finalize review `review-001-full` found that the deferred result-envelope
+cleanup had not yet been recorded in Follow-Up Issues. Created #244 and
+recorded it in this plan.
 
 ## Validation Strategy
 
@@ -255,4 +261,4 @@ PENDING_UNTIL_ARCHIVE
 
 ### Follow-Up Issues
 
-NONE
+- [#244 Review repo config command result envelope](https://github.com/catu-ai/easyharness/issues/244)

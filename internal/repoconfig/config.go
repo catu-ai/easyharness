@@ -1,6 +1,7 @@
 package repoconfig
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -142,12 +143,20 @@ func Render(config Config) string {
 	if isDefaultPaths(config.Paths) {
 		return DefaultContent
 	}
-	return fmt.Sprintf("version: %d\npaths:\n  plans:\n    active: %s\n    archived: %s\n  local_runtime: %s\n",
-		CurrentVersion,
-		config.Paths.Plans.Active,
-		config.Paths.Plans.Archived,
-		config.Paths.LocalRuntime,
-	)
+	var node yaml.Node
+	if err := node.Encode(config); err != nil {
+		panic(fmt.Sprintf("render repo config: %v", err))
+	}
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(&node); err != nil {
+		panic(fmt.Sprintf("render repo config: %v", err))
+	}
+	if err := encoder.Close(); err != nil {
+		panic(fmt.Sprintf("render repo config: %v", err))
+	}
+	return buf.String()
 }
 
 func invalid(path, reason string) LoadResult {
