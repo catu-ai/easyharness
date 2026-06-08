@@ -50,24 +50,24 @@ the behavior stable as `.harness/config.yaml` grows deeper over time.
 
 ## Acceptance Criteria
 
-- [ ] `harness repo config get paths.local_runtime` prints only the resolved
+- [x] `harness repo config get paths.local_runtime` prints only the resolved
       value plus a trailing newline.
-- [ ] `harness repo config get paths.plans.active` and
+- [x] `harness repo config get paths.plans.active` and
       `harness repo config get paths.plans.archived` print their resolved
       values plus trailing newlines.
-- [ ] Missing `.harness/config.yaml` returns built-in defaults.
-- [ ] Partially specified path config returns explicit values for configured
+- [x] Missing `.harness/config.yaml` returns built-in defaults.
+- [x] Partially specified path config returns explicit values for configured
       keys and built-in defaults for omitted keys.
-- [ ] Invalid repo config follows the existing whole-config fallback model and
+- [x] Invalid repo config follows the existing whole-config fallback model and
       returns default resolved values while preserving agent-facing warnings.
-- [ ] Unknown keys fail clearly with a non-zero exit code.
-- [ ] `get` rejects non-leaf config objects such as `paths` with a clear
+- [x] Unknown keys fail clearly with a non-zero exit code.
+- [x] `get` rejects non-leaf config objects such as `paths` with a clear
       message that points users to `harness repo config list paths`.
-- [ ] `harness repo config list` prints all supported resolved leaf entries as
+- [x] `harness repo config list` prints all supported resolved leaf entries as
       `key=value` lines in deterministic order.
-- [ ] `harness repo config list paths` prints resolved leaf entries under that
+- [x] `harness repo config list paths` prints resolved leaf entries under that
       prefix in deterministic order.
-- [ ] Docs and help describe `get` as exact scalar lookup and `list` as prefix
+- [x] Docs and help describe `get` as exact scalar lookup and `list` as prefix
       enumeration.
 
 ## Deferred Items
@@ -245,26 +245,62 @@ implemented and reviewed in Step 2; no new production behavior was introduced.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `go test ./internal/repoconfig ./internal/cli`
+- `scripts/install-dev-harness`
+- Manual probes after reinstall:
+  - `harness repo config get paths.local_runtime`
+  - `harness repo config list`
+  - `harness repo config list paths.plans`
+  - `harness repo config get paths`
+- `go test ./tests/smoke`
+- `go test ./internal/repoconfig ./internal/cli ./tests/smoke`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step 2 delta review `review-001-delta` found one blocking tests gap around
+  `list` custom/fallback coverage. The gap was fixed with CLI-level tests.
+- Step 2 follow-up delta review `review-002-delta` passed with no findings.
+- Finalize full review `review-003-full` found one blocking docs consistency
+  gap: README's command-surface list omitted `repo config get/list`.
+- Finalize docs recheck `review-004-delta` passed after updating README.
+- Final repaired-candidate full review `review-005-full` passed with zero
+  blocking and zero non-blocking findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-06-08T23:22:04+08:00
+- Revision: 1
+- PR: To be opened after archive commit and push.
+- Ready: Acceptance criteria are satisfied, focused unit and smoke validation
+  passed, and the final repaired-candidate full review passed.
+- Merge Handoff: After archive, commit the tracked archive move, push
+  `codex/repo-config-query-commands`, open a PR, record publish evidence with
+  the PR URL, and refresh CI/sync evidence before waiting for merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added plain-text `harness repo config get <key>` for resolved scalar repo
+  config values.
+- Added plain-text `harness repo config list [prefix]` for deterministic
+  resolved leaf enumeration.
+- Preserved missing, partial, and invalid repo config behavior through the
+  existing whole-config fallback loader, with script-facing values on stdout
+  and warnings/errors on stderr.
+- Documented the command shape in README, the CLI contract, and the repo config
+  spec.
+- Added unit and smoke coverage for default, custom/partial, invalid fallback,
+  non-leaf, unknown-key, and script-facing output behavior.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- JSON output, config mutation, new config fields, and root-level aliases were
+  intentionally out of scope.
 
 ### Follow-Up Issues
 
-NONE
+- No new follow-up issues were created. JSON output remains deferred until a
+  concrete agent or script workflow needs structured source metadata. Query
+  support for future config fields should be added when those fields enter the
+  repo config contract.
