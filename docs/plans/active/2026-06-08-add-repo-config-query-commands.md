@@ -171,7 +171,12 @@ being silently lost.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added resolved query helpers to `internal/repoconfig` and wired
+`harness repo config get|list` through the CLI. Followed Red/Green/Refactor:
+new unit tests first failed for missing helpers/subcommands, then passed after
+implementation. Focused validation passed with `go test ./internal/repoconfig
+./internal/cli`, and manual probes after `scripts/install-dev-harness` showed
+plain-text `get`, `list`, prefixed `list`, and non-leaf `get` behavior.
 
 #### Review Notes
 
