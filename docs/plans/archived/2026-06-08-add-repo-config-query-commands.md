@@ -270,12 +270,12 @@ implemented and reviewed in Step 2; no new production behavior was introduced.
 
 - Archived At: 2026-06-08T23:22:04+08:00
 - Revision: 1
-- PR: To be opened after archive commit and push.
+- PR: https://github.com/catu-ai/easyharness/pull/243
 - Ready: Acceptance criteria are satisfied, focused unit and smoke validation
   passed, and the final repaired-candidate full review passed.
-- Merge Handoff: After archive, commit the tracked archive move, push
-  `codex/repo-config-query-commands`, open a PR, record publish evidence with
-  the PR URL, and refresh CI/sync evidence before waiting for merge approval.
+- Merge Handoff: Publish evidence is recorded for PR #243. Refresh CI and sync
+  evidence after the branch is current with `origin/main` and GitHub checks
+  finish, then wait for explicit human merge approval.
 
 ## Outcome Summary
 
