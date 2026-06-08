@@ -188,7 +188,7 @@ delta review `review-002-delta` passed with no findings.
 
 ### Step 3: Prove script-facing behavior
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -213,11 +213,15 @@ workspaces simpler. The test should verify plain-text stdout rather than JSON.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added smoke coverage for the real CLI shape: custom/partial config `get`,
+full `list`, prefixed `list`, non-leaf `get` failure, and invalid-config
+fallback with warning diagnostics on stderr. Validation passed with
+`go test ./tests/smoke` and the focused unit packages remained green.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 3 adds direct smoke coverage for behavior already
+implemented and reviewed in Step 2; no new production behavior was introduced.
 
 ## Validation Strategy
 
