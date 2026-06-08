@@ -370,7 +370,7 @@ materialized `.agents/skills/` copy. Follow-up delta review
 
 ## Archive Summary
 
-- Archived At: pending revision-2 re-archive
+- Archived At: 2026-06-09T00:21:11+08:00
 - Revision: 2
 - PR: https://github.com/catu-ai/easyharness/pull/243
 - Ready: Acceptance criteria are satisfied, including the reopened Step 4
