@@ -35,6 +35,8 @@ The current command surface is:
 - `harness repo instructions install`
 - `harness repo instructions uninstall`
 - `harness repo config init`
+- `harness repo config get <key>`
+- `harness repo config list [prefix]`
 - `harness execute start`
 - `harness evidence submit`
 - `harness evidence refresh`
@@ -317,6 +319,10 @@ Contract:
   are defined in [Bootstrap Install](./bootstrap-install.md)
 - bootstrap commands share a JSON result envelope documented by the checked-in
   contract registry and may omit workflow `state`
+- read-only repo config query commands are plain-text exceptions:
+  `harness repo config get <key>` prints one resolved scalar value, while
+  `harness repo config list [prefix]` prints resolved `key=value` leaf entries
+  in deterministic order
 
 Recommended next action:
 
