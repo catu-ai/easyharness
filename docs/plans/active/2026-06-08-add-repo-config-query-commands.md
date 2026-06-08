@@ -5,6 +5,7 @@ approved_at: "2026-06-08T22:43:17+08:00"
 source_type: direct_request
 source_refs:
     - https://github.com/catu-ai/easyharness/issues/241
+    - https://github.com/catu-ai/easyharness/pull/239
 size: S
 ---
 
@@ -38,6 +39,8 @@ the behavior stable as `.harness/config.yaml` grows deeper over time.
 - Preserve existing repo config loading behavior for missing config, partial
   config, and invalid-config whole-config fallback.
 - Update CLI help, specs, docs, and tests for the new command behavior.
+- Replace agent-facing docs and skills that still ask agents to infer
+  configured path roots with concrete `harness repo config get ...` commands.
 - Keep stdout script-friendly and deterministic.
 
 ### Out of Scope
@@ -69,6 +72,9 @@ the behavior stable as `.harness/config.yaml` grows deeper over time.
       prefix in deterministic order.
 - [x] Docs and help describe `get` as exact scalar lookup and `list` as prefix
       enumeration.
+- [ ] Agent-facing docs and skills that need the resolved active, archived, or
+      local runtime roots point to `harness repo config get ...` instead of
+      asking agents to infer configured roots.
 
 ## Deferred Items
 
@@ -223,6 +229,72 @@ fallback with warning diagnostics on stderr. Validation passed with
 NO_STEP_REVIEW_NEEDED: Step 3 adds direct smoke coverage for behavior already
 implemented and reviewed in Step 2; no new production behavior was introduced.
 
+### Step 4: Replace configured-root inference guidance
+
+- Done: [ ]
+
+#### Objective
+
+Update docs and harness skill assets so agents use
+`harness repo config get <key>` when they need concrete path roots introduced
+around PR #239.
+
+#### Details
+
+PR #239 made docs and skills accurately refer to configured active/archive plan
+roots and configured local runtime roots, but that wording can leave agents
+guessing whether the concrete value is `.local/harness`, `docs/plans/active`,
+or a repo override. This reopened step should remove that uncertainty wherever
+the workflow text expects an agent or script to act on a concrete root.
+
+Use these commands as the canonical lookup surface:
+
+```bash
+harness repo config get paths.local_runtime
+harness repo config get paths.plans.active
+harness repo config get paths.plans.archived
+```
+
+For easyharness-managed skill pack changes, edit `assets/bootstrap/` and run
+`scripts/sync-bootstrap-assets` so the materialized `.agents/skills/` copies
+and managed root `AGENTS.md` block are refreshed from source.
+
+#### Expected Files
+
+- `assets/bootstrap/`
+- `.agents/skills/`
+- `AGENTS.md`
+- `docs/`
+
+#### Validation
+
+- Text search shows agent-facing configured-root guidance now points to the
+  query commands where concrete values are needed.
+- `scripts/sync-bootstrap-assets` is run if bootstrap-managed assets change.
+- Focused tests or lint commands pass for touched surfaces.
+
+#### Execution Notes
+
+Replaced ambiguous configured-root guidance in managed bootstrap assets,
+materialized skills, `AGENTS.md`, README, and specs with command-first
+lookups:
+
+- `harness repo config get paths.local_runtime`
+- `harness repo config get paths.plans.active`
+- `harness repo config get paths.plans.archived`
+
+Edited bootstrap sources under `assets/bootstrap/` and reran
+`scripts/sync-bootstrap-assets` so `.agents/skills/` and the managed root
+`AGENTS.md` block match the distributed source. A strict text search for
+ambiguous configured-root phrases returned no hits; remaining `configured`
+mentions are repo-config contract text or unrelated setup prose. Validation
+passed with `harness plan lint`, `git diff --check`, direct config-get probes,
+and `go test ./internal/repoconfig ./internal/cli`.
+
+#### Review Notes
+
+PENDING_STEP_REVIEW
+
 ## Validation Strategy
 
 - Run focused unit tests for `internal/repoconfig` and `internal/cli`.
@@ -245,6 +317,8 @@ implemented and reviewed in Step 2; no new production behavior was introduced.
 
 ## Validation Summary
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 - `go test ./internal/repoconfig ./internal/cli`
 - `scripts/install-dev-harness`
 - Manual probes after reinstall:
@@ -257,6 +331,8 @@ implemented and reviewed in Step 2; no new production behavior was introduced.
 
 ## Review Summary
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 - Step 2 delta review `review-001-delta` found one blocking tests gap around
   `list` custom/fallback coverage. The gap was fixed with CLI-level tests.
 - Step 2 follow-up delta review `review-002-delta` passed with no findings.
@@ -267,6 +343,8 @@ implemented and reviewed in Step 2; no new production behavior was introduced.
   blocking and zero non-blocking findings.
 
 ## Archive Summary
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - Archived At: 2026-06-08T23:22:04+08:00
 - Revision: 1
@@ -280,6 +358,8 @@ implemented and reviewed in Step 2; no new production behavior was introduced.
 ## Outcome Summary
 
 ### Delivered
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - Added plain-text `harness repo config get <key>` for resolved scalar repo
   config values.
@@ -295,10 +375,14 @@ implemented and reviewed in Step 2; no new production behavior was introduced.
 
 ### Not Delivered
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 - JSON output, config mutation, new config fields, and root-level aliases were
   intentionally out of scope.
 
 ### Follow-Up Issues
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - No new follow-up issues were created. JSON output remains deferred until a
   concrete agent or script workflow needs structured source metadata. Query
