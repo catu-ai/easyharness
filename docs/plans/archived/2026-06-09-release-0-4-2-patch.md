@@ -152,7 +152,7 @@ artifact names are recorded.
 
 ## Archive Summary
 
-- Archived At: pending archive
+- Archived At: 2026-06-09T23:33:07+08:00
 - Revision: 1
 - PR: https://github.com/catu-ai/easyharness/pull/246
 - Ready: Acceptance criteria are satisfied. `VERSION` is `0.4.2`, release
