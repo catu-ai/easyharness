@@ -20,6 +20,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/lifecycle"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/remote"
+	"github.com/catu-ai/easyharness/internal/repoconfig"
 	"github.com/catu-ai/easyharness/internal/review"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/status"
@@ -464,6 +465,10 @@ func (a *App) runRepoConfig(args []string) int {
 	switch args[0] {
 	case "init":
 		return a.runRepoConfigInit(args[1:])
+	case "get":
+		return a.runRepoConfigGet(args[1:])
+	case "list":
+		return a.runRepoConfigList(args[1:])
 	case "-h", "--help", "help":
 		a.printRepoConfigUsage()
 		return 0
@@ -616,6 +621,86 @@ func (a *App) runRepoConfigInit(args []string) int {
 	}
 	result := install.Service{Workdir: workdir}.InitConfig(install.Options{DryRun: *dryRun})
 	return a.writeJSONResult(result)
+}
+
+func (a *App) runRepoConfigGet(args []string) int {
+	fs := flag.NewFlagSet("harness repo config get", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness repo config get <key>")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Print one resolved scalar repo config value.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 1 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	result := repoconfig.Load(workdir)
+	a.printRepoConfigWarnings(result.Warnings)
+	value, err := result.Config.GetScalar(fs.Arg(0))
+	if err != nil {
+		fmt.Fprintln(a.Stderr, err)
+		return 1
+	}
+	fmt.Fprintln(a.Stdout, value)
+	return 0
+}
+
+func (a *App) runRepoConfigList(args []string) int {
+	fs := flag.NewFlagSet("harness repo config list", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness repo config list [prefix]")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Print resolved repo config leaf entries as key=value lines.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() > 1 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	prefix := ""
+	if fs.NArg() == 1 {
+		prefix = fs.Arg(0)
+	}
+	result := repoconfig.Load(workdir)
+	a.printRepoConfigWarnings(result.Warnings)
+	entries, err := result.Config.ListResolved(prefix)
+	if err != nil {
+		fmt.Fprintln(a.Stderr, err)
+		return 1
+	}
+	for _, entry := range entries {
+		fmt.Fprintf(a.Stdout, "%s=%s\n", entry.Key, entry.Value)
+	}
+	return 0
+}
+
+func (a *App) printRepoConfigWarnings(warnings []string) {
+	for _, warning := range warnings {
+		fmt.Fprintln(a.Stderr, warning)
+	}
 }
 
 func (a *App) runDashboard(args []string) int {
@@ -1285,6 +1370,8 @@ func (a *App) printRepoConfigUsage() {
 	fmt.Fprintln(a.Stderr)
 	fmt.Fprintln(a.Stderr, "Subcommands:")
 	fmt.Fprintln(a.Stderr, "  init       Create the minimal .harness/config.yaml manifest")
+	fmt.Fprintln(a.Stderr, "  get        Print one resolved scalar repo config value")
+	fmt.Fprintln(a.Stderr, "  list       Print resolved repo config leaf entries")
 }
 
 func (a *App) printLandUsage() {

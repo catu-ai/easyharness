@@ -56,10 +56,12 @@ latest `current_node`.
 CLI-owned runstate files must stay parseable even when commands run close
 together or a process exits during persistence.
 
-- the current-plan pointer under the configured local runtime root must be
-  written with atomic replacement rather than in-place overwrite writes
-- each plan-local `state.json` under the configured local runtime root must
-  also use atomic replacement
+- the current-plan pointer under the local runtime root resolved by
+  `harness repo config get paths.local_runtime` must be written with atomic
+  replacement rather than in-place overwrite writes
+- each plan-local `state.json` under the local runtime root resolved by
+  `harness repo config get paths.local_runtime` must also use atomic
+  replacement
 - any command that mutates a plan-local `state.json` must acquire a shared
   per-plan state-mutation lock before it loads and rewrites that file
 - if the per-plan state lock is already held, the command should fail with a
@@ -92,11 +94,14 @@ resolving the snapshot.
 
 Tracked active plans remain the durable source of scope, step closeout, and
 archive summaries for both profiles. Lightweight work uses the same schema and
-the same configured active-plan root, but its archived snapshot moves under
-the configured local runtime root so the workflow can stay lightweight for
-narrow low-risk changes. Runtime trajectory, milestone timestamps, and
-external-fact capture also belong in the configured local runtime root. There
-is no separate local active lightweight plan path in this model.
+the same active-plan root resolved by
+`harness repo config get paths.plans.active`, but its archived snapshot moves
+under the local runtime root resolved by
+`harness repo config get paths.local_runtime` so the workflow can stay
+lightweight for narrow low-risk changes. Runtime trajectory, milestone
+timestamps, and external-fact capture also belong in the resolved local
+runtime root. There is no separate local active lightweight plan path in this
+model.
 
 ### Explicit Command Boundaries
 
@@ -135,11 +140,18 @@ root
 - archive-time summaries and outcome notes
 
 For active work in both profiles, this plan artifact is a tracked file under
-the configured active plan root, which defaults to `docs/plans/active/`.
-Standard archives stay tracked under the configured archived plan root, which
+the active plan root resolved by
+`harness repo config get paths.plans.active`, which defaults to
+`docs/plans/active/`. Standard archives stay tracked under the archived plan
+root resolved by `harness repo config get paths.plans.archived`, which
 defaults to `docs/plans/archived/`. Lightweight archived snapshots move under
-the configured local runtime root, defaulting to
+the local runtime root resolved by
+`harness repo config get paths.local_runtime`, defaulting to
 `.local/harness/plans/archived/` for the snapshot directory.
+Agents and scripts should resolve these roots with
+`harness repo config get paths.plans.active`,
+`harness repo config get paths.plans.archived`, and
+`harness repo config get paths.local_runtime` instead of inferring defaults.
 
 ### Command-Owned Runtime Artifacts Own
 
@@ -148,8 +160,9 @@ the configured local runtime root, defaulting to
 - review round metadata, submission-tracking data, reviewer submissions, and
   persisted review decisions, including optional reviewer-provided finding
   locations preserved in submission and decision artifacts
-- append-only timeline event indexes under the configured local runtime root,
-  defaulting to `.local/harness/plans/<plan-stem>/events.jsonl`
+- append-only timeline event indexes under the local runtime root resolved by
+  `harness repo config get paths.local_runtime`, defaulting to
+  `.local/harness/plans/<plan-stem>/events.jsonl`
 - append-only `ci`, `publish`, and `sync` evidence records
 - archive milestones
 - reopen milestones, including the explicit reopen mode
@@ -177,15 +190,18 @@ v0.2 assumes one active plan artifact per repository.
 
 Resolution rules:
 
-- if more than one active tracked plan exists under the configured active plan
-  root, state resolution is invalid and should fail rather than guess
-- lightweight archived snapshots under the configured local runtime root do not
-  count as active-plan candidates
-- if the current-plan pointer under the configured local runtime root points
-  to the sole active plan path and that path still exists, that plan is current
-- otherwise, if exactly one active tracked plan exists under
-  the configured active plan root, that plan is current for `plan` and
-  `execution/...` nodes
+- if more than one active tracked plan exists under the active plan root
+  resolved by `harness repo config get paths.plans.active`, state resolution
+  is invalid and should fail rather than guess
+- lightweight archived snapshots under the local runtime root resolved by
+  `harness repo config get paths.local_runtime` do not count as active-plan
+  candidates
+- if the current-plan pointer under the local runtime root resolved by
+  `harness repo config get paths.local_runtime` points to the sole active plan
+  path and that path still exists, that plan is current
+- otherwise, if exactly one active tracked plan exists under the active plan
+  root resolved by `harness repo config get paths.plans.active`, that plan is
+  current for `plan` and `execution/...` nodes
 - if no active plan exists, CLI-owned archived or landed context may still
   identify the current archived candidate or the most recent landed candidate
 

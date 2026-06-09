@@ -49,8 +49,9 @@ The UI should complement `harness status`, not replace it.
 
 - provide a clear human steering surface for the current machine-local
   dashboard and the selected watched workspace
-- stay grounded in existing tracked files and runtime artifacts under each
-  workspace's configured local runtime root
+- stay grounded in existing tracked files and runtime artifacts under the
+  local runtime root resolved for each workspace with
+  `harness repo config get paths.local_runtime`
 - make `next actions`, blockers, and review state easy to understand
 - show plans, tracked diffs, review artifacts, and recent trajectory in one
   dense local workbench once a workspace is selected
@@ -81,8 +82,9 @@ marketing-style dashboard:
 - collapsible bottom status drawer
 
 The dashboard should read from the machine-local watchlist plus
-`harness status`, tracked plan files, git diff, and artifacts under the
-configured local runtime root for the selected workspace. It should present
+`harness status`, tracked plan files, git diff, and artifacts under the local
+runtime root resolved for the selected workspace with
+`harness repo config get paths.local_runtime`. It should present
 those sources through one machine-local entrypoint and one dense
 document-oriented workspace surface instead of inventing new product-only
 state.
@@ -426,9 +428,12 @@ and evidence, not as a permanent global action catalog.
 The UI should read from durable or already-owned sources:
 
 - `harness status`
-- tracked plan files under the configured active and archived plan roots
+- tracked plan files under the roots resolved by
+  `harness repo config get paths.plans.active` and
+  `harness repo config get paths.plans.archived`
 - tracked git state and diff
-- current-plan pointer under the configured local runtime root
+- current-plan pointer under the root resolved by
+  `harness repo config get paths.local_runtime`
 - review artifacts
 - evidence artifacts
 - other harness-owned local metadata
