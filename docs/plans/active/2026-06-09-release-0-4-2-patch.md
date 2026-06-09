@@ -135,26 +135,53 @@ artifact names are recorded.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `scripts/build-embedded-ui`
+- `go test ./...`
+- `scripts/build-release --version "v$(cat VERSION)"`
+- `harness plan lint docs/plans/active/2026-06-09-release-0-4-2-patch.md`
+- `git diff --check`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step delta review `review-001-delta` passed with no blocking or non-blocking
+  findings. Reviewers checked release correctness and validation.
+- Finalize full review `review-002-full` passed with no blocking or
+  non-blocking findings. Reviewers confirmed the release scope, PR #246 body,
+  validation record, ignored release artifacts, and post-merge automation
+  handoff.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: pending archive
+- Revision: 1
+- PR: https://github.com/catu-ai/easyharness/pull/246
+- Ready: Acceptance criteria are satisfied. `VERSION` is `0.4.2`, release
+  validation and optional packaging check passed, PR #246 is open with the
+  expected patch-release scope, and finalize review `review-002-full` passed.
+- Merge Handoff: Push the archived plan move, refresh publish/CI/sync evidence
+  for PR #246, wait for GitHub checks to pass and sync to remain fresh, then
+  wait for explicit human merge approval. After the release PR merges, existing
+  VERSION-driven automation should create tag `v0.4.2`, publish GitHub Release
+  artifacts, and run the Homebrew tap update path when configured.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Bumped `VERSION` from `0.4.1` to `0.4.2`.
+- Opened PR #246 for the patch release.
+- Recorded release PR validation and packaging evidence in this plan and the
+  PR body.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Publishing the GitHub Release, creating tag `v0.4.2`, and Homebrew tap
+  verification remain deferred to existing automation after the release PR
+  merges.
 
 ### Follow-Up Issues
 
-NONE
+- No new GitHub issue was created. Release publication, tag creation, and
+  Homebrew tap verification are expected follow-up actions of the existing
+  VERSION-driven release automation after PR #246 merges, as documented in
+  `docs/releasing.md` and the PR body.
