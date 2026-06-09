@@ -10,8 +10,9 @@ Archive is a freeze-and-summarize step, not just a file move.
    - If `status` returns `blockers`, fix those first instead of learning them
      from a failing `harness archive`.
 3. Make sure acceptance criteria are checked and steps are completed.
-4. Read the latest finalize review artifacts under the configured local
-   runtime root and confirm the branch really is in
+4. Read the latest finalize review artifacts under the local runtime root
+   resolved by `harness repo config get paths.local_runtime` and confirm the
+   branch really is in
    `execution/finalize/archive` rather than still needing review or repair.
 5. Update the tracked plan's durable summaries from those artifacts:
    - `Validation Summary`
@@ -19,8 +20,8 @@ Archive is a freeze-and-summarize step, not just a file move.
    - `Archive Summary`
    - `Outcome Summary`
    - for lightweight work, the active plan is still tracked before archive,
-     while the archived snapshot later moves under the configured local runtime
-     root
+     while the archived snapshot later moves under the local runtime root
+     resolved by `harness repo config get paths.local_runtime`
 6. If `## Deferred Items` still contains real items, replace `Follow-Up Issues`
    with durable handoff details before archive. Issue links are fine, but the
    main rule is that it must not stay `NONE`.

@@ -418,6 +418,74 @@ func TestRepoConfigRefreshUpdatesOldDefaultConfig(t *testing.T) {
 	}
 }
 
+func TestRepoConfigQueriesResolvedValuesViaCLI(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	workspace.WriteFile(t, ".harness/config.yaml", []byte(`version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+  local_runtime: tmp/harness-runtime
+`))
+
+	get := support.Run(t, workspace.Root, "repo", "config", "get", "paths.local_runtime")
+	support.RequireSuccess(t, get)
+	support.RequireNoStderr(t, get)
+	if get.Stdout != "tmp/harness-runtime\n" {
+		t.Fatalf("unexpected get stdout:\n%s", get.Stdout)
+	}
+
+	list := support.Run(t, workspace.Root, "repo", "config", "list")
+	support.RequireSuccess(t, list)
+	support.RequireNoStderr(t, list)
+	wantList := strings.Join([]string{
+		"paths.plans.active=workflow/plans/open",
+		"paths.plans.archived=docs/plans/archived",
+		"paths.local_runtime=tmp/harness-runtime",
+		"",
+	}, "\n")
+	if list.Stdout != wantList {
+		t.Fatalf("unexpected list stdout:\n%s", list.Stdout)
+	}
+
+	prefixed := support.Run(t, workspace.Root, "repo", "config", "list", "paths.plans")
+	support.RequireSuccess(t, prefixed)
+	support.RequireNoStderr(t, prefixed)
+	wantPrefixed := strings.Join([]string{
+		"paths.plans.active=workflow/plans/open",
+		"paths.plans.archived=docs/plans/archived",
+		"",
+	}, "\n")
+	if prefixed.Stdout != wantPrefixed {
+		t.Fatalf("unexpected prefixed list stdout:\n%s", prefixed.Stdout)
+	}
+
+	objectGet := support.Run(t, workspace.Root, "repo", "config", "get", "paths")
+	support.RequireExitCode(t, objectGet, 1)
+	if objectGet.Stdout != "" {
+		t.Fatalf("expected object get to keep stdout empty, got %q", objectGet.Stdout)
+	}
+	support.RequireContains(t, objectGet.Stderr, "harness repo config list paths")
+}
+
+func TestRepoConfigQueryInvalidConfigWarnsOnStderr(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	workspace.WriteFile(t, ".harness/config.yaml", []byte("version: 2\n"))
+
+	result := support.Run(t, workspace.Root, "repo", "config", "list", "paths")
+	support.RequireSuccess(t, result)
+	want := strings.Join([]string{
+		"paths.plans.active=docs/plans/active",
+		"paths.plans.archived=docs/plans/archived",
+		"paths.local_runtime=.local/harness",
+		"",
+	}, "\n")
+	if result.Stdout != want {
+		t.Fatalf("unexpected stdout:\n%s", result.Stdout)
+	}
+	support.RequireContains(t, result.Stderr, "Ignoring")
+	support.RequireContains(t, result.Stderr, "using built-in defaults")
+}
+
 func TestSkillsInstallRejectsInvalidScopeViaCLI(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 

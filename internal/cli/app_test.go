@@ -555,6 +555,215 @@ func TestRepoConfigRefreshCommandRejectsInvalidConfig(t *testing.T) {
 	}
 }
 
+func TestRepoConfigGetPrintsResolvedScalar(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+
+	exitCode := app.Run([]string{"repo", "config", "get", "paths.local_runtime"})
+	if exitCode != 0 {
+		t.Fatalf("repo config get failed with %d: %s", exitCode, stderr.String())
+	}
+	if got, want := stdout.String(), ".local/harness\n"; got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr, got %q", stderr.String())
+	}
+}
+
+func TestRepoConfigGetUsesPartialConfigDefaults(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	writeCLIRepoConfig(t, root, `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+`)
+
+	exitCode := app.Run([]string{"repo", "config", "get", "paths.plans.archived"})
+	if exitCode != 0 {
+		t.Fatalf("repo config get failed with %d: %s", exitCode, stderr.String())
+	}
+	if got, want := stdout.String(), "docs/plans/archived\n"; got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+}
+
+func TestRepoConfigGetWarnsAndUsesDefaultsForInvalidConfig(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	writeCLIRepoConfig(t, root, "version: 2\n")
+
+	exitCode := app.Run([]string{"repo", "config", "get", "paths.plans.active"})
+	if exitCode != 0 {
+		t.Fatalf("repo config get failed with %d: %s", exitCode, stderr.String())
+	}
+	if got, want := stdout.String(), "docs/plans/active\n"; got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if !strings.Contains(stderr.String(), "Ignoring") || !strings.Contains(stderr.String(), "using built-in defaults") {
+		t.Fatalf("expected invalid config warning, got %q", stderr.String())
+	}
+}
+
+func TestRepoConfigGetRejectsObjectsAndUnknownKeys(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		key  string
+		want string
+	}{
+		{name: "object", key: "paths", want: "harness repo config list paths"},
+		{name: "unknown", key: "paths.missing", want: "unknown repo config key"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stdout := new(bytes.Buffer)
+			stderr := new(bytes.Buffer)
+			app := cli.New(stdout, stderr)
+			root := t.TempDir()
+			app.Getwd = func() (string, error) { return root, nil }
+
+			exitCode := app.Run([]string{"repo", "config", "get", tc.key})
+			if exitCode == 0 {
+				t.Fatalf("expected failure, got stdout=%q stderr=%q", stdout.String(), stderr.String())
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("expected no stdout, got %q", stdout.String())
+			}
+			if !strings.Contains(stderr.String(), tc.want) {
+				t.Fatalf("stderr = %q, want substring %q", stderr.String(), tc.want)
+			}
+		})
+	}
+}
+
+func TestRepoConfigListPrintsResolvedEntries(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+
+	exitCode := app.Run([]string{"repo", "config", "list"})
+	if exitCode != 0 {
+		t.Fatalf("repo config list failed with %d: %s", exitCode, stderr.String())
+	}
+	want := strings.Join([]string{
+		"paths.plans.active=docs/plans/active",
+		"paths.plans.archived=docs/plans/archived",
+		"paths.local_runtime=.local/harness",
+		"",
+	}, "\n")
+	if got := stdout.String(); got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+}
+
+func TestRepoConfigListFiltersByPrefix(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+
+	exitCode := app.Run([]string{"repo", "config", "list", "paths.plans"})
+	if exitCode != 0 {
+		t.Fatalf("repo config list failed with %d: %s", exitCode, stderr.String())
+	}
+	want := strings.Join([]string{
+		"paths.plans.active=docs/plans/active",
+		"paths.plans.archived=docs/plans/archived",
+		"",
+	}, "\n")
+	if got := stdout.String(); got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+}
+
+func TestRepoConfigListUsesResolvedCustomValues(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	writeCLIRepoConfig(t, root, `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+  local_runtime: tmp/harness-runtime
+`)
+
+	exitCode := app.Run([]string{"repo", "config", "list"})
+	if exitCode != 0 {
+		t.Fatalf("repo config list failed with %d: %s", exitCode, stderr.String())
+	}
+	want := strings.Join([]string{
+		"paths.plans.active=workflow/plans/open",
+		"paths.plans.archived=docs/plans/archived",
+		"paths.local_runtime=tmp/harness-runtime",
+		"",
+	}, "\n")
+	if got := stdout.String(); got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr, got %q", stderr.String())
+	}
+}
+
+func TestRepoConfigListWarnsAndUsesDefaultsForInvalidConfig(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	writeCLIRepoConfig(t, root, "version: 2\n")
+
+	exitCode := app.Run([]string{"repo", "config", "list", "paths"})
+	if exitCode != 0 {
+		t.Fatalf("repo config list failed with %d: %s", exitCode, stderr.String())
+	}
+	want := strings.Join([]string{
+		"paths.plans.active=docs/plans/active",
+		"paths.plans.archived=docs/plans/archived",
+		"paths.local_runtime=.local/harness",
+		"",
+	}, "\n")
+	if got := stdout.String(); got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if !strings.Contains(stderr.String(), "Ignoring") || !strings.Contains(stderr.String(), "using built-in defaults") {
+		t.Fatalf("expected invalid config warning, got %q", stderr.String())
+	}
+}
+
+func TestRepoConfigListRejectsUnknownPrefix(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+
+	exitCode := app.Run([]string{"repo", "config", "list", "missing"})
+	if exitCode == 0 {
+		t.Fatalf("expected failure, got stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout, got %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "unknown repo config prefix") {
+		t.Fatalf("unexpected stderr: %q", stderr.String())
+	}
+}
+
 func TestSkillsCommandRejectsInvalidScope(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
@@ -2860,6 +3069,17 @@ func approvePlanInFile(t *testing.T, path, approvedAt string) {
 		}
 	}
 	t.Fatalf("created_at frontmatter line not found in %s", path)
+}
+
+func writeCLIRepoConfig(t *testing.T, root, content string) {
+	t.Helper()
+	path := filepath.Join(root, ".harness", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir repo config dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write repo config: %v", err)
+	}
 }
 
 func watchlistPathForHome(home string) string {

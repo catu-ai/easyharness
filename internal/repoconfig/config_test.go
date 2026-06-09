@@ -199,6 +199,90 @@ func TestLoadInvalidConfigWarnsAndUsesDefaults(t *testing.T) {
 	}
 }
 
+func TestGetScalarReturnsResolvedValues(t *testing.T) {
+	root := t.TempDir()
+	writeConfig(t, root, `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+  local_runtime: tmp/harness-runtime
+`)
+
+	result := Load(root)
+	for _, tc := range []struct {
+		key  string
+		want string
+	}{
+		{key: "paths.plans.active", want: "workflow/plans/open"},
+		{key: "paths.plans.archived", want: DefaultArchivedPlansRoot},
+		{key: "paths.local_runtime", want: "tmp/harness-runtime"},
+	} {
+		got, err := result.Config.GetScalar(tc.key)
+		if err != nil {
+			t.Fatalf("GetScalar(%q) returned error: %v", tc.key, err)
+		}
+		if got != tc.want {
+			t.Fatalf("GetScalar(%q) = %q, want %q", tc.key, got, tc.want)
+		}
+	}
+}
+
+func TestGetScalarRejectsObjectsAndUnknownKeys(t *testing.T) {
+	config := DefaultConfig()
+
+	if _, err := config.GetScalar("paths"); err == nil || !strings.Contains(err.Error(), "object") || !strings.Contains(err.Error(), "harness repo config list paths") {
+		t.Fatalf("expected object error with list hint, got %v", err)
+	}
+	if _, err := config.GetScalar("paths.plans"); err == nil || !strings.Contains(err.Error(), "object") || !strings.Contains(err.Error(), "harness repo config list paths.plans") {
+		t.Fatalf("expected nested object error with list hint, got %v", err)
+	}
+	if _, err := config.GetScalar("paths.missing"); err == nil || !strings.Contains(err.Error(), "unknown repo config key") {
+		t.Fatalf("expected unknown key error, got %v", err)
+	}
+}
+
+func TestListResolvedEntries(t *testing.T) {
+	config := DefaultConfig()
+
+	entries, err := config.ListResolved("")
+	if err != nil {
+		t.Fatalf("ListResolved returned error: %v", err)
+	}
+	want := []ConfigEntry{
+		{Key: "paths.plans.active", Value: DefaultActivePlansRoot},
+		{Key: "paths.plans.archived", Value: DefaultArchivedPlansRoot},
+		{Key: "paths.local_runtime", Value: DefaultLocalRuntimeRoot},
+	}
+	if len(entries) != len(want) {
+		t.Fatalf("expected %d entries, got %#v", len(want), entries)
+	}
+	for i := range want {
+		if entries[i] != want[i] {
+			t.Fatalf("entry %d = %#v, want %#v", i, entries[i], want[i])
+		}
+	}
+
+	entries, err = config.ListResolved("paths.plans")
+	if err != nil {
+		t.Fatalf("ListResolved(paths.plans) returned error: %v", err)
+	}
+	if len(entries) != 2 || entries[0].Key != "paths.plans.active" || entries[1].Key != "paths.plans.archived" {
+		t.Fatalf("unexpected paths.plans entries: %#v", entries)
+	}
+
+	entries, err = config.ListResolved("paths.local_runtime")
+	if err != nil {
+		t.Fatalf("ListResolved(paths.local_runtime) returned error: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Key != "paths.local_runtime" {
+		t.Fatalf("unexpected scalar-prefixed entries: %#v", entries)
+	}
+
+	if _, err := config.ListResolved("missing"); err == nil || !strings.Contains(err.Error(), "unknown repo config prefix") {
+		t.Fatalf("expected unknown prefix error, got %v", err)
+	}
+}
+
 func writeConfig(t *testing.T, root, content string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(File))

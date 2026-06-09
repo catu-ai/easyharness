@@ -133,10 +133,11 @@ The repository workflow is built around that posture:
 
 The current v0.2 harness surface centers on a few core ideas:
 
-- tracked plans live under configured active and archived plan roots
-  defaulting to `docs/plans/active/` and `docs/plans/archived/`
-- command-owned runtime state, reviews, and evidence live under the configured
-  local runtime root, defaulting to `.local/harness/`
+- tracked plans live under active and archived plan roots resolved with
+  `harness repo config get paths.plans.active` and
+  `harness repo config get paths.plans.archived`
+- command-owned runtime state, reviews, and evidence live under the local
+  runtime root resolved with `harness repo config get paths.local_runtime`
 - the CLI reports one canonical `state.current_node`
 - `harness dashboard` is the built-in machine-local home for watched workspaces
 - `harness ui` opens the current repository in that same dashboard-owned UI family
@@ -154,6 +155,8 @@ The root CLI currently ships:
 - `harness repo instructions uninstall`
 - `harness repo config init`
 - `harness repo config refresh`
+- `harness repo config get <key>`
+- `harness repo config list [prefix]`
 - `harness execute start`
 - `harness evidence submit`
 - `harness status`

@@ -22,7 +22,7 @@ the normative transition matrix.
 
 | From | To | Driver | Required inputs | Notes |
 | --- | --- | --- | --- | --- |
-| `idle` | `plan` | Derived from current plan presence | Execution-start is absent, and exactly one active tracked plan exists under the configured active plan root | The current-plan pointer under the configured local runtime root may resume or confirm the sole active plan, but it must not bypass the one-active-plan invariant. Lightweight local archives under the configured local runtime root are not active-plan candidates. |
+| `idle` | `plan` | Derived from current plan presence | Execution-start is absent, and exactly one active tracked plan exists under the active plan root resolved by `harness repo config get paths.plans.active` | The current-plan pointer under the local runtime root resolved by `harness repo config get paths.local_runtime` may resume or confirm the sole active plan, but it must not bypass the one-active-plan invariant. Lightweight local archives under the resolved local runtime root are not active-plan candidates. |
 | `plan` | `execution/step-<n>/implement` | `harness execute start` | Current plan is approved for execution and has at least one unfinished step | The CLI records the execution-start milestone; the first unfinished step becomes current. |
 
 ## Step Execution Loop
@@ -53,7 +53,7 @@ the normative transition matrix.
 
 | From | To | Driver | Required inputs | Notes |
 | --- | --- | --- | --- | --- |
-| `execution/finalize/archive` | `execution/finalize/publish` | `harness archive` | Finalize review is satisfied, archive closeout is ready, and no unresolved earlier-step closeout debt remains | `archive` moves the active tracked plan to the configured archived plan root for `standard` plans or snapshots it under the configured local runtime root for `lightweight` plans, then records archive metadata. |
+| `execution/finalize/archive` | `execution/finalize/publish` | `harness archive` | Finalize review is satisfied, archive closeout is ready, and no unresolved earlier-step closeout debt remains | `archive` moves the active tracked plan to the archived plan root resolved by `harness repo config get paths.plans.archived` for `standard` plans or snapshots it under the local runtime root resolved by `harness repo config get paths.local_runtime` for `lightweight` plans, then records archive metadata. |
 | `execution/finalize/publish` | `execution/finalize/await_merge` | Derived from latest publish, CI, and sync evidence | Publish evidence identifies the candidate, CI is good enough or explicit `not_applied`, sync is acceptable or explicit `not_applied`, and no unresolved fix condition remains | `await_merge` is a merge-ready state, not merely an archived state. |
 | `execution/finalize/publish` | `execution/finalize/fix` | `harness reopen --mode finalize-fix` | Archived candidate has been invalidated but does not justify a new step | Reopen is the command-owned reversal of archive-time assumptions for either profile. |
 | `execution/finalize/publish` | `execution/finalize/fix` | `harness reopen --mode new-step` | Archived candidate has been invalidated and the change deserves a new unfinished step | Status stays in finalize-scope repair until the first new unfinished step is actually added. |

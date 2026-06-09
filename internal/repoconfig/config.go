@@ -41,6 +41,11 @@ type PlanPathsConfig struct {
 	Archived string `yaml:"archived,omitempty"`
 }
 
+type ConfigEntry struct {
+	Key   string
+	Value string
+}
+
 type LoadResult struct {
 	Config        Config
 	Path          string
@@ -157,6 +162,53 @@ func Render(config Config) string {
 		panic(fmt.Sprintf("render repo config: %v", err))
 	}
 	return buf.String()
+}
+
+func (c Config) GetScalar(key string) (string, error) {
+	for _, entry := range c.resolvedEntries() {
+		if key == entry.Key {
+			return entry.Value, nil
+		}
+	}
+	if isConfigObjectKey(key) {
+		return "", fmt.Errorf("%s is a config object, not a scalar value; use `harness repo config list %s` to list resolved keys under it", key, key)
+	}
+	return "", fmt.Errorf("unknown repo config key %q", key)
+}
+
+func (c Config) ListResolved(prefix string) ([]ConfigEntry, error) {
+	prefix = strings.TrimSpace(prefix)
+	entries := c.resolvedEntries()
+	if prefix == "" {
+		return entries, nil
+	}
+	filtered := []ConfigEntry{}
+	for _, entry := range entries {
+		if entry.Key == prefix || strings.HasPrefix(entry.Key, prefix+".") {
+			filtered = append(filtered, entry)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil, fmt.Errorf("unknown repo config prefix %q", prefix)
+	}
+	return filtered, nil
+}
+
+func (c Config) resolvedEntries() []ConfigEntry {
+	return []ConfigEntry{
+		{Key: "paths.plans.active", Value: c.Paths.Plans.Active},
+		{Key: "paths.plans.archived", Value: c.Paths.Plans.Archived},
+		{Key: "paths.local_runtime", Value: c.Paths.LocalRuntime},
+	}
+}
+
+func isConfigObjectKey(key string) bool {
+	switch strings.TrimSpace(key) {
+	case "paths", "paths.plans":
+		return true
+	default:
+		return false
+	}
 }
 
 func invalid(path, reason string) LoadResult {

@@ -188,7 +188,8 @@ Why `resilience` instead of `chaos`:
 
 Typical `easyharness` resilience coverage should include:
 
-- corrupted current-plan pointers under the configured local runtime root
+- corrupted current-plan pointers under the local runtime root resolved by
+  `harness repo config get paths.local_runtime`
 - missing or unreadable review aggregate artifacts
 - archive operations that fail mid-write and must roll back cleanly
 - conflicting active plans or ambiguous current-plan pointers

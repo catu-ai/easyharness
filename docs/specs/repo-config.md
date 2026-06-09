@@ -105,6 +105,32 @@ content, rewrites valid existing config into the current canonical file shape,
 preserves custom path-root values, and fails without overwriting when the
 existing config is invalid.
 
+## Repo Config Queries
+
+`harness repo config get <key>` is the focused command for reading one resolved
+scalar config value. It returns effective values after applying the same load
+model used by other repo config consumers: missing config uses built-in
+defaults, omitted optional fields use defaults, and invalid config is ignored
+as a whole with a warning while defaults are used.
+
+Supported v1 scalar keys are:
+
+- `paths.plans.active`
+- `paths.plans.archived`
+- `paths.local_runtime`
+
+`get` only returns leaf values. Object keys such as `paths` or `paths.plans`
+must fail clearly instead of returning YAML, JSON, or another structured blob.
+Use `harness repo config list [prefix]` to enumerate resolved leaf keys under
+an object prefix.
+
+`harness repo config list` prints all supported resolved leaf entries as
+deterministically ordered `key=value` lines. `harness repo config list paths`
+prints the same shape filtered to the `paths` prefix.
+
+These query commands are intentionally plain-text and script-friendly. This
+version does not define JSON output, source metadata, or config mutation.
+
 ## Future Fields
 
 Future customization fields should keep `.harness/config.yaml` as a manifest

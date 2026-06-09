@@ -255,6 +255,14 @@ recorded it in this plan.
   PR #242. The branch merged `origin/main` cleanly, `go test ./tests/smoke`
   passed on retry after a transient Corepack network timeout, and a subsequent
   full `go test ./...` passed.
+- Revision 3 reopened for remote-sync repair after `origin/main` advanced via
+  the 0.4.2 release. The branch merged `origin/main`, conflicts in README,
+  CLI contract, CLI config routing, and repo config helpers were resolved by
+  keeping both `refresh` and the newer `get`/`list` query commands, and
+  `scripts/install-dev-harness` passed after the Go CLI merge.
+- `go test ./internal/repoconfig ./internal/cli ./internal/install ./tests/smoke`
+  passed after the conflict repair; smoke took the expected release-build path.
+- Full `go test ./...` passed after the conflict repair.
 
 ## Review Summary
 
@@ -271,15 +279,18 @@ recorded it in this plan.
 - Finalize review `review-002-full` passed with no findings after the repair.
 - Finalize review `review-003-full` passed with no findings after the revision
   2 remote-sync merge from `origin/main`.
+- Finalize review `review-004-full` passed with no findings after the revision
+  3 remote-sync merge from `origin/main`.
 
 ## Archive Summary
 
-- Archived At: 2026-06-08T23:52:10+08:00
-- Revision: 2
+- Archived At: 2026-06-10T00:02:12+08:00
+- Revision: 3
 - PR: https://github.com/catu-ai/easyharness/pull/245
 - Ready: Acceptance criteria are satisfied, the branch has merged
-  `origin/main` cleanly, and full `go test ./...` passed after the remote-sync
-  repair. Finalize review `review-003-full` passed with no findings.
+  `origin/main` with conflicts resolved against the 0.4.2 release state, and
+  full `go test ./...` passed after the remote-sync repair. Finalize review
+  `review-004-full` passed with no findings.
 - Merge Handoff: Re-archive the plan, commit the tracked archive move and
   closeout summaries, push branch
   `codex/refresh-repo-config-canonical-template` to PR #245, refresh
@@ -305,12 +316,18 @@ recorded it in this plan.
   `.harness/config.yaml` now match the canonical refresh behavior.
 - Revision 2 also includes the clean merge from `origin/main` after PR #242
   landed.
+- Revision 3 includes the conflict-resolved merge from `origin/main` after the
+  0.4.2 release landed, preserving both this refresh command and the newer
+  repo config query commands.
 
 ### Not Delivered
 
 - Repo config command result-envelope cleanup was intentionally deferred to
   issue #244.
+- Repo config refresh diff preview and explicit canonical text/comment/order
+  tests were intentionally deferred to issue #247.
 
 ### Follow-Up Issues
 
 - [#244 Review repo config command result envelope](https://github.com/catu-ai/easyharness/issues/244)
+- [#247 Add repo config refresh diff preview and canonical text tests](https://github.com/catu-ai/easyharness/issues/247)

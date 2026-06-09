@@ -6,49 +6,60 @@ This document defines the normative v0.2 plan contract for `easyharness`.
 
 In v0.2, standard and lightweight plans share one markdown schema, but the
 durable planning unit is a markdown-led plan package rather than a lone file.
-Active plans for both profiles live in tracked markdown under the configured
-active plan root, which defaults to `docs/plans/active/`, and may carry
-approval-scoped companion material under a matching `supplements/<plan-stem>/`
-directory. Lightweight diverges only at archive time, when the archived
-snapshot moves into command-owned local storage. Runtime lifecycle, milestone
-timestamps, review rounds, evidence history, and resolved node state live in
-the configured local runtime root, which defaults to `.local/harness/`.
+Active plans for both profiles live in tracked markdown under the active plan
+root resolved by `harness repo config get paths.plans.active`, which defaults
+to `docs/plans/active/`, and may carry approval-scoped companion material
+under a matching `supplements/<plan-stem>/` directory. Lightweight diverges
+only at archive time, when the archived snapshot moves into command-owned
+local storage. Runtime lifecycle, milestone timestamps, review rounds,
+evidence history, and resolved node state live in the local runtime root
+resolved by `harness repo config get paths.local_runtime`, which defaults to
+`.local/harness/`.
+Agents and scripts that need concrete resolved roots should query them with
+`harness repo config get paths.plans.active`,
+`harness repo config get paths.plans.archived`, and
+`harness repo config get paths.local_runtime` instead of inferring defaults.
 
 ## Directory Layout
 
-Tracked plan locations live in the configured active and archived plan roots,
-which default to:
+Tracked plan locations live in the active and archived plan roots resolved by
+`harness repo config get paths.plans.active` and
+`harness repo config get paths.plans.archived`, which default to:
 
 - `docs/plans/active/`
 - `docs/plans/archived/`
 
-Tracked plan package companion locations live under the matching configured
-plan root, defaulting to:
+Tracked plan package companion locations live under the matching plan root
+resolved by `harness repo config get paths.plans.active` or
+`harness repo config get paths.plans.archived`, defaulting to:
 
 - `docs/plans/active/supplements/<plan-stem>/`
 - `docs/plans/archived/supplements/<plan-stem>/`
 
-Lightweight local archived snapshots live under the configured local runtime
-root, defaulting to:
+Lightweight local archived snapshots live under the local runtime root
+resolved by `harness repo config get paths.local_runtime`, defaulting to:
 
 - `.local/harness/plans/archived/<plan-stem>.md`
 - `.local/harness/plans/archived/supplements/<plan-stem>/`
 
 There is no local active lightweight plan path in v0.2. Both `standard` and
-`lightweight` active plans live under the configured active plan root.
+`lightweight` active plans live under the active plan root resolved by
+`harness repo config get paths.plans.active`.
 
 The markdown file remains the canonical plan path for status resolution,
 current-plan pointers, and most command artifacts. When a matching
 `supplements/<plan-stem>/` directory exists, it is part of the same approved
 plan package and must move with the markdown plan during archive and reopen.
 
-Command-owned local artifacts live under the configured local runtime root,
-defaulting to:
+Command-owned local artifacts live under the local runtime root resolved by
+`harness repo config get paths.local_runtime`, defaulting to:
 
 - `.local/harness/current-plan.json`
 - `.local/harness/plans/<plan-stem>/state.json`
 - `.local/harness/plans/<plan-stem>/reviews/`
 - `.local/harness/plans/<plan-stem>/evidence/`
+
+Use that command before reading command-owned local artifacts.
 
 Tracked plans remain durable repository history for active work and standard
 archives. Their optional `supplements/` directories are execution input during
@@ -125,8 +136,9 @@ Where:
 - `short-topic` is a compact kebab-case topic slug
 
 The file stem is the durable identifier used by command-owned local state under
-the configured local runtime root. With the default runtime root, that looks
-like:
+the local runtime root resolved by
+`harness repo config get paths.local_runtime`. With the default runtime root,
+that looks like:
 
 - `.local/harness/plans/<plan-stem>/...`
 - matching `supplements/<plan-stem>/` package directories
@@ -224,9 +236,11 @@ approved_at: 2026-03-17T10:30:00+08:00
   - omitted means `standard`
   - `standard` must not be written explicitly; omitting the field preserves
     the current standard behavior
-  - tracked plans under the configured active plan root may set this field
-    only to `lightweight`
-  - tracked plans under the configured archived plan root must omit this field
+  - tracked plans under the active plan root resolved by
+    `harness repo config get paths.plans.active` may set this field only to
+    `lightweight`
+  - tracked plans under the archived plan root resolved by
+    `harness repo config get paths.plans.archived` must omit this field
   - local archived plans under the lightweight archived snapshot root must set
     it to `lightweight`
 
@@ -470,8 +484,9 @@ The lightweight profile is not eligible when any of these are true:
 Lightweight plans should normally avoid `supplements/`. If a lightweight plan
 temporarily needs one, keep it minimal, treat it with the same approval
 governance as the markdown plan, and ensure archive writes it only to
-the lightweight archived snapshot supplements root under the configured local
-runtime root rather than treating it as durable tracked history.
+the lightweight archived snapshot supplements root under the local runtime root
+resolved by `harness repo config get paths.local_runtime` rather than treating
+it as durable tracked history.
 
 When there is any doubt, escalate to the standard tracked-plan workflow.
 
@@ -479,7 +494,8 @@ When there is any doubt, escalate to the standard tracked-plan workflow.
 
 An active plan must satisfy all of these:
 
-- the file lives under the configured active plan root
+- the file lives under the active plan root resolved by
+  `harness repo config get paths.plans.active`
 - the file does not live inside the active root's `supplements/` subtree
 - lightweight does not create a separate local active-plan location
 - the required frontmatter fields are present
@@ -502,9 +518,10 @@ An active plan must satisfy all of these:
 An archived plan must satisfy all of these:
 
 - the file lives under either:
-  - the configured archived plan root
-  - the lightweight archived snapshot root under the configured local runtime
-    root
+  - the archived plan root resolved by
+    `harness repo config get paths.plans.archived`
+  - the lightweight archived snapshot root under the local runtime root
+    resolved by `harness repo config get paths.local_runtime`
 - any optional `workflow_profile` field is compatible with the path:
   - tracked archived plans must omit `workflow_profile`
   - local archived plans require `workflow_profile: lightweight`
@@ -558,10 +575,11 @@ tracked archive summary. It is no longer tracked as frontmatter.
 active:
 
 - move the file from the archived path back to the corresponding active path:
-  - configured archived plan root -> configured active plan root for
-    `standard`
-  - lightweight archived snapshot root -> configured active plan root for
-    `lightweight`
+  - archived plan root resolved by
+    `harness repo config get paths.plans.archived` -> active plan root
+    resolved by `harness repo config get paths.plans.active` for `standard`
+  - lightweight archived snapshot root -> active plan root resolved by
+    `harness repo config get paths.plans.active` for `lightweight`
 - move the matching `supplements/<plan-stem>/` directory with the markdown
   plan when it exists
 - preserve prior archive-time wording
@@ -598,10 +616,12 @@ Mode-specific rules:
 - missing required step subsections
 - unsupported `workflow_profile` values
 - plans stored outside:
-  - the configured active plan root
-  - the configured archived plan root
-  - the lightweight archived snapshot root under the configured local runtime
-    root
+  - the active plan root resolved by
+    `harness repo config get paths.plans.active`
+  - the archived plan root resolved by
+    `harness repo config get paths.plans.archived`
+  - the lightweight archived snapshot root under the local runtime root
+    resolved by `harness repo config get paths.local_runtime`
 - plan markdown stored under a `supplements/` subtree
 - plans whose path and `workflow_profile` disagree
 - supplements paths that are present but are not directories

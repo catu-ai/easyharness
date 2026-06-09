@@ -36,6 +36,8 @@ The current command surface is:
 - `harness repo instructions uninstall`
 - `harness repo config init`
 - `harness repo config refresh`
+- `harness repo config get <key>`
+- `harness repo config list [prefix]`
 - `harness execute start`
 - `harness evidence submit`
 - `harness evidence refresh`
@@ -116,10 +118,10 @@ Commands that rewrite CLI-owned JSON runstate must protect those files against
 interrupted or overlapping writes.
 
 - write the current-plan pointer and any plan-local `state.json` under the
-  configured local runtime root through atomic replacement in the destination
-  directory
+  local runtime root resolved by `harness repo config get paths.local_runtime`
+  through atomic replacement in the destination directory
 - acquire a shared per-plan state-mutation lock before loading and rewriting
-  the configured local runtime root's `plans/<plan-stem>/state.json`
+  the resolved local runtime root's `plans/<plan-stem>/state.json`
 - fail with a clear contention error when that state lock is already held
   instead of waiting silently or risking a stale overwrite
 
@@ -207,9 +209,12 @@ and current state for read-only stateful commands.
 `artifacts` is optional and command-specific. Omit it when there are no stable
 artifact paths or IDs worth returning.
 
-`plan_path` may point to a tracked active plan under the configured active plan
-root, a tracked standard archive under the configured archived plan root, or a
-lightweight local archive under the configured local runtime root.
+`plan_path` may point to a tracked active plan under the active plan root
+resolved by `harness repo config get paths.plans.active`, a tracked standard
+archive under the archived plan root resolved by
+`harness repo config get paths.plans.archived`, or a lightweight local archive
+under the local runtime root resolved by
+`harness repo config get paths.local_runtime`.
 
 When a matching `supplements/<plan-stem>/` directory exists for that markdown
 plan, commands may also surface it through command-specific `artifacts`
@@ -318,6 +323,10 @@ Contract:
   are defined in [Bootstrap Install](./bootstrap-install.md)
 - bootstrap commands share a JSON result envelope documented by the checked-in
   contract registry and may omit workflow `state`
+- read-only repo config query commands are plain-text exceptions:
+  `harness repo config get <key>` prints one resolved scalar value, while
+  `harness repo config list [prefix]` prints resolved `key=value` leaf entries
+  in deterministic order
 
 Recommended next action:
 
@@ -417,8 +426,9 @@ Contract:
   the author's back
 - in lightweight mode, seed `workflow_profile: lightweight`, a shorter
   single-step low-risk authoring shape, and guidance that the active plan
-  still lives under the configured active plan root while the archive goes to
-  the local lightweight archive path
+  still lives under the active plan root resolved by
+  `harness repo config get paths.plans.active` while the archive goes to the
+  local lightweight archive path
 - lightweight authoring must only be available for `size: XXS`; command UX may
   enforce that either by requiring an explicit `XXS` size or by rendering the
   lightweight template with explicit `size: XXS`
@@ -543,8 +553,9 @@ Contract:
 - when remote observation says to wait, repair, use manual evidence, or treat
   the candidate as invalidated, do not also include an immediate
   `harness evidence refresh` command in status next actions
-- if no current plan is active but the current-plan pointer under the
-  configured local runtime root records a landed candidate, return
+- if no current plan is active but the current-plan pointer under the local
+  runtime root resolved by `harness repo config get paths.local_runtime`
+  records a landed candidate, return
   `state.current_node: idle` with landed context in `artifacts`
 - when the current plan uses the lightweight profile, remind the controller to
   leave the agreed repo-visible breadcrumb, such as a readable PR body merge
@@ -879,8 +890,9 @@ Contract:
 - reject the command with a clear error when the current active plan still
   lacks recorded approval
 - persist the execution-start milestone in plan-local runtime state
-- update the current-plan pointer under the configured local runtime root to
-  point at the active tracked plan
+- update the current-plan pointer under the local runtime root resolved by
+  `harness repo config get paths.local_runtime` to point at the active tracked
+  plan
 - return the shared v0.2 envelope with the post-command
   `state.current_node`, `facts.revision`, transition-relevant `artifacts`, and
   actionable `next_actions`
@@ -946,16 +958,18 @@ Contract:
 - require the pre-archive `Archive Summary` to include structured `PR`,
   `Ready`, and `Merge Handoff` lines
 - move the plan from its active path to its archived path:
-  - configured active plan root -> configured archived plan root for
-    `standard`
-  - configured active plan root -> lightweight archived snapshot root under the
-    configured local runtime root for `lightweight`
+  - active plan root resolved by `harness repo config get paths.plans.active`
+    -> archived plan root resolved by
+    `harness repo config get paths.plans.archived` for `standard`
+  - active plan root resolved by `harness repo config get paths.plans.active`
+    -> lightweight archived snapshot root under the local runtime root resolved
+    by `harness repo config get paths.local_runtime` for `lightweight`
 - when a matching `supplements/<plan-stem>/` directory exists, move it with
   the markdown plan to the corresponding archived root
-- for `lightweight`, that archived root is the local snapshot path under
-  the configured local runtime root, not tracked git
-- update the current-plan pointer under the configured local runtime root to
-  the archived plan path
+- for `lightweight`, that archived root is the local snapshot path under the
+  resolved local runtime root, not tracked git
+- update the current-plan pointer under the local runtime root resolved by
+  `harness repo config get paths.local_runtime` to the archived plan path
 - keep publish, CI, and sync follow-up out of the archive gate; those belong to
   `execution/finalize/publish`
 - return the shared v0.2 envelope with `state.current_node` set to the
@@ -968,7 +982,8 @@ Contract:
 Important note:
 
 - `harness archive` changes tracked files locally for both profiles because the
-  active tracked plan is removed from the configured active plan root
+  active tracked plan is removed from the active plan root resolved by
+  `harness repo config get paths.plans.active`
 - the controller agent should commit and push the archive change before
   treating the candidate as truly waiting for merge approval
 - the controller agent should also update the agreed repo-visible breadcrumb
@@ -1013,8 +1028,8 @@ Contract:
 - preserve archive audit history via explicit update-required placeholders
 - clear stale review and land control-plane signals from the prior archived
   candidate
-- update the current-plan pointer under the configured local runtime root back
-  to the active path
+- update the current-plan pointer under the local runtime root resolved by
+  `harness repo config get paths.local_runtime` back to the active path
 - return the shared v0.2 envelope with the reopened post-command node,
   `facts.revision`, `facts.reopen_mode`, transition artifacts, and actionable
   `next_actions`
@@ -1039,8 +1054,9 @@ Contract:
 - require the current plan to already be archived before accepting evidence
 - support `--kind <ci|publish|sync>` with JSON payloads documented in
   `--help`
-- write a timestamped evidence artifact under the configured local runtime
-  root's `plans/<plan-stem>/evidence/<kind>/`
+- write a timestamped evidence artifact under the local runtime root resolved
+  by `harness repo config get paths.local_runtime`, inside
+  `plans/<plan-stem>/evidence/<kind>/`
 - let later status and land-readiness checks discover the latest evidence
   directly from append-only evidence artifacts instead of storing a pointer in
   `state.json`
@@ -1106,8 +1122,8 @@ Contract:
 
 - require prior `harness land --pr <url>` for the same archived candidate
 - persist local completion metadata in plan-local runtime state
-- rewrite the current-plan pointer under the configured local runtime root so
-  `plan_path` is cleared
+- rewrite the current-plan pointer under the local runtime root resolved by
+  `harness repo config get paths.local_runtime` so `plan_path` is cleared
 - record `last_landed_plan_path` and `last_landed_at` for worktree handoff
 - leave archived plan content untouched; this is local-state cleanup only
 - return the shared v0.2 envelope with `state.current_node: idle`,
