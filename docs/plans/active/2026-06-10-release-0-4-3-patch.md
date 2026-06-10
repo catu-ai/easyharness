@@ -185,4 +185,7 @@ and the release validation plus ignored artifact handling are appropriate.
 
 ### Follow-Up Issues
 
-NONE
+- No new GitHub issue was created. Release publication, tag creation, and
+  Homebrew tap verification are expected follow-up actions of the existing
+  VERSION-driven release automation after PR #249 merges, as documented in
+  `docs/releasing.md` and the PR body.
