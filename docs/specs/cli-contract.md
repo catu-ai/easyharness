@@ -29,6 +29,7 @@ The current command surface is:
 
 - `harness plan template`
 - `harness plan lint`
+- `harness plan approve`
 - `harness repo init`
 - `harness repo skills install`
 - `harness repo skills uninstall`
@@ -773,8 +774,9 @@ Contract:
 - discover repo dimensions from the root resolved by
   `harness repo config get paths.review.dimensions`, defaulting to
   `.harness/review/dimensions`
-- repo dimensions are Markdown files with YAML frontmatter containing `name`
-  and `description`, followed by the full reviewer instruction body
+- repo dimensions are Markdown files with YAML frontmatter containing exactly
+  `name` and `description`, followed by the full reviewer instruction body;
+  additional frontmatter fields are invalid
 - dimension names are stable skill-like identifiers made from lowercase
   alphanumeric segments separated by single hyphens
 - repo dimensions override built-in dimensions with the same name

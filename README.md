@@ -148,6 +148,7 @@ The root CLI currently ships:
 
 - `harness plan template`
 - `harness plan lint`
+- `harness plan approve`
 - `harness repo init`
 - `harness repo skills install`
 - `harness repo skills uninstall`
@@ -159,6 +160,7 @@ The root CLI currently ships:
 - `harness repo config list [prefix]`
 - `harness execute start`
 - `harness evidence submit`
+- `harness evidence refresh`
 - `harness status`
 - `harness dashboard`
 - `harness ui`

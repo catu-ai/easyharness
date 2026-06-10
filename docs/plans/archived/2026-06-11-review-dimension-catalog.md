@@ -29,7 +29,7 @@ CLI-enforced slot selection.
 ### In Scope
 
 - Define the review dimension file format: Markdown files with YAML
-  frontmatter containing `name` and `description`, followed by the full
+  frontmatter containing exactly `name` and `description`, followed by the full
   reviewer instruction body.
 - Add built-in review dimensions with complete descriptions and instruction
   bodies.
@@ -434,6 +434,10 @@ to distinguish focused service/CLI coverage from the integrated smoke path.
 - `git diff --check`
 - `.local/bin/harness plan lint docs/plans/active/2026-06-11-review-dimension-catalog.md`
 - `go test ./...`
+- Revision 2 reopen validation after merging `origin/main`:
+  `go test ./internal/reviewdimensions ./internal/cli ./internal/repoconfig ./internal/contractsync ./tests/smoke -run TestReviewDimensionsCatalogViaCLI`
+  passed.
+- Full `go test ./...` passed after merging `origin/main`.
 
 ## Review Summary
 
@@ -447,20 +451,33 @@ to distinguish focused service/CLI coverage from the integrated smoke path.
   naming, prompt templates, and validation wording. All were repaired.
 - `review-004-full` passed with two duplicate non-blocking README command-list
   findings. README was updated to include the new review dimension commands.
+- Revision 2 was reopened after publish evidence showed the branch was stale
+  against `origin/main`; the branch merged `origin/main` cleanly.
+- `review-005-full` found one blocking docs issue: specs did not explicitly say
+  repo dimension frontmatter rejects fields beyond `name` and `description`.
+  It also found a non-blocking README command inventory drift for
+  `harness evidence refresh`. Both were repaired.
+- `review-006-full` found one blocking command-inventory drift for
+  `harness plan approve`; README and CLI contract command inventories were
+  updated.
+- `review-007-full` passed with no findings after the final command-inventory
+  repair.
 
 ## Archive Summary
 
-- Archived At: 2026-06-11T01:15:42+08:00
-- Revision: 1
-- PR: Not created yet; publish evidence should record the PR URL after
-  archive.
-- Ready: The tracked steps are complete, acceptance criteria are checked, full
-  validation passed, and finalize review `review-004-full` passed with only
-  non-blocking README command-list findings that were repaired before archive.
-- Merge Handoff: After archive, commit the archive move plus tracked code,
-  docs, schema, test, and summary updates, push the branch, open the PR for
-  issue #230, record publish evidence with the PR URL, then refresh CI and sync
-  evidence until `harness status` reaches `execution/finalize/await_merge`.
+- Archived At: 2026-06-11T01:43:52+08:00
+- Revision: 2
+- Reopen History: Revision 1 was archived at `2026-06-11T01:15:42+08:00`,
+  published to PR #253, then reopened because `origin/main` advanced and sync
+  evidence reported the PR branch as stale.
+- PR: [#253](https://github.com/catu-ai/easyharness/pull/253)
+- Ready: Revision 2 merges `origin/main` after the stale-sync publish
+  observation, full validation passed, and `review-007-full` passed with no
+  findings on top of the current base.
+- Merge Handoff: After re-archive, commit the archive move plus the merge-base
+  refresh, push the branch to PR #253, refresh publish/CI/sync evidence, and
+  wait for `harness status` to reach `execution/finalize/await_merge` before
+  asking for explicit human merge approval.
 
 ## Outcome Summary
 
@@ -481,6 +498,8 @@ to distinguish focused service/CLI coverage from the integrated smoke path.
 - Added focused service/CLI coverage and integrated smoke coverage for repo
   dimension discovery, instruction loading, explicit review start, and reviewer
   submission.
+- Reopened revision 1 after stale publish sync evidence and merged
+  `origin/main` so the final candidate is based on the current mainline.
 
 ### Not Delivered
 

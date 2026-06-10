@@ -90,8 +90,9 @@ Repo-defined review dimensions are Markdown files directly under the resolved
 .harness/review/dimensions
 ```
 
-Each file must start with YAML frontmatter containing `name` and `description`,
-followed by a non-empty Markdown instruction body:
+Each file must start with YAML frontmatter containing exactly `name` and
+`description`, followed by a non-empty Markdown instruction body. Additional
+frontmatter fields are invalid.
 
 ```markdown
 ---
