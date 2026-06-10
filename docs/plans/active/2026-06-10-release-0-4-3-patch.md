@@ -55,8 +55,8 @@ automation after the PR merges.
 - [x] `scripts/build-embedded-ui` passes.
 - [x] `go test ./...` passes.
 - [x] Any optional packaging check result is recorded in the plan.
-- [ ] A PR for the `0.4.3` patch release is opened against `main`.
-- [ ] The PR body states that the release is for the merged repo config
+- [x] A PR for the `0.4.3` patch release is opened against `main`.
+- [x] The PR body states that the release is for the merged repo config
       canonical refresh improvement from PR #245 and issue #240.
 
 ## Deferred Items
@@ -101,7 +101,8 @@ packaging check produced local ignored artifacts under `dist/release`:
 `easyharness_v0.4.3_darwin_amd64.zip`,
 `easyharness_v0.4.3_darwin_arm64.zip`,
 `easyharness_v0.4.3_linux_amd64.zip`,
-`easyharness_v0.4.3_linux_arm64.zip`, and `SHA256SUMS`.
+`easyharness_v0.4.3_linux_arm64.zip`, and `SHA256SUMS`. Opened PR #249:
+https://github.com/catu-ai/easyharness/pull/249.
 
 #### Review Notes
 
