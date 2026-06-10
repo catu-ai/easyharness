@@ -135,25 +135,53 @@ and the release validation plus ignored artifact handling are appropriate.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `scripts/build-embedded-ui`
+- `go test ./...`
+- `scripts/build-release --version "v$(cat VERSION)"`
+- `harness plan lint docs/plans/active/2026-06-10-release-0-4-3-patch.md`
+- `git diff --check`
+- GitHub PR #249 `Go Test` completed successfully for head
+  `a7544ced90cde6442a41d1a3bbb7b6cf5a82f37e`; the controller will refresh
+  final publish/CI/sync evidence for the latest pushed head after archive.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step delta review `review-001-delta` passed with no blocking or non-blocking
+  findings. Reviewers checked release correctness and validation.
+- Finalize full review `review-002-full` requested changes because GitHub CI
+  for PR #249 was still pending at review time.
+- Finalize full recheck `review-003-full` passed with no blocking or
+  non-blocking findings after the plan recorded the CI readiness repair.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-06-10T23:27:53+08:00
+- Revision: 1
+- PR: https://github.com/catu-ai/easyharness/pull/249
+- Ready: Acceptance criteria are satisfied. `VERSION` is `0.4.3`, release
+  validation and optional packaging check passed, PR #249 is open with the
+  expected patch-release scope, and finalize recheck `review-003-full` passed.
+- Merge Handoff: Push the archived plan move, refresh publish/CI/sync evidence
+  for PR #249, wait for the latest GitHub checks to pass and sync to remain
+  fresh, then wait for explicit human merge approval. After the release PR
+  merges, existing VERSION-driven automation should create tag `v0.4.3`,
+  publish GitHub Release artifacts, and run the Homebrew tap update path when
+  configured.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Bumped `VERSION` from `0.4.2` to `0.4.3`.
+- Opened PR #249 for the patch release.
+- Recorded release PR validation and packaging evidence in this plan and the
+  PR body.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Publishing the GitHub Release, creating tag `v0.4.3`, and Homebrew tap
+  verification remain deferred to existing automation after the release PR
+  merges.
 
 ### Follow-Up Issues
 
