@@ -82,7 +82,7 @@ while the Homebrew smoke test inspected the previous Homebrew-capable release
 
 ### Step 1: Confirm and Validate the Auth Fix Candidate
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -117,11 +117,33 @@ As of plan creation, PR #252 contains commit
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Implemented before formal plan approval in PR #252, then brought under the
+tracked plan before closeout. The candidate explicitly wires `GH_TOKEN` for
+release workflow steps that call `gh`, maps `GITHUB_TOKEN` to `GH_TOKEN` in
+`scripts/releaseverify` when needed, and adds fake-`gh` smoke coverage for the
+fallback.
+
+After approval, the branch was synced with latest `origin/main` via merge
+commit `2689b84ac3821c2923ca2caa71a9d1849c50f0fe`.
+
+Validation:
+
+- `harness plan lint docs/plans/active/2026-06-11-stabilize-release-gh-cli-auth.md`
+- `go test ./tests/smoke -run 'TestReleaseWorkflowWiresHomebrewTapPublishing|TestVerifyReleaseNamespace|TestVersionTagWorkflowUsesRepositoryVersionFile' -count=1`
+- PR #252 CI `Go Test` succeeded for head
+  `2689b84ac3821c2923ca2caa71a9d1849c50f0fe` in run
+  `https://github.com/catu-ai/easyharness/actions/runs/27289996283`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Delta review `review-001-delta` anchored at
+`f1cf3cdd7038452b137eac6633166f51b7cb6e3d` passed with 0 findings.
+
+- `correctness`: no findings; reviewer verified token precedence, fallback
+  behavior, workflow coverage, and fake-`gh` regression coverage.
+- `release_safety`: no findings; reviewer verified v0.4.3 provenance remains
+  unchanged, Homebrew previous-version upgrade semantics remain intact, and
+  release rerun work is deferred until after merge approval.
 
 ### Step 2: Publish and Archive the Merge-Ready Candidate
 
