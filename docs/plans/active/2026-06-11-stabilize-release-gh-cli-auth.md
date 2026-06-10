@@ -182,12 +182,16 @@ The branch was synced with latest `origin/main`
 (`f1cf3cdd7038452b137eac6633166f51b7cb6e3d`) by merge commit
 `2689b84ac3821c2923ca2caa71a9d1849c50f0fe`.
 
-Latest pre-archive PR CI succeeded for head
-`7d7e9f795a4eebaee4917058b0379d9ec7b9e6eb`:
+PR CI was observed passing during closeout, including the repair run for the
+committed Step 2 notes:
 
-- run: `https://github.com/catu-ai/easyharness/actions/runs/27290410337`
+- run: `https://github.com/catu-ai/easyharness/actions/runs/27291218500`
 - job: `Go Test`
-- result: success in 5m42s
+- result: success in 4m12s
+
+Final PR head, CI, and sync facts must be recorded through harness
+publish/CI/sync evidence after archive, so this tracked note does not pretend
+to be the final remote evidence after later archive commits.
 
 Post-merge handoff remains required: after PR #252 is merged, rerun
 `release.yml` from `main` with `version=v0.4.3` and verify
