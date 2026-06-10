@@ -147,7 +147,7 @@ Delta review `review-001-delta` anchored at
 
 ### Step 2: Publish and Archive the Merge-Ready Candidate
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -175,11 +175,30 @@ the `v0.4.3` release workflow rerun is post-merge work.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+PR #252 is published at
+`https://github.com/catu-ai/easyharness/pull/252`.
+
+The branch was synced with latest `origin/main`
+(`f1cf3cdd7038452b137eac6633166f51b7cb6e3d`) by merge commit
+`2689b84ac3821c2923ca2caa71a9d1849c50f0fe`.
+
+Latest pre-archive PR CI succeeded for head
+`7d7e9f795a4eebaee4917058b0379d9ec7b9e6eb`:
+
+- run: `https://github.com/catu-ai/easyharness/actions/runs/27290410337`
+- job: `Go Test`
+- result: success in 5m42s
+
+Post-merge handoff remains required: after PR #252 is merged, rerun
+`release.yml` from `main` with `version=v0.4.3` and verify
+`Verify Homebrew Install`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 2 only records publish/sync/CI readiness and the
+post-merge release rerun handoff. The behavior-changing release-auth fix
+already passed step-bound delta review `review-001-delta`; finalize review
+will cover the full archived candidate.
 
 ## Validation Strategy
 
