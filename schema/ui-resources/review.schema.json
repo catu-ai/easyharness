@@ -313,7 +313,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "Name is the human-readable dimension label."
+          "description": "Name is the review dimension name."
         },
         "slot": {
           "type": "string",

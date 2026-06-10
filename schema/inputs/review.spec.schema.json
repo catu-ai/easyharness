@@ -7,7 +7,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "Name is the human-readable dimension label."
+          "description": "Name is the review dimension name. Catalog-managed dimensions use stable lowercase names with digits and hyphens."
         },
         "instructions": {
           "type": "string",

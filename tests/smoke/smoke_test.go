@@ -68,6 +68,7 @@ func TestHelpShowsTopLevelUsage(t *testing.T) {
 	support.RequireContains(t, result.CombinedOutput(), "review start    Create a deterministic review round")
 	support.RequireContains(t, result.CombinedOutput(), "review submit   Record one reviewer submission")
 	support.RequireContains(t, result.CombinedOutput(), "review aggregate Aggregate reviewer submissions")
+	support.RequireContains(t, result.CombinedOutput(), "review dimensions List and read recommended review dimensions")
 	support.RequireContains(t, result.CombinedOutput(), "land            Record merge confirmation and start required post-merge bookkeeping")
 	support.RequireContains(t, result.CombinedOutput(), "land complete   Record required post-merge bookkeeping completion")
 	support.RequireContains(t, result.CombinedOutput(), "archive         Freeze the current active plan")
@@ -441,6 +442,7 @@ paths:
 		"paths.plans.active=workflow/plans/open",
 		"paths.plans.archived=docs/plans/archived",
 		"paths.local_runtime=tmp/harness-runtime",
+		"paths.review.dimensions=.harness/review/dimensions",
 		"",
 	}, "\n")
 	if list.Stdout != wantList {
@@ -477,6 +479,7 @@ func TestRepoConfigQueryInvalidConfigWarnsOnStderr(t *testing.T) {
 		"paths.plans.active=docs/plans/active",
 		"paths.plans.archived=docs/plans/archived",
 		"paths.local_runtime=.local/harness",
+		"paths.review.dimensions=.harness/review/dimensions",
 		"",
 	}, "\n")
 	if result.Stdout != want {
@@ -484,6 +487,61 @@ func TestRepoConfigQueryInvalidConfigWarnsOnStderr(t *testing.T) {
 	}
 	support.RequireContains(t, result.Stderr, "Ignoring")
 	support.RequireContains(t, result.Stderr, "using built-in defaults")
+}
+
+func TestReviewDimensionsCatalogViaCLI(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	workspace.WriteFile(t, ".harness/config.yaml", []byte(`version: 1
+paths:
+  review:
+    dimensions: custom/review-dimensions
+`))
+	workspace.WriteFile(t, "custom/review-dimensions/api-contract.md", []byte(`---
+name: api-contract
+description: Use when checking public API contracts.
+---
+
+# API Contract
+
+Check the public contract.
+`))
+
+	list := support.Run(t, workspace.Root, "review", "dimensions", "list")
+	support.RequireSuccess(t, list)
+	support.RequireNoStderr(t, list)
+	var payload struct {
+		OK         bool   `json:"ok"`
+		Command    string `json:"command"`
+		Dimensions []struct {
+			Name         string `json:"name"`
+			Source       string `json:"source"`
+			Description  string `json:"description"`
+			Instructions string `json:"instructions"`
+		} `json:"dimensions"`
+	}
+	if err := json.Unmarshal([]byte(list.Stdout), &payload); err != nil {
+		t.Fatalf("decode dimensions list: %v\n%s", err, list.Stdout)
+	}
+	if !payload.OK || payload.Command != "review dimensions list" {
+		t.Fatalf("unexpected list payload: %#v", payload)
+	}
+	seen := map[string]string{}
+	for _, dimension := range payload.Dimensions {
+		seen[dimension.Name] = dimension.Source
+		if dimension.Instructions != "" {
+			t.Fatalf("list leaked instruction body: %#v", dimension)
+		}
+	}
+	if seen["correctness"] != "builtin" || seen["api-contract"] != "repo" {
+		t.Fatalf("expected builtin and repo dimensions, got %#v", payload.Dimensions)
+	}
+
+	instructions := support.Run(t, workspace.Root, "review", "dimensions", "instructions", "api-contract")
+	support.RequireSuccess(t, instructions)
+	support.RequireNoStderr(t, instructions)
+	if instructions.Stdout != "# API Contract\n\nCheck the public contract.\n" {
+		t.Fatalf("unexpected raw instructions:\n%s", instructions.Stdout)
+	}
 }
 
 func TestSkillsInstallRejectsInvalidScopeViaCLI(t *testing.T) {

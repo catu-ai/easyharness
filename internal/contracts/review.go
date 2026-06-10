@@ -26,7 +26,8 @@ type ReviewSpec struct {
 // ReviewDimension defines one named review dimension and its reviewer
 // instructions.
 type ReviewDimension struct {
-	// Name is the human-readable dimension label.
+	// Name is the review dimension name. Catalog-managed dimensions use stable
+	// lowercase names with digits and hyphens.
 	Name string `json:"name"`
 
 	// Instructions is the reviewer prompt for this dimension.
@@ -79,7 +80,7 @@ type ReviewManifest struct {
 
 // ReviewSlot describes one surfaced reviewer submission slot.
 type ReviewSlot struct {
-	// Name is the human-readable dimension label.
+	// Name is the review dimension name.
 	Name string `json:"name"`
 
 	// Slot is the stable slot identifier.
@@ -111,7 +112,7 @@ type ReviewLedger struct {
 // ReviewLedgerSlot records the current state for one reviewer slot in the
 // ledger.
 type ReviewLedgerSlot struct {
-	// Name is the human-readable dimension label.
+	// Name is the review dimension name.
 	Name string `json:"name"`
 
 	// Slot is the stable slot identifier.

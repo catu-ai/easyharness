@@ -115,44 +115,56 @@ deferral stale.
 
 1. Read the controller's round ID, review kind, active-plan context, repo-facing
    `plan_path`, review title, revision context when present, slot, assigned
-   instructions, reviewer-owned `submission_path`, anchor SHA when present,
+   dimension name, reviewer-owned `submission_path`, anchor SHA when present,
    and change summary.
 2. If the controller did not give enough information to submit cleanly, report
    the missing input back to the controller instead of improvising.
-3. Open the controller-provided repo-facing `plan_path` and read the full plan
+3. Fetch the full reviewer instruction for the assigned dimension:
+
+   ```bash
+   harness review dimensions instructions <dimension-name>
+   ```
+
+   Treat the returned Markdown as authoritative for this slot. If the command
+   fails, report the failure back to the controller instead of guessing from
+   the dimension name.
+4. Open the controller-provided repo-facing `plan_path` and read the full plan
    before reviewing.
-4. Locate the slot-owned progressive submission artifact using the
+5. Locate the slot-owned progressive submission artifact using the
    controller-provided `submission_path`. That path is the reviewer-owned
    working artifact for the round.
-5. Start updating that `submission.json` progressively while you review. Keep
+6. Start updating that `submission.json` progressively while you review. Keep
    checked areas, open questions, candidate findings, or similar review
    progress in top-level worklog-style fields instead of a separate scratchpad.
-6. For `delta` review, start from the anchored change since `Anchor SHA`.
+7. For `delta` review, start from the anchored change since `Anchor SHA`.
    Treat that diff as the default starting lens, not a hard boundary. Begin
    with directly changed paths, then follow related logic, contracts, and
    runtime behavior when needed to decide whether the change is sound.
-7. Continue inspection when related logic, plan intent, or contract meaning
+8. Continue inspection when related logic, plan intent, or contract meaning
    warrants it. If that deeper read uncovers additional real issues, report
    them in the same round with normal severities.
-8. Do not early-stop just because you already found one or two issues. Use the
+9. Do not early-stop just because you already found one or two issues. Use the
    progressive submission artifact to keep coverage and hypotheses visible
    while you continue checking the slot.
-9. Submit the same `submission.json` with `harness review submit`.
+10. Submit the same `submission.json` with `harness review submit`.
    Include `--by <reviewer-name>` using a short stable name for your reviewer
    thread, such as `reviewer-correctness` or another clear slot-owned label.
-10. Report the submission receipt back to the controller agent.
-11. Stop once the receipt is reported. The controller agent is responsible for
+11. Report the submission receipt back to the controller agent.
+12. Stop once the receipt is reported. The controller agent is responsible for
     closing reviewer subagents after verifying the successful submission.
-12. If the controller later resumes you for the same slot within the same
+13. If the controller later resumes you for the same slot within the same
     tracked step review boundary or for the same finalize review title in the
     same revision, treat the newest round ID, review kind, review title,
-    revision context, slot, instructions, anchor SHA, and change summary as
-    authoritative for that new assignment. Reuse your prior context only to
-    understand the bounded follow-up the controller asked you to verify.
+    revision context, slot, assigned dimension name, freshly fetched
+    instructions, anchor SHA, and change summary as authoritative for that new
+    assignment. Reuse your prior context only to understand the bounded
+    follow-up the controller asked you to verify.
 
 ## Do Not
 
-- Do not call any harness command other than `harness review submit`.
+- Do not call any harness command other than
+  `harness review dimensions instructions <dimension-name>` and
+  `harness review submit`.
 - Do not edit tracked files.
 - Do not skip reading the full active plan, even for `delta` review.
 - Do not keep exploring after a successful submission.

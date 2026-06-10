@@ -63,6 +63,17 @@ Create a review spec and pass it to:
 harness review start --spec <path>
 ```
 
+Before choosing dimensions for a new round, inspect the current catalog:
+
+```bash
+harness review dimensions list
+```
+
+Use the returned `name`, `source`, and `description` metadata to choose only
+the dimensions that fit the current change. The list is intentionally compact
+and does not include full reviewer instructions. Do not force every built-in or
+repo-defined dimension into every review.
+
 Use a compact JSON shape like:
 
 ```json
@@ -73,11 +84,11 @@ Use a compact JSON shape like:
   "dimensions": [
     {
       "name": "correctness",
-      "instructions": "Look for contract mistakes, stale assumptions, or missing negative-path handling."
+      "instructions": "Run `harness review dimensions instructions correctness` and follow the returned Markdown instruction."
     },
     {
-      "name": "agent_ux",
-      "instructions": "Check whether another agent could resume the task cleanly from the updated docs and skills."
+      "name": "agent-ux",
+      "instructions": "Run `harness review dimensions instructions agent-ux` and follow the returned Markdown instruction."
     }
   ]
 }
@@ -102,24 +113,35 @@ Field rules:
   - only include it when you need to point review at a specific tracked step explicitly
 - `dimensions`
   - one reviewer slot per dimension after normalization
-  - each dimension should have a short name and a concrete instruction
+  - catalog-managed dimensions use stable names with lowercase letters,
+    digits, and hyphens; the name and slot identifier are the same
+  - each dimension should include concrete instructions or a concrete command
+    for the reviewer to fetch the full instruction
 
 The controller agent should not invent workflow metadata like `trigger` or
 `target`. `harness review start` infers whether the round is step-bound or
 finalize-bound from the current node and persists that structure itself.
 
-Suggested dimensions:
+Built-in dimensions:
 
 - `correctness`
-  - logic, node-resolution, and contract mistakes
+  - implementation logic, workflow state transitions, command contracts, or
+    negative-path behavior
 - `tests`
-  - missing coverage, weak validation, or misleading smoke claims
-- `docs_consistency`
-  - README, AGENTS, skills, and plan drift
-- `agent_ux`
-  - handoff quality, clarity, and next-action guidance
-- `risk_scan`
-  - unresolved blockers, deferred risks that leaked back in, or unsafe defaults
+  - coverage, fixtures, smoke tests, or validation claims
+- `docs-consistency`
+  - README, AGENTS, specs, skills, schemas, examples, or durable workflow
+    guidance
+- `agent-ux`
+  - whether another agent can understand, resume, and safely act on the
+    workflow state and command output
+- `risk-scan`
+  - unresolved blockers, leaked deferred scope, unsafe defaults, or
+    release-sensitive workflow risks
+
+Repositories may add or override dimensions with Markdown files under the
+configured review dimensions root. Use `harness review dimensions list` as the
+source of truth instead of relying only on this built-in list.
 
 Choose only the dimensions that fit the current change. Do not force every
 round to use the same set.
@@ -189,7 +211,9 @@ Review title: <review-title>
 Revision: <candidate-revision-or-none>
 Slot: <slot>
 Assigned dimension: <dimension-name>
-Instructions: <dimension-instructions>
+Instruction command: harness review dimensions instructions <dimension-name>
+Instruction handoff: <short instruction string from review-start slot, usually
+the same command above>
 Submission Path: <repo-facing-submission-path>
 Anchor SHA: <commit-sha-or-none>
 Change summary: <bounded-change-summary>
