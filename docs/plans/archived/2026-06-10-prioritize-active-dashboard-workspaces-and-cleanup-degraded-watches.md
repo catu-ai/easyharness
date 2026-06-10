@@ -340,6 +340,11 @@ build, and embedded UI build.
     above active workspace rows rather than a full-width toolbar.
   - In-app browser 390px viewport verification: no horizontal overflow; the
     maintenance control and first active card remained separated and readable.
+- Revision 3 sync repair:
+  - Merged `origin/main` after PR #250 landed upstream.
+  - `go test ./internal/dashboard ./internal/ui ./internal/watchlist`
+  - `npm test -- --run` from `web/`
+  - `npm run check` from `web/`
 
 ## Review Summary
 
@@ -356,19 +361,32 @@ The `ui_consistency` reviewer found the revised compact maintenance control
 visually subordinate to dashboard rows, responsive without overflow, and still
 aligned with the explicit unwatch accessibility/action contract.
 
+Revision 3 reopened the candidate only to merge the latest `origin/main` after
+PR #250 landed. It introduced no new feature scope; the follow-up delta review
+checks that the sync merge did not disturb the dashboard cleanup change or
+closeout evidence.
+
+`review-003-delta` passed clean with 0 blocking and 0 non-blocking findings.
+The `sync_safety` reviewer found that the merge from `origin/main` brought in
+PR #250's dashboard custom-root regression tests and archived plan content
+without changing the dashboard cleanup implementation, and that the revision 3
+closeout text matched the observed merge and validation evidence.
+
 ## Archive Summary
 
-- Archived At: 2026-06-11T00:20:47+08:00
-- Revision: 2
+- Archived At: 2026-06-11T00:25:29+08:00
+- Revision: 3
 - PR: https://github.com/catu-ai/easyharness/pull/251
 - Ready: The candidate satisfies the tracked acceptance criteria, focused Go
   and web validation passed, embedded UI assets were rebuilt, the revised
   dashboard cleanup affordance was verified in the in-app browser on desktop
-  and 390px viewport, `review-001-full` passed clean, and the revision 2
-  `review-002-delta` visual polish review passed clean.
-- Merge Handoff: Archive the plan, commit the revision 2 fix and archive move,
-  push `codex/dashboard-active-first-cleanup`, refresh publish/CI/sync evidence
-  for PR #251, and wait for explicit human merge approval.
+  and 390px viewport, `review-001-full` passed clean, the revision 2
+  `review-002-delta` visual polish review passed clean, revision 3 merged the
+  latest `origin/main`, and `review-003-delta` passed clean for that sync
+  merge.
+- Merge Handoff: Archive the plan, commit the revision 3 archive move if
+  needed, push `codex/dashboard-active-first-cleanup`, refresh publish/CI/sync
+  evidence for PR #251, and wait for explicit human merge approval.
 
 ## Outcome Summary
 
@@ -388,6 +406,8 @@ aligned with the explicit unwatch accessibility/action contract.
 - Updated README and the watchlist contract to document active-first ordering
   and explicit degraded cleanup without introducing automatic GC, hidden
   state, or workflow mutation.
+- Revision 3 synchronized the candidate with the latest `origin/main` after
+  PR #250 landed, without changing the dashboard cleanup scope.
 
 ### Not Delivered
 
