@@ -1,8 +1,10 @@
 ---
 template_version: 0.2.0
-created_at: 2026-06-11T00:10:48+08:00
+created_at: "2026-06-11T00:10:48+08:00"
+approved_at: "2026-06-11T00:15:51+08:00"
 source_type: direct_request
-source_refs: ["PR #252 release GitHub CLI auth follow-up"]
+source_refs:
+    - 'PR #252 release GitHub CLI auth follow-up'
 size: S
 ---
 
