@@ -16,9 +16,9 @@ supplements. -->
 
 ## Goal
 
-Stabilize the release workflow's GitHub CLI authentication so the
-`v0.4.3` release Homebrew verification can complete reliably after the
-release-auth fix lands on `main`.
+Stabilize the release workflow's GitHub CLI authentication and produce a
+merge-ready candidate so the `v0.4.3` release Homebrew verification can be
+rerun after the release-auth fix lands on `main`.
 
 The immediate candidate is PR #252,
 `https://github.com/catu-ai/easyharness/pull/252`, which was opened after
@@ -39,11 +39,11 @@ while the Homebrew smoke test inspected the previous Homebrew-capable release
 - Add or preserve regression coverage showing that release verification passes
   a usable `GH_TOKEN` to `gh` when only `GITHUB_TOKEN` is available.
 - Validate the candidate locally and through PR CI.
-- After approval and merge, rerun `release.yml` from fixed `main` with
-  `version=v0.4.3` and verify the release workflow, especially
-  `Verify Homebrew Install`, completes successfully.
-- Archive the plan with the final PR, merge, release rerun, and Homebrew
-  verification evidence.
+- Publish and archive the candidate with PR, CI, and sync evidence until it is
+  waiting for human merge approval.
+- Record the required post-merge handoff: after PR #252 lands, rerun
+  `release.yml` from fixed `main` with `version=v0.4.3` and verify
+  `Verify Homebrew Install`.
 
 ### Out of Scope
 
@@ -64,11 +64,13 @@ while the Homebrew smoke test inspected the previous Homebrew-capable release
 - [ ] Tests cover the token fallback behavior and the release workflow wiring.
 - [ ] `go test ./...` passes locally for the candidate.
 - [ ] PR #252 CI passes.
-- [ ] After PR #252 lands, `release.yml` is rerun from `main` with
-  `version=v0.4.3`.
-- [ ] The rerun release workflow succeeds, including `Verify Homebrew Install`.
-- [ ] The archived plan records release URL, workflow run URL, and Homebrew tap
-  verification evidence.
+- [ ] PR #252 is published, in sync with its branch, and CI passes.
+- [ ] The archived plan records PR, CI, sync, and merge-readiness evidence.
+- [ ] The candidate reaches `execution/finalize/await_merge` and waits for
+  explicit human merge approval.
+- [ ] The archived handoff clearly states that after PR #252 lands,
+  `release.yml` must be rerun from `main` with `version=v0.4.3`, and that the
+  rerun must verify `Verify Homebrew Install`.
 
 ## Deferred Items
 
@@ -119,19 +121,21 @@ PENDING_STEP_EXECUTION
 
 PENDING_STEP_REVIEW
 
-### Step 2: Land PR #252
+### Step 2: Publish and Archive the Merge-Ready Candidate
 
 - Done: [ ]
 
 #### Objective
 
-After human approval, merge PR #252 and record normal harness land evidence.
+Publish the scoped fix as PR #252, record CI and sync evidence, and archive the
+candidate at `wait_for_merge_approval` without merging it.
 
 #### Details
 
-This step should not start until the plan is approved and execution is
-recorded. The controller should verify PR #252 is up to date, CI is green, and
-the diff still matches the scoped token-handling fix before merge.
+This step should not merge PR #252. The controller should verify PR #252 is up
+to date, CI is green, and the diff still matches the scoped token-handling fix.
+The archive handoff must say that merge approval is still required and that
+the `v0.4.3` release workflow rerun is post-merge work.
 
 #### Expected Files
 
@@ -140,52 +144,10 @@ the diff still matches the scoped token-handling fix before merge.
 
 #### Validation
 
-- PR #252 is merged to `main`.
-- Local primary checkout is fast-forwarded to the merge commit.
-- `harness land complete` returns the repository to `idle`.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
-
-### Step 3: Rerun and Verify the v0.4.3 Release Workflow
-
-- Done: [ ]
-
-#### Objective
-
-Rerun `release.yml` from fixed `main` for `version=v0.4.3` and verify the
-previously failing Homebrew verification job now succeeds.
-
-#### Details
-
-The release workflow checks out the requested release tag for release-source
-artifact work while running smoke code from the root checkout. This is why
-rerunning `release.yml` from the fixed `main` branch can validate the auth fix
-without moving the `v0.4.3` tag or changing release artifact provenance.
-
-If GitHub CLI or GitHub API calls fail again with 401, collect the exact job
-log and distinguish auth flake from release asset, tag, or Homebrew formula
-problems before retrying.
-
-#### Expected Files
-
-- No repository file changes are expected in this step.
-
-#### Validation
-
-- `gh workflow run release.yml --ref main -f version=v0.4.3` starts a release
-  workflow run.
-- The release run succeeds.
-- `Verify Homebrew Install` succeeds.
-- `gh release view v0.4.3 --repo catu-ai/easyharness --json tagName,url,assets`
-  confirms the release remains published with the expected assets.
-- The Homebrew tap formula remains at `version "0.4.3"` and points to
-  `v0.4.3` assets.
+- PR #252 is open, in sync, and has passing CI.
+- Harness publish/sync evidence records the PR URL, head commit, and CI result.
+- The plan is archived and `harness status` reaches
+  `execution/finalize/await_merge`.
 
 #### Execution Notes
 
@@ -201,22 +163,22 @@ Use layered validation:
 
 - local Go/smoke tests for workflow wiring and release verifier behavior
 - PR #252 CI for repository-wide regression coverage
-- post-merge release workflow rerun for the real `v0.4.3` release path
-- release and Homebrew tap inspection to confirm published state remains
-  coherent after rerun
+- harness publish/sync evidence to prove the PR is merge-ready
+- post-merge handoff evidence describing the required `v0.4.3` release rerun
 
 ## Risks
 
 - Risk: The fix is validated in PR CI but not in the actual release workflow.
   - Mitigation: Treat the `v0.4.3` release workflow rerun as required
-    acceptance evidence before archive.
+    post-merge handoff work and record it in the archive before waiting for
+    merge approval.
 - Risk: A repeated 401 is misread as a broken release artifact or formula.
   - Mitigation: Preserve exact job logs and compare against release asset and
     tap formula state before changing release artifacts.
 - Risk: Rerunning release workflow accidentally changes release provenance.
-  - Mitigation: Run with `--ref main -f version=v0.4.3`; the workflow verifies
-    the release-source checkout matches the `v0.4.3` tag before building or
-    uploading.
+  - Mitigation: The handoff should instruct the landing agent to run with
+    `--ref main -f version=v0.4.3`; the workflow verifies the release-source
+    checkout matches the `v0.4.3` tag before building or uploading.
 
 ## Validation Summary
 
