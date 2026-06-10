@@ -318,26 +318,58 @@ build, and embedded UI build.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `harness plan lint docs/plans/active/2026-06-10-prioritize-active-dashboard-workspaces-and-cleanup-degraded-watches.md`
+- `go test ./internal/dashboard ./internal/ui ./internal/watchlist`
+- `pnpm --dir web test -- --run`
+- `pnpm --dir web exec tsc -p tsconfig.json --noEmit`
+- `scripts/build-embedded-ui`
+- `go test ./...`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Finalize review `review-001-full` passed clean with 0 blocking and 0
+non-blocking findings. The `correctness` reviewer found no issues in dashboard
+ordering, bulk degraded unwatch, exact-path watchlist removal, or UI action
+handling. The `tests-docs` reviewer found no gaps in the focused coverage or
+tracked docs for active-first ordering, explicit degraded cleanup, and the
+no-automatic-GC boundary.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-06-10T23:55:55+08:00
+- Revision: 1
+- PR: not created yet; publish evidence will record the PR URL after archive.
+- Ready: The candidate satisfies the tracked acceptance criteria, focused Go
+  and web validation passed, `go test ./...` passed, embedded UI assets were
+  rebuilt, and `review-001-full` passed clean.
+- Merge Handoff: Archive the plan, commit the archive move and code changes,
+  push `codex/dashboard-active-first-cleanup`, open a draft PR, record
+  publish/CI/sync evidence, and wait for explicit human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Dashboard home flattening now preserves lifecycle-first API group order, so
+  active/completed/idle work appears before missing/invalid entries while
+  recency remains the within-state ordering signal.
+- Added exact persisted-path watchlist removal through
+  `watchlist.Service.UnwatchWorkspacePaths`.
+- Added `POST /api/dashboard/unwatch-degraded`, which removes only currently
+  derived `missing` and `invalid` watched records.
+- Added the dashboard `Unwatch missing/invalid` affordance with busy state,
+  inline error handling, and success refresh behavior.
+- Updated README and the watchlist contract to document active-first ordering
+  and explicit degraded cleanup without introducing automatic GC, hidden
+  state, or workflow mutation.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Sort mode pickers, saved views, search, filters, repository-family grouping,
+  stale-age cleanup policies, and richer degraded recovery flows remain out of
+  scope.
 
 ### Follow-Up Issues
 
-NONE
+No follow-up issue was created. The deferred items are optional future
+dashboard enhancements, not durable scope required by this slice.
