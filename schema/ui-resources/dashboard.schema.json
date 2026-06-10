@@ -265,7 +265,7 @@
         },
         "instructions": {
           "type": "string",
-          "description": "Instructions is the reviewer prompt for this slot."
+          "description": "Instructions is the explicit reviewer handoff for this slot."
         },
         "submission_path": {
           "type": "string",

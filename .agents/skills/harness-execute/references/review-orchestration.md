@@ -115,8 +115,9 @@ Field rules:
   - one reviewer slot per dimension after normalization
   - catalog-managed dimensions use stable names with lowercase letters,
     digits, and hyphens; the name and slot identifier are the same
-  - each dimension should include concrete instructions or a concrete command
-    for the reviewer to fetch the full instruction
+  - catalog-managed dimensions should include a concrete command for the
+    reviewer to fetch the full instruction
+  - one-off dimensions may include explicit reviewer instructions directly
 
 The controller agent should not invent workflow metadata like `trigger` or
 `target`. `harness review start` infers whether the round is step-bound or
@@ -260,7 +261,9 @@ Review title: <review-title>
 Revision: <candidate-revision-or-none>
 Slot: <slot>
 Assigned dimension: <dimension-name>
-Instructions: <dimension-instructions>
+Instruction command: harness review dimensions instructions <dimension-name>
+Instruction handoff: <short instruction string from review-start slot, usually
+the same command above>
 Submission Path: <repo-facing-submission-path>
 Anchor SHA: <commit-sha-or-none>
 Change summary since your last submission: <bounded-change-summary>

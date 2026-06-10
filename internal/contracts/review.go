@@ -18,19 +18,21 @@ type ReviewSpec struct {
 	// rounds.
 	ReviewTitle string `json:"review_title,omitempty"`
 
-	// Dimensions lists the review dimensions and instructions assigned to
-	// reviewers.
+	// Dimensions lists the review dimensions and reviewer instruction handoffs
+	// assigned to reviewers.
 	Dimensions []ReviewDimension `json:"dimensions" jsonschema:"minItems=1" easyharness:"no_null"`
 }
 
 // ReviewDimension defines one named review dimension and its reviewer
-// instructions.
+// instruction handoff.
 type ReviewDimension struct {
 	// Name is the review dimension name. Catalog-managed dimensions use stable
 	// lowercase names with digits and hyphens.
 	Name string `json:"name"`
 
-	// Instructions is the reviewer prompt for this dimension.
+	// Instructions is the explicit reviewer handoff for this dimension. For
+	// catalog-managed dimensions this is usually a command to fetch the full
+	// instruction; one-off dimensions may provide direct reviewer guidance.
 	Instructions string `json:"instructions"`
 }
 
@@ -86,7 +88,7 @@ type ReviewSlot struct {
 	// Slot is the stable slot identifier.
 	Slot string `json:"slot"`
 
-	// Instructions is the reviewer prompt for this slot.
+	// Instructions is the explicit reviewer handoff for this slot.
 	Instructions string `json:"instructions"`
 
 	// SubmissionPath is the target path for this slot's submission artifact.

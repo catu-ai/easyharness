@@ -116,8 +116,8 @@ type ReviewSlotView struct {
 	// Slot is the stable reviewer slot identifier.
 	Slot string `json:"slot"`
 
-	// Instructions is the reviewer prompt for this slot when it is available in
-	// surfaced review data.
+	// Instructions is the explicit reviewer handoff for this slot when it is
+	// available in surfaced review data.
 	Instructions string `json:"instructions,omitempty"`
 
 	// Status is the current submission status label for the slot.

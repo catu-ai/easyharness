@@ -122,15 +122,19 @@ deferral stale.
    and change summary.
 2. If the controller did not give enough information to submit cleanly, report
    the missing input back to the controller instead of improvising.
-3. Fetch the full reviewer instruction for the assigned dimension:
+3. Determine the reviewer instruction source from the controller handoff.
+   When the controller provides an instruction command for a catalog-managed
+   dimension, fetch the full reviewer instruction:
 
    ```bash
    harness review dimensions instructions <dimension-name>
    ```
 
    Treat the returned Markdown as authoritative for this slot. If the command
-   fails, report the failure back to the controller instead of guessing from
-   the dimension name.
+   fails and the controller also provided explicit slot instructions, use those
+   slot instructions as the fallback and record that fallback in the submission
+   worklog. If no explicit slot instructions are available, report the failure
+   back to the controller instead of guessing from the dimension name.
 4. Open the controller-provided repo-facing `plan_path` and read the full plan
    before reviewing.
 5. Locate the slot-owned progressive submission artifact using the
@@ -158,8 +162,8 @@ deferral stale.
 13. If the controller later resumes you for the same slot within the same
     tracked step review boundary or for the same finalize review title in the
     same revision, treat the newest round ID, review kind, review title,
-    revision context, slot, assigned dimension name, freshly fetched
-    instructions, anchor SHA, and change summary as authoritative for that new
+    revision context, slot, assigned dimension name, newest instruction
+    handoff, anchor SHA, and change summary as authoritative for that new
     assignment. Reuse your prior context only to understand the bounded
     follow-up the controller asked you to verify.
 

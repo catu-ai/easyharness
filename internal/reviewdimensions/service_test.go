@@ -101,22 +101,90 @@ Check the public contract.
 	t.Fatalf("expected configured repo dimension, got %#v", result.Dimensions)
 }
 
-func TestInvalidRepoDimensionFailsList(t *testing.T) {
-	root := t.TempDir()
-	writeDimension(t, root, ".harness/review/dimensions/Bad.md", `---
+func TestInvalidRepoDimensionFilesFailList(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		wantMessage string
+	}{
+		{
+			name: "malformed frontmatter",
+			content: `---
+name: [broken
+description: Invalid YAML.
+---
+
+Instruction.
+`,
+			wantMessage: "malformed YAML frontmatter",
+		},
+		{
+			name: "missing name",
+			content: `---
+description: Missing name.
+---
+
+Instruction.
+`,
+			wantMessage: "field name must use lowercase letters",
+		},
+		{
+			name: "missing description",
+			content: `---
+name: missing-description
+---
+
+Instruction.
+`,
+			wantMessage: "field description must not be empty",
+		},
+		{
+			name: "unsupported field",
+			content: `---
+name: api-contract
+description: Has extra metadata.
+use_when: Never.
+---
+
+Instruction.
+`,
+			wantMessage: `unsupported frontmatter field "use_when"`,
+		},
+		{
+			name: "invalid name",
+			content: `---
 name: Bad Name
 description: Invalid name.
 ---
 
 Instruction.
-`)
-
-	result := Service{Workdir: root}.List()
-	if result.OK {
-		t.Fatalf("expected list failure, got %#v", result)
+`,
+			wantMessage: "field name must use lowercase letters",
+		},
+		{
+			name: "empty body",
+			content: `---
+name: empty-body
+description: Empty instruction body.
+---
+`,
+			wantMessage: "instruction body must not be empty",
+		},
 	}
-	if len(result.Errors) != 1 || !strings.Contains(result.Errors[0].Message, "lowercase letters") {
-		t.Fatalf("unexpected errors: %#v", result.Errors)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeDimension(t, root, ".harness/review/dimensions/bad.md", tt.content)
+
+			result := Service{Workdir: root}.List()
+			if result.OK {
+				t.Fatalf("expected list failure, got %#v", result)
+			}
+			if len(result.Errors) != 1 || !strings.Contains(result.Errors[0].Message, tt.wantMessage) {
+				t.Fatalf("unexpected errors: %#v", result.Errors)
+			}
+		})
 	}
 }
 

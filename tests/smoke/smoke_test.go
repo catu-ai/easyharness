@@ -542,6 +542,70 @@ Check the public contract.
 	if instructions.Stdout != "# API Contract\n\nCheck the public contract.\n" {
 		t.Fatalf("unexpected raw instructions:\n%s", instructions.Stdout)
 	}
+
+	planPath := workspace.Path("docs/plans/active/2026-06-11-review-dimensions-smoke.md")
+	template := support.Run(t, workspace.Root, "plan", "template", "--title", "Review Dimensions Smoke", "--output", planPath)
+	support.RequireSuccess(t, template)
+	support.RequireNoStderr(t, template)
+	support.ApprovePlan(t, planPath, "2026-06-11T00:00:00+08:00")
+
+	startExecution := support.Run(t, workspace.Root, "execute", "start")
+	support.RequireSuccess(t, startExecution)
+	support.RequireNoStderr(t, startExecution)
+
+	specPath := workspace.WriteJSON(t, "review-spec.json", map[string]any{
+		"kind":         "full",
+		"review_title": "Catalog-managed review dimension smoke",
+		"dimensions": []map[string]string{
+			{
+				"name":         "api-contract",
+				"instructions": "Run `harness review dimensions instructions api-contract` and follow the returned Markdown instruction.",
+			},
+		},
+	})
+	reviewStart := support.Run(t, workspace.Root, "review", "start", "--spec", specPath)
+	support.RequireSuccess(t, reviewStart)
+	support.RequireNoStderr(t, reviewStart)
+	var reviewStartPayload struct {
+		OK        bool   `json:"ok"`
+		Command   string `json:"command"`
+		Artifacts struct {
+			RoundID string `json:"round_id"`
+			Slots   []struct {
+				Name           string `json:"name"`
+				Slot           string `json:"slot"`
+				Instructions   string `json:"instructions"`
+				SubmissionPath string `json:"submission_path"`
+			} `json:"slots"`
+		} `json:"artifacts"`
+	}
+	if err := json.Unmarshal([]byte(reviewStart.Stdout), &reviewStartPayload); err != nil {
+		t.Fatalf("decode review start: %v\n%s", err, reviewStart.Stdout)
+	}
+	if !reviewStartPayload.OK || reviewStartPayload.Command != "review start" || reviewStartPayload.Artifacts.RoundID != "review-001-full" {
+		t.Fatalf("unexpected review start payload: %#v", reviewStartPayload)
+	}
+	if len(reviewStartPayload.Artifacts.Slots) != 1 {
+		t.Fatalf("expected one slot, got %#v", reviewStartPayload.Artifacts.Slots)
+	}
+	slot := reviewStartPayload.Artifacts.Slots[0]
+	if slot.Name != "api-contract" || slot.Slot != "api-contract" {
+		t.Fatalf("expected catalog dimension slot, got %#v", slot)
+	}
+	support.RequireFileExists(t, workspace.Path(slot.SubmissionPath))
+
+	submit := support.RunWithOptions(t, support.RunOptions{
+		Workdir: workspace.Root,
+		Args: []string{
+			"review", "submit",
+			"--round", reviewStartPayload.Artifacts.RoundID,
+			"--slot", slot.Slot,
+			"--by", "reviewer-api-contract",
+		},
+		Stdin: `{"summary":"Catalog-managed dimension submission path works.","findings":[]}`,
+	})
+	support.RequireSuccess(t, submit)
+	support.RequireNoStderr(t, submit)
 }
 
 func TestSkillsInstallRejectsInvalidScopeViaCLI(t *testing.T) {

@@ -649,15 +649,15 @@ Canonical input shape:
   "dimensions": [
     {
       "name": "correctness",
-      "instructions": "Look for state-machine mistakes, stale-state bugs, and missing negative-path tests."
+      "instructions": "Run `harness review dimensions instructions correctness` and follow the returned Markdown instruction."
     },
     {
       "name": "agent-ux",
-      "instructions": "Check whether command output is concise and helpful for another agent resuming work."
+      "instructions": "Run `harness review dimensions instructions agent-ux` and follow the returned Markdown instruction."
     },
     {
       "name": "docs-consistency",
-      "instructions": "Verify the implementation still matches the tracked schema and CLI docs for this slice."
+      "instructions": "Run `harness review dimensions instructions docs-consistency` and follow the returned Markdown instruction."
     }
   ]
 }
@@ -682,6 +682,9 @@ Review-spec semantics:
   - one reviewer slot per normalized dimension
   - catalog-managed dimensions use stable names with lowercase letters, digits,
     and hyphens; for those dimensions the name and slot identifier are the same
+  - `instructions` is still explicit review-start handoff text; for
+    catalog-managed dimensions it should usually be a command to fetch the full
+    instruction, while one-off dimensions may carry direct reviewer guidance
 - `anchor_sha`
   - optional for `full`
   - required for `delta`
@@ -811,9 +814,13 @@ the repaired step as current until that step-closeout debt is resolved by a
 later clean repair review or explicit `NO_STEP_REVIEW_NEEDED` closeout.
 
 Dimension-specific reviewer instructions belong in the input review spec.
-Generic reviewer behavior, such as "inspect the current diff and submit results
-through the harness contract," belongs in the reviewer skill or in command
-output helpers, not duplicated in every review spec.
+For catalog-managed dimensions, the spec should usually hand reviewers a
+`harness review dimensions instructions <name>` command instead of embedding the
+full instruction body. For one-off review slots that are not in the catalog,
+the spec may carry explicit reviewer guidance directly. Generic reviewer
+behavior, such as "inspect the current diff and submit results through the
+harness contract," belongs in the reviewer skill or in command output helpers,
+not duplicated in every review spec.
 
 Recommended next action:
 

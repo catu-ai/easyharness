@@ -321,8 +321,12 @@ materialized `.agents/skills` copies.
 
 #### Review Notes
 
-NO_STEP_REVIEW_NEEDED: Guidance changes are covered by source/materialized diff
-review and final review.
+NO_STEP_REVIEW_NEEDED: Finalize review `review-001-full` covered this guidance
+slice and found repair work. Repaired the guidance so catalog-managed
+dimensions use an instruction command, one-off slots may carry explicit
+reviewer instructions, reviewers can fall back to explicit slot instructions
+when lookup is not available, and the resume prompt now mirrors the first-pass
+`Instruction command` / `Instruction handoff` fields.
 
 ### Step 5: Validate the integrated review workflow
 
@@ -366,11 +370,19 @@ errors, invalid repo dimensions, duplicate names, and repo-overrides-builtin
 behavior. Verified the repo-local binary with `.local/bin/harness review
 dimensions list`, `.local/bin/harness review dimensions instructions
 correctness`, and `.local/bin/harness repo config get paths.review.dimensions`.
+After finalize review, expanded invalid repo dimension file coverage to include
+malformed frontmatter, missing metadata, unsupported frontmatter fields, and
+empty instruction bodies. Expanded smoke coverage so a fixture repo defines a
+repo dimension, lists it, fetches instructions, starts a review using the
+catalog dimension name, and submits a reviewer result through the existing slot
+flow.
 
 #### Review Notes
 
-NO_STEP_REVIEW_NEEDED: This step is validation-focused; final review will cover
-the branch-level candidate.
+NO_STEP_REVIEW_NEEDED: Finalize review `review-001-full` covered this
+validation slice and found missing integrated review start/submit smoke
+coverage plus several invalid dimension-file cases. Repaired with the expanded
+service and smoke tests described above.
 
 ## Validation Strategy
 
