@@ -68,7 +68,7 @@ automation after the PR merges.
 
 ### Step 1: Prepare patch release PR
 
-- Done: [ ]
+ - Done: [x]
 
 #### Objective
 
@@ -106,7 +106,11 @@ https://github.com/catu-ai/easyharness/pull/249.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Step delta review `review-001-delta` passed with no blocking or non-blocking
+findings. Reviewers checked release correctness and validation: the candidate
+is scoped to `VERSION` plus the tracked plan, PR #249 accurately ties the patch
+release to PR #245 / issue #240, release handoff points to existing automation,
+and the release validation plus ignored artifact handling are appropriate.
 
 ## Validation Strategy
 
