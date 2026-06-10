@@ -438,6 +438,95 @@ func TestNewHandlerWorkspaceStatusForActivePlanDoesNotMutateWorkflowOrWatchlist(
 	}
 }
 
+func TestNewHandlerDashboardAndWorkspaceRoutesUseCustomWorkspaceRepoConfig(t *testing.T) {
+	home := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "workspace-custom-roots")
+	seedGitWorkspace(t, workspace)
+	writeUICustomRootConfig(t, workspace)
+	relPlanPath, planStem := writeUIPlanAt(t, workspace, "workflow/plans/open/2026-06-10-ui-custom-root.md", "Workspace Custom Root Plan")
+	currentPlanPath, statePath, lockPath := seedUIActiveState(t, workspace, relPlanPath, planStem)
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(workspace, "2026-06-10T12:00:00Z")})
+	t.Setenv("EASYHARNESS_HOME", home)
+
+	watchlistPath := filepath.Join(home, "watchlist.json")
+	fixedTime := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	if err := os.Chtimes(watchlistPath, fixedTime, fixedTime); err != nil {
+		t.Fatalf("set watchlist timestamp: %v", err)
+	}
+	before := snapshotStateFiles(t, currentPlanPath, statePath)
+	watchlistBefore := snapshotFile(t, watchlistPath)
+
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	dashboardRecorder := httptest.NewRecorder()
+	dashboardRequest := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
+	handler.ServeHTTP(dashboardRecorder, dashboardRequest)
+	if dashboardRecorder.Code != http.StatusOK {
+		t.Fatalf("expected dashboard status 200, got %d: %s", dashboardRecorder.Code, dashboardRecorder.Body.String())
+	}
+	var dashboardPayload struct {
+		OK       bool                 `json:"ok"`
+		Resource string               `json:"resource"`
+		Groups   []dashboardTestGroup `json:"groups"`
+	}
+	if err := json.Unmarshal(dashboardRecorder.Body.Bytes(), &dashboardPayload); err != nil {
+		t.Fatalf("unmarshal dashboard payload: %v\n%s", err, dashboardRecorder.Body.String())
+	}
+	entry := dashboardWorkspaceInGroup(t, dashboardPayload.Groups, "active", workspace)
+	if !dashboardPayload.OK || dashboardPayload.Resource != "dashboard" || entry.CurrentNode != "execution/step-1/implement" {
+		t.Fatalf("unexpected dashboard custom-root entry: payload=%#v entry=%#v", dashboardPayload, entry)
+	}
+	if entry.PlanTitle != "Workspace Custom Root Plan" || entry.Artifacts == nil || entry.Artifacts.PlanPath != relPlanPath {
+		t.Fatalf("expected dashboard custom plan context %q, got %#v", relPlanPath, entry)
+	}
+
+	workspaceRecorder := httptest.NewRecorder()
+	workspaceRequest := httptest.NewRequest(http.MethodGet, "/api/workspace/"+dashboard.WorkspaceKey(workspace), nil)
+	handler.ServeHTTP(workspaceRecorder, workspaceRequest)
+	if workspaceRecorder.Code != http.StatusOK {
+		t.Fatalf("expected workspace status 200, got %d: %s", workspaceRecorder.Code, workspaceRecorder.Body.String())
+	}
+	var workspacePayload struct {
+		OK        bool `json:"ok"`
+		Watched   bool `json:"watched"`
+		Workspace *struct {
+			WorkspacePath  string `json:"workspace_path"`
+			DashboardState string `json:"dashboard_state"`
+			CurrentNode    string `json:"current_node"`
+			PlanTitle      string `json:"plan_title"`
+			Artifacts      *struct {
+				PlanPath string `json:"plan_path"`
+			} `json:"artifacts"`
+		} `json:"workspace"`
+	}
+	if err := json.Unmarshal(workspaceRecorder.Body.Bytes(), &workspacePayload); err != nil {
+		t.Fatalf("unmarshal workspace payload: %v\n%s", err, workspaceRecorder.Body.String())
+	}
+	if !workspacePayload.OK || !workspacePayload.Watched || workspacePayload.Workspace == nil {
+		t.Fatalf("unexpected workspace custom-root payload: %#v", workspacePayload)
+	}
+	if workspacePayload.Workspace.WorkspacePath != workspace ||
+		workspacePayload.Workspace.DashboardState != "active" ||
+		workspacePayload.Workspace.CurrentNode != "execution/step-1/implement" ||
+		workspacePayload.Workspace.PlanTitle != "Workspace Custom Root Plan" ||
+		workspacePayload.Workspace.Artifacts == nil ||
+		workspacePayload.Workspace.Artifacts.PlanPath != relPlanPath {
+		t.Fatalf("unexpected workspace custom-root context: %#v", workspacePayload.Workspace)
+	}
+
+	assertStateFilesUnchanged(t, before)
+	assertFileUnchanged(t, watchlistPath, watchlistBefore)
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Fatalf("expected workspace route reads to avoid creating state lock, err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(workspace, ".local", "harness")); !os.IsNotExist(err) {
+		t.Fatalf("expected workspace route reads to avoid default runtime root, err=%v", err)
+	}
+}
+
 func TestNewHandlerServesWorkspacePlanJSONByKey(t *testing.T) {
 	home := t.TempDir()
 	workspace := filepath.Join(t.TempDir(), "workspace-plan")
@@ -1573,6 +1662,12 @@ func writeUIActivePlan(t *testing.T, root, title string) (string, string) {
 	t.Helper()
 	planStem := strings.ToLower(strings.ReplaceAll(title, " ", "-"))
 	relPath := filepath.ToSlash(filepath.Join("docs", "plans", "active", "2026-04-22-"+planStem+".md"))
+	return writeUIPlanAt(t, root, relPath, title)
+}
+
+func writeUIPlanAt(t *testing.T, root, relPath, title string) (string, string) {
+	t.Helper()
+	planStem := strings.TrimSuffix(filepath.Base(relPath), filepath.Ext(relPath))
 	path := filepath.Join(root, filepath.FromSlash(relPath))
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
@@ -1580,7 +1675,7 @@ func writeUIActivePlan(t *testing.T, root, title string) (string, string) {
 	if err := os.WriteFile(path, []byte(renderPlanFixture(t, title)), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
-	return relPath, "2026-04-22-" + planStem
+	return relPath, planStem
 }
 
 func seedUIActiveState(t *testing.T, root, relPlanPath, planStem string) (string, string, string) {
@@ -1602,7 +1697,7 @@ func seedUIActiveState(t *testing.T, root, relPlanPath, planStem string) (string
 			t.Fatalf("set state timestamp %s: %v", path, err)
 		}
 	}
-	lockPath := filepath.Join(root, ".local", "harness", "plans", planStem, ".state-mutation.lock")
+	lockPath := runstate.PlanRuntimePath(root, planStem, ".state-mutation.lock")
 	return currentPlanPath, statePath, lockPath
 }
 
@@ -1631,6 +1726,10 @@ type dashboardTestWorkspace struct {
 	WorkspacePath  string `json:"workspace_path"`
 	DashboardState string `json:"dashboard_state"`
 	CurrentNode    string `json:"current_node"`
+	PlanTitle      string `json:"plan_title"`
+	Artifacts      *struct {
+		PlanPath string `json:"plan_path"`
+	} `json:"artifacts"`
 }
 
 func dashboardWorkspaceInGroup(t *testing.T, groups []dashboardTestGroup, state, path string) dashboardTestWorkspace {
@@ -1696,6 +1795,24 @@ func writeWatchlist(t *testing.T, home string, workspaces []watchlist.Workspace)
 	}
 	if err := os.WriteFile(filepath.Join(home, "watchlist.json"), data, 0o644); err != nil {
 		t.Fatalf("write watchlist: %v", err)
+	}
+}
+
+func writeUICustomRootConfig(t *testing.T, root string) {
+	t.Helper()
+	path := filepath.Join(root, ".harness", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir custom root config dir: %v", err)
+	}
+	content := []byte(`version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: workflow/plans/done
+  local_runtime: tmp/harness-runtime
+`)
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write custom root config: %v", err)
 	}
 }
 
