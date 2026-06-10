@@ -316,6 +316,60 @@ func TestReadUsesDefaultStatusServiceForActiveWorkspaceWithoutMutatingState(t *t
 	}
 }
 
+func TestReadUsesWorkspaceRepoConfigForCustomRootActiveWorkspace(t *testing.T) {
+	home := t.TempDir()
+	workspace := seedGitWorkspace(t, "active-custom-roots")
+	writeCustomRootConfig(t, workspace)
+	relPlanPath := writePlanAt(t, workspace, "workflow/plans/open/2026-06-10-dashboard-custom-root.md", "Dashboard Custom Root Plan")
+	if _, err := runstate.SaveCurrentPlan(workspace, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	planStem := strings.TrimSuffix(filepath.Base(relPlanPath), filepath.Ext(relPlanPath))
+	if _, err := runstate.SaveState(workspace, planStem, &runstate.State{
+		ExecutionStartedAt: "2026-06-10T09:00:00Z",
+		Revision:           1,
+	}); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+	writeWatchlist(t, home, []watchlist.Workspace{workspaceRecord(workspace, "2026-06-10T12:00:00Z")})
+
+	currentPlanPath := filepath.Join(workspace, "tmp", "harness-runtime", "current-plan.json")
+	statePath := filepath.Join(workspace, "tmp", "harness-runtime", "plans", planStem, "state.json")
+	stateFiles := []string{currentPlanPath, statePath}
+	fixedTime := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	before := make(map[string]fileSnapshot, len(stateFiles))
+	for _, path := range stateFiles {
+		if err := os.Chtimes(path, fixedTime, fixedTime); err != nil {
+			t.Fatalf("set state timestamp %s: %v", path, err)
+		}
+		before[path] = snapshotFile(t, path)
+	}
+
+	result := Service{LookupEnv: easyHome(home)}.Read()
+	if !result.OK {
+		t.Fatalf("dashboard read failed: %#v", result)
+	}
+	entry := findWorkspace(t, result, StateActive, workspace)
+	if entry.CurrentNode != "execution/step-1/implement" {
+		t.Fatalf("expected custom-root active execution node, got %#v", entry)
+	}
+	if entry.Artifacts == nil || entry.Artifacts.PlanPath != relPlanPath {
+		t.Fatalf("expected custom active plan path %q, got %#v", relPlanPath, entry)
+	}
+	if entry.PlanTitle != "Dashboard Custom Root Plan" {
+		t.Fatalf("expected custom-root plan title, got %#v", entry)
+	}
+	if entry.Progress == nil || len(entry.Progress.Nodes) == 0 || entry.Progress.Nodes[0].State != progressStateCurrent {
+		t.Fatalf("expected custom-root progress context, got %#v", entry.Progress)
+	}
+	for _, path := range stateFiles {
+		assertFileUnchanged(t, path, before[path])
+	}
+	if _, err := os.Stat(filepath.Join(workspace, ".local", "harness")); !os.IsNotExist(err) {
+		t.Fatalf("expected dashboard read to avoid default runtime root, err=%v", err)
+	}
+}
+
 func TestReadDerivesWorkspaceNamePlanTitleAndProgressFromPlan(t *testing.T) {
 	home := t.TempDir()
 	workspace := seedGitWorkspace(t, "issue-167-dashboard-ui")
@@ -522,6 +576,11 @@ func writeActivePlan(t *testing.T, root string) string {
 
 func writeCustomActivePlan(t *testing.T, root, title string) string {
 	t.Helper()
+	return writePlanAt(t, root, filepath.ToSlash(filepath.Join("docs", "plans", "active", "2026-04-22-dashboard-active-plan.md")), title)
+}
+
+func writePlanAt(t *testing.T, root, relPath, title string) string {
+	t.Helper()
 	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
 		Title:      title,
 		Timestamp:  time.Date(2026, 4, 22, 9, 0, 0, 0, time.UTC),
@@ -531,7 +590,6 @@ func writeCustomActivePlan(t *testing.T, root, title string) string {
 	if err != nil {
 		t.Fatalf("render plan: %v", err)
 	}
-	relPath := filepath.ToSlash(filepath.Join("docs", "plans", "active", "2026-04-22-dashboard-active-plan.md"))
 	path := filepath.Join(root, filepath.FromSlash(relPath))
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
@@ -540,6 +598,24 @@ func writeCustomActivePlan(t *testing.T, root, title string) string {
 		t.Fatalf("write plan: %v", err)
 	}
 	return relPath
+}
+
+func writeCustomRootConfig(t *testing.T, root string) {
+	t.Helper()
+	path := filepath.Join(root, ".harness", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir custom root config dir: %v", err)
+	}
+	content := []byte(`version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: workflow/plans/done
+  local_runtime: tmp/harness-runtime
+`)
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write custom root config: %v", err)
+	}
 }
 
 func writeWatchlist(t *testing.T, home string, workspaces []watchlist.Workspace) {
