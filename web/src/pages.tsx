@@ -1420,15 +1420,41 @@ export function DashboardHome(props: {
   workspaces: DashboardWorkspace[];
   onOpenWorkspace: (workspaceKey: string) => void;
   onUnwatch: (workspace: DashboardWorkspace) => void;
+  onUnwatchDegraded?: () => void;
   busyWorkspaceKey?: string | null;
+  unwatchDegradedBusy?: boolean;
+  unwatchDegradedError?: string | null;
 }) {
-  const { loading, error, workspaces, onOpenWorkspace, onUnwatch, busyWorkspaceKey = null } = props;
+  const {
+    loading,
+    error,
+    workspaces,
+    onOpenWorkspace,
+    onUnwatch,
+    onUnwatchDegraded,
+    busyWorkspaceKey = null,
+    unwatchDegradedBusy = false,
+    unwatchDegradedError = null,
+  } = props;
+  const degradedCount = workspaces.filter((workspace) => workspace.dashboard_state === "missing" || workspace.dashboard_state === "invalid").length;
 
   return (
     <div class="dashboard-page">
       {loading ? <EmptyState>Loading watched workspaces.</EmptyState> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
+      {unwatchDegradedError ? <Notice tone="error">{unwatchDegradedError}</Notice> : null}
       {!loading && !error && workspaces.length === 0 ? <EmptyState>No watched workspaces yet.</EmptyState> : null}
+      {degradedCount > 0 && onUnwatchDegraded ? (
+        <div class="dashboard-toolbar">
+          <div class="dashboard-toolbar-copy">
+            <span class="sidebar-label">Degraded watches</span>
+            <strong>{degradedCount}</strong>
+          </div>
+          <button type="button" class="secondary-button" onClick={onUnwatchDegraded} disabled={unwatchDegradedBusy}>
+            {unwatchDegradedBusy ? "Working..." : "Unwatch missing/invalid"}
+          </button>
+        </div>
+      ) : null}
 
       {workspaces.length > 0 ? (
         <div class="dashboard-list">

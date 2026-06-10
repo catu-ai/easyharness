@@ -326,6 +326,28 @@ code {
   gap: 0.7rem;
 }
 
+.dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.dashboard-toolbar-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.dashboard-toolbar-copy strong {
+  color: var(--text-strong);
+  font-size: 0.95rem;
+}
+
 .dashboard-item {
   display: flex;
   flex-direction: column;
@@ -1778,6 +1800,10 @@ body.is-resizing-workbench .workbench-divider::before {
 
   .dashboard-stage {
     padding: 0.8rem;
+  }
+
+  .dashboard-toolbar {
+    flex-wrap: wrap;
   }
 
   .dashboard-item-top {
