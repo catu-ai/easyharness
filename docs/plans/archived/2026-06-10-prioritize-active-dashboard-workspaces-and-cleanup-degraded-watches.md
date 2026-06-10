@@ -237,6 +237,12 @@ state, action request helper, and App-level bulk cleanup fetch path. Successful
 cleanup refreshes the dashboard; failed cleanup is shown inline on the
 dashboard page.
 
+Revision 2 finalize fix: reduced the dashboard cleanup affordance from a
+full-width toolbar into a compact maintenance control. The visible action now
+reads `Unwatch all` while preserving the accessible name
+`Unwatch missing/invalid`, so the control remains explicit without competing
+with active workspace rows for visual priority.
+
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: this step is covered by the final full review plus
@@ -324,6 +330,16 @@ build, and embedded UI build.
 - `pnpm --dir web exec tsc -p tsconfig.json --noEmit`
 - `scripts/build-embedded-ui`
 - `go test ./...`
+- Revision 2 finalize fix:
+  - `npm test -- --run src/pages.test.tsx src/main.test.tsx` from `web/`
+  - `npm run check` from `web/`
+  - `npm run build` from `web/`
+  - `scripts/install-dev-harness`
+  - In-app browser desktop verification at `http://127.0.0.1:54311/dashboard`:
+    the cleanup affordance rendered as a compact 270px maintenance control
+    above active workspace rows rather than a full-width toolbar.
+  - In-app browser 390px viewport verification: no horizontal overflow; the
+    maintenance control and first active card remained separated and readable.
 
 ## Review Summary
 
@@ -334,17 +350,25 @@ handling. The `tests-docs` reviewer found no gaps in the focused coverage or
 tracked docs for active-first ordering, explicit degraded cleanup, and the
 no-automatic-GC boundary.
 
+After revision 2 reopened the candidate for visual polish,
+`review-002-delta` passed clean with 0 blocking and 0 non-blocking findings.
+The `ui_consistency` reviewer found the revised compact maintenance control
+visually subordinate to dashboard rows, responsive without overflow, and still
+aligned with the explicit unwatch accessibility/action contract.
+
 ## Archive Summary
 
-- Archived At: 2026-06-10T23:55:55+08:00
-- Revision: 1
-- PR: not created yet; publish evidence will record the PR URL after archive.
+- Archived At: 2026-06-11T00:20:47+08:00
+- Revision: 2
+- PR: https://github.com/catu-ai/easyharness/pull/251
 - Ready: The candidate satisfies the tracked acceptance criteria, focused Go
-  and web validation passed, `go test ./...` passed, embedded UI assets were
-  rebuilt, and `review-001-full` passed clean.
-- Merge Handoff: Archive the plan, commit the archive move and code changes,
-  push `codex/dashboard-active-first-cleanup`, open a draft PR, record
-  publish/CI/sync evidence, and wait for explicit human merge approval.
+  and web validation passed, embedded UI assets were rebuilt, the revised
+  dashboard cleanup affordance was verified in the in-app browser on desktop
+  and 390px viewport, `review-001-full` passed clean, and the revision 2
+  `review-002-delta` visual polish review passed clean.
+- Merge Handoff: Archive the plan, commit the revision 2 fix and archive move,
+  push `codex/dashboard-active-first-cleanup`, refresh publish/CI/sync evidence
+  for PR #251, and wait for explicit human merge approval.
 
 ## Outcome Summary
 
@@ -357,8 +381,10 @@ no-automatic-GC boundary.
   `watchlist.Service.UnwatchWorkspacePaths`.
 - Added `POST /api/dashboard/unwatch-degraded`, which removes only currently
   derived `missing` and `invalid` watched records.
-- Added the dashboard `Unwatch missing/invalid` affordance with busy state,
-  inline error handling, and success refresh behavior.
+- Added the dashboard degraded cleanup affordance with busy state, inline
+  error handling, and success refresh behavior. Revision 2 visually refined
+  the affordance into a compact maintenance control so active rows remain the
+  first-viewport focus.
 - Updated README and the watchlist contract to document active-first ordering
   and explicit degraded cleanup without introducing automatic GC, hidden
   state, or workflow mutation.

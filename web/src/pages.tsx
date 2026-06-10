@@ -1445,13 +1445,19 @@ export function DashboardHome(props: {
       {unwatchDegradedError ? <Notice tone="error">{unwatchDegradedError}</Notice> : null}
       {!loading && !error && workspaces.length === 0 ? <EmptyState>No watched workspaces yet.</EmptyState> : null}
       {degradedCount > 0 && onUnwatchDegraded ? (
-        <div class="dashboard-toolbar">
-          <div class="dashboard-toolbar-copy">
-            <span class="sidebar-label">Degraded watches</span>
-            <strong>{degradedCount}</strong>
+        <div class="dashboard-maintenance">
+          <div class="dashboard-maintenance-copy">
+            <span class="dashboard-maintenance-dot" aria-hidden="true" />
+            <span>{degradedCount} missing/invalid watches</span>
           </div>
-          <button type="button" class="secondary-button" onClick={onUnwatchDegraded} disabled={unwatchDegradedBusy}>
-            {unwatchDegradedBusy ? "Working..." : "Unwatch missing/invalid"}
+          <button
+            type="button"
+            class="dashboard-maintenance-action"
+            onClick={onUnwatchDegraded}
+            disabled={unwatchDegradedBusy}
+            aria-label="Unwatch missing/invalid"
+          >
+            {unwatchDegradedBusy ? "Working..." : "Unwatch all"}
           </button>
         </div>
       ) : null}
