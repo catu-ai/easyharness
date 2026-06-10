@@ -27,7 +27,8 @@ type ReviewDimensionsListResult struct {
 // ReviewDimensionMetadata describes one dimension in the controller-facing
 // catalog.
 type ReviewDimensionMetadata struct {
-	// Name is the stable review dimension identifier.
+	// Name is the stable review dimension identifier, using lowercase
+	// alphanumeric segments separated by single hyphens.
 	Name string `json:"name"`
 
 	// Source identifies where the dimension definition came from.

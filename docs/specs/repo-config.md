@@ -102,9 +102,10 @@ description: Use when changes touch public CLI behavior, JSON outputs, schemas, 
 Review the change as an API contract...
 ```
 
-Dimension names are stable skill-like identifiers. They must use lowercase
-letters, digits, and hyphens only. The name is also the review slot identifier
-when a controller chooses that dimension for a review round.
+Dimension names are stable skill-like identifiers. They must be made from
+lowercase alphanumeric segments separated by single hyphens. The name is also
+the review slot identifier when a controller chooses that dimension for a
+review round.
 
 The description is compact controller-facing selection guidance. The Markdown
 body is the full reviewer-facing instruction and is intentionally omitted from

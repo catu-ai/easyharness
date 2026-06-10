@@ -72,7 +72,7 @@ func (s Service) List() contracts.ReviewDimensionsListResult {
 func (s Service) Instructions(name string) (string, []string, []contracts.ErrorDetail) {
 	name = strings.TrimSpace(name)
 	if !ValidName(name) {
-		return "", nil, []contracts.ErrorDetail{{Path: "name", Message: "must use lowercase letters, digits, and hyphens"}}
+		return "", nil, []contracts.ErrorDetail{{Path: "name", Message: "must use lowercase alphanumeric segments separated by single hyphens"}}
 	}
 	catalog := s.load()
 	if len(catalog.Errors) > 0 {
@@ -177,7 +177,7 @@ func parseDimensionFile(absPath, repoPath string) (Dimension, error) {
 	metadata.Description = strings.TrimSpace(metadata.Description)
 	body = strings.TrimSpace(body)
 	if !ValidName(metadata.Name) {
-		return Dimension{}, fmt.Errorf("field name must use lowercase letters, digits, and hyphens")
+		return Dimension{}, fmt.Errorf("field name must use lowercase alphanumeric segments separated by single hyphens")
 	}
 	if metadata.Description == "" {
 		return Dimension{}, fmt.Errorf("field description must not be empty")

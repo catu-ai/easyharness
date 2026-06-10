@@ -47,6 +47,8 @@ The current command surface is:
 - `harness review start`
 - `harness review submit`
 - `harness review aggregate`
+- `harness review dimensions list`
+- `harness review dimensions instructions <name>`
 - `harness archive`
 - `harness reopen --mode <finalize-fix|new-step>`
 - `harness land --pr <url> [--commit <sha>]`
@@ -680,8 +682,9 @@ Review-spec semantics:
 - `dimensions`
   - required
   - one reviewer slot per normalized dimension
-  - catalog-managed dimensions use stable names with lowercase letters, digits,
-    and hyphens; for those dimensions the name and slot identifier are the same
+  - catalog-managed dimensions use stable names made from lowercase
+    alphanumeric segments separated by single hyphens; for those dimensions the
+    name and slot identifier are the same
   - `instructions` is still explicit review-start handoff text; for
     catalog-managed dimensions it should usually be a command to fetch the full
     instruction, while one-off dimensions may carry direct reviewer guidance
@@ -715,6 +718,47 @@ automatically inject built-in or repo-defined dimensions, and does not force a
 controller to use every recommended dimension. Controllers remain responsible
 for choosing dimensions and passing an explicit review spec.
 
+Explicit `step` binding intentionally re-enters the targeted step's review
+loop. If the controller is already executing `step-k` or finalize work and
+starts a repair review for earlier `step-i`, status may report
+`execution/step-<i>/review` while the round is in flight and
+`execution/step-<i>/implement` after a non-pass aggregate. This is distinct
+from passive warning debt, where status may keep the later frontier stable
+until the controller explicitly starts a repair review for the earlier step.
+
+Round identifiers should be short and plan-local:
+
+- use `review-<NNN>-<kind>`
+- examples: `review-001-delta`, `review-002-full`
+- keep precise timestamps in stored review metadata rather than
+  embedding them in the round ID
+
+If `review_title` is omitted, the CLI fills one in:
+
+- step-bound review defaults to the tracked step title
+- finalize `full` review defaults to `Full branch candidate before archive`
+- finalize `delta` review defaults to `Branch candidate before archive`
+
+If an explicit earlier-step repair review aggregates with findings, the
+follow-up work still belongs to the current candidate, but status should pin
+the repaired step as current until that step-closeout debt is resolved by a
+later clean repair review or explicit `NO_STEP_REVIEW_NEEDED` closeout.
+
+Dimension-specific reviewer instructions belong in the input review spec.
+For catalog-managed dimensions, the spec should usually hand reviewers a
+`harness review dimensions instructions <name>` command instead of embedding the
+full instruction body. For one-off review slots that are not in the catalog,
+the spec may carry explicit reviewer guidance directly. Generic reviewer
+behavior, such as "inspect the current diff and submit results through the
+harness contract," belongs in the reviewer skill or in command output helpers,
+not duplicated in every review spec.
+
+Recommended next action:
+
+- launch reviewer subagents using the runtime's native delegation mechanism
+  and have each subagent use the reviewer skill or reviewer prompt that owns
+  submission details.
+
 ### `harness review dimensions list`
 
 Purpose:
@@ -731,8 +775,8 @@ Contract:
   `.harness/review/dimensions`
 - repo dimensions are Markdown files with YAML frontmatter containing `name`
   and `description`, followed by the full reviewer instruction body
-- dimension names are stable skill-like identifiers using lowercase letters,
-  digits, and hyphens
+- dimension names are stable skill-like identifiers made from lowercase
+  alphanumeric segments separated by single hyphens
 - repo dimensions override built-in dimensions with the same name
 - duplicate repo dimension names are invalid
 - return compact JSON metadata only; do not include full instruction bodies
@@ -786,47 +830,6 @@ Contract:
 This command intentionally does not return JSON on success. Reviewers should
 read the raw Markdown and then submit through the existing
 `harness review submit` flow.
-
-Explicit `step` binding intentionally re-enters the targeted step's review
-loop. If the controller is already executing `step-k` or finalize work and
-starts a repair review for earlier `step-i`, status may report
-`execution/step-<i>/review` while the round is in flight and
-`execution/step-<i>/implement` after a non-pass aggregate. This is distinct
-from passive warning debt, where status may keep the later frontier stable
-until the controller explicitly starts a repair review for the earlier step.
-
-Round identifiers should be short and plan-local:
-
-- use `review-<NNN>-<kind>`
-- examples: `review-001-delta`, `review-002-full`
-- keep precise timestamps in stored review metadata rather than
-  embedding them in the round ID
-
-If `review_title` is omitted, the CLI fills one in:
-
-- step-bound review defaults to the tracked step title
-- finalize `full` review defaults to `Full branch candidate before archive`
-- finalize `delta` review defaults to `Branch candidate before archive`
-
-If an explicit earlier-step repair review aggregates with findings, the
-follow-up work still belongs to the current candidate, but status should pin
-the repaired step as current until that step-closeout debt is resolved by a
-later clean repair review or explicit `NO_STEP_REVIEW_NEEDED` closeout.
-
-Dimension-specific reviewer instructions belong in the input review spec.
-For catalog-managed dimensions, the spec should usually hand reviewers a
-`harness review dimensions instructions <name>` command instead of embedding the
-full instruction body. For one-off review slots that are not in the catalog,
-the spec may carry explicit reviewer guidance directly. Generic reviewer
-behavior, such as "inspect the current diff and submit results through the
-harness contract," belongs in the reviewer skill or in command output helpers,
-not duplicated in every review spec.
-
-Recommended next action:
-
-- launch reviewer subagents using the runtime's native delegation mechanism
-  and have each subagent use the reviewer skill or reviewer prompt that owns
-  submission details
 
 ### `harness review submit`
 

@@ -113,8 +113,9 @@ Field rules:
   - only include it when you need to point review at a specific tracked step explicitly
 - `dimensions`
   - one reviewer slot per dimension after normalization
-  - catalog-managed dimensions use stable names with lowercase letters,
-    digits, and hyphens; the name and slot identifier are the same
+  - catalog-managed dimensions use stable names made from lowercase
+    alphanumeric segments separated by single hyphens; the name and slot
+    identifier are the same
   - catalog-managed dimensions should include a concrete command for the
     reviewer to fetch the full instruction
   - one-off dimensions may include explicit reviewer instructions directly
@@ -212,9 +213,10 @@ Review title: <review-title>
 Revision: <candidate-revision-or-none>
 Slot: <slot>
 Assigned dimension: <dimension-name>
-Instruction command: harness review dimensions instructions <dimension-name>
+Instruction command: <catalog instruction command, or none for one-off slots>
 Instruction handoff: <short instruction string from review-start slot, usually
-the same command above>
+the same command above for catalog-managed dimensions or direct guidance for
+one-off slots>
 Submission Path: <repo-facing-submission-path>
 Anchor SHA: <commit-sha-or-none>
 Change summary: <bounded-change-summary>
@@ -261,9 +263,10 @@ Review title: <review-title>
 Revision: <candidate-revision-or-none>
 Slot: <slot>
 Assigned dimension: <dimension-name>
-Instruction command: harness review dimensions instructions <dimension-name>
+Instruction command: <catalog instruction command, or none for one-off slots>
 Instruction handoff: <short instruction string from review-start slot, usually
-the same command above>
+the same command above for catalog-managed dimensions or direct guidance for
+one-off slots>
 Submission Path: <repo-facing-submission-path>
 Anchor SHA: <commit-sha-or-none>
 Change summary since your last submission: <bounded-change-summary>

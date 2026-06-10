@@ -40,9 +40,9 @@ CLI-enforced slot selection.
   both built-in and repo-defined dimensions.
 - Add `harness review dimensions instructions <name>`, returning the raw
   Markdown instruction body for a built-in or repo-defined dimension.
-- Make dimension names stable skill-like identifiers: lowercase letters,
-  digits, and hyphens. Treat the dimension name as the review slot identifier
-  for catalog-managed dimensions.
+- Make dimension names stable skill-like identifiers made from lowercase
+  alphanumeric segments separated by single hyphens. Treat the dimension name
+  as the review slot identifier for catalog-managed dimensions.
 - Let repo-defined dimensions override built-in dimensions with the same name.
 - Update controller and reviewer guidance so controllers use `list` to choose
   dimensions and reviewers use `instructions <name>` to load full instructions.
@@ -74,7 +74,8 @@ CLI-enforced slot selection.
       automatically without listing them in `.harness/config.yaml`.
 - [x] Repo dimension files require `name` and `description` frontmatter plus a
       non-empty instruction body.
-- [x] Dimension names must use lowercase letters, digits, and hyphens only.
+- [x] Dimension names must be made from lowercase alphanumeric segments
+      separated by single hyphens.
 - [x] Repo dimensions override built-ins with the same `name`; duplicate repo
       dimension names are reported clearly.
 - [x] `harness review dimensions instructions <name>` returns raw Markdown
@@ -118,9 +119,10 @@ before implementation.
 
 Define dimension files as Markdown resources with YAML frontmatter containing
 only `name` and `description`; the body is the full reviewer instruction.
-Names are stable skill-like IDs using lowercase letters, digits, and hyphens.
-The dimensions root defaults to `.harness/review/dimensions` and is
-configurable through `paths.review.dimensions`.
+Names are stable skill-like IDs made from lowercase alphanumeric segments
+separated by single hyphens. The dimensions root defaults to
+`.harness/review/dimensions` and is configurable through
+`paths.review.dimensions`.
 
 Specify that `list` returns compact JSON metadata for controller selection,
 while `instructions <name>` returns raw Markdown for reviewer use. Clarify that
@@ -152,7 +154,10 @@ regenerated schema/index artifacts with `go run ./cmd/contract-sync`.
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: Contract docs and generated schema are covered by the
-integrated catalog tests and final review for the cohesive slice.
+integrated catalog tests and final review for the cohesive slice. Finalize
+review `review-003-full` found stale command-surface inventory and loose
+dimension-name wording; repaired the docs, contract comments, generated
+schemas, and parser error text to match the segmented slug rule.
 
 ### Step 2: Extend repo config paths
 
@@ -326,7 +331,10 @@ slice and found repair work. Repaired the guidance so catalog-managed
 dimensions use an instruction command, one-off slots may carry explicit
 reviewer instructions, reviewers can fall back to explicit slot instructions
 when lookup is not available, and the resume prompt now mirrors the first-pass
-`Instruction command` / `Instruction handoff` fields.
+`Instruction command` / `Instruction handoff` fields. Finalize review
+`review-003-full` found that the fixed prompt template still assumed every
+dimension had a catalog command; repaired the template so one-off slots can
+explicitly use `none` for the command and direct guidance as the handoff.
 
 ### Step 5: Validate the integrated review workflow
 
@@ -364,7 +372,7 @@ commands are the discovery/read surface and `review start` remains explicit.
 
 #### Execution Notes
 
-Added CLI and smoke coverage for catalog list output, configured repo
+Added focused service and CLI coverage for catalog list output, configured repo
 dimensions root discovery, repo dimension instructions, unknown dimension
 errors, invalid repo dimensions, duplicate names, and repo-overrides-builtin
 behavior. Verified the repo-local binary with `.local/bin/harness review
@@ -382,7 +390,9 @@ flow.
 NO_STEP_REVIEW_NEEDED: Finalize review `review-001-full` covered this
 validation slice and found missing integrated review start/submit smoke
 coverage plus several invalid dimension-file cases. Repaired with the expanded
-service and smoke tests described above.
+service and smoke tests described above. Finalize review `review-003-full`
+found the durable validation note overstated smoke coverage; repaired the note
+to distinguish focused service/CLI coverage from the integrated smoke path.
 
 ## Validation Strategy
 

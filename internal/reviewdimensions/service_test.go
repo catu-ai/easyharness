@@ -126,7 +126,7 @@ description: Missing name.
 
 Instruction.
 `,
-			wantMessage: "field name must use lowercase letters",
+			wantMessage: "field name must use lowercase alphanumeric segments",
 		},
 		{
 			name: "missing description",
@@ -159,7 +159,7 @@ description: Invalid name.
 
 Instruction.
 `,
-			wantMessage: "field name must use lowercase letters",
+			wantMessage: "field name must use lowercase alphanumeric segments",
 		},
 		{
 			name: "empty body",

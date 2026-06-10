@@ -27,7 +27,7 @@ type ReviewSpec struct {
 // instruction handoff.
 type ReviewDimension struct {
 	// Name is the review dimension name. Catalog-managed dimensions use stable
-	// lowercase names with digits and hyphens.
+	// lowercase alphanumeric segments separated by single hyphens.
 	Name string `json:"name"`
 
 	// Instructions is the explicit reviewer handoff for this dimension. For
