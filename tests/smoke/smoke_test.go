@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/catu-ai/easyharness/internal/repoconfig"
 	"github.com/catu-ai/easyharness/tests/support"
 )
 
@@ -296,8 +297,8 @@ func TestInitBootstrapsFreshRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read repo config: %v", err)
 	}
-	if string(configData) != "version: 1\n" {
-		t.Fatalf("expected minimal repo config, got:\n%s", configData)
+	if string(configData) != repoconfig.DefaultContent {
+		t.Fatalf("expected canonical repo config, got:\n%s", configData)
 	}
 }
 
@@ -370,7 +371,7 @@ func TestRepoInitPreservesExistingInvalidConfigWithWarning(t *testing.T) {
 	}
 }
 
-func TestRepoConfigInitCreatesMinimalConfig(t *testing.T) {
+func TestRepoConfigInitCreatesCanonicalConfig(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 
 	result := support.Run(t, workspace.Root, "repo", "config", "init")
@@ -385,8 +386,35 @@ func TestRepoConfigInitCreatesMinimalConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read repo config: %v", err)
 	}
-	if string(configData) != "version: 1\n" {
-		t.Fatalf("expected minimal repo config, got:\n%s", configData)
+	if string(configData) != repoconfig.DefaultContent {
+		t.Fatalf("expected canonical repo config, got:\n%s", configData)
+	}
+}
+
+func TestRepoConfigRefreshUpdatesOldDefaultConfig(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	configPath := workspace.Path(".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: 1\n"), 0o644); err != nil {
+		t.Fatalf("write old config: %v", err)
+	}
+
+	result := support.Run(t, workspace.Root, "repo", "config", "refresh")
+	support.RequireSuccess(t, result)
+	support.RequireNoStderr(t, result)
+
+	payload := support.RequireJSONResult[bootstrapResult](t, result)
+	if !payload.OK || payload.Command != "repo config refresh" || payload.Resource != "config" || payload.Operation != "refresh" {
+		t.Fatalf("unexpected config refresh payload: %#v", payload)
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != repoconfig.DefaultContent {
+		t.Fatalf("expected refreshed canonical repo config, got:\n%s", configData)
 	}
 }
 

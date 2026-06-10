@@ -35,6 +35,7 @@ The current command surface is:
 - `harness repo instructions install`
 - `harness repo instructions uninstall`
 - `harness repo config init`
+- `harness repo config refresh`
 - `harness repo config get <key>`
 - `harness repo config list [prefix]`
 - `harness execute start`
@@ -329,7 +330,8 @@ Contract:
 
 Recommended next action:
 
-- rerun without `--dry-run` to apply a previewed bootstrap change
+- for bootstrap commands that support `--dry-run`, rerun without `--dry-run`
+  to apply a previewed bootstrap change
 - open the target instructions file or skills directory to review the installed
   contract
 

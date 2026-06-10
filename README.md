@@ -154,6 +154,7 @@ The root CLI currently ships:
 - `harness repo instructions install`
 - `harness repo instructions uninstall`
 - `harness repo config init`
+- `harness repo config refresh`
 - `harness repo config get <key>`
 - `harness repo config list [prefix]`
 - `harness execute start`

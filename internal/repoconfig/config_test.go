@@ -38,6 +38,76 @@ func TestLoadValidConfig(t *testing.T) {
 	}
 }
 
+func TestDefaultContentShowsCommentedPathDefaults(t *testing.T) {
+	for _, want := range []string{
+		"version: 1\n\n",
+		"# Optional path roots. Omit this block to use the built-in defaults.",
+		"# paths:",
+		"#   plans:",
+		"#     active: " + DefaultActivePlansRoot,
+		"#     archived: " + DefaultArchivedPlansRoot,
+		"#   local_runtime: " + DefaultLocalRuntimeRoot,
+	} {
+		if !strings.Contains(DefaultContent, want) {
+			t.Fatalf("DefaultContent missing %q:\n%s", want, DefaultContent)
+		}
+	}
+	root := t.TempDir()
+	writeConfig(t, root, DefaultContent)
+
+	result := Load(root)
+	if !result.Valid {
+		t.Fatalf("expected commented default content to load, got %#v", result)
+	}
+}
+
+func TestRenderDefaultConfigUsesCommentedDefaults(t *testing.T) {
+	if got := Render(DefaultConfig()); got != DefaultContent {
+		t.Fatalf("rendered default config mismatch:\n%s", got)
+	}
+}
+
+func TestRenderCustomPathRoots(t *testing.T) {
+	config := DefaultConfig()
+	config.Paths.Plans.Active = "workflow/plans/open"
+	config.Paths.Plans.Archived = "workflow/plans/done"
+	config.Paths.LocalRuntime = "tmp/harness-runtime"
+
+	got := Render(config)
+	want := `version: 1
+paths:
+  plans:
+    active: workflow/plans/open
+    archived: workflow/plans/done
+  local_runtime: tmp/harness-runtime
+`
+	if got != want {
+		t.Fatalf("rendered custom config mismatch:\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+func TestRenderCustomPathRootsQuotesAmbiguousScalars(t *testing.T) {
+	config := DefaultConfig()
+	config.Paths.Plans.Active = "true"
+	config.Paths.Plans.Archived = "2026"
+	config.Paths.LocalRuntime = "tmp/harness-runtime"
+
+	rendered := Render(config)
+	root := t.TempDir()
+	writeConfig(t, root, rendered)
+
+	result := Load(root)
+	if !result.Valid {
+		t.Fatalf("expected rendered config to remain valid, got %#v\n%s", result, rendered)
+	}
+	if got, want := result.Config.Paths.Plans.Active, "true"; got != want {
+		t.Fatalf("active root = %q, want %q\n%s", got, want, rendered)
+	}
+	if got, want := result.Config.Paths.Plans.Archived, "2026"; got != want {
+		t.Fatalf("archived root = %q, want %q\n%s", got, want, rendered)
+	}
+}
+
 func TestLoadValidCustomPathRoots(t *testing.T) {
 	root := t.TempDir()
 	writeConfig(t, root, `version: 1
@@ -117,6 +187,9 @@ func TestLoadInvalidConfigWarnsAndUsesDefaults(t *testing.T) {
 			}
 			if result.Config.Version != CurrentVersion {
 				t.Fatalf("expected defaults after invalid config, got %#v", result)
+			}
+			if !strings.Contains(result.InvalidReason, tc.want) {
+				t.Fatalf("invalid reason %q does not contain %q", result.InvalidReason, tc.want)
 			}
 			warnings := strings.Join(result.Warnings, "\n")
 			if !strings.Contains(warnings, "Ignoring") || !strings.Contains(warnings, tc.want) || !strings.Contains(warnings, "using built-in defaults") {

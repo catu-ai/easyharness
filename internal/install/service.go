@@ -27,6 +27,7 @@ const (
 
 	OperationInstall   = "install"
 	OperationUninstall = "uninstall"
+	OperationRefresh   = "refresh"
 
 	ActionCreate = "create"
 	ActionUpdate = "update"
@@ -140,6 +141,19 @@ func (s Service) InitConfig(opts Options) Result {
 		return s.errorResult("repo config init", ResourceConfig, OperationInstall, scope, agent, opts.DryRun, "Unable to write the repo config target.", []CommandError{*err})
 	}
 	return s.successResultWithWarnings("repo config init", ResourceConfig, OperationInstall, scope, agent, opts.DryRun, writes, warnings)
+}
+
+func (s Service) RefreshConfig(opts Options) Result {
+	scope := ScopeRepo
+	agent := normalizeAgent(opts.Agent)
+	writes, errs := s.planRepoConfigRefresh()
+	if len(errs) > 0 {
+		return s.errorResult("repo config refresh", ResourceConfig, OperationRefresh, scope, agent, opts.DryRun, "Unable to refresh the repo config target.", errs)
+	}
+	if err := s.applyWrites(writes, opts.DryRun); err != nil {
+		return s.errorResult("repo config refresh", ResourceConfig, OperationRefresh, scope, agent, opts.DryRun, "Unable to write the repo config target.", []CommandError{*err})
+	}
+	return s.successResult("repo config refresh", ResourceConfig, OperationRefresh, scope, agent, opts.DryRun, writes)
 }
 
 func (s Service) runSkillCommand(command, operation string, opts Options) Result {
@@ -593,9 +607,64 @@ func (s Service) planRepoConfigInit() ([]plannedWrite, []string, []CommandError)
 	return []plannedWrite{{
 		path:    result.Path,
 		kind:    ActionCreate,
-		details: "Create the repo customization manifest with the minimal v1 config.",
+		details: "Create the repo customization manifest with the current canonical config.",
 		content: []byte(repoconfig.DefaultContent),
 	}}, repoConfigWarningsForWorkdir(s.Workdir, result.Warnings), nil
+}
+
+func (s Service) planRepoConfigRefresh() ([]plannedWrite, []CommandError) {
+	configPath := filepath.Join(s.Workdir, filepath.FromSlash(repoconfig.File))
+	info, statErr := os.Stat(configPath)
+	if statErr != nil && !os.IsNotExist(statErr) {
+		return nil, []CommandError{{
+			Path:    pathLabel(s.Workdir, configPath),
+			Message: fmt.Sprintf("inspect repo config target: %v", statErr),
+		}}
+	}
+	if statErr == nil && info.IsDir() {
+		return nil, []CommandError{{
+			Path:    pathLabel(s.Workdir, configPath),
+			Message: "repo config target is a directory",
+		}}
+	}
+
+	result := repoconfig.Load(s.Workdir)
+	if result.Exists && !result.Valid {
+		return nil, []CommandError{{
+			Path:    pathLabel(s.Workdir, result.Path),
+			Message: result.InvalidReason,
+		}}
+	}
+	content := []byte(repoconfig.DefaultContent)
+	if result.Exists {
+		content = []byte(repoconfig.Render(result.Config))
+		current, err := os.ReadFile(result.Path)
+		if err != nil {
+			return nil, []CommandError{{
+				Path:    pathLabel(s.Workdir, result.Path),
+				Message: fmt.Sprintf("read repo config target: %v", err),
+			}}
+		}
+		if string(current) == string(content) {
+			return []plannedWrite{{
+				path:    result.Path,
+				kind:    ActionNoop,
+				details: "Repo config already matches the current canonical config.",
+			}}, nil
+		}
+		return []plannedWrite{{
+			path:    result.Path,
+			kind:    ActionUpdate,
+			details: "Refresh the repo config to the current canonical config while preserving configured values.",
+			content: content,
+		}}, nil
+	}
+	return []plannedWrite{{
+		path:    result.Path,
+		kind:    ActionCreate,
+		details: "Create the repo customization manifest with the current canonical config.",
+		content: content,
+	}}, nil
 }
 
 func (s Service) renderCanonicalSkillFiles() (map[string]map[string]string, error) {

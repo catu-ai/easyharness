@@ -465,6 +465,8 @@ func (a *App) runRepoConfig(args []string) int {
 	switch args[0] {
 	case "init":
 		return a.runRepoConfigInit(args[1:])
+	case "refresh":
+		return a.runRepoConfigRefresh(args[1:])
 	case "get":
 		return a.runRepoConfigGet(args[1:])
 	case "list":
@@ -600,7 +602,7 @@ func (a *App) runRepoConfigInit(args []string) int {
 	fs.Usage = func() {
 		fmt.Fprintln(a.Stderr, "Usage: harness repo config init [--dry-run]")
 		fmt.Fprintln(a.Stderr)
-		fmt.Fprintln(a.Stderr, "Create the minimal .harness/config.yaml manifest when it is missing.")
+		fmt.Fprintln(a.Stderr, "Create the canonical .harness/config.yaml manifest when it is missing.")
 		fmt.Fprintln(a.Stderr)
 		fs.PrintDefaults()
 	}
@@ -620,6 +622,33 @@ func (a *App) runRepoConfigInit(args []string) int {
 		return 1
 	}
 	result := install.Service{Workdir: workdir}.InitConfig(install.Options{DryRun: *dryRun})
+	return a.writeJSONResult(result)
+}
+
+func (a *App) runRepoConfigRefresh(args []string) int {
+	fs := flag.NewFlagSet("harness repo config refresh", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness repo config refresh")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Create or refresh .harness/config.yaml to the current canonical shape.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	result := install.Service{Workdir: workdir}.RefreshConfig(install.Options{})
 	return a.writeJSONResult(result)
 }
 
@@ -1369,7 +1398,8 @@ func (a *App) printRepoConfigUsage() {
 	fmt.Fprintln(a.Stderr, "Usage: harness repo config <subcommand> [flags]")
 	fmt.Fprintln(a.Stderr)
 	fmt.Fprintln(a.Stderr, "Subcommands:")
-	fmt.Fprintln(a.Stderr, "  init       Create the minimal .harness/config.yaml manifest")
+	fmt.Fprintln(a.Stderr, "  init       Create the canonical .harness/config.yaml manifest when missing")
+	fmt.Fprintln(a.Stderr, "  refresh    Refresh .harness/config.yaml to the current canonical shape")
 	fmt.Fprintln(a.Stderr, "  get        Print one resolved scalar repo config value")
 	fmt.Fprintln(a.Stderr, "  list       Print resolved repo config leaf entries")
 }

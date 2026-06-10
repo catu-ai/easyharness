@@ -9,6 +9,7 @@ This spec owns:
 - `harness repo skills install|uninstall`
 - `harness repo instructions install|uninstall`
 - `harness repo config init`
+- `harness repo config refresh`
 - scope semantics for repository and user targets
 - managed ownership and version markers for bootstrap skills and instructions
 - repo config manifest creation and no-overwrite behavior
@@ -41,7 +42,8 @@ Repo resources split into three managed surfaces:
     packages
 - `config`
   - the tracked repo customization manifest at `.harness/config.yaml`
-  - a minimal v1 file containing `version: 1`
+  - a canonical v1 file that is default-equivalent when it contains only
+    commented default path roots
 
 `harness repo init` is the quick-start repo resource entrypoint. It installs
 or refreshes instructions and skills, and creates `.harness/config.yaml` when
@@ -55,7 +57,7 @@ Purpose:
 
 - install or refresh the default repo instructions and skills for the current
   repository
-- create the minimal `.harness/config.yaml` v1 manifest when it is missing
+- create the canonical `.harness/config.yaml` v1 manifest when it is missing
 
 Contract:
 
@@ -116,12 +118,34 @@ Purpose:
 
 Contract:
 
-- create `.harness/config.yaml` with exactly the minimal v1 content when it is
-  missing
+- create `.harness/config.yaml` with the current canonical default-equivalent
+  content when it is missing
 - support `--dry-run`
 - never overwrite an existing config file
 - warn and continue with built-in defaults when an existing repo config is
   invalid
+- leave explicit validation commands such as `harness repo config lint` to
+  future work
+
+### `harness repo config refresh`
+
+Purpose:
+
+- create or refresh `.harness/config.yaml` without installing or refreshing
+  other repo resources
+
+Contract:
+
+- create `.harness/config.yaml` with the current canonical default-equivalent
+  content when it is missing
+- refresh an existing valid config into the current canonical file shape
+- preserve valid custom path-root values while refreshing canonical comments,
+  ordering, and default-equivalent fields
+- report `noop` when the existing config already matches the current canonical
+  file shape
+- fail without overwriting when the existing config is invalid
+- return the existing repo resource JSON result shape
+- do not support `--dry-run` in the initial command shape
 - leave explicit validation commands such as `harness repo config lint` to
   future work
 
