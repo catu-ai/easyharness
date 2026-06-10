@@ -165,6 +165,8 @@ The root CLI currently ships:
 - `harness review start`
 - `harness review submit`
 - `harness review aggregate`
+- `harness review dimensions list`
+- `harness review dimensions instructions <name>`
 - `harness archive`
 - `harness reopen --mode <finalize-fix|new-step>`
 - `harness land --pr <url> [--commit <sha>]`

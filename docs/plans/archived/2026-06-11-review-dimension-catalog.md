@@ -424,26 +424,73 @@ to distinguish focused service/CLI coverage from the integrated smoke path.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `go test ./internal/reviewdimensions ./internal/repoconfig ./internal/cli ./internal/install ./internal/contractsync`
+- `go test ./internal/reviewdimensions ./internal/cli ./internal/repoconfig ./internal/contractsync`
+- `go test ./tests/smoke -run TestReviewDimensionsCatalogViaCLI -count=1`
+- `go run ./cmd/contract-sync`
+- `go run ./cmd/contract-sync --check`
+- `scripts/sync-bootstrap-assets`
+- `scripts/sync-bootstrap-assets --check`
+- `git diff --check`
+- `.local/bin/harness plan lint docs/plans/active/2026-06-11-review-dimension-catalog.md`
+- `go test ./...`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-full` found three blocking issues: missing integrated
+  review-start/submit smoke coverage, missing invalid repo dimension file
+  cases, and guidance that made catalog lookup too mandatory while the review
+  spec still supports explicit one-off instructions. All were repaired.
+- `review-002-delta` passed with no findings after the first repair.
+- `review-003-full` found two blocking documentation consistency issues and
+  four non-blocking clarity issues around command-surface docs, segmented slug
+  naming, prompt templates, and validation wording. All were repaired.
+- `review-004-full` passed with two duplicate non-blocking README command-list
+  findings. README was updated to include the new review dimension commands.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-06-11T01:15:42+08:00
+- Revision: 1
+- PR: Not created yet; publish evidence should record the PR URL after
+  archive.
+- Ready: The tracked steps are complete, acceptance criteria are checked, full
+  validation passed, and finalize review `review-004-full` passed with only
+  non-blocking README command-list findings that were repaired before archive.
+- Merge Handoff: After archive, commit the archive move plus tracked code,
+  docs, schema, test, and summary updates, push the branch, open the PR for
+  issue #230, record publish evidence with the PR URL, then refresh CI and sync
+  evidence until `harness status` reaches `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added the built-in review dimension catalog with `correctness`, `tests`,
+  `docs-consistency`, `agent-ux`, and `risk-scan` dimensions.
+- Added repo-defined Markdown dimension discovery under configurable
+  `paths.review.dimensions`, defaulting to `.harness/review/dimensions`.
+- Added metadata-only `harness review dimensions list` and raw Markdown
+  `harness review dimensions instructions <name>` command surfaces.
+- Preserved explicit `harness review start` `name`/`instructions` semantics;
+  catalog-managed dimensions use stable names as slots, while one-off slots can
+  still carry direct instructions.
+- Updated repo config docs, CLI contract docs, README command inventory,
+  contracts, generated schemas, controller/reviewer skill guidance, and
+  materialized `.agents` outputs.
+- Added focused service/CLI coverage and integrated smoke coverage for repo
+  dimension discovery, instruction loading, explicit review start, and reviewer
+  submission.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Instruction file hashing or frozen instruction snapshots in review round
+  artifacts.
+- Additional user-level, plugin-level, or organization-level dimension sources.
+- A richer dimension authoring command.
 
 ### Follow-Up Issues
 
-NONE
+- No GitHub follow-up issues were opened in this slice. Deferred items remain
+  intentionally out of scope until there is concrete demand for instruction
+  snapshots, additional catalog sources, or an authoring command.
