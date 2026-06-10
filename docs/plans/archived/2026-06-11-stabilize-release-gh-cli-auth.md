@@ -259,13 +259,17 @@ Use layered validation:
 
 ## Archive Summary
 
-Archived as a merge-ready candidate for PR #252. The candidate intentionally
-stops before merge and waits for explicit human merge approval.
-
-Post-merge handoff: after PR #252 lands, rerun `release.yml` from `main` with
-`version=v0.4.3` and verify that the rerun succeeds, including the
-`Verify Homebrew Install` job. This rerun should validate the release smoke fix
-without moving the `v0.4.3` tag or changing release artifact provenance.
+- Archived At: 2026-06-11T01:06:06+08:00
+- Revision: 1
+- PR: PR #252 is published at
+  `https://github.com/catu-ai/easyharness/pull/252`.
+- Ready: The candidate is merge-ready after local validation, passing PR CI,
+  and finalize review; it intentionally stops before merge and waits for
+  explicit human merge approval.
+- Merge Handoff: After PR #252 lands, rerun `release.yml` from `main` with
+  `version=v0.4.3` and verify that the rerun succeeds, including the
+  `Verify Homebrew Install` job. This rerun should validate the release smoke
+  fix without moving the `v0.4.3` tag or changing release artifact provenance.
 
 ## Outcome Summary
 
