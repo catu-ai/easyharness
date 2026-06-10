@@ -61,16 +61,16 @@ while the Homebrew smoke test inspected the previous Homebrew-capable release
 
 ## Acceptance Criteria
 
-- [ ] Release workflow steps that invoke `gh` provide `GH_TOKEN` explicitly, or
+- [x] Release workflow steps that invoke `gh` provide `GH_TOKEN` explicitly, or
   the release verifier maps `GITHUB_TOKEN` to `GH_TOKEN` before invoking `gh`.
-- [ ] Tests cover the token fallback behavior and the release workflow wiring.
-- [ ] `go test ./...` passes locally for the candidate.
-- [ ] PR #252 CI passes.
-- [ ] PR #252 is published, in sync with its branch, and CI passes.
-- [ ] The archived plan records PR, CI, sync, and merge-readiness evidence.
-- [ ] The candidate reaches `execution/finalize/await_merge` and waits for
+- [x] Tests cover the token fallback behavior and the release workflow wiring.
+- [x] `go test ./...` passes locally for the candidate.
+- [x] PR #252 CI passes.
+- [x] PR #252 is published, in sync with its branch, and CI passes.
+- [x] The archived plan records PR, CI, sync, and merge-readiness evidence.
+- [x] The candidate reaches `execution/finalize/await_merge` and waits for
   explicit human merge approval.
-- [ ] The archived handoff clearly states that after PR #252 lands,
+- [x] The archived handoff clearly states that after PR #252 lands,
   `release.yml` must be rerun from `main` with `version=v0.4.3`, and that the
   rerun must verify `Verify Homebrew Install`.
 
@@ -229,25 +229,61 @@ Use layered validation:
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `harness plan lint docs/plans/active/2026-06-11-stabilize-release-gh-cli-auth.md`
+  passed during planning and closeout.
+- Focused release-auth smoke validation passed:
+  `go test ./tests/smoke -run 'TestReleaseWorkflowWiresHomebrewTapPublishing|TestVerifyReleaseNamespace|TestVersionTagWorkflowUsesRepositoryVersionFile' -count=1`.
+- `go test ./scripts/releaseverify -count=1` passed; that package has no
+  standalone test files, but it still compiles.
+- Full repository validation passed locally during candidate review:
+  `go test ./...`.
+- PR #252 CI passed repeatedly after each pushed repair. The latest observed
+  pre-archive run for the current PR head `7c42f320e124857e419717592aba4cbd22c4cc02`
+  was `https://github.com/catu-ai/easyharness/actions/runs/27291661103`,
+  with `Go Test` succeeding in 5m32s.
+- Final PR head, CI, and sync evidence are recorded through harness publish,
+  CI, and sync evidence after archive.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step delta review `review-001-delta` passed with 0 findings. Reviewers
+  checked correctness and release safety.
+- Finalize review `review-002-full` found that Step 2 closeout was still local
+  and that the PR body did not explicitly name `Verify Homebrew Install` as
+  the post-merge verification target. Both findings were fixed by committing
+  Step 2 notes and updating the PR body.
+- Finalize review `review-003-full` found stale wording that treated a
+  superseded PR head/run as final evidence. The plan now states that final PR
+  head, CI, and sync facts belong to harness evidence after archive.
+- Finalize repair review `review-004-full` passed with 0 findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+Archived as a merge-ready candidate for PR #252. The candidate intentionally
+stops before merge and waits for explicit human merge approval.
+
+Post-merge handoff: after PR #252 lands, rerun `release.yml` from `main` with
+`version=v0.4.3` and verify that the rerun succeeds, including the
+`Verify Homebrew Install` job. This rerun should validate the release smoke fix
+without moving the `v0.4.3` tag or changing release artifact provenance.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Release workflow `gh` calls now receive explicit `GH_TOKEN` alongside
+  `GITHUB_TOKEN`.
+- `scripts/releaseverify` maps a non-empty `GITHUB_TOKEN` into missing or empty
+  `GH_TOKEN` for child `gh` invocations while preserving an existing non-empty
+  `GH_TOKEN`.
+- Smoke tests cover workflow wiring and fake-`gh` fallback behavior.
+- PR #252 body includes explicit post-merge release verification instructions
+  for `release.yml`, `version=v0.4.3`, and `Verify Homebrew Install`.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+The actual `v0.4.3` release workflow rerun is not performed before merge. It
+must happen after PR #252 lands on `main`, per the post-merge handoff.
 
 ### Follow-Up Issues
 
