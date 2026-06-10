@@ -102,7 +102,10 @@ packaging check produced local ignored artifacts under `dist/release`:
 `easyharness_v0.4.3_darwin_arm64.zip`,
 `easyharness_v0.4.3_linux_amd64.zip`,
 `easyharness_v0.4.3_linux_arm64.zip`, and `SHA256SUMS`. Opened PR #249:
-https://github.com/catu-ai/easyharness/pull/249.
+https://github.com/catu-ai/easyharness/pull/249. After finalize review found
+the PR check still pending, GitHub `Go Test` completed successfully for head
+`a7544ced90cde6442a41d1a3bbb7b6cf5a82f37e` and the PR merge state reported
+`CLEAN`.
 
 #### Review Notes
 
