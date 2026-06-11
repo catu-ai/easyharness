@@ -30,7 +30,7 @@ import type {
   TimelineWorkspaceState,
   WorkspaceRouteResult,
 } from "./types";
-import { buildWorkspaceUnwatchRequest } from "./workspace-actions";
+import { buildDashboardUnwatchDegradedRequest, buildWorkspaceUnwatchRequest } from "./workspace-actions";
 import { RailIcon, TopbarFreshness, TopbarMetric } from "./workbench";
 
 const pages: Array<{ id: Page; label: string }> = [
@@ -107,6 +107,8 @@ export function App(props: {
   const [route, setRoute] = useState<AppRoute>(() => readRouteFromLocation());
   const [section, setSection] = useState<string>(() => readSectionFromLocation(readRouteFromLocation()));
   const [busyWorkspaceKey, setBusyWorkspaceKey] = useState<string | null>(null);
+  const [unwatchDegradedBusy, setUnwatchDegradedBusy] = useState(false);
+  const [unwatchDegradedError, setUnwatchDegradedError] = useState<string | null>(null);
   const [stateWorkspaceKey, setStateWorkspaceKey] = useState<string | null>(() => {
     const initialRoute = readRouteFromLocation();
     return initialRoute.kind === "workspace" ? initialRoute.workspaceKey : null;
@@ -292,6 +294,25 @@ export function App(props: {
       });
   };
 
+  const unwatchDegradedWorkspaces = () => {
+    setUnwatchDegradedBusy(true);
+    setUnwatchDegradedError(null);
+    const request = buildDashboardUnwatchDegradedRequest();
+    fetch(request.url, request.init)
+      .then(async (response) => {
+        const payload = (await response.json()) as { ok?: boolean; summary?: string };
+        if (!response.ok || payload.ok === false) {
+          throw new Error(payload.summary || "Unable to remove degraded workspaces from the machine-local watchlist.");
+        }
+        window.location.reload();
+      })
+      .catch((nextError: unknown) => {
+        const message = nextError instanceof Error ? nextError.message : "Unable to remove degraded workspaces from the machine-local watchlist.";
+        setUnwatchDegradedError(message);
+        setUnwatchDegradedBusy(false);
+      });
+  };
+
   return (
     <div class="app-shell">
       <header class="topbar">
@@ -345,7 +366,10 @@ export function App(props: {
             workspaces={dashboardEntries}
             onOpenWorkspace={(workspaceKey) => navigateToWorkspacePage(workspaceKey, "status")}
             onUnwatch={unwatchWorkspace}
+            onUnwatchDegraded={unwatchDegradedWorkspaces}
             busyWorkspaceKey={busyWorkspaceKey}
+            unwatchDegradedBusy={unwatchDegradedBusy}
+            unwatchDegradedError={unwatchDegradedError}
           />
         </main>
       ) : workspaceReadable ? (

@@ -1,5 +1,14 @@
 import type { DashboardWorkspace } from "./types";
 
+export function buildDashboardUnwatchDegradedRequest(): { url: string; init: RequestInit } {
+  return {
+    url: "/api/dashboard/unwatch-degraded",
+    init: {
+      method: "POST",
+    },
+  };
+}
+
 export function buildWorkspaceUnwatchRequest(workspace: DashboardWorkspace): { url: string; init: RequestInit } {
   return {
     url: `/api/workspace/${workspace.workspace_key}/unwatch`,

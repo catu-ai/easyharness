@@ -63,9 +63,12 @@ harness dashboard
 ```
 
 `harness dashboard` starts the local harness dashboard and lands on the
-watchlist home at `/dashboard`. The UI stays workflow-safe: its one
-dashboard-local write action is `Unwatch`, which only removes machine-local
-watchlist membership and does not mutate tracked workflow state.
+watchlist home at `/dashboard`. The home page prioritizes actionable
+workspaces by lifecycle state before falling back to watchlist recency inside
+each state. The UI stays workflow-safe: its dashboard-local write actions are
+explicit `Unwatch` operations, including per-workspace unwatch and bulk
+unwatch for missing or invalid workspace records. These actions only remove
+machine-local watchlist membership and do not mutate tracked workflow state.
 
 When a human wants to open the current repository directly in the same UI
 family, use:

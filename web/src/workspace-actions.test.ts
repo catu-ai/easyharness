@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 
-import { buildWorkspaceUnwatchRequest, canUnwatchWorkspaceFromDegradedRoute } from "./workspace-actions";
+import {
+  buildDashboardUnwatchDegradedRequest,
+  buildWorkspaceUnwatchRequest,
+  canUnwatchWorkspaceFromDegradedRoute,
+} from "./workspace-actions";
 import type { DashboardWorkspace } from "./types";
 
 function dashboardWorkspace(overrides: Partial<DashboardWorkspace> = {}): DashboardWorkspace {
@@ -15,6 +19,13 @@ function dashboardWorkspace(overrides: Partial<DashboardWorkspace> = {}): Dashbo
 }
 
 describe("workspace actions", () => {
+  test("buildDashboardUnwatchDegradedRequest targets the dashboard cleanup endpoint", () => {
+    const request = buildDashboardUnwatchDegradedRequest();
+
+    expect(request.url).toBe("/api/dashboard/unwatch-degraded");
+    expect(request.init.method).toBe("POST");
+  });
+
   test("buildWorkspaceUnwatchRequest includes the selected workspace path", () => {
     const request = buildWorkspaceUnwatchRequest(dashboardWorkspace({ workspace_path: "/tmp/beta" }));
 
