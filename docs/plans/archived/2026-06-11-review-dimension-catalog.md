@@ -455,6 +455,17 @@ to distinguish focused service/CLI coverage from the integrated smoke path.
   Earlier unqualified full smoke runs failed only while isolated installer
   tests repeatedly fetched `pnpm` packages or Go modules from external
   registries; the final cached full run passed.
+- Revision 4 reopened after publish sync evidence reported the branch stale
+  against `origin/main`; merged `origin/main` cleanly to refresh the candidate.
+- Revision 4 validation passed:
+  `scripts/sync-bootstrap-assets --check`,
+  `go run ./cmd/contract-sync --check`,
+  `.local/bin/harness plan lint docs/plans/active/2026-06-11-review-dimension-catalog.md`,
+  `git diff --check`,
+  `go test ./internal/reviewdimensions ./internal/cli ./internal/repoconfig ./internal/contractsync`,
+  `go test ./tests/smoke -run TestReviewDimensionsCatalogViaCLI -count=1`,
+  and full
+  `COREPACK_HOME="$HOME/.cache/node/corepack" NPM_CONFIG_STORE_DIR="$HOME/Library/pnpm/store/v10" GOPROXY="file://$(go env GOMODCACHE)/cache/download,https://proxy.golang.org,direct" go test ./...`.
 
 ## Review Summary
 
@@ -487,25 +498,31 @@ to distinguish focused service/CLI coverage from the integrated smoke path.
   first-class review slots with controller-written instructions.
 - `review-008-full` passed with no findings after the revision 3 guidance and
   contract repair.
+- Revision 4 was reopened only to refresh against `origin/main` after remote
+  sync evidence became stale again. The merge completed without conflicts.
+- `review-009-full` passed with no findings after the revision 4 main refresh.
 
 ## Archive Summary
 
-- Archived At: 2026-06-11T10:50:39+08:00
-- Revision: 3
+- Archived At: 2026-06-11T11:03:51+08:00
+- Revision: 4
 - Reopen History: Revision 1 was archived at `2026-06-11T01:15:42+08:00`,
   published to PR #253, then reopened because `origin/main` advanced and sync
   evidence reported the PR branch as stale. Revision 2 was archived at
   `2026-06-11T01:43:52+08:00`, published to PR #253, then reopened from
   `await_merge` for human diff feedback about catalog source-of-truth and
-  one-off dimension semantics.
+  one-off dimension semantics. Revision 3 was archived at
+  `2026-06-11T10:50:39+08:00`, published to PR #253, then reopened because
+  `origin/main` advanced again and sync evidence reported the PR branch as
+  stale.
 - PR: [#253](https://github.com/catu-ai/easyharness/pull/253)
-- Ready: Revision 3 full validation passed and `review-008-full` passed with
-  no findings. Archive, publish, and remote evidence refresh remain before
-  returning to `await_merge`.
-- Merge Handoff: After re-archive, commit the revision 3 repair plus the
-  archive move, push the branch to PR #253, refresh publish/CI/sync evidence,
-  and wait for `harness status` to reach `execution/finalize/await_merge`
-  before asking for explicit human merge approval.
+- Ready: Revision 4 validation passed and `review-009-full` passed with no
+  findings after merging latest `origin/main`.
+- Merge Handoff: After re-archive, commit the revision 4 merge-base refresh
+  plus archive move, push the branch to PR #253, refresh publish/CI/sync
+  evidence, and wait for `harness status` to reach
+  `execution/finalize/await_merge` before asking for explicit human merge
+  approval.
 
 ## Outcome Summary
 
@@ -536,6 +553,8 @@ to distinguish focused service/CLI coverage from the integrated smoke path.
 - Simplified reviewer guidance so reviewer agents follow the controller's
   instruction handoff: run the catalog instruction command when requested, or
   follow direct slot instructions for one-off dimensions.
+- Reopened revision 3 after stale publish sync evidence and merged the latest
+  `origin/main` so the final candidate can be republished from a fresh base.
 
 ### Not Delivered
 
