@@ -197,6 +197,12 @@ Post-merge handoff remains required: after PR #252 is merged, rerun
 `release.yml` from `main` with `version=v0.4.3` and verify
 `Verify Homebrew Install`.
 
+Reopened after merge approval because `origin/main` advanced with PR #251
+before GitHub accepted the merge. The branch was refreshed by merging
+`origin/main` at `df56b0ffc3e7d5bc3ca06121221d564a6a8f46f6` into PR #252.
+This was a sync-only finalize repair; the release-auth code and post-merge
+handoff did not change.
+
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: Step 2 only records publish/sync/CI readiness and the
@@ -237,12 +243,25 @@ Use layered validation:
   standalone test files, but it still compiles.
 - Full repository validation passed locally during candidate review:
   `go test ./...`.
-- PR #252 CI passed repeatedly after each pushed repair. The latest observed
-  pre-archive run for the current PR head `7c42f320e124857e419717592aba4cbd22c4cc02`
-  was `https://github.com/catu-ai/easyharness/actions/runs/27291661103`,
-  with `Go Test` succeeding in 5m32s.
+- PR #252 CI passed repeatedly during revision 1 closeout. The historical
+  pre-reopen run for head `7c42f320e124857e419717592aba4cbd22c4cc02` was
+  `https://github.com/catu-ai/easyharness/actions/runs/27291661103`, with
+  `Go Test` succeeding in 5m32s.
 - Final PR head, CI, and sync evidence are recorded through harness publish,
   CI, and sync evidence after archive.
+- Reopen validation after syncing PR #252 with `origin/main` at
+  `df56b0ffc3e7d5bc3ca06121221d564a6a8f46f6`:
+  - focused release-auth smoke test passed:
+    `go test ./tests/smoke -run 'TestReleaseWorkflowWiresHomebrewTapPublishing|TestVerifyReleaseNamespace|TestVersionTagWorkflowUsesRepositoryVersionFile' -count=1`
+  - release verifier package compile passed:
+    `go test ./scripts/releaseverify -count=1`
+  - affected package sweep passed:
+    `go test ./internal/... ./cmd/... ./scripts/releaseverify ./tests/smoke -run 'TestReleaseWorkflowWiresHomebrewTapPublishing|TestVerifyReleaseNamespace|TestVersionTagWorkflowUsesRepositoryVersionFile' -count=1`
+  - full local `go test ./...` was attempted after the sync merge, but the
+    local installer smoke `TestInstallDevHarnessDefaultsToUserLocalBin`
+    exceeded a 3 minute focused rerun timeout in this worktree. Final merge
+    readiness for the refreshed branch depends on the post-push PR CI `Go Test`
+    result.
 
 ## Review Summary
 
@@ -256,11 +275,17 @@ Use layered validation:
   superseded PR head/run as final evidence. The plan now states that final PR
   head, CI, and sync facts belong to harness evidence after archive.
 - Finalize repair review `review-004-full` passed with 0 findings.
+- Reopened finalize repair after PR #251 advanced `main`; finalize review
+  `review-005-full` found two sync-readiness wording findings in the plan:
+  the wrong `origin/main` SHA and stale "current PR head" wording for
+  revision-1 CI evidence.
+- Follow-up finalize review `review-006-full` passed with 0 findings after
+  those sync-readiness findings were fixed.
 
 ## Archive Summary
 
-- Archived At: 2026-06-11T01:06:06+08:00
-- Revision: 1
+- Archived At: 2026-06-11T09:56:10+08:00
+- Revision: 2
 - PR: PR #252 is published at
   `https://github.com/catu-ai/easyharness/pull/252`.
 - Ready: The candidate is merge-ready after local validation, passing PR CI,
@@ -270,6 +295,10 @@ Use layered validation:
   `version=v0.4.3` and verify that the rerun succeeds, including the
   `Verify Homebrew Install` job. This rerun should validate the release smoke
   fix without moving the `v0.4.3` tag or changing release artifact provenance.
+- Reopen Repair: Revision 2 refreshed PR #252 against `origin/main` after PR
+  #251 landed and invalidated the previous sync evidence. No release-auth scope
+  changed; final PR head, CI, sync, and merge-ready evidence must be recorded
+  again after re-archive.
 
 ## Outcome Summary
 
