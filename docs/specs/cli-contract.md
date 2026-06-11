@@ -661,6 +661,10 @@ Canonical input shape:
     {
       "name": "docs-consistency",
       "instructions": "Run `harness review dimensions instructions docs-consistency` and follow the returned Markdown instruction."
+    },
+    {
+      "name": "migration-compat",
+      "instructions": "Review migration compatibility and old-path fallback behavior for this change."
     }
   ]
 }
@@ -688,7 +692,8 @@ Review-spec semantics:
     name and slot identifier are the same
   - `instructions` is still explicit review-start handoff text; for
     catalog-managed dimensions it should usually be a command to fetch the full
-    instruction, while one-off dimensions may carry direct reviewer guidance
+    instruction, while one-off dimensions are first-class review slots and may
+    carry direct reviewer guidance
 - `anchor_sha`
   - optional for `full`
   - required for `delta`
@@ -717,7 +722,9 @@ finalize scope in stored round metadata and local state.
 `harness review start` does not resolve dimension references, does not
 automatically inject built-in or repo-defined dimensions, and does not force a
 controller to use every recommended dimension. Controllers remain responsible
-for choosing dimensions and passing an explicit review spec.
+for choosing dimensions and passing an explicit review spec. The catalog is a
+source of reusable recommended dimensions, not a closed enum; controllers may
+create one-off dimensions with explicit instructions for a particular round.
 
 Explicit `step` binding intentionally re-enters the targeted step's review
 loop. If the controller is already executing `step-k` or finalize work and

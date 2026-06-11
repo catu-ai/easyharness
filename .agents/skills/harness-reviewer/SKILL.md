@@ -122,19 +122,19 @@ deferral stale.
    and change summary.
 2. If the controller did not give enough information to submit cleanly, report
    the missing input back to the controller instead of improvising.
-3. Determine the reviewer instruction source from the controller handoff.
-   When the controller provides an instruction command for a catalog-managed
-   dimension, fetch the full reviewer instruction:
+3. Follow the controller-provided instruction handoff for this slot. If the
+   handoff tells you to fetch catalog instructions, run the requested command,
+   such as:
 
    ```bash
    harness review dimensions instructions <dimension-name>
    ```
 
-   Treat the returned Markdown as authoritative for this slot. If the command
-   fails and the controller also provided explicit slot instructions, use those
-   slot instructions as the fallback and record that fallback in the submission
-   worklog. If no explicit slot instructions are available, report the failure
-   back to the controller instead of guessing from the dimension name.
+   Treat the returned Markdown as authoritative for this slot. If the handoff
+   directly provides reviewer instructions instead of a catalog command, follow
+   those instructions directly. If the handoff is unclear, or a requested
+   command fails and leaves no usable instructions, report that back to the
+   controller instead of guessing from the dimension name.
 4. Open the controller-provided repo-facing `plan_path` and read the full plan
    before reviewing.
 5. Locate the slot-owned progressive submission artifact using the

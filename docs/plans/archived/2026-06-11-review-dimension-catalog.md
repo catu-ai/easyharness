@@ -438,6 +438,23 @@ to distinguish focused service/CLI coverage from the integrated smoke path.
   `go test ./internal/reviewdimensions ./internal/cli ./internal/repoconfig ./internal/contractsync ./tests/smoke -run TestReviewDimensionsCatalogViaCLI`
   passed.
 - Full `go test ./...` passed after merging `origin/main`.
+- Revision 3 finalize-fix repair updated controller/reviewer guidance and CLI
+  contract docs for catalog source-of-truth and first-class one-off dimensions,
+  then refreshed materialized bootstrap assets with
+  `scripts/sync-bootstrap-assets` and contract artifacts with
+  `go run ./cmd/contract-sync`.
+- Revision 3 validation passed:
+  `scripts/sync-bootstrap-assets --check`,
+  `go run ./cmd/contract-sync --check`,
+  `.local/bin/harness plan lint docs/plans/active/2026-06-11-review-dimension-catalog.md`,
+  `git diff --check`,
+  `go test ./internal/reviewdimensions ./internal/cli ./internal/repoconfig ./internal/contractsync`,
+  `go test ./tests/smoke -run TestReviewDimensionsCatalogViaCLI -count=1`,
+  and full
+  `COREPACK_HOME="$HOME/.cache/node/corepack" NPM_CONFIG_STORE_DIR="$HOME/Library/pnpm/store/v10" GOPROXY="file://$(go env GOMODCACHE)/cache/download,https://proxy.golang.org,direct" go test ./...`.
+  Earlier unqualified full smoke runs failed only while isolated installer
+  tests repeatedly fetched `pnpm` packages or Go modules from external
+  registries; the final cached full run passed.
 
 ## Review Summary
 
@@ -462,22 +479,33 @@ to distinguish focused service/CLI coverage from the integrated smoke path.
   updated.
 - `review-007-full` passed with no findings after the final command-inventory
   repair.
+- Revision 3 was reopened from `await_merge` after human diff review pointed
+  out that guidance was duplicating built-in dimensions now exposed by the CLI
+  and treating non-catalog dimensions like fallback behavior. Repaired guidance
+  so catalog-managed dimensions come from
+  `harness review dimensions list`, while one-off dimensions remain explicit,
+  first-class review slots with controller-written instructions.
+- `review-008-full` passed with no findings after the revision 3 guidance and
+  contract repair.
 
 ## Archive Summary
 
-- Archived At: 2026-06-11T01:43:52+08:00
-- Revision: 2
+- Archived At: 2026-06-11T10:50:39+08:00
+- Revision: 3
 - Reopen History: Revision 1 was archived at `2026-06-11T01:15:42+08:00`,
   published to PR #253, then reopened because `origin/main` advanced and sync
-  evidence reported the PR branch as stale.
+  evidence reported the PR branch as stale. Revision 2 was archived at
+  `2026-06-11T01:43:52+08:00`, published to PR #253, then reopened from
+  `await_merge` for human diff feedback about catalog source-of-truth and
+  one-off dimension semantics.
 - PR: [#253](https://github.com/catu-ai/easyharness/pull/253)
-- Ready: Revision 2 merges `origin/main` after the stale-sync publish
-  observation, full validation passed, and `review-007-full` passed with no
-  findings on top of the current base.
-- Merge Handoff: After re-archive, commit the archive move plus the merge-base
-  refresh, push the branch to PR #253, refresh publish/CI/sync evidence, and
-  wait for `harness status` to reach `execution/finalize/await_merge` before
-  asking for explicit human merge approval.
+- Ready: Revision 3 full validation passed and `review-008-full` passed with
+  no findings. Archive, publish, and remote evidence refresh remain before
+  returning to `await_merge`.
+- Merge Handoff: After re-archive, commit the revision 3 repair plus the
+  archive move, push the branch to PR #253, refresh publish/CI/sync evidence,
+  and wait for `harness status` to reach `execution/finalize/await_merge`
+  before asking for explicit human merge approval.
 
 ## Outcome Summary
 
@@ -500,6 +528,14 @@ to distinguish focused service/CLI coverage from the integrated smoke path.
   submission.
 - Reopened revision 1 after stale publish sync evidence and merged
   `origin/main` so the final candidate is based on the current mainline.
+- Reopened revision 2 after human diff feedback, removed the static built-in
+  dimension list from controller guidance, made
+  `harness review dimensions list` the durable source of truth for
+  catalog-managed dimensions, and documented one-off dimensions as first-class
+  explicit review slots rather than fallback behavior.
+- Simplified reviewer guidance so reviewer agents follow the controller's
+  instruction handoff: run the catalog instruction command when requested, or
+  follow direct slot instructions for one-off dimensions.
 
 ### Not Delivered
 
@@ -507,9 +543,13 @@ to distinguish focused service/CLI coverage from the integrated smoke path.
   artifacts.
 - Additional user-level, plugin-level, or organization-level dimension sources.
 - A richer dimension authoring command.
+- Migrating built-in dimension metadata and instruction bodies from Go literals
+  into bundled Markdown/resource files. That storage refactor is intentionally
+  left as follow-up work.
 
 ### Follow-Up Issues
 
 - No GitHub follow-up issues were opened in this slice. Deferred items remain
   intentionally out of scope until there is concrete demand for instruction
-  snapshots, additional catalog sources, or an authoring command.
+  snapshots, additional catalog sources, an authoring command, or moving
+  built-in dimensions into bundled Markdown resources.
