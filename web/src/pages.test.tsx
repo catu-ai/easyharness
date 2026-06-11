@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { dashboardRowKey } from "./helpers";
+import { dashboardRowKey, dashboardWorkspaces } from "./helpers";
 import { DashboardHome, WorkspaceDegradedPage } from "./pages";
 import type { DashboardWorkspace, WorkspaceRouteResult } from "./types";
 
@@ -36,6 +36,38 @@ describe("dashboard helpers and pages", () => {
     const right = dashboardWorkspace({ workspace_key: "wk_same", workspace_path: "/tmp/beta" });
 
     expect(dashboardRowKey(left, 0)).not.toBe(dashboardRowKey(right, 1));
+  });
+
+  test("dashboard workspaces preserve lifecycle-first group order", () => {
+    const active = dashboardWorkspace({
+      workspace_key: "wk_active",
+      workspace_name: "active",
+      workspace_path: "/tmp/active",
+      last_seen_at: "2026-04-22T09:00:00Z",
+      dashboard_state: "active",
+    });
+    const idle = dashboardWorkspace({
+      workspace_key: "wk_idle",
+      workspace_name: "idle",
+      workspace_path: "/tmp/idle",
+      last_seen_at: "2026-04-22T10:00:00Z",
+      dashboard_state: "idle",
+    });
+    const missing = dashboardWorkspace({
+      workspace_key: "wk_missing",
+      workspace_name: "missing",
+      workspace_path: "/tmp/missing",
+      last_seen_at: "2026-04-22T12:00:00Z",
+      dashboard_state: "missing",
+    });
+
+    expect(
+      dashboardWorkspaces([
+        { state: "active", workspaces: [active] },
+        { state: "idle", workspaces: [idle] },
+        { state: "missing", workspaces: [missing] },
+      ]).map((workspace) => workspace.workspace_name),
+    ).toEqual(["active", "idle", "missing"]);
   });
 
   test("dashboard home renders one progress node per workflow node", async () => {
@@ -73,6 +105,45 @@ describe("dashboard helpers and pages", () => {
     expect(screen.getByRole("tooltip").textContent).toBe("execution/step-2/implement · Build UI");
     fireEvent.mouseLeave(currentNode as Element);
     expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  test("dashboard home offers explicit degraded cleanup when missing or invalid entries exist", () => {
+    const onUnwatchDegraded = vi.fn();
+    render(
+      <DashboardHome
+        loading={false}
+        error={null}
+        workspaces={[
+          dashboardWorkspace({ workspace_key: "wk_active", workspace_name: "active", dashboard_state: "active" }),
+          dashboardWorkspace({ workspace_key: "wk_missing", workspace_name: "missing", dashboard_state: "missing" }),
+        ]}
+        onOpenWorkspace={vi.fn()}
+        onUnwatch={vi.fn()}
+        onUnwatchDegraded={onUnwatchDegraded}
+        unwatchDegradedError="Unable to clean up degraded workspaces."
+      />,
+    );
+
+    expect(screen.getByText("Unable to clean up degraded workspaces.")).toBeTruthy();
+    const button = screen.getByRole("button", { name: "Unwatch missing/invalid" });
+    fireEvent.click(button);
+
+    expect(onUnwatchDegraded).toHaveBeenCalledTimes(1);
+  });
+
+  test("dashboard home hides degraded cleanup when there are no degraded entries", () => {
+    render(
+      <DashboardHome
+        loading={false}
+        error={null}
+        workspaces={[dashboardWorkspace({ dashboard_state: "active" })]}
+        onOpenWorkspace={vi.fn()}
+        onUnwatch={vi.fn()}
+        onUnwatchDegraded={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Unwatch missing/invalid" })).toBeNull();
   });
 
   test("degraded page keeps the return path and only shows unwatch for watched routes", () => {

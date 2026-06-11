@@ -202,18 +202,7 @@ export function dashboardWorkspaces(groups: DashboardGroup[] | null | undefined)
       flattened.push(workspace);
     }
   }
-  return flattened.sort((left, right) => compareDashboardRecency(left.last_seen_at, right.last_seen_at) || left.workspace_path.localeCompare(right.workspace_path));
-}
-
-function compareDashboardRecency(left: string | undefined, right: string | undefined): number {
-  const leftTime = left ? Date.parse(left) : Number.NaN;
-  const rightTime = right ? Date.parse(right) : Number.NaN;
-  if (!Number.isNaN(leftTime) && !Number.isNaN(rightTime) && leftTime !== rightTime) {
-    return rightTime - leftTime;
-  }
-  if (!Number.isNaN(leftTime) && Number.isNaN(rightTime)) return -1;
-  if (Number.isNaN(leftTime) && !Number.isNaN(rightTime)) return 1;
-  return 0;
+  return flattened;
 }
 
 export function dashboardRowKey(workspace: DashboardWorkspace, index: number): string {

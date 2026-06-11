@@ -569,6 +569,36 @@ func TestUnwatchRemovesMissingWorkspaceByPersistedPath(t *testing.T) {
 	}
 }
 
+func TestUnwatchWorkspacePathsRemovesExactPersistedPaths(t *testing.T) {
+	userHome := t.TempDir()
+	watchlistPath := filepath.Join(userHome, ".easyharness", "watchlist.json")
+	malformed := "relative-workspace"
+	missing := filepath.Join(t.TempDir(), "missing-workspace")
+	remaining := filepath.Join(t.TempDir(), "remaining-workspace")
+	writeWatchlistFile(t, watchlistPath, File{
+		Version: version,
+		Workspaces: []Workspace{
+			{WorkspacePath: malformed, WatchedAt: "2026-04-19T01:00:00Z", LastSeenAt: "2026-04-19T01:00:00Z"},
+			{WorkspacePath: missing, WatchedAt: "2026-04-19T02:00:00Z", LastSeenAt: "2026-04-19T02:00:00Z"},
+			{WorkspacePath: remaining, WatchedAt: "2026-04-19T03:00:00Z", LastSeenAt: "2026-04-19T03:00:00Z"},
+		},
+	})
+
+	svc := Service{UserHomeDir: func() (string, error) { return userHome, nil }}
+	removed, err := svc.UnwatchWorkspacePaths([]string{malformed, missing})
+	if err != nil {
+		t.Fatalf("unwatch exact workspace paths: %v", err)
+	}
+	if removed != 2 {
+		t.Fatalf("expected two removed paths, got %d", removed)
+	}
+
+	got := readWatchlistFile(t, watchlistPath)
+	if len(got.Workspaces) != 1 || got.Workspaces[0].WorkspacePath != remaining {
+		t.Fatalf("expected only remaining workspace to survive, got %#v", got.Workspaces)
+	}
+}
+
 func TestUnwatchUsesEasyharnessHomeOverride(t *testing.T) {
 	userHome := t.TempDir()
 	customHome := filepath.Join(t.TempDir(), "custom-home")

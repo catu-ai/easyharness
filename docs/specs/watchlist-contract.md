@@ -84,7 +84,8 @@ Contract:
 - `last_seen_at` records the latest successful watchlist-touching harness
   command that confirmed this workspace locally
 - `last_seen_at` is the dashboard's recency signal for ordering watched
-  workspaces on the machine-local home page
+  workspaces within the same dashboard lifecycle state on the machine-local
+  home page
 - duplicate `workspace_path` values are invalid
 
 The minimal persisted workspace record is intentionally small:
@@ -252,7 +253,8 @@ The explicit user-facing membership-removal action is `unwatch`.
 
 `Unwatch` means:
 
-- remove the selected workspace record from the machine-local watchlist
+- remove the selected workspace record, or an explicitly selected set of
+  degraded workspace records, from the machine-local watchlist
 - preserve unrelated workspace records in the same watchlist file
 - leave the watched repository, git worktree, tracked plan files, and
   workflow artifacts under the local runtime root resolved by
@@ -321,14 +323,17 @@ should follow this shape:
   cannot be loaded at all
 
 The `groups` field is a stable classification/result shape for API consumers.
-The first dashboard home UI may flatten entries from those groups into one
-recency-sorted watched-workspace list instead of rendering grouped sections,
-so long as lifecycle state remains visible on each entry.
+The dashboard home UI may flatten entries from those groups into one
+lifecycle-first watched-workspace list instead of rendering grouped sections,
+so long as lifecycle state remains visible on each entry. The default
+lifecycle order is `active`, `completed`, `idle`, `missing`, then `invalid`;
+recency is preserved within each lifecycle state.
 
 Each group contains:
 
 - `state`: one of `active`, `completed`, `idle`, `missing`, or `invalid`
-- `workspaces`: watched workspace entries in dashboard recency order
+- `workspaces`: watched workspace entries in dashboard recency order within
+  that lifecycle state
 
 Each workspace entry contains:
 
@@ -381,8 +386,11 @@ current filesystem. The combination of `last_seen_at`, derived `missing`
 or `invalid` status, and explicit `unwatch` behavior is enough for this
 contract.
 
-Later work may add user-facing cleanup or stale-item policies, but v1 should
-not silently discard watched entries just because they have gone idle,
+The dashboard may offer explicit user-facing cleanup for currently degraded
+entries, such as bulk unwatch for `missing` and `invalid` workspace records.
+That cleanup is still a user-triggered `unwatch` action, not automatic
+garbage collection. Later work may add richer stale-item policies, but v1
+should not silently discard watched entries just because they have gone idle,
 invalid, or missing.
 
 ## Dashboard Routing Outcomes

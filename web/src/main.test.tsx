@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { App } from "./main";
 import { PlanWorkspace, ReviewWorkspace, TimelineWorkspace } from "./pages";
 import type {
+  DashboardResult,
   PlanResult,
   PlanWorkspaceState,
   ReviewResult,
@@ -140,6 +141,26 @@ const reviewResult: ReviewResult = {
       artifacts: [
         { label: "notes", path: ".local/review/notes.md", content_type: "text", content: "notes" },
         { label: "trace", path: ".local/review/trace.md", content_type: "text", content: "trace payload" },
+      ],
+    },
+  ],
+};
+
+const dashboardResultWithMissing: DashboardResult = {
+  ok: true,
+  resource: "dashboard",
+  summary: "Loaded 1 watched workspace.",
+  groups: [
+    {
+      state: "missing",
+      workspaces: [
+        {
+          workspace_key: "wk_missing",
+          workspace_name: "missing",
+          workspace_path: "/tmp/missing",
+          dashboard_state: "missing",
+          summary: "Watched workspace path is missing.",
+        },
       ],
     },
   ],
@@ -354,6 +375,34 @@ describe("workbench page state continuity", () => {
     await waitFor(() => expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Warm Plan"));
     await waitFor(() => expect(planFetchCount()).toBeGreaterThan(initialPlanFetches));
     await waitFor(() => expect(activePlanTreeText()).toBe("Scope"));
+  });
+
+  test("dashboard degraded cleanup posts to bulk endpoint and surfaces failures", async () => {
+    window.history.pushState({}, "", "/dashboard");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === "/api/dashboard") {
+          return Promise.resolve({ ok: true, json: async () => dashboardResultWithMissing } as Response);
+        }
+        if (path === "/api/dashboard/unwatch-degraded") {
+          return Promise.resolve({
+            ok: false,
+            json: async () => ({ ok: false, summary: "Bulk cleanup failed." }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected path ${path}`));
+      }),
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Unwatch missing/invalid" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Unwatch missing/invalid" }));
+
+    await waitFor(() => expect(apiFetchCount("/api/dashboard/unwatch-degraded")).toBe(1));
+    await waitFor(() => expect(screen.getByText("Bulk cleanup failed.")).toBeTruthy());
   });
 
   test("keeps Plan payload visible while the return refresh is pending", async () => {
