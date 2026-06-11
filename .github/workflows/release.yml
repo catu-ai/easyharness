@@ -105,6 +105,7 @@ jobs:
 
       - name: Publish release assets
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
@@ -126,6 +127,7 @@ jobs:
 
       - name: Verify published release namespace
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           EASYHARNESS_RUN_LIVE_GH_SMOKE: "1"
           EASYHARNESS_LIVE_GH_REPO: ${{ github.repository }}
@@ -166,6 +168,7 @@ jobs:
     permissions:
       contents: read
     env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       EASYHARNESS_RUN_LIVE_BREW_SMOKE: "1"
     steps:

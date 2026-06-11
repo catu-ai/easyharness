@@ -224,6 +224,8 @@ func TestReleaseWorkflowWiresHomebrewTapPublishing(t *testing.T) {
 	support.RequireContains(t, workflow, `--checksums dist/release-source/dist/release/SHA256SUMS`)
 	support.RequireContains(t, workflow, `--output dist/homebrew/easyharness.rb`)
 	support.RequireContains(t, workflow, "- name: Verify published release namespace\n        env:")
+	support.RequireContains(t, workflow, `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`)
+	support.RequireContains(t, workflow, `GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}`)
 	support.RequireContains(t, workflow, "run: go test ./tests/smoke -run TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled -count=1")
 	if strings.Contains(workflow, "working-directory: dist/release-source\n        run: go test ./tests/smoke -run TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled -count=1") {
 		t.Fatalf("expected namespace verification to run from the root checkout so main-branch smoke fixes apply to release reruns")
@@ -235,6 +237,7 @@ func TestReleaseWorkflowWiresHomebrewTapPublishing(t *testing.T) {
 	support.RequireContains(t, workflow, `--version "${{ steps.release-version.outputs.version }}"`)
 	support.RequireContains(t, workflow, `verify-homebrew-install:`)
 	support.RequireContains(t, workflow, `runs-on: macos-latest`)
+	support.RequireContains(t, workflow, `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`)
 	support.RequireContains(t, workflow, `GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}`)
 	support.RequireContains(t, workflow, `EASYHARNESS_RUN_LIVE_BREW_SMOKE: "1"`)
 	support.RequireContains(t, workflow, `go-version-file: go.mod`)

@@ -70,6 +70,47 @@ func TestVerifyReleaseNamespaceWithFakeGHDownloadsAndChecksums(t *testing.T) {
 	support.RequireContains(t, string(logData), "release download v0.1.0-alpha.4 -R catu-ai/easyharness -D "+downloadDir+" --clobber -p SHA256SUMS -p "+archiveName)
 }
 
+func TestVerifyReleaseNamespaceMapsGitHubTokenToGHToken(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("verify-release-namespace smoke test requires a POSIX shell")
+	}
+
+	repo := "catu-ai/easyharness"
+	tag := "v0.1.0-alpha.4"
+	fakeGHDir := fakeGHReleaseDir(
+		t,
+		repo,
+		tag,
+		map[string][]byte{
+			"SHA256SUMS": []byte(""),
+		},
+	)
+
+	result := runCommand(
+		t,
+		support.RepoRoot(t),
+		envWithOverrides(t, map[string]string{
+			"GH_TOKEN":     "",
+			"GITHUB_TOKEN": "fallback-token",
+			"PATH":         installerPath(t, fakeGHDir),
+		}),
+		"/bin/bash",
+		filepath.Join(support.RepoRoot(t), "scripts", "verify-release-namespace"),
+		"--repo", repo,
+		"--tag", tag,
+		"--asset", "SHA256SUMS",
+	)
+	if result.ExitCode != 0 {
+		t.Fatalf("verify-release-namespace failed with exit %d\nstdout:\n%s\nstderr:\n%s", result.ExitCode, result.Stdout, result.Stderr)
+	}
+
+	logData, err := os.ReadFile(filepath.Join(fakeGHDir, "gh.log"))
+	if err != nil {
+		t.Fatalf("read fake gh log: %v", err)
+	}
+	support.RequireContains(t, string(logData), "GH_TOKEN=fallback-token")
+}
+
 func TestVerifyReleaseNamespaceFailsWhenAssetIsMissing(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("verify-release-namespace smoke test requires a POSIX shell")
@@ -294,6 +335,7 @@ repo_json=%q
 release_json=%q
 assets_dir=%q
 
+printf 'GH_TOKEN=%%s\n' "${GH_TOKEN:-}" >> "$log_file"
 printf '%%s\n' "$*" >> "$log_file"
 
 if [[ "$#" -ge 4 && "$1" == "repo" && "$2" == "view" ]]; then

@@ -216,9 +216,39 @@ func sha256File(path string) (string, error) {
 
 func runGH(args ...string) ([]byte, error) {
 	cmd := exec.Command("gh", args...)
+	cmd.Env = ghEnv(os.Environ())
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("%v failed: %w\n%s", args, err, strings.TrimSpace(string(output)))
 	}
 	return output, nil
+}
+
+func ghEnv(env []string) []string {
+	ghTokenIndex := -1
+	githubToken := ""
+	for i, entry := range env {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		switch key {
+		case "GH_TOKEN":
+			ghTokenIndex = i
+		case "GITHUB_TOKEN":
+			if value != "" {
+				githubToken = value
+			}
+		}
+	}
+	if githubToken == "" {
+		return env
+	}
+	if ghTokenIndex == -1 {
+		return append(env, "GH_TOKEN="+githubToken)
+	}
+	if strings.TrimPrefix(env[ghTokenIndex], "GH_TOKEN=") == "" {
+		env[ghTokenIndex] = "GH_TOKEN=" + githubToken
+	}
+	return env
 }
