@@ -326,6 +326,66 @@ code {
   gap: 0.7rem;
 }
 
+.dashboard-maintenance {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.65rem;
+  max-width: 100%;
+  min-height: 1.9rem;
+  padding: 0.32rem 0.42rem 0.32rem 0.5rem;
+  border: 1px solid rgba(244, 135, 113, 0.18);
+  background: rgba(244, 135, 113, 0.045);
+  color: #d0a198;
+}
+
+.dashboard-maintenance-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+  color: #c9a39b;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.dashboard-maintenance-dot {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+.dashboard-maintenance-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 1.35rem;
+  padding: 0 0.42rem;
+  border: 1px solid rgba(244, 135, 113, 0.22);
+  background: rgba(255, 255, 255, 0.025);
+  color: #e3b5ad;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dashboard-maintenance-action:hover:not(:disabled) {
+  border-color: rgba(244, 135, 113, 0.34);
+  background: rgba(244, 135, 113, 0.08);
+  color: #f0c1b8;
+}
+
+.dashboard-maintenance-action:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .dashboard-item {
   display: flex;
   flex-direction: column;
@@ -1778,6 +1838,14 @@ body.is-resizing-workbench .workbench-divider::before {
 
   .dashboard-stage {
     padding: 0.8rem;
+  }
+
+  .dashboard-maintenance {
+    flex-wrap: wrap;
+  }
+
+  .dashboard-maintenance-copy {
+    white-space: normal;
   }
 
   .dashboard-item-top {

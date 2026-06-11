@@ -192,6 +192,53 @@ func TestReadOrdersEntriesByRecencyWithDeterministicFallback(t *testing.T) {
 	assertGroupPaths(t, result, StateActive, []string{newest, alpha, beta, malformed})
 }
 
+func TestReadKeepsLifecycleGroupsAheadOfNewerDegradedEntries(t *testing.T) {
+	home := t.TempDir()
+	active := seedGitWorkspace(t, "active")
+	completed := seedGitWorkspace(t, "completed")
+	idle := seedGitWorkspace(t, "idle")
+	missing := filepath.Join(t.TempDir(), "missing")
+	writeWatchlist(t, home, []watchlist.Workspace{
+		workspaceRecord(missing, "2026-04-22T12:00:00Z"),
+		workspaceRecord(idle, "2026-04-22T11:00:00Z"),
+		workspaceRecord(completed, "2026-04-22T10:00:00Z"),
+		workspaceRecord(active, "2026-04-22T09:00:00Z"),
+	})
+
+	result := Service{
+		LookupEnv: easyHome(home),
+		ReadStatus: func(path string) contracts.StatusResult {
+			switch path {
+			case active:
+				return statusResult("execution/step-1/implement", "Active", nil)
+			case completed:
+				return statusResult("idle", "Landed", &contracts.StatusArtifacts{LastLandedAt: "2026-04-22T08:00:00Z"})
+			case idle:
+				return statusResult("idle", "Idle", nil)
+			default:
+				t.Fatalf("unexpected status path %q", path)
+				return contracts.StatusResult{}
+			}
+		},
+	}.Read()
+
+	if !result.OK {
+		t.Fatalf("expected dashboard read to succeed, got %#v", result)
+	}
+	gotStates := make([]string, 0, len(result.Groups))
+	for _, group := range result.Groups {
+		gotStates = append(gotStates, group.State)
+	}
+	wantStates := []string{StateActive, StateCompleted, StateIdle, StateMissing, StateInvalid}
+	if strings.Join(gotStates, "\n") != strings.Join(wantStates, "\n") {
+		t.Fatalf("unexpected lifecycle group order\n got: %#v\nwant: %#v", gotStates, wantStates)
+	}
+	assertGroupPaths(t, result, StateActive, []string{active})
+	assertGroupPaths(t, result, StateCompleted, []string{completed})
+	assertGroupPaths(t, result, StateIdle, []string{idle})
+	assertGroupPaths(t, result, StateMissing, []string{missing})
+}
+
 func TestReadReturnsTopLevelErrorForUnreadableWatchlist(t *testing.T) {
 	home := t.TempDir()
 	path := filepath.Join(home, "watchlist.json")

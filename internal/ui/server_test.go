@@ -803,6 +803,50 @@ func TestNewHandlerWorkspaceUnwatchUsesExplicitWorkspacePath(t *testing.T) {
 	}
 }
 
+func TestNewHandlerDashboardUnwatchDegradedRemovesOnlyMissingAndInvalid(t *testing.T) {
+	home := t.TempDir()
+	readable := filepath.Join(t.TempDir(), "workspace-readable")
+	seedGitWorkspace(t, readable)
+	missing := filepath.Join(t.TempDir(), "workspace-missing")
+	notGit := filepath.Join(t.TempDir(), "workspace-not-git")
+	if err := os.MkdirAll(notGit, 0o755); err != nil {
+		t.Fatalf("mkdir non-git workspace: %v", err)
+	}
+	writeWatchlist(t, home, []watchlist.Workspace{
+		workspaceRecord(readable, "2026-04-22T10:00:00Z"),
+		workspaceRecord(missing, "2026-04-22T12:00:00Z"),
+		workspaceRecord(notGit, "2026-04-22T11:00:00Z"),
+	})
+	t.Setenv("EASYHARNESS_HOME", home)
+
+	handler, err := NewHandler(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/dashboard/unwatch-degraded", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		OK           bool `json:"ok"`
+		RemovedCount int  `json:"removed_count"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v\n%s", err, recorder.Body.String())
+	}
+	if !payload.OK || payload.RemovedCount != 2 {
+		t.Fatalf("unexpected degraded unwatch payload: %#v", payload)
+	}
+	after := readWatchlist(t, home)
+	if len(after.Workspaces) != 1 || after.Workspaces[0].WorkspacePath != readable {
+		t.Fatalf("expected only readable workspace to remain, got %#v", after.Workspaces)
+	}
+}
+
 func TestNewHandlerServesPlanJSON(t *testing.T) {
 	workdir := t.TempDir()
 	relPlanPath := "docs/plans/active/2026-04-10-ui-plan.md"

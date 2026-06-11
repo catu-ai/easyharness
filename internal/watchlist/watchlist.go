@@ -122,6 +122,60 @@ func (s Service) Unwatch(workdir string) error {
 	return writeJSONAtomic(path, payload, 0o644)
 }
 
+func (s Service) UnwatchWorkspacePaths(workspacePaths []string) (int, error) {
+	targets := make(map[string]struct{}, len(workspacePaths))
+	for _, workspacePath := range workspacePaths {
+		workspacePath = strings.TrimSpace(workspacePath)
+		if workspacePath == "" {
+			continue
+		}
+		targets[workspacePath] = struct{}{}
+	}
+	if len(targets) == 0 {
+		return 0, nil
+	}
+
+	home, err := s.easyharnessHome()
+	if err != nil {
+		return 0, err
+	}
+
+	release, err := acquireLock(home)
+	if err != nil {
+		return 0, err
+	}
+	defer release()
+
+	path := filepath.Join(home, "watchlist.json")
+	data, err := loadFile(path)
+	if err != nil {
+		return 0, err
+	}
+
+	next := make([]Workspace, 0, len(data.Workspaces))
+	removed := 0
+	for _, workspace := range data.Workspaces {
+		if _, ok := targets[strings.TrimSpace(workspace.WorkspacePath)]; ok {
+			removed++
+			continue
+		}
+		next = append(next, workspace)
+	}
+	if removed == 0 {
+		return 0, nil
+	}
+	data.Workspaces = next
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return 0, err
+	}
+	payload, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return 0, fmt.Errorf("marshal watchlist.json: %w", err)
+	}
+	return removed, writeJSONAtomic(path, payload, 0o644)
+}
+
 func (s Service) easyharnessHome() (string, error) {
 	if lookup := s.LookupEnv; lookup != nil {
 		if value, ok := lookup(envHome); ok && strings.TrimSpace(value) != "" {

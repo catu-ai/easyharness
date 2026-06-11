@@ -97,6 +97,42 @@ func NewHandler(workdir string) (http.Handler, error) {
 	watchlistSvc := watchlist.Service{}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/dashboard/unwatch-degraded", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		result := dashboard.Service{}.Read()
+		if !result.OK {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+				"ok":       false,
+				"resource": "dashboard",
+				"summary":  result.Summary,
+				"errors":   result.Errors,
+			})
+			return
+		}
+		paths := degradedWorkspacePaths(result.Groups)
+		removed, err := watchlistSvc.UnwatchWorkspacePaths(paths)
+		if err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+				"ok":       false,
+				"resource": "dashboard",
+				"summary":  "Unable to remove degraded workspaces from the machine-local watchlist.",
+				"errors": []map[string]string{{
+					"path":    "watchlist",
+					"message": err.Error(),
+				}},
+			})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":            true,
+			"resource":      "dashboard",
+			"summary":       fmt.Sprintf("Removed %d degraded workspace(s) from the machine-local watchlist.", removed),
+			"removed_count": removed,
+		})
+	})
 	mux.HandleFunc("/api/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -259,6 +295,21 @@ func NewHandler(workdir string) (http.Handler, error) {
 	})
 	mux.Handle("/", spaHandler(staticFS, workdir))
 	return mux, nil
+}
+
+func degradedWorkspacePaths(groups []dashboard.Group) []string {
+	var paths []string
+	for _, group := range groups {
+		if group.State != dashboard.StateMissing && group.State != dashboard.StateInvalid {
+			continue
+		}
+		for _, workspace := range group.Workspaces {
+			if workspacePath := strings.TrimSpace(workspace.WorkspacePath); workspacePath != "" {
+				paths = append(paths, workspacePath)
+			}
+		}
+	}
+	return paths
 }
 
 var (
