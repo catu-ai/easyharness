@@ -40,6 +40,8 @@ version: 1
 #     active: docs/plans/active
 #     archived: docs/plans/archived
 #   local_runtime: .local/harness
+#   review:
+#     dimensions: .harness/review/dimensions
 ```
 
 Version 1 supports the first concrete customization field, `paths`, for
@@ -53,6 +55,8 @@ paths:
     active: docs/plans/active
     archived: docs/plans/archived
   local_runtime: .local/harness
+  review:
+    dimensions: .harness/review/dimensions
 ```
 
 All path fields are optional. Omitted fields use the defaults shown above.
@@ -62,6 +66,7 @@ Path roots mean:
 - `paths.plans.active`: the tracked active plan root
 - `paths.plans.archived`: the tracked standard archived plan root
 - `paths.local_runtime`: the command-owned disposable local runtime root
+- `paths.review.dimensions`: the repo-defined review dimensions root
 
 Supplements are not independently configured. They are derived from the
 matching plan root as `supplements/<plan-stem>`.
@@ -69,6 +74,46 @@ matching plan root as `supplements/<plan-stem>`.
 Lightweight archived plan snapshots, current-plan pointer, plan-local state,
 reviews, evidence, timeline events, locks, and other command-owned local
 runtime files are derived from `paths.local_runtime`.
+
+Review dimension files under `paths.review.dimensions` are discovered
+automatically by `harness review dimensions list` and
+`harness review dimensions instructions <name>`. The config names the discovery
+root only; it does not list individual dimension files or store instruction
+text.
+
+## Review Dimension Files
+
+Repo-defined review dimensions are Markdown files directly under the resolved
+`paths.review.dimensions` root. The default root is:
+
+```text
+.harness/review/dimensions
+```
+
+Each file must start with YAML frontmatter containing exactly `name` and
+`description`, followed by a non-empty Markdown instruction body. Additional
+frontmatter fields are invalid.
+
+```markdown
+---
+name: api-contract
+description: Use when changes touch public CLI behavior, JSON outputs, schemas, examples, or documented contracts.
+---
+
+Review the change as an API contract...
+```
+
+Dimension names are stable skill-like identifiers. They must be made from
+lowercase alphanumeric segments separated by single hyphens. The name is also
+the review slot identifier when a controller chooses that dimension for a
+review round.
+
+The description is compact controller-facing selection guidance. The Markdown
+body is the full reviewer-facing instruction and is intentionally omitted from
+the dimensions list output.
+
+Repo dimensions override built-in dimensions with the same name. Duplicate
+repo dimension names are invalid.
 
 ## Loading Behavior
 
@@ -118,11 +163,12 @@ Supported v1 scalar keys are:
 - `paths.plans.active`
 - `paths.plans.archived`
 - `paths.local_runtime`
+- `paths.review.dimensions`
 
-`get` only returns leaf values. Object keys such as `paths` or `paths.plans`
-must fail clearly instead of returning YAML, JSON, or another structured blob.
-Use `harness repo config list [prefix]` to enumerate resolved leaf keys under
-an object prefix.
+`get` only returns leaf values. Object keys such as `paths`, `paths.plans`, or
+`paths.review` must fail clearly instead of returning YAML, JSON, or another
+structured blob. Use `harness repo config list [prefix]` to enumerate resolved
+leaf keys under an object prefix.
 
 `harness repo config list` prints all supported resolved leaf entries as
 deterministically ordered `key=value` lines. `harness repo config list paths`
@@ -137,5 +183,5 @@ Future customization fields should keep `.harness/config.yaml` as a manifest
 and index. Long-form customization text belongs in referenced
 `.harness/**/*.md` files rather than inline YAML.
 
-This v1 contract does not define review defaults, remote mappings, instruction
-content customization, executable hooks, plugins, or provider mapping.
+This v1 contract does not define remote mappings, executable hooks, plugins, or
+provider mapping.

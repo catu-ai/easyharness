@@ -11,19 +11,22 @@ import (
 )
 
 const (
-	Dir                      = ".harness"
-	File                     = ".harness/config.yaml"
-	CurrentVersion           = 1
-	DefaultActivePlansRoot   = "docs/plans/active"
-	DefaultArchivedPlansRoot = "docs/plans/archived"
-	DefaultLocalRuntimeRoot  = ".local/harness"
-	DefaultContent           = "version: 1\n\n" +
+	Dir                         = ".harness"
+	File                        = ".harness/config.yaml"
+	CurrentVersion              = 1
+	DefaultActivePlansRoot      = "docs/plans/active"
+	DefaultArchivedPlansRoot    = "docs/plans/archived"
+	DefaultLocalRuntimeRoot     = ".local/harness"
+	DefaultReviewDimensionsRoot = ".harness/review/dimensions"
+	DefaultContent              = "version: 1\n\n" +
 		"# Optional path roots. Omit this block to use the built-in defaults.\n" +
 		"# paths:\n" +
 		"#   plans:\n" +
 		"#     active: " + DefaultActivePlansRoot + "\n" +
 		"#     archived: " + DefaultArchivedPlansRoot + "\n" +
-		"#   local_runtime: " + DefaultLocalRuntimeRoot + "\n"
+		"#   local_runtime: " + DefaultLocalRuntimeRoot + "\n" +
+		"#   review:\n" +
+		"#     dimensions: " + DefaultReviewDimensionsRoot + "\n"
 )
 
 type Config struct {
@@ -32,13 +35,18 @@ type Config struct {
 }
 
 type PathsConfig struct {
-	Plans        PlanPathsConfig `yaml:"plans,omitempty"`
-	LocalRuntime string          `yaml:"local_runtime,omitempty"`
+	Plans        PlanPathsConfig   `yaml:"plans,omitempty"`
+	LocalRuntime string            `yaml:"local_runtime,omitempty"`
+	Review       ReviewPathsConfig `yaml:"review,omitempty"`
 }
 
 type PlanPathsConfig struct {
 	Active   string `yaml:"active,omitempty"`
 	Archived string `yaml:"archived,omitempty"`
+}
+
+type ReviewPathsConfig struct {
+	Dimensions string `yaml:"dimensions,omitempty"`
 }
 
 type ConfigEntry struct {
@@ -130,6 +138,9 @@ func DefaultConfig() Config {
 				Archived: DefaultArchivedPlansRoot,
 			},
 			LocalRuntime: DefaultLocalRuntimeRoot,
+			Review: ReviewPathsConfig{
+				Dimensions: DefaultReviewDimensionsRoot,
+			},
 		},
 	}
 }
@@ -144,6 +155,9 @@ func Render(config Config) string {
 	}
 	if config.Paths.LocalRuntime == "" {
 		config.Paths.LocalRuntime = DefaultLocalRuntimeRoot
+	}
+	if config.Paths.Review.Dimensions == "" {
+		config.Paths.Review.Dimensions = DefaultReviewDimensionsRoot
 	}
 	if isDefaultPaths(config.Paths) {
 		return DefaultContent
@@ -199,12 +213,13 @@ func (c Config) resolvedEntries() []ConfigEntry {
 		{Key: "paths.plans.active", Value: c.Paths.Plans.Active},
 		{Key: "paths.plans.archived", Value: c.Paths.Plans.Archived},
 		{Key: "paths.local_runtime", Value: c.Paths.LocalRuntime},
+		{Key: "paths.review.dimensions", Value: c.Paths.Review.Dimensions},
 	}
 }
 
 func isConfigObjectKey(key string) bool {
 	switch strings.TrimSpace(key) {
-	case "paths", "paths.plans":
+	case "paths", "paths.plans", "paths.review":
 		return true
 	default:
 		return false
@@ -227,7 +242,8 @@ func invalid(path, reason string) LoadResult {
 func isDefaultPaths(paths PathsConfig) bool {
 	return paths.Plans.Active == DefaultActivePlansRoot &&
 		paths.Plans.Archived == DefaultArchivedPlansRoot &&
-		paths.LocalRuntime == DefaultLocalRuntimeRoot
+		paths.LocalRuntime == DefaultLocalRuntimeRoot &&
+		paths.Review.Dimensions == DefaultReviewDimensionsRoot
 }
 
 func parsePaths(node *yaml.Node) (PathsConfig, error) {
@@ -253,6 +269,12 @@ func parsePaths(node *yaml.Node) (PathsConfig, error) {
 				return paths, err
 			}
 			paths.LocalRuntime = localRuntime
+		case "review":
+			review, err := parseReviewPaths(value, paths.Review)
+			if err != nil {
+				return paths, err
+			}
+			paths.Review = review
 		default:
 			return paths, fmt.Errorf("unsupported field %q", "paths."+key)
 		}
@@ -261,6 +283,30 @@ func parsePaths(node *yaml.Node) (PathsConfig, error) {
 		return paths, err
 	}
 	return paths, nil
+}
+
+func parseReviewPaths(node *yaml.Node, defaults ReviewPathsConfig) (ReviewPathsConfig, error) {
+	review := defaults
+	if node.Kind != yaml.MappingNode {
+		return review, fmt.Errorf("field paths.review must be a YAML object")
+	}
+	fields, err := mappingFields("paths.review", node)
+	if err != nil {
+		return review, err
+	}
+	for key, value := range fields {
+		switch key {
+		case "dimensions":
+			dimensions, err := parseRepoRelativePath("paths.review.dimensions", value)
+			if err != nil {
+				return review, err
+			}
+			review.Dimensions = dimensions
+		default:
+			return review, fmt.Errorf("unsupported field %q", "paths.review."+key)
+		}
+	}
+	return review, nil
 }
 
 func parsePlanPaths(node *yaml.Node, defaults PlanPathsConfig) (PlanPathsConfig, error) {
@@ -340,6 +386,7 @@ func validateDistinctRoots(paths PathsConfig) error {
 		{label: "paths.plans.active", path: paths.Plans.Active},
 		{label: "paths.plans.archived", path: paths.Plans.Archived},
 		{label: "paths.local_runtime", path: paths.LocalRuntime},
+		{label: "paths.review.dimensions", path: paths.Review.Dimensions},
 	}
 	for i := 0; i < len(roots); i++ {
 		for j := i + 1; j < len(roots); j++ {

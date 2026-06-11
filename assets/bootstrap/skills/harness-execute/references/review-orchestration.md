@@ -63,6 +63,23 @@ Create a review spec and pass it to:
 harness review start --spec <path>
 ```
 
+Before choosing catalog-managed dimensions for a new round, inspect the
+current catalog:
+
+```bash
+harness review dimensions list
+```
+
+Use the returned `name`, `source`, and `description` metadata to choose only
+the dimensions that fit the current change. The list is intentionally compact
+and does not include full reviewer instructions. Do not force every built-in or
+repo-defined dimension into every review.
+
+Catalog-managed dimensions are reusable recommendations, not a closed enum. If
+the review needs a one-off focus that is not in the catalog, include a
+controller-written dimension with explicit reviewer instructions directly in the
+review spec.
+
 Use a compact JSON shape like:
 
 ```json
@@ -73,11 +90,15 @@ Use a compact JSON shape like:
   "dimensions": [
     {
       "name": "correctness",
-      "instructions": "Look for contract mistakes, stale assumptions, or missing negative-path handling."
+      "instructions": "Run `harness review dimensions instructions correctness` and follow the returned Markdown instruction."
     },
     {
-      "name": "agent_ux",
-      "instructions": "Check whether another agent could resume the task cleanly from the updated docs and skills."
+      "name": "agent-ux",
+      "instructions": "Run `harness review dimensions instructions agent-ux` and follow the returned Markdown instruction."
+    },
+    {
+      "name": "migration-compat",
+      "instructions": "Review migration compatibility and old-path fallback behavior for this change."
     }
   ]
 }
@@ -102,24 +123,22 @@ Field rules:
   - only include it when you need to point review at a specific tracked step explicitly
 - `dimensions`
   - one reviewer slot per dimension after normalization
-  - each dimension should have a short name and a concrete instruction
+  - catalog-managed dimensions use stable names made from lowercase
+    alphanumeric segments separated by single hyphens; the name and slot
+    identifier are the same
+  - catalog-managed dimensions should include a concrete command for the
+    reviewer to fetch the full instruction
+  - one-off dimensions are first-class review slots and may include explicit
+    reviewer instructions directly
 
 The controller agent should not invent workflow metadata like `trigger` or
 `target`. `harness review start` infers whether the round is step-bound or
 finalize-bound from the current node and persists that structure itself.
 
-Suggested dimensions:
-
-- `correctness`
-  - logic, node-resolution, and contract mistakes
-- `tests`
-  - missing coverage, weak validation, or misleading smoke claims
-- `docs_consistency`
-  - README, AGENTS, skills, and plan drift
-- `agent_ux`
-  - handoff quality, clarity, and next-action guidance
-- `risk_scan`
-  - unresolved blockers, deferred risks that leaked back in, or unsafe defaults
+Repositories may add or override dimensions with Markdown files under the
+configured review dimensions root. Use `harness review dimensions list` as the
+source of truth for catalog-managed dimensions instead of relying on static
+guidance text.
 
 Choose only the dimensions that fit the current change. Do not force every
 round to use the same set.
@@ -189,7 +208,10 @@ Review title: <review-title>
 Revision: <candidate-revision-or-none>
 Slot: <slot>
 Assigned dimension: <dimension-name>
-Instructions: <dimension-instructions>
+Instruction command: <catalog instruction command, or none for one-off slots>
+Instruction handoff: <short instruction string from review-start slot, usually
+the same command above for catalog-managed dimensions or direct guidance for
+one-off slots>
 Submission Path: <repo-facing-submission-path>
 Anchor SHA: <commit-sha-or-none>
 Change summary: <bounded-change-summary>
@@ -236,7 +258,10 @@ Review title: <review-title>
 Revision: <candidate-revision-or-none>
 Slot: <slot>
 Assigned dimension: <dimension-name>
-Instructions: <dimension-instructions>
+Instruction command: <catalog instruction command, or none for one-off slots>
+Instruction handoff: <short instruction string from review-start slot, usually
+the same command above for catalog-managed dimensions or direct guidance for
+one-off slots>
 Submission Path: <repo-facing-submission-path>
 Anchor SHA: <commit-sha-or-none>
 Change summary since your last submission: <bounded-change-summary>

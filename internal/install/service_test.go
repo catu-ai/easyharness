@@ -190,6 +190,8 @@ paths:
     active: workflow/plans/open
     archived: docs/plans/archived
   local_runtime: tmp/harness-runtime
+  review:
+    dimensions: .harness/review/dimensions
 `
 	if string(configData) != want {
 		t.Fatalf("expected custom repo config values preserved, got:\n%s", configData)

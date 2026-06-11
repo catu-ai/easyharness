@@ -110,6 +110,15 @@ func SchemaRegistry() []SchemaEntry {
 			Type:        reflect.TypeFor[ReviewAggregateResult](),
 		},
 		{
+			Key:         "commands.review.dimensions.list.result",
+			Group:       "command_results",
+			Path:        "schema/commands/review.dimensions.list.result.schema.json",
+			Title:       "Review dimensions list command result",
+			Description: "JSON output for `harness review dimensions list`.",
+			Shape:       "output",
+			Type:        reflect.TypeFor[ReviewDimensionsListResult](),
+		},
+		{
 			Key:         "commands.evidence.submit.result",
 			Group:       "command_results",
 			Path:        "schema/commands/evidence.submit.result.schema.json",

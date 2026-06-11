@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/dashboard"
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/install"
@@ -22,6 +23,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/remote"
 	"github.com/catu-ai/easyharness/internal/repoconfig"
 	"github.com/catu-ai/easyharness/internal/review"
+	"github.com/catu-ai/easyharness/internal/reviewdimensions"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/status"
 	"github.com/catu-ai/easyharness/internal/ui"
@@ -144,12 +146,34 @@ func (a *App) runReview(args []string) int {
 		return a.runReviewSubmit(args[1:])
 	case "aggregate":
 		return a.runReviewAggregate(args[1:])
+	case "dimensions":
+		return a.runReviewDimensions(args[1:])
 	case "-h", "--help", "help":
 		a.printReviewUsage()
 		return 0
 	default:
 		fmt.Fprintf(a.Stderr, "unknown review subcommand %q\n\n", args[0])
 		a.printReviewUsage()
+		return 2
+	}
+}
+
+func (a *App) runReviewDimensions(args []string) int {
+	if len(args) == 0 {
+		a.printReviewDimensionsUsage()
+		return 2
+	}
+	switch args[0] {
+	case "list":
+		return a.runReviewDimensionsList(args[1:])
+	case "instructions":
+		return a.runReviewDimensionsInstructions(args[1:])
+	case "-h", "--help", "help":
+		a.printReviewDimensionsUsage()
+		return 0
+	default:
+		fmt.Fprintf(a.Stderr, "unknown review dimensions subcommand %q\n\n", args[0])
+		a.printReviewDimensionsUsage()
 		return 2
 	}
 }
@@ -1156,6 +1180,74 @@ func (a *App) runReviewAggregate(args []string) int {
 	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
+func (a *App) runReviewDimensionsList(args []string) int {
+	fs := flag.NewFlagSet("harness review dimensions list", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness review dimensions list")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Print controller-facing review dimension metadata as JSON.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	result := reviewdimensions.Service{Workdir: workdir}.List()
+	return a.writeJSONResult(result)
+}
+
+func (a *App) runReviewDimensionsInstructions(args []string) int {
+	fs := flag.NewFlagSet("harness review dimensions instructions", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness review dimensions instructions <name>")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Print the raw Markdown instructions for one review dimension.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 1 {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	instructions, warnings, issues := reviewdimensions.Service{Workdir: workdir}.Instructions(fs.Arg(0))
+	for _, warning := range warnings {
+		fmt.Fprintln(a.Stderr, warning)
+	}
+	if len(issues) > 0 {
+		for _, issue := range issues {
+			if strings.TrimSpace(issue.Path) != "" {
+				fmt.Fprintf(a.Stderr, "%s: %s\n", issue.Path, issue.Message)
+			} else {
+				fmt.Fprintln(a.Stderr, issue.Message)
+			}
+		}
+		return 1
+	}
+	fmt.Fprintln(a.Stdout, instructions)
+	return 0
+}
+
 func (a *App) runExecuteStart(args []string) int {
 	fs := flag.NewFlagSet("harness execute start", flag.ContinueOnError)
 	fs.SetOutput(a.Stderr)
@@ -1325,6 +1417,7 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "  review start    Create a deterministic review round")
 	fmt.Fprintln(a.Stderr, "  review submit   Record one reviewer submission")
 	fmt.Fprintln(a.Stderr, "  review aggregate Aggregate reviewer submissions")
+	fmt.Fprintln(a.Stderr, "  review dimensions List and read recommended review dimensions")
 	fmt.Fprintln(a.Stderr, "  land            Record merge confirmation and start required post-merge bookkeeping")
 	fmt.Fprintln(a.Stderr, "  land complete   Record required post-merge bookkeeping completion")
 	fmt.Fprintln(a.Stderr, "  archive         Freeze the current active plan")
@@ -1351,6 +1444,15 @@ func (a *App) printReviewUsage() {
 	fmt.Fprintln(a.Stderr, "  start      Create a deterministic review round")
 	fmt.Fprintln(a.Stderr, "  submit     Record one reviewer submission")
 	fmt.Fprintln(a.Stderr, "  aggregate  Aggregate reviewer submissions")
+	fmt.Fprintln(a.Stderr, "  dimensions List and read recommended review dimensions")
+}
+
+func (a *App) printReviewDimensionsUsage() {
+	fmt.Fprintln(a.Stderr, "Usage: harness review dimensions <subcommand> [flags]")
+	fmt.Fprintln(a.Stderr)
+	fmt.Fprintln(a.Stderr, "Subcommands:")
+	fmt.Fprintln(a.Stderr, "  list          Print controller-facing dimension metadata")
+	fmt.Fprintln(a.Stderr, "  instructions  Print raw Markdown instructions for one dimension")
 }
 
 func (a *App) printExecuteUsage() {
@@ -1477,6 +1579,10 @@ func (a *App) writeJSONResult(value any) int {
 			return 0
 		}
 	case review.AggregateResult:
+		if result.OK {
+			return 0
+		}
+	case contracts.ReviewDimensionsListResult:
 		if result.OK {
 			return 0
 		}

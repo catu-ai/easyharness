@@ -110,14 +110,14 @@ type ReviewRoundView struct {
 // ReviewSlotView is one reviewer-centric view of a surfaced reviewer slot plus
 // any submission that was returned for that slot.
 type ReviewSlotView struct {
-	// Name is the human-readable dimension label.
+	// Name is the review dimension name.
 	Name string `json:"name,omitempty"`
 
 	// Slot is the stable reviewer slot identifier.
 	Slot string `json:"slot"`
 
-	// Instructions is the reviewer prompt for this slot when it is available in
-	// surfaced review data.
+	// Instructions is the explicit reviewer handoff for this slot when it is
+	// available in surfaced review data.
 	Instructions string `json:"instructions,omitempty"`
 
 	// Status is the current submission status label for the slot.

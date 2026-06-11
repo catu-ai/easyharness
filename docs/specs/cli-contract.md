@@ -29,6 +29,7 @@ The current command surface is:
 
 - `harness plan template`
 - `harness plan lint`
+- `harness plan approve`
 - `harness repo init`
 - `harness repo skills install`
 - `harness repo skills uninstall`
@@ -47,6 +48,8 @@ The current command surface is:
 - `harness review start`
 - `harness review submit`
 - `harness review aggregate`
+- `harness review dimensions list`
+- `harness review dimensions instructions <name>`
 - `harness archive`
 - `harness reopen --mode <finalize-fix|new-step>`
 - `harness land --pr <url> [--commit <sha>]`
@@ -649,15 +652,19 @@ Canonical input shape:
   "dimensions": [
     {
       "name": "correctness",
-      "instructions": "Look for state-machine mistakes, stale-state bugs, and missing negative-path tests."
+      "instructions": "Run `harness review dimensions instructions correctness` and follow the returned Markdown instruction."
     },
     {
-      "name": "agent_ux",
-      "instructions": "Check whether command output is concise and helpful for another agent resuming work."
+      "name": "agent-ux",
+      "instructions": "Run `harness review dimensions instructions agent-ux` and follow the returned Markdown instruction."
     },
     {
-      "name": "docs_consistency",
-      "instructions": "Verify the implementation still matches the tracked schema and CLI docs for this slice."
+      "name": "docs-consistency",
+      "instructions": "Run `harness review dimensions instructions docs-consistency` and follow the returned Markdown instruction."
+    },
+    {
+      "name": "migration-compat",
+      "instructions": "Review migration compatibility and old-path fallback behavior for this change."
     }
   ]
 }
@@ -680,6 +687,13 @@ Review-spec semantics:
 - `dimensions`
   - required
   - one reviewer slot per normalized dimension
+  - catalog-managed dimensions use stable names made from lowercase
+    alphanumeric segments separated by single hyphens; for those dimensions the
+    name and slot identifier are the same
+  - `instructions` is still explicit review-start handoff text; for
+    catalog-managed dimensions it should usually be a command to fetch the full
+    instruction, while one-off dimensions are first-class review slots and may
+    carry direct reviewer guidance
 - `anchor_sha`
   - optional for `full`
   - required for `delta`
@@ -704,6 +718,13 @@ Review-spec semantics:
 Agents should not supply structural workflow tags such as `step_closeout` or
 `pre_archive`. The CLI owns that inference and persists the bound step or
 finalize scope in stored round metadata and local state.
+
+`harness review start` does not resolve dimension references, does not
+automatically inject built-in or repo-defined dimensions, and does not force a
+controller to use every recommended dimension. Controllers remain responsible
+for choosing dimensions and passing an explicit review spec. The catalog is a
+source of reusable recommended dimensions, not a closed enum; controllers may
+create one-off dimensions with explicit instructions for a particular round.
 
 Explicit `step` binding intentionally re-enters the targeted step's review
 loop. If the controller is already executing `step-k` or finalize work and
@@ -732,15 +753,92 @@ the repaired step as current until that step-closeout debt is resolved by a
 later clean repair review or explicit `NO_STEP_REVIEW_NEEDED` closeout.
 
 Dimension-specific reviewer instructions belong in the input review spec.
-Generic reviewer behavior, such as "inspect the current diff and submit results
-through the harness contract," belongs in the reviewer skill or in command
-output helpers, not duplicated in every review spec.
+For catalog-managed dimensions, the spec should usually hand reviewers a
+`harness review dimensions instructions <name>` command instead of embedding the
+full instruction body. For one-off review slots that are not in the catalog,
+the spec may carry explicit reviewer guidance directly. Generic reviewer
+behavior, such as "inspect the current diff and submit results through the
+harness contract," belongs in the reviewer skill or in command output helpers,
+not duplicated in every review spec.
 
 Recommended next action:
 
 - launch reviewer subagents using the runtime's native delegation mechanism
   and have each subagent use the reviewer skill or reviewer prompt that owns
-  submission details
+  submission details.
+
+### `harness review dimensions list`
+
+Purpose:
+
+- show controller agents the recommended review dimensions available for the
+  current repository without loading long reviewer instructions into the
+  controller context
+
+Contract:
+
+- discover built-in dimensions and repo-defined dimensions
+- discover repo dimensions from the root resolved by
+  `harness repo config get paths.review.dimensions`, defaulting to
+  `.harness/review/dimensions`
+- repo dimensions are Markdown files with YAML frontmatter containing exactly
+  `name` and `description`, followed by the full reviewer instruction body;
+  additional frontmatter fields are invalid
+- dimension names are stable skill-like identifiers made from lowercase
+  alphanumeric segments separated by single hyphens
+- repo dimensions override built-in dimensions with the same name
+- duplicate repo dimension names are invalid
+- return compact JSON metadata only; do not include full instruction bodies
+
+The built-in dimensions are:
+
+- `correctness`
+- `tests`
+- `docs-consistency`
+- `agent-ux`
+- `risk-scan`
+
+Canonical output shape:
+
+```json
+{
+  "ok": true,
+  "command": "review dimensions list",
+  "summary": "Found 5 review dimensions.",
+  "dimensions": [
+    {
+      "name": "correctness",
+      "source": "builtin",
+      "description": "Use when reviewing implementation logic, workflow state transitions, command contracts, or negative-path behavior."
+    }
+  ]
+}
+```
+
+`source` is limited to:
+
+- `builtin`: packaged easyharness dimension
+- `repo`: dimension defined by the current repository
+
+### `harness review dimensions instructions <name>`
+
+Purpose:
+
+- let reviewer agents fetch the full Markdown instruction for their assigned
+  dimension without JSON escaping noise
+
+Contract:
+
+- accept one stable dimension name
+- resolve the same built-in plus repo-overridden catalog used by
+  `harness review dimensions list`
+- print only the raw Markdown instruction body on success
+- print clear errors and exit non-zero when the name is invalid, unknown, or
+  the repo dimension catalog is invalid
+
+This command intentionally does not return JSON on success. Reviewers should
+read the raw Markdown and then submit through the existing
+`harness review submit` flow.
 
 ### `harness review submit`
 

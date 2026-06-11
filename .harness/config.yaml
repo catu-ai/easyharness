@@ -6,3 +6,5 @@ version: 1
 #     active: docs/plans/active
 #     archived: docs/plans/archived
 #   local_runtime: .local/harness
+#   review:
+#     dimensions: .harness/review/dimensions

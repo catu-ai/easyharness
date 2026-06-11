@@ -660,6 +660,7 @@ func TestRepoConfigListPrintsResolvedEntries(t *testing.T) {
 		"paths.plans.active=docs/plans/active",
 		"paths.plans.archived=docs/plans/archived",
 		"paths.local_runtime=.local/harness",
+		"paths.review.dimensions=.harness/review/dimensions",
 		"",
 	}, "\n")
 	if got := stdout.String(); got != want {
@@ -709,6 +710,7 @@ paths:
 		"paths.plans.active=workflow/plans/open",
 		"paths.plans.archived=docs/plans/archived",
 		"paths.local_runtime=tmp/harness-runtime",
+		"paths.review.dimensions=.harness/review/dimensions",
 		"",
 	}, "\n")
 	if got := stdout.String(); got != want {
@@ -735,6 +737,7 @@ func TestRepoConfigListWarnsAndUsesDefaultsForInvalidConfig(t *testing.T) {
 		"paths.plans.active=docs/plans/active",
 		"paths.plans.archived=docs/plans/archived",
 		"paths.local_runtime=.local/harness",
+		"paths.review.dimensions=.harness/review/dimensions",
 		"",
 	}, "\n")
 	if got := stdout.String(); got != want {
@@ -1996,6 +1999,102 @@ func TestReviewCommandsTouchWatchlist(t *testing.T) {
 	assertWatchlistContainsWorkspace(t, home, root)
 }
 
+func TestReviewDimensionsListPrintsCatalogMetadata(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	writeCLITestFile(t, filepath.Join(root, ".harness/review/dimensions/api-contract.md"), `---
+name: api-contract
+description: Use when checking API contracts.
+---
+
+Check the public contract.
+`)
+
+	exitCode := app.Run([]string{"review", "dimensions", "list"})
+	if exitCode != 0 {
+		t.Fatalf("review dimensions list failed with %d: %s", exitCode, stderr.String())
+	}
+	var payload struct {
+		OK         bool   `json:"ok"`
+		Command    string `json:"command"`
+		Dimensions []struct {
+			Name         string `json:"name"`
+			Source       string `json:"source"`
+			Description  string `json:"description"`
+			Instructions string `json:"instructions"`
+		} `json:"dimensions"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON list output: %v\n%s", err, stdout.String())
+	}
+	if !payload.OK || payload.Command != "review dimensions list" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+	seen := map[string]string{}
+	for _, dimension := range payload.Dimensions {
+		seen[dimension.Name] = dimension.Source
+		if dimension.Instructions != "" {
+			t.Fatalf("list should not include instructions, got %#v", dimension)
+		}
+		if strings.TrimSpace(dimension.Description) == "" {
+			t.Fatalf("dimension has empty description: %#v", dimension)
+		}
+	}
+	if seen["correctness"] != "builtin" || seen["api-contract"] != "repo" {
+		t.Fatalf("expected builtin and repo dimensions, got %#v", payload.Dimensions)
+	}
+}
+
+func TestReviewDimensionsInstructionsPrintsRawMarkdown(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	writeCLITestFile(t, filepath.Join(root, ".harness/review/dimensions/api-contract.md"), `---
+name: api-contract
+description: Use when checking API contracts.
+---
+
+# API Contract
+
+Check the public contract.
+`)
+
+	exitCode := app.Run([]string{"review", "dimensions", "instructions", "api-contract"})
+	if exitCode != 0 {
+		t.Fatalf("review dimensions instructions failed with %d: %s", exitCode, stderr.String())
+	}
+	if got, want := stdout.String(), "# API Contract\n\nCheck the public contract.\n"; got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr, got %q", stderr.String())
+	}
+}
+
+func TestReviewDimensionsInstructionsRejectsUnknownDimension(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+
+	exitCode := app.Run([]string{"review", "dimensions", "instructions", "missing"})
+	if exitCode == 0 {
+		t.Fatalf("expected failure, got stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout, got %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), `unknown review dimension "missing"`) {
+		t.Fatalf("unexpected stderr: %q", stderr.String())
+	}
+}
+
 func TestReviewAggregateIgnoresWatchlistWriteFailure(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
@@ -3079,6 +3178,16 @@ func writeCLIRepoConfig(t *testing.T, root, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write repo config: %v", err)
+	}
+}
+
+func writeCLITestFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir test file dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write test file: %v", err)
 	}
 }
 

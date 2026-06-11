@@ -313,7 +313,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "Name is the human-readable dimension label."
+          "description": "Name is the review dimension name."
         },
         "slot": {
           "type": "string",
@@ -321,7 +321,7 @@
         },
         "instructions": {
           "type": "string",
-          "description": "Instructions is the reviewer prompt for this slot when it is available in surfaced review data."
+          "description": "Instructions is the explicit reviewer handoff for this slot when it is available in surfaced review data."
         },
         "status": {
           "type": "string",

@@ -173,6 +173,16 @@
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewAggregateResult"
     },
     {
+      "key": "commands.review.dimensions.list.result",
+      "group": "command_results",
+      "surface": "public",
+      "title": "Review dimensions list command result",
+      "description": "JSON output for `harness review dimensions list`.",
+      "path": "schema/commands/review.dimensions.list.result.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/review.dimensions.list.result.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewDimensionsListResult"
+    },
+    {
       "key": "commands.review.start.result",
       "group": "command_results",
       "surface": "public",
