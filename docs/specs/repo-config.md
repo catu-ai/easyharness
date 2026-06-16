@@ -177,6 +177,25 @@ prints the same shape filtered to the `paths` prefix.
 These query commands are intentionally plain-text and script-friendly. This
 version does not define JSON output, source metadata, or config mutation.
 
+## Agent Help
+
+Agents can read the installed binary's repo config customization guide with:
+
+```bash
+harness help repo config
+```
+
+That help topic is the agent-facing entrypoint for customer repository
+customization. The intended interaction is that a human asks for an outcome,
+the agent reads the help topic when the config shape is unclear, edits
+`.harness/config.yaml`, verifies the effective values with
+`harness repo config get` or `harness repo config list`, and reports the result
+back to the human.
+
+The help topic is deliberately not installed into the managed `AGENTS.md`
+block or skill pack. It is low-frequency product guidance exposed on demand by
+the binary.
+
 ## Future Fields
 
 Future customization fields should keep `.harness/config.yaml` as a manifest

@@ -142,6 +142,8 @@ The current v0.2 harness surface centers on a few core ideas:
 - command-owned runtime state, reviews, and evidence live under the local
   runtime root resolved with `harness repo config get paths.local_runtime`
 - the CLI reports one canonical `state.current_node`
+- agents can use `harness help <topic>` for on-demand product guidance that
+  does not belong in always-loaded repo instructions or skills
 - `harness dashboard` is the built-in machine-local home for watched workspaces
 - `harness ui` opens the current repository in that same dashboard-owned UI family
 - agents use repo-local skills instead of reconstructing workflow from shell
@@ -165,6 +167,7 @@ The root CLI currently ships:
 - `harness evidence submit`
 - `harness evidence refresh`
 - `harness status`
+- `harness help [topic ...]`
 - `harness dashboard`
 - `harness ui`
 - `harness review start`

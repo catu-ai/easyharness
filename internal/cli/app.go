@@ -17,6 +17,7 @@ import (
 	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/dashboard"
 	"github.com/catu-ai/easyharness/internal/evidence"
+	"github.com/catu-ai/easyharness/internal/helptopics"
 	"github.com/catu-ai/easyharness/internal/install"
 	"github.com/catu-ai/easyharness/internal/lifecycle"
 	"github.com/catu-ai/easyharness/internal/plan"
@@ -94,7 +95,9 @@ func (a *App) Run(args []string) int {
 		return a.runDashboard(args[1:])
 	case "ui":
 		return a.runUI(args[1:])
-	case "-h", "--help", "help":
+	case "help":
+		return a.runHelp(args[1:])
+	case "-h", "--help":
 		a.printRootUsage()
 		return 0
 	default:
@@ -102,6 +105,19 @@ func (a *App) Run(args []string) int {
 		a.printRootUsage()
 		return 2
 	}
+}
+
+func (a *App) runHelp(args []string) int {
+	if err := helptopics.Render(a.Stdout, args); err != nil {
+		var unknown helptopics.UnknownTopicError
+		if errors.As(err, &unknown) {
+			helptopics.WriteUnknown(a.Stderr, unknown)
+			return 2
+		}
+		fmt.Fprintf(a.Stderr, "%v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func (a *App) runVersion(args []string) int {
@@ -1424,6 +1440,7 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "  reopen          Restore the current archived plan")
 	fmt.Fprintln(a.Stderr, "  status          Summarize the current plan and local execution state")
 	fmt.Fprintln(a.Stderr, "  repo            Manage repo-level easyharness resources")
+	fmt.Fprintln(a.Stderr, "  help            Read agent-facing product guidance topics")
 	fmt.Fprintln(a.Stderr, "  dashboard       Start the local machine-local dashboard home")
 	fmt.Fprintln(a.Stderr, "  ui              Start the local read-only harness UI workbench")
 }
@@ -1478,6 +1495,9 @@ func (a *App) printRepoUsage() {
 	fmt.Fprintln(a.Stderr, "  skills        Manage easyharness-managed skill packages")
 	fmt.Fprintln(a.Stderr, "  instructions  Manage easyharness instruction files and managed blocks")
 	fmt.Fprintln(a.Stderr, "  config        Manage the .harness/config.yaml manifest")
+	fmt.Fprintln(a.Stderr)
+	fmt.Fprintln(a.Stderr, "See also:")
+	fmt.Fprintln(a.Stderr, "  harness help repo config")
 }
 
 func (a *App) printRepoSkillsUsage() {
@@ -1504,6 +1524,9 @@ func (a *App) printRepoConfigUsage() {
 	fmt.Fprintln(a.Stderr, "  refresh    Refresh .harness/config.yaml to the current canonical shape")
 	fmt.Fprintln(a.Stderr, "  get        Print one resolved scalar repo config value")
 	fmt.Fprintln(a.Stderr, "  list       Print resolved repo config leaf entries")
+	fmt.Fprintln(a.Stderr)
+	fmt.Fprintln(a.Stderr, "See also:")
+	fmt.Fprintln(a.Stderr, "  harness help repo config")
 }
 
 func (a *App) printLandUsage() {
