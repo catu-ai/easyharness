@@ -65,37 +65,37 @@ the human who asked for the customization.
 
 ## Acceptance Criteria
 
-- [ ] `harness help` exits successfully and prints a plain-text topic index
+- [x] `harness help` exits successfully and prints a plain-text topic index
       that includes `repo`.
-- [ ] `harness help repo` exits successfully, prints any repo parent topic
+- [x] `harness help repo` exits successfully, prints any repo parent topic
       body, and includes a generated "Available subtopics" section containing
       `config`.
-- [ ] `harness help repo config` exits successfully and prints a plain-text
+- [x] `harness help repo config` exits successfully and prints a plain-text
       agent guide for repo config customization.
-- [ ] Help topic output is not JSON and does not expose Markdown examples
+- [x] Help topic output is not JSON and does not expose Markdown examples
       through escaped JSON strings.
-- [ ] Long-form help bodies are sourced from packaged assets under a dedicated
+- [x] Long-form help bodies are sourced from packaged assets under a dedicated
       help asset tree, separate from `assets/bootstrap/`.
-- [ ] The program-owned help registry defines topic IDs, summaries, asset
+- [x] The program-owned help registry defines topic IDs, summaries, asset
       bindings, and parent/child relationships.
-- [ ] Every non-leaf help topic prints immediate subtopics from the registry;
+- [x] Every non-leaf help topic prints immediate subtopics from the registry;
       Markdown help assets do not manually list available subtopics.
-- [ ] Unknown help topics fail clearly with a non-zero exit code and show the
+- [x] Unknown help topics fail clearly with a non-zero exit code and show the
       nearest useful available topics.
-- [ ] `harness repo --help` and `harness repo config --help` remain command
+- [x] `harness repo --help` and `harness repo config --help` remain command
       syntax help and include a concise see-also pointer to
       `harness help repo config`.
-- [ ] The repo config help topic tells agents that humans express intent,
+- [x] The repo config help topic tells agents that humans express intent,
       agents read help/config guidance, agents edit `.harness/config.yaml`,
       and agents report the effective result back to the human.
-- [ ] The repo config help topic covers supported v1 fields,
+- [x] The repo config help topic covers supported v1 fields,
       `harness repo config get/list` verification, path safety constraints,
       invalid-config fallback/warning behavior, and repo review dimension file
       placement at a useful high level.
-- [ ] Tests cover root help, parent help with generated subtopics, leaf topic
+- [x] Tests cover root help, parent help with generated subtopics, leaf topic
       rendering, unknown topic errors, asset-backed body loading, and see-also
       text in relevant command help.
-- [ ] A follow-up GitHub issue exists for the broader `harness help` topic
+- [x] A follow-up GitHub issue exists for the broader `harness help` topic
       system, including topic coverage policy and deeper `--help` integration,
       and is recorded in this plan before archive.
 
@@ -381,25 +381,84 @@ issue; no repository behavior changes are introduced by this step.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+Passed:
+
+- `harness plan lint docs/plans/active/2026-06-16-cli-help-repo-config-topic.md`
+- `go test -count=1 ./internal/cli ./internal/helptopics ./internal/repoconfig`
+- `go test -count=1 ./internal/cli ./internal/helptopics ./internal/repoconfig ./internal/reviewdimensions`
+- `go test -count=1 ./tests/smoke -run TestHelpShowsTopLevelUsage`
+- `scripts/install-dev-harness`
+- manual probes for `harness help`, `harness help repo`,
+  `harness help repo config`, `harness help --help`, `harness help -h`,
+  `harness help repo missing`, `harness help repo config missing`,
+  `harness repo --help`, and `harness repo config --help`
+
+A broader `go test ./...` run was attempted during execution. It passed
+through core packages, e2e, and resilience output, then was interrupted after
+the smoke package stayed quiet for several minutes. No assertion failure was
+observed before the interrupt, but this candidate does not claim a clean full
+suite pass.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Step-closeout review `review-001-delta` found one duplicated important issue:
+`harness help --help` and `harness help -h` were treated as unknown topics
+instead of command syntax help. The repair added syntax-help handling and
+regression coverage. Follow-up `review-002-delta` passed with one minor
+evidence wording note, which was corrected in the plan.
+
+Finalize review `review-003-full` found one important issue: unknown help
+topics below a leaf did not show the documented recovery topics. It also found
+one minor root-help coverage gap. The repair added leaf-child recovery fallback
+to root topics plus root-help discoverability assertions. Follow-up
+`review-004-full` passed with no findings across correctness, tests,
+docs-consistency, agent-UX, and risk-scan.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: to be opened for branch `codex/cli-help-repo-config-topic` after
+  archive.
+- Ready: yes; all tracked steps are complete, archive blockers are addressed,
+  focused validation passed, and finalize review `review-004-full` passed with
+  no findings.
+- Merge Handoff: after archive, commit the archive move and summary updates,
+  push the branch, open a PR, record publish evidence, refresh CI/sync
+  evidence, and wait for `harness status` to reach
+  `execution/finalize/await_merge` before asking for explicit human merge
+  approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added a minimal plain-text `harness help` topic surface with root topic
+  index, `repo` parent topic, and `repo config` customization guide.
+- Added packaged help assets under `assets/help/`, separate from bootstrap
+  install assets.
+- Added a program-owned help topic registry and renderer that owns topic paths,
+  summaries, asset bindings, parent/child relationships, and generated
+  subtopic listings for non-leaf topics.
+- Added CLI routing and syntax help behavior for `harness help`, including
+  `harness help --help` and `harness help -h`.
+- Added concise see-also pointers from `harness repo --help` and
+  `harness repo config --help` to `harness help repo config`.
+- Updated README, CLI contract, and repo config spec to document the
+  concept-oriented help topic boundary without implying that every command
+  needs a matching long-form topic.
+- Added focused tests for topic rendering, asset-backed bodies, generated
+  subtopic lists, unknown-topic recovery, command syntax help, root-help
+  discoverability, and repo/config see-also pointers.
+- Created follow-up issue https://github.com/catu-ai/easyharness/issues/254
+  for the broader help topic system and coverage policy.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- A broad `harness help` taxonomy for every command was intentionally not
+  delivered.
+- Command `--help` output was not made equivalent to topic help.
+- No JSON or schema contract was added for help topic output.
+- No repo config mutation command, config lint command, or new repo config
+  field was added.
 
 ### Follow-Up Issues
 
