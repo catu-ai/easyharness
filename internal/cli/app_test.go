@@ -344,6 +344,33 @@ func TestHelpRootListsTopicsAsPlainText(t *testing.T) {
 	}
 }
 
+func TestHelpCommandHelpExitsZero(t *testing.T) {
+	for _, args := range [][]string{
+		{"help", "--help"},
+		{"help", "-h"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			stdout := new(bytes.Buffer)
+			stderr := new(bytes.Buffer)
+			app := cli.New(stdout, stderr)
+
+			exitCode := app.Run(args)
+			if exitCode != 0 {
+				t.Fatalf("expected help usage exit code 0, got %d", exitCode)
+			}
+			if !strings.Contains(stderr.String(), "Usage: harness help [topic ...]") {
+				t.Fatalf("expected help command usage, got %q", stderr.String())
+			}
+			if !strings.Contains(stderr.String(), "Available topics:") {
+				t.Fatalf("expected topic discovery hint, got %q", stderr.String())
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("expected no stdout for syntax help, got %q", stdout.String())
+			}
+		})
+	}
+}
+
 func TestHelpParentPrintsGeneratedSubtopics(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)

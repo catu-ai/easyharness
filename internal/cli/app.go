@@ -108,6 +108,13 @@ func (a *App) Run(args []string) int {
 }
 
 func (a *App) runHelp(args []string) int {
+	if len(args) == 1 {
+		switch args[0] {
+		case "-h", "--help", "help":
+			a.printHelpUsage()
+			return 0
+		}
+	}
 	if err := helptopics.Render(a.Stdout, args); err != nil {
 		var unknown helptopics.UnknownTopicError
 		if errors.As(err, &unknown) {
@@ -1443,6 +1450,14 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "  help            Read agent-facing product guidance topics")
 	fmt.Fprintln(a.Stderr, "  dashboard       Start the local machine-local dashboard home")
 	fmt.Fprintln(a.Stderr, "  ui              Start the local read-only harness UI workbench")
+}
+
+func (a *App) printHelpUsage() {
+	fmt.Fprintln(a.Stderr, "Usage: harness help [topic ...]")
+	fmt.Fprintln(a.Stderr)
+	fmt.Fprintln(a.Stderr, "Print plain-text agent-facing product guidance topics.")
+	fmt.Fprintln(a.Stderr)
+	helptopics.Render(a.Stderr, nil)
 }
 
 func (a *App) printPlanUsage() {

@@ -218,7 +218,15 @@ observed before the interrupt.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Delta review `review-001-delta` found one duplicated important issue across
+`correctness` and `docs-consistency`: `harness help --help` and
+`harness help -h` were routed as unknown help topics instead of command syntax
+help. Added regression coverage for both forms, implemented `printHelpUsage`,
+and verified the repaired behavior with `go test -count=1 ./internal/cli
+./internal/helptopics ./internal/repoconfig`, `go test ./tests/smoke -run
+TestHelpShowsTopLevelUsage -count=1`, `scripts/install-dev-harness`, and
+manual probes for `harness help --help`, `harness help -h`, and
+`harness help repo config`. Follow-up delta review is pending.
 
 ### Step 3: Write repo config agent guidance and see-also pointers
 
@@ -283,7 +291,7 @@ change remains pending Step 2 closeout review.
 
 ### Step 4: Track the broader help-system follow-up
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -317,11 +325,17 @@ Record the issue URL in the plan before archive.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Created follow-up issue https://github.com/catu-ai/easyharness/issues/254
+for the broader `harness help` topic system, including topic coverage policy,
+command `--help` integration, alias/equivalence decisions, and whether any
+topic content should be generated from specs. Labeled it `enhancement` and
+`state/accepted`, then added the required triage rationale comment explaining
+why it stays outside this minimal repo-config help slice.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 4 only creates and records the deferred follow-up
+issue; no repository behavior changes are introduced by this step.
 
 ## Validation Strategy
 
@@ -375,4 +389,4 @@ PENDING_UNTIL_ARCHIVE
 
 ### Follow-Up Issues
 
-PENDING_UNTIL_ARCHIVE
+- https://github.com/catu-ai/easyharness/issues/254
