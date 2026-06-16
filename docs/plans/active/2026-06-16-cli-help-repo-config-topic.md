@@ -223,10 +223,13 @@ Delta review `review-001-delta` found one duplicated important issue across
 `harness help -h` were routed as unknown help topics instead of command syntax
 help. Added regression coverage for both forms, implemented `printHelpUsage`,
 and verified the repaired behavior with `go test -count=1 ./internal/cli
-./internal/helptopics ./internal/repoconfig`, `go test ./tests/smoke -run
-TestHelpShowsTopLevelUsage -count=1`, `scripts/install-dev-harness`, and
-manual probes for `harness help --help`, `harness help -h`, and
-`harness help repo config`. Follow-up delta review is pending.
+./internal/helptopics ./internal/repoconfig`, `scripts/install-dev-harness`,
+and manual probes for `harness help --help`, `harness help -h`, and
+`harness help repo config`. `go test ./tests/smoke -run
+TestHelpShowsTopLevelUsage -count=1` also passed, but only covers the existing
+root help smoke path rather than the repaired help-subcommand flags.
+Follow-up delta review `review-002-delta` passed with one non-blocking tests
+finding about this smoke-evidence wording, which this note corrects.
 
 ### Step 3: Write repo config agent guidance and see-also pointers
 
