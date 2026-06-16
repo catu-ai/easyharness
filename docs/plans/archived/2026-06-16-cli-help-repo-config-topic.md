@@ -416,6 +416,8 @@ docs-consistency, agent-UX, and risk-scan.
 
 ## Archive Summary
 
+- Archived At: 2026-06-16T23:51:59+08:00
+- Revision: 1
 - PR: to be opened for branch `codex/cli-help-repo-config-topic` after
   archive.
 - Ready: yes; all tracked steps are complete, archive blockers are addressed,
