@@ -48,3 +48,25 @@ func TestUnknownTopicReportsNearestSubtopics(t *testing.T) {
 		t.Fatalf("unexpected subtopics: %#v", unknown.Subtopics)
 	}
 }
+
+func TestUnknownLeafChildFallsBackToRootTopics(t *testing.T) {
+	var out bytes.Buffer
+	err := Render(&out, []string{"repo", "config", "missing"})
+	if err == nil {
+		t.Fatalf("expected unknown topic error")
+	}
+
+	var unknown UnknownTopicError
+	if !errors.As(err, &unknown) {
+		t.Fatalf("expected UnknownTopicError, got %T %[1]v", err)
+	}
+	if got := strings.Join(unknown.Nearest, " "); got != "repo config" {
+		t.Fatalf("nearest = %q, want repo config", got)
+	}
+	if !unknown.RootFallback {
+		t.Fatalf("expected root fallback for leaf child")
+	}
+	if len(unknown.Subtopics) != 1 || strings.Join(unknown.Subtopics[0].Path, " ") != "repo" {
+		t.Fatalf("unexpected fallback topics: %#v", unknown.Subtopics)
+	}
+}

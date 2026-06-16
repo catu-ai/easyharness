@@ -313,6 +313,9 @@ func TestRootHelpMentionsVersionFlag(t *testing.T) {
 	if !strings.Contains(stderr.String(), "repo            Manage repo-level easyharness resources") {
 		t.Fatalf("expected root help to mention repo, got %q", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "help            Read agent-facing product guidance topics") {
+		t.Fatalf("expected root help to mention help topics, got %q", stderr.String())
+	}
 	if !strings.Contains(stderr.String(), "dashboard       Start the local machine-local dashboard home") {
 		t.Fatalf("expected root help to mention dashboard, got %q", stderr.String())
 	}
@@ -440,6 +443,26 @@ func TestHelpUnknownTopicShowsNearestAvailableTopics(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "Available subtopics:") || !strings.Contains(stderr.String(), "config") {
 		t.Fatalf("expected nearest subtopic recovery, got %q", stderr.String())
+	}
+}
+
+func TestHelpUnknownLeafChildShowsNearestAvailableTopics(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"help", "repo", "config", "missing"})
+	if exitCode == 0 {
+		t.Fatalf("expected unknown topic to fail, got stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout for unknown topic, got %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), `unknown help topic "repo config missing"`) {
+		t.Fatalf("expected unknown topic message, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "Available topics:") || !strings.Contains(stderr.String(), "repo") {
+		t.Fatalf("expected nearest useful topics, got %q", stderr.String())
 	}
 }
 

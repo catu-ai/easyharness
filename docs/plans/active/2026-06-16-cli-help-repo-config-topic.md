@@ -230,6 +230,17 @@ TestHelpShowsTopLevelUsage -count=1` also passed, but only covers the existing
 root help smoke path rather than the repaired help-subcommand flags.
 Follow-up delta review `review-002-delta` passed with one non-blocking tests
 finding about this smoke-evidence wording, which this note corrects.
+Finalize review `review-003-full` then found one important docs-consistency
+issue: unknown help topics below a leaf, such as
+`harness help repo config missing`, did not print useful available topics even
+though the contract promised nearest-topic recovery. It also found one minor
+tests issue: root-help tests did not pin the new top-level `help` command line.
+Added regression coverage for both cases, changed leaf-child unknown topics to
+fall back to the root topic list, and verified with `go test -count=1
+./internal/cli ./internal/helptopics ./internal/repoconfig`, `go test -count=1
+./tests/smoke -run TestHelpShowsTopLevelUsage`, `scripts/install-dev-harness`,
+and manual probes for `harness help repo config missing`, `harness --help`, and
+`harness help --help`. Follow-up finalize review is pending.
 
 ### Step 3: Write repo config agent guidance and see-also pointers
 

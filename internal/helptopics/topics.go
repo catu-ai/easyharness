@@ -33,9 +33,10 @@ type node struct {
 }
 
 type UnknownTopicError struct {
-	Path      []string
-	Nearest   []string
-	Subtopics []Topic
+	Path         []string
+	Nearest      []string
+	Subtopics    []Topic
+	RootFallback bool
 }
 
 func (e UnknownTopicError) Error() string {
@@ -49,10 +50,17 @@ func Render(w io.Writer, path []string) error {
 	for i, segment := range path {
 		next := current.children[segment]
 		if next == nil {
+			subtopics := childTopics(current)
+			rootFallback := false
+			if len(subtopics) == 0 {
+				subtopics = childTopics(root)
+				rootFallback = true
+			}
 			return UnknownTopicError{
-				Path:      path,
-				Nearest:   nearest,
-				Subtopics: childTopics(current),
+				Path:         path,
+				Nearest:      nearest,
+				Subtopics:    subtopics,
+				RootFallback: rootFallback,
 			}
 		}
 		current = next
@@ -88,7 +96,7 @@ func WriteUnknown(w io.Writer, err UnknownTopicError) {
 	if len(err.Subtopics) == 0 {
 		return
 	}
-	if len(err.Nearest) == 0 {
+	if len(err.Nearest) == 0 || err.RootFallback {
 		writeTopicList(w, "Available topics:", err.Subtopics)
 		return
 	}
