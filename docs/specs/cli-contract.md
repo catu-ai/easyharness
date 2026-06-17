@@ -95,8 +95,8 @@ start the local read-only UI server rather than returning a workflow-state
 JSON envelope.
 
 `harness help [topic ...]` is a plain-text exception because it renders
-agent-facing product guidance rather than workflow state. Help topic output is
-not JSON and is not a stable machine-readable contract.
+agent-facing product guidance rather than workflow state. Its topic contract
+lives in [Help Topics](./help.md).
 
 The bootstrap commands described in [Bootstrap Install](./bootstrap-install.md)
 are JSON-first, but they may omit workflow `state` because they manage
@@ -120,17 +120,9 @@ Every command must have complete `--help` text that explains:
 Skills may refer to `harness --help` or `harness <subcommand> --help`, but the
 CLI should remain understandable without repository-specific prompt text.
 
-`harness help` is separate from command syntax help. Command `--help` remains
-the surface for usage, flags, required inputs, and side effects. `harness help`
-topics are on-demand plain-text product guidance for narrower concepts that an
-agent may need to understand while working in a customer repository. Help
-topics are not required for every command.
-
-Long-form help topic bodies should live in packaged help assets rather than Go
-string literals. The program-owned help registry owns topic paths, one-line
-summaries, and parent/child relationships. Every non-leaf help topic must print
-an "Available subtopics" section generated from that registry; Markdown help
-assets must not duplicate subtopic lists.
+`harness help` is separate from command syntax help. The detailed topic
+contract, topic asset rules, and generated subtopic behavior live in
+[Help Topics](./help.md).
 
 ### Crash-Safe Runstate Writes
 
@@ -354,41 +346,6 @@ Recommended next action:
   to apply a previewed bootstrap change
 - open the target instructions file or skills directory to review the installed
   contract
-
-### `harness help [topic ...]`
-
-Purpose:
-
-- let agents discover low-frequency product guidance from the installed binary
-  without loading that guidance into managed `AGENTS.md` blocks or skills
-
-Contract:
-
-- `harness help` prints a plain-text topic index
-- `harness help <topic ...>` prints plain-text guidance for the selected topic
-- output is for agents and humans reading a terminal; it is not JSON and does
-  not define a schema
-- topic bodies come from packaged help assets
-- the program-owned help registry owns topic paths, summaries, asset bindings,
-  and parent/child relationships
-- every non-leaf topic prints immediate available subtopics generated from the
-  registry
-- unknown topics fail with a non-zero exit code and print the nearest useful
-  available topics
-- command `--help` output remains command syntax help; it may include concise
-  see-also pointers into `harness help` topics
-
-The initial help topic set is intentionally narrow:
-
-- `harness help repo`
-- `harness help repo config`
-
-Recommended next action:
-
-- when a human asks for repo customization and the exact config shape is
-  unclear, run `harness help repo config`, apply the requested customization,
-  verify effective values with `harness repo config get` or
-  `harness repo config list`, and summarize the result back to the human
 
 ### `harness dashboard`
 

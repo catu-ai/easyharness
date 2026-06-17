@@ -18,6 +18,9 @@
   field-extension rules.
 - [CLI Contract](./cli-contract.md): agent-facing command surface and JSON
   contract, including how the bootstrap commands fit into the overall CLI.
+- [Help Topics](./help.md): normative contract for plain-text
+  `harness help` topic guidance, including the command-help boundary,
+  asset-backed topic bodies, and generated subtopic discovery.
 - [Contract Registry](./contract.md): normative guide to the checked-in JSON
   Schema registry, its ownership model, the public-vs-runtime boundary, and
   what is intentionally not rendered as duplicated markdown.

@@ -192,9 +192,10 @@ the agent reads the help topic when the config shape is unclear, edits
 `harness repo config get` or `harness repo config list`, and reports the result
 back to the human.
 
-The help topic is deliberately not installed into the managed `AGENTS.md`
-block or skill pack. It is low-frequency product guidance exposed on demand by
-the binary.
+The low-frequency help topic body is deliberately not installed into the
+managed `AGENTS.md` block or skill pack. Managed instructions may point agents
+to `harness help`, but the detailed product guidance stays exposed on demand by
+the binary. The general help-topic rules live in [Help Topics](./help.md).
 
 ## Future Fields
 

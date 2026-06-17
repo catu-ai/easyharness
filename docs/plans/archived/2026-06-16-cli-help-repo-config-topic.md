@@ -43,8 +43,13 @@ the human who asked for the customization.
 - Ensure every non-leaf help topic prints its immediate available subtopics
   from the program-maintained registry instead of duplicating those lists in
   Markdown assets.
+- Keep the normative help topic contract in an independent help spec, with
+  the CLI and repo-config specs linking to that contract instead of duplicating
+  it.
 - Keep `--help` as command syntax help, with small see-also pointers from the
   relevant repo command help to `harness help repo config`.
+- Add a small managed `AGENTS.md` cue telling agents to use `harness help`
+  when easyharness product behavior or customization syntax is unclear.
 - Cover the minimal command behavior and asset-backed rendering with focused
   tests.
 - Create or update a follow-up GitHub issue before archive for the broader
@@ -58,7 +63,7 @@ the human who asked for the customization.
   `harness help repo`.
 - JSON output, schemas, or stable machine-readable contracts for help topics.
 - Putting repo config customization details into the managed `AGENTS.md` block
-  or managed skill pack.
+  or managed skill pack; the managed block only gets a discovery cue.
 - Teaching human maintainers to hand-write `.harness/config.yaml` directly as
   the primary interaction model.
 - Config mutation commands, config lint, or new repo config fields.
@@ -92,6 +97,11 @@ the human who asked for the customization.
       `harness repo config get/list` verification, path safety constraints,
       invalid-config fallback/warning behavior, and repo review dimension file
       placement at a useful high level.
+- [x] A standalone help spec owns the normative `harness help` topic contract,
+      while the CLI and repo-config specs link to it.
+- [x] The managed `AGENTS.md` block tells agents to use `harness help` for
+      unclear product behavior or customization syntax without copying help
+      topic content into the always-loaded agreement.
 - [x] Tests cover root help, parent help with generated subtopics, leaf topic
       rendering, unknown topic errors, asset-backed body loading, and see-also
       text in relevant command help.
@@ -134,7 +144,11 @@ own only body content.
 #### Expected Files
 
 - `docs/specs/cli-contract.md`
+- `docs/specs/help.md`
+- `docs/specs/index.md`
 - `docs/specs/repo-config.md`
+- `assets/bootstrap/agents-managed-block.md`
+- `AGENTS.md`
 - `README.md`
 
 #### Validation
@@ -151,6 +165,13 @@ surface distinct from command syntax `--help`. Updated the CLI contract,
 repo-config spec, and README to record the asset-backed body rule,
 program-owned topic registry, generated non-leaf subtopic sections, and the
 initial `repo` / `repo config` topic scope.
+
+Revision 2 extracted the topic contract into standalone
+`docs/specs/help.md`, linked the CLI and repo-config specs to it, and added a
+small bootstrap-managed `AGENTS.md` cue telling agents to use `harness help`
+when product behavior, command concepts, or repo customization syntax is
+unclear. The managed cue deliberately avoids copying low-frequency help topic
+content into the always-loaded agreement.
 
 #### Review Notes
 
@@ -383,7 +404,10 @@ issue; no repository behavior changes are introduced by this step.
 
 Passed:
 
+- `scripts/sync-bootstrap-assets --check`
 - `harness plan lint docs/plans/active/2026-06-16-cli-help-repo-config-topic.md`
+- `go test -count=1 ./internal/cli ./internal/helptopics ./internal/repoconfig ./internal/bootstrapsync ./internal/install`
+- `go test -count=1 ./tests/smoke -run TestSyncBootstrapAssetsCheckPassesForCurrentRepo`
 - `go test -count=1 ./internal/cli ./internal/helptopics ./internal/repoconfig`
 - `go test -count=1 ./internal/cli ./internal/helptopics ./internal/repoconfig ./internal/reviewdimensions`
 - `go test -count=1 ./tests/smoke -run TestHelpShowsTopLevelUsage`
@@ -414,17 +438,27 @@ to root topics plus root-help discoverability assertions. Follow-up
 `review-004-full` passed with no findings across correctness, tests,
 docs-consistency, agent-UX, and risk-scan.
 
+Revision 2 was reopened from `await_merge` after human feedback requested an
+independent help spec and a managed `AGENTS.md` discovery cue for `harness
+help`. Delta finalize review `review-005-delta` passed with no findings across
+docs-consistency, agent-UX, tests, and risk-scan.
+
 ## Archive Summary
 
-- Archived At: 2026-06-16T23:51:59+08:00
-- Revision: 1
-- PR: to be opened for branch `codex/cli-help-repo-config-topic` after
-  archive.
-- Ready: yes; all tracked steps are complete, archive blockers are addressed,
-  focused validation passed, and finalize review `review-004-full` passed with
+- Archived At: 2026-06-17T10:03:25+08:00
+- Revision: 2
+
+Revision 1 was archived at 2026-06-16T23:51:59+08:00 and published through PR
+https://github.com/catu-ai/easyharness/pull/255, then reopened in
+`finalize-fix` mode after human feedback clarified that help needs its own
+spec and a managed `AGENTS.md` discoverability cue.
+
+- PR: https://github.com/catu-ai/easyharness/pull/255
+- Ready: yes; all tracked steps remain complete, revision 2 focused
+  validation passed, and delta finalize review `review-005-delta` passed with
   no findings.
 - Merge Handoff: after archive, commit the archive move and summary updates,
-  push the branch, open a PR, record publish evidence, refresh CI/sync
+  push the branch, update the PR memo if needed, refresh publish/CI/sync
   evidence, and wait for `harness status` to reach
   `execution/finalize/await_merge` before asking for explicit human merge
   approval.
@@ -437,6 +471,9 @@ docs-consistency, agent-UX, and risk-scan.
   index, `repo` parent topic, and `repo config` customization guide.
 - Added packaged help assets under `assets/help/`, separate from bootstrap
   install assets.
+- Added standalone `docs/specs/help.md` as the normative help topic contract,
+  with CLI and repo-config specs linking to it instead of duplicating the same
+  rules.
 - Added a program-owned help topic registry and renderer that owns topic paths,
   summaries, asset bindings, parent/child relationships, and generated
   subtopic listings for non-leaf topics.
@@ -447,6 +484,9 @@ docs-consistency, agent-UX, and risk-scan.
 - Updated README, CLI contract, and repo config spec to document the
   concept-oriented help topic boundary without implying that every command
   needs a matching long-form topic.
+- Added a bootstrap-managed `AGENTS.md` product-help cue telling agents to use
+  `harness help` when easyharness behavior or repo customization syntax is
+  unclear, while leaving detailed topic content in binary-shipped help.
 - Added focused tests for topic rendering, asset-backed bodies, generated
   subtopic lists, unknown-topic recovery, command syntax help, root-help
   discoverability, and repo/config see-also pointers.
@@ -458,6 +498,8 @@ docs-consistency, agent-UX, and risk-scan.
 - A broad `harness help` taxonomy for every command was intentionally not
   delivered.
 - Command `--help` output was not made equivalent to topic help.
+- Detailed repo config customization guidance was not copied into the managed
+  `AGENTS.md` block or managed skills.
 - No JSON or schema contract was added for help topic output.
 - No repo config mutation command, config lint command, or new repo config
   field was added.

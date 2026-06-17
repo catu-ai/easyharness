@@ -124,6 +124,14 @@ The default harness split in this repository is:
 
 If a tracked plan conflicts with a repo-local skill, the tracked plan wins.
 
+## Harness Product Help
+
+When easyharness product behavior, command concepts, or repo customization
+syntax is unclear, use `harness help` or `harness help <topic>` from the
+installed binary. Use command `--help` for syntax and flags. Keep low-frequency
+topic guidance in `harness help` instead of copying it into this managed
+agreement.
+
 ## Harness Workflow
 
 For harness-managed work that is not already clear enough to execute directly:
