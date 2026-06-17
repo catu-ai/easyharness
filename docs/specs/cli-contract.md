@@ -43,6 +43,7 @@ The current command surface is:
 - `harness evidence submit`
 - `harness evidence refresh`
 - `harness status`
+- `harness help [topic ...]`
 - `harness dashboard`
 - `harness ui`
 - `harness review start`
@@ -93,6 +94,10 @@ because it is a binary probe rather than a workflow-state command.
 start the local read-only UI server rather than returning a workflow-state
 JSON envelope.
 
+`harness help [topic ...]` is a plain-text exception because it renders
+agent-facing product guidance rather than workflow state. Its topic contract
+lives in [Help Topics](./help.md).
+
 The bootstrap commands described in [Bootstrap Install](./bootstrap-install.md)
 are JSON-first, but they may omit workflow `state` because they manage
 bootstrap assets rather than the tracked plan lifecycle.
@@ -114,6 +119,10 @@ Every command must have complete `--help` text that explains:
 
 Skills may refer to `harness --help` or `harness <subcommand> --help`, but the
 CLI should remain understandable without repository-specific prompt text.
+
+`harness help` is separate from command syntax help. The detailed topic
+contract, topic asset rules, and generated subtopic behavior live in
+[Help Topics](./help.md).
 
 ### Crash-Safe Runstate Writes
 

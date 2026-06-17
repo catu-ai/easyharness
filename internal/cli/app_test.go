@@ -313,11 +313,156 @@ func TestRootHelpMentionsVersionFlag(t *testing.T) {
 	if !strings.Contains(stderr.String(), "repo            Manage repo-level easyharness resources") {
 		t.Fatalf("expected root help to mention repo, got %q", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "help            Read agent-facing product guidance topics") {
+		t.Fatalf("expected root help to mention help topics, got %q", stderr.String())
+	}
 	if !strings.Contains(stderr.String(), "dashboard       Start the local machine-local dashboard home") {
 		t.Fatalf("expected root help to mention dashboard, got %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "ui              Start the local read-only harness UI workbench") {
 		t.Fatalf("expected root help to mention ui, got %q", stderr.String())
+	}
+}
+
+func TestHelpRootListsTopicsAsPlainText(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"help"})
+	if exitCode != 0 {
+		t.Fatalf("expected help exit code 0, got %d: %s", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Harness Help") || !strings.Contains(stdout.String(), "Available topics:") {
+		t.Fatalf("expected root help topic index, got %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "repo") {
+		t.Fatalf("expected root help to list repo topic, got %q", stdout.String())
+	}
+	if json.Valid(stdout.Bytes()) || strings.Contains(stdout.String(), `\"`) {
+		t.Fatalf("expected plain text help output, got %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr for help, got %q", stderr.String())
+	}
+}
+
+func TestHelpCommandHelpExitsZero(t *testing.T) {
+	for _, args := range [][]string{
+		{"help", "--help"},
+		{"help", "-h"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			stdout := new(bytes.Buffer)
+			stderr := new(bytes.Buffer)
+			app := cli.New(stdout, stderr)
+
+			exitCode := app.Run(args)
+			if exitCode != 0 {
+				t.Fatalf("expected help usage exit code 0, got %d", exitCode)
+			}
+			if !strings.Contains(stderr.String(), "Usage: harness help [topic ...]") {
+				t.Fatalf("expected help command usage, got %q", stderr.String())
+			}
+			if !strings.Contains(stderr.String(), "Available topics:") {
+				t.Fatalf("expected topic discovery hint, got %q", stderr.String())
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("expected no stdout for syntax help, got %q", stdout.String())
+			}
+		})
+	}
+}
+
+func TestHelpParentPrintsGeneratedSubtopics(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"help", "repo"})
+	if exitCode != 0 {
+		t.Fatalf("expected repo help exit code 0, got %d: %s", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Repo Help") {
+		t.Fatalf("expected repo help body, got %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Available subtopics:") || !strings.Contains(stdout.String(), "config") {
+		t.Fatalf("expected generated repo subtopics, got %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr for repo help, got %q", stderr.String())
+	}
+}
+
+func TestHelpRepoConfigPrintsAgentGuide(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"help", "repo", "config"})
+	if exitCode != 0 {
+		t.Fatalf("expected repo config help exit code 0, got %d: %s", exitCode, stderr.String())
+	}
+	for _, want := range []string{
+		"Repo Config Customization",
+		"version: 1",
+		"harness repo config get paths.plans.active",
+		"harness repo config list",
+		".harness/review/dimensions",
+		"humans describe the outcome",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("expected repo config help to contain %q, got %q", want, stdout.String())
+		}
+	}
+	if strings.Contains(stdout.String(), "Available subtopics:") {
+		t.Fatalf("expected leaf topic not to list subtopics, got %q", stdout.String())
+	}
+	if json.Valid(stdout.Bytes()) || strings.Contains(stdout.String(), `\"`) {
+		t.Fatalf("expected plain text repo config help, got %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr for repo config help, got %q", stderr.String())
+	}
+}
+
+func TestHelpUnknownTopicShowsNearestAvailableTopics(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"help", "repo", "missing"})
+	if exitCode == 0 {
+		t.Fatalf("expected unknown topic to fail, got stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout for unknown topic, got %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), `unknown help topic "repo missing"`) {
+		t.Fatalf("expected unknown topic message, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "Available subtopics:") || !strings.Contains(stderr.String(), "config") {
+		t.Fatalf("expected nearest subtopic recovery, got %q", stderr.String())
+	}
+}
+
+func TestHelpUnknownLeafChildShowsNearestAvailableTopics(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"help", "repo", "config", "missing"})
+	if exitCode == 0 {
+		t.Fatalf("expected unknown topic to fail, got stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout for unknown topic, got %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), `unknown help topic "repo config missing"`) {
+		t.Fatalf("expected unknown topic message, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "Available topics:") || !strings.Contains(stderr.String(), "repo") {
+		t.Fatalf("expected nearest useful topics, got %q", stderr.String())
 	}
 }
 
@@ -808,6 +953,26 @@ func TestRepoSkillsHelpExitsZero(t *testing.T) {
 	}
 }
 
+func TestRepoHelpPointsToRepoConfigTopic(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"repo", "--help"})
+	if exitCode != 0 {
+		t.Fatalf("expected help exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "Usage: harness repo") {
+		t.Fatalf("expected repo help text, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "harness help repo config") {
+		t.Fatalf("expected repo help see-also, got %q", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout for repo help, got %q", stdout.String())
+	}
+}
+
 func TestRepoConfigHelpExitsZero(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
@@ -819,6 +984,9 @@ func TestRepoConfigHelpExitsZero(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "Usage: harness repo config") || !strings.Contains(stderr.String(), "refresh") {
 		t.Fatalf("expected config help text, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "harness help repo config") {
+		t.Fatalf("expected repo config help see-also, got %q", stderr.String())
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("expected no stdout for config help, got %q", stdout.String())
