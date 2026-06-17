@@ -35,9 +35,9 @@ If a tracked plan conflicts with a repo-local skill, the tracked plan wins.
 
 When easyharness product behavior, command concepts, or repo customization
 syntax is unclear, use `harness help` or `harness help <topic>` from the
-installed binary. Use command `--help` for syntax and flags. Keep low-frequency
-topic guidance in `harness help` instead of copying it into this managed
-agreement.
+installed binary. Use command `--help` for syntax and flags. After reading
+topic guidance, apply it to the requested outcome and report the effective
+result back to the human.
 
 ## Harness Workflow
 

@@ -173,6 +173,11 @@ when product behavior, command concepts, or repo customization syntax is
 unclear. The managed cue deliberately avoids copying low-frequency help topic
 content into the always-loaded agreement.
 
+Revision 3 refined that managed cue after PR feedback: because the text is
+copied into customer `AGENTS.md` files, it now gives only agent-facing action
+guidance and no longer explains the internal reason for keeping topic content
+out of the managed block.
+
 #### Review Notes
 
 NO_STEP_REVIEW_NEEDED: Step 1 records the approved help-topic contract in
@@ -406,6 +411,7 @@ Passed:
 
 - `scripts/sync-bootstrap-assets --check`
 - `harness plan lint docs/plans/active/2026-06-16-cli-help-repo-config-topic.md`
+- `go test -count=1 ./internal/bootstrapsync ./internal/install ./internal/cli ./internal/helptopics`
 - `go test -count=1 ./internal/cli ./internal/helptopics ./internal/repoconfig ./internal/bootstrapsync ./internal/install`
 - `go test -count=1 ./tests/smoke -run TestSyncBootstrapAssetsCheckPassesForCurrentRepo`
 - `go test -count=1 ./internal/cli ./internal/helptopics ./internal/repoconfig`
@@ -443,10 +449,20 @@ independent help spec and a managed `AGENTS.md` discovery cue for `harness
 help`. Delta finalize review `review-005-delta` passed with no findings across
 docs-consistency, agent-UX, tests, and risk-scan.
 
+Revision 3 was reopened from `await_merge` after PR feedback noted that the
+managed `AGENTS.md` cue should not explain internal doc-placement choices to
+end users. Delta finalize review `review-006-delta` passed with no findings
+across docs-consistency and agent-UX.
+
 ## Archive Summary
 
-- Archived At: 2026-06-17T10:03:25+08:00
-- Revision: 2
+- Archived At: 2026-06-17T22:28:22+08:00
+- Revision: 3
+
+Revision 2 was archived at 2026-06-17T10:03:25+08:00 and published through PR
+https://github.com/catu-ai/easyharness/pull/255, then reopened in
+`finalize-fix` mode after PR feedback requested more user-facing managed
+`AGENTS.md` wording.
 
 Revision 1 was archived at 2026-06-16T23:51:59+08:00 and published through PR
 https://github.com/catu-ai/easyharness/pull/255, then reopened in
@@ -454,8 +470,8 @@ https://github.com/catu-ai/easyharness/pull/255, then reopened in
 spec and a managed `AGENTS.md` discoverability cue.
 
 - PR: https://github.com/catu-ai/easyharness/pull/255
-- Ready: yes; all tracked steps remain complete, revision 2 focused
-  validation passed, and delta finalize review `review-005-delta` passed with
+- Ready: yes; all tracked steps remain complete, revision 3 focused
+  validation passed, and delta finalize review `review-006-delta` passed with
   no findings.
 - Merge Handoff: after archive, commit the archive move and summary updates,
   push the branch, update the PR memo if needed, refresh publish/CI/sync
@@ -486,7 +502,8 @@ spec and a managed `AGENTS.md` discoverability cue.
   needs a matching long-form topic.
 - Added a bootstrap-managed `AGENTS.md` product-help cue telling agents to use
   `harness help` when easyharness behavior or repo customization syntax is
-  unclear, while leaving detailed topic content in binary-shipped help.
+  unclear, then apply the guidance and report the effective result back to the
+  human.
 - Added focused tests for topic rendering, asset-backed bodies, generated
   subtopic lists, unknown-topic recovery, command syntax help, root-help
   discoverability, and repo/config see-also pointers.
