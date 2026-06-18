@@ -353,10 +353,13 @@ made and re-reviewed for release archive subprocesses (`review-008-delta`
 passed after the live release follow-up), default smoke subprocesses
 (`review-011-delta` passed after the tar stderr fix), and support setup
 subprocesses plus installer slow-smoke repeatability. The final full review
-round before archive must pass after the last support and summary repair.
+round, `review-015-full`, passed with correctness, tests, docs-consistency,
+and risk-scan slots reporting no findings.
 
 ## Archive Summary
 
+- Archived At: 2026-06-19T01:37:41+08:00
+- Revision: 1
 Ready for archive once the final post-repair review passes. The active plan
 contains checked acceptance criteria, completed tracked steps, validation
 evidence, review history, and no deferred follow-up issue requirement beyond
@@ -364,8 +367,7 @@ the existing broader test-taxonomy deferral. No supplements were used.
 
 - PR: NONE
 - Ready: All tracked steps are complete, acceptance criteria are checked, quick
-  and slow validation pass, and final repair review is expected to confirm no
-  remaining blockers before archive.
+  and slow validation pass, and final full review passed with no findings.
 - Merge Handoff: After archive, publish this branch as a PR for issue 257,
   record publish/CI/sync evidence, and wait for explicit human merge approval.
 
