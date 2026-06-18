@@ -219,6 +219,13 @@ tests/
     legacy-review-round/
   smoke/
     smoke_test.go
+  release/
+    release_version_file_test.go
+    verify_release_namespace_test.go
+    homebrew_formula_test.go
+    release_build_test.go       # slow_smoke
+  installer/
+    install_dev_harness_test.go # slow_smoke
   e2e/
     happy_path_test.go
     review_round_test.go

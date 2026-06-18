@@ -276,6 +276,11 @@ The full documented slow path passed in about 3:01.16:
 `go test -tags slow_smoke ./tests/installer ./tests/release -count=1`
 reported `tests/installer` at 180.956s and `tests/release` at 92.849s.
 Focused quick validation passed with `go test ./tests/smoke ./tests/release ./tests/support`.
+After `review-004-delta` flagged that the exact documented quick path was not
+recorded, ran `scripts/build-embedded-ui` and `go test ./...`; they passed in
+about 3.520s and 1:15.78 respectively. The same review also flagged that the
+testing-structure proposal layout omitted `tests/release/` and
+`tests/installer/`; the layout now includes both.
 
 #### Review Notes
 
