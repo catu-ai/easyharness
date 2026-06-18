@@ -319,25 +319,69 @@ layout. Follow-up `review-005-delta` passed with no findings.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+Quick/default validation is split from slow smoke coverage. The documented
+quick path, `scripts/build-embedded-ui` plus `go test ./...`, passed after the
+split and again after finalize repairs. The latest `go test ./...` run passed
+with default packages, including `tests/e2e` at 68.486s, `tests/smoke` at
+13.938s, and default `tests/release` at 2.391s.
+
+Explicit slow smoke coverage remains available with
+`go test -tags slow_smoke ./tests/installer ./tests/release -count=1`. The
+latest full slow run passed with `tests/installer` at 157.887s and
+`tests/release` at 90.183s. Earlier slow runs also proved the release archive
+path after timeout repairs.
+
+Focused validation covered the repaired timeout surfaces:
+`go test ./tests/support ./tests/smoke`,
+`go test ./tests/smoke -run 'TestSyncBootstrapAssetsCheckPassesForCurrentRepo|TestSyncContractArtifacts' -count=1`,
+`go test ./tests/release`, and
+`go test -tags slow_smoke ./tests/release -count=1` all passed. Timeout
+regression tests cover both generic command helpers and harness command
+helpers, and default smoke, release archive, live release, git, gh, tar,
+downloaded/installed harness, and build-binary setup subprocesses now use
+timeout-aware helpers or contexts.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Step reviews passed after targeted repairs:
+`review-001-delta` passed the validation split, `review-003-delta` passed the
+timeout regression repair for `RunWithOptions`, and `review-005-delta` passed
+the documentation/evidence repair for the exact quick path and test layout.
+
+Finalize review intentionally found additional timeout gaps. Repairs were
+made and re-reviewed for release archive subprocesses (`review-008-delta`
+passed after the live release follow-up), default smoke subprocesses
+(`review-011-delta` passed after the tar stderr fix), and support setup
+subprocesses plus installer slow-smoke repeatability. The final full review
+round before archive must pass after the last support and summary repair.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+Ready for archive once the final post-repair review passes. The active plan
+contains checked acceptance criteria, completed tracked steps, validation
+evidence, review history, and no deferred follow-up issue requirement beyond
+the existing broader test-taxonomy deferral. No supplements were used.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Default validation no longer runs the cold installer and release archive
+  smoke suite by accident.
+- Slow installer and release coverage moved behind the explicit
+  `slow_smoke` command while release workflow live smoke references point at
+  the moved release package.
+- Smoke command helpers gained conservative command-level timeouts with
+  captured stdout/stderr diagnostics.
+- Installer smoke tests now run in parallel with shared setup and warmed
+  dependencies, while preserving real `scripts/install-dev-harness` coverage.
+- Documentation now describes the quick/default and explicit slow validation
+  paths in development, release, and testing-structure docs.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+No product behavior changes were delivered outside the validation split. A
+broader end-to-end test taxonomy remains outside this issue slice.
 
 ### Follow-Up Issues
 
