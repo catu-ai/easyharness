@@ -104,15 +104,10 @@ func TestBuildReleaseProducesStableArchiveAndVersionedBinary(t *testing.T) {
 }
 
 func TestBuildReleaseHelpUsesStableExampleVersion(t *testing.T) {
-	cmd := exec.Command("scripts/build-release", "--help")
-	cmd.Dir = support.RepoRoot(t)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("build-release --help: %v\n%s", err, output)
-	}
+	result := requireBuildReleaseSuccess(t, support.RepoRoot(t), nil, "--help")
 
-	if !strings.Contains(string(output), "for example v0.0.0") {
-		t.Fatalf("expected stable example version in build-release help, got:\n%s", output)
+	if !strings.Contains(result.CombinedOutput(), "for example v0.0.0") {
+		t.Fatalf("expected stable example version in build-release help, got:\n%s", result.CombinedOutput())
 	}
 }
 
@@ -189,19 +184,16 @@ func TestBuildReleaseRejectsUnsafeOutputDirectory(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cmd := exec.Command(
-				"scripts/build-release",
+			result := runBuildReleaseCommand(t, support.RepoRoot(t), nil,
 				"--version", "v0.1.0-alpha.1",
 				"--output-dir", tc.outputDir,
 				"--platform", runtime.GOOS+"/"+runtime.GOARCH,
 			)
-			cmd.Dir = support.RepoRoot(t)
-			result, err := cmd.CombinedOutput()
-			if err == nil {
+			if result.ExitCode == 0 {
 				t.Fatalf("expected build-release to reject output dir %q", tc.outputDir)
 			}
-			if !strings.Contains(string(result), tc.wantText) {
-				t.Fatalf("expected output for %q to contain %q, got:\n%s", tc.outputDir, tc.wantText, result)
+			if !strings.Contains(result.CombinedOutput(), tc.wantText) {
+				t.Fatalf("expected output for %q to contain %q, got:\n%s", tc.outputDir, tc.wantText, result.CombinedOutput())
 			}
 		})
 	}
@@ -329,19 +321,16 @@ func TestBuildReleaseRejectsSymlinkEscapesFromAllowedOutputRoots(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Remove(symlinkPath) })
 
-	cmd := exec.Command(
-		"scripts/build-release",
+	result := runBuildReleaseCommand(t, repoRoot, nil,
 		"--version", "v0.1.0-alpha.1",
 		"--output-dir", filepath.Join(symlinkPath, "release-out"),
 		"--platform", hostPlatform,
 	)
-	cmd.Dir = repoRoot
-	result, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected build-release to reject symlinked output dir, output:\n%s", result)
+	if result.ExitCode == 0 {
+		t.Fatalf("expected build-release to reject symlinked output dir, output:\n%s", result.CombinedOutput())
 	}
-	if !strings.Contains(string(result), "output directory path must not traverse symlink segments") {
-		t.Fatalf("expected symlink rejection message, got:\n%s", result)
+	if !strings.Contains(result.CombinedOutput(), "output directory path must not traverse symlink segments") {
+		t.Fatalf("expected symlink rejection message, got:\n%s", result.CombinedOutput())
 	}
 	if _, err := os.Stat(sentinelPath); err != nil {
 		t.Fatalf("expected sentinel outside allowed roots to survive rejected build, got: %v", err)
@@ -351,19 +340,16 @@ func TestBuildReleaseRejectsSymlinkEscapesFromAllowedOutputRoots(t *testing.T) {
 func TestBuildReleaseRejectsUnsafeVersion(t *testing.T) {
 	outputDir := newReleaseOutputDir(t, "unsafe-version")
 
-	cmd := exec.Command(
-		"scripts/build-release",
+	result := runBuildReleaseCommand(t, support.RepoRoot(t), nil,
 		"--version", "v0.1.0/../../escape",
 		"--output-dir", outputDir,
 		"--platform", runtime.GOOS+"/"+runtime.GOARCH,
 	)
-	cmd.Dir = support.RepoRoot(t)
-	result, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected build-release to reject unsafe version, output:\n%s", result)
+	if result.ExitCode == 0 {
+		t.Fatalf("expected build-release to reject unsafe version, output:\n%s", result.CombinedOutput())
 	}
-	if !strings.Contains(string(result), "version must use only ASCII letters, digits, dot, underscore, plus, or hyphen") {
-		t.Fatalf("expected unsafe-version rejection message, got:\n%s", result)
+	if !strings.Contains(result.CombinedOutput(), "version must use only ASCII letters, digits, dot, underscore, plus, or hyphen") {
+		t.Fatalf("expected unsafe-version rejection message, got:\n%s", result.CombinedOutput())
 	}
 }
 
@@ -401,20 +387,17 @@ exec %q "$@"
 		t.Fatalf("write fake mkdir: %v", err)
 	}
 
-	cmd := exec.Command(
-		"scripts/build-release",
+	result := runBuildReleaseCommand(t, repoRoot,
+		append(os.Environ(), "PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH")),
 		"--version", "v0.1.0-alpha.1",
 		"--output-dir", outputDir,
 		"--platform", hostPlatform,
 	)
-	cmd.Dir = repoRoot
-	cmd.Env = append(os.Environ(), "PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	result, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected build-release to reject mkdir-time symlink replacement into a different safe-root directory, output:\n%s", result)
+	if result.ExitCode == 0 {
+		t.Fatalf("expected build-release to reject mkdir-time symlink replacement into a different safe-root directory, output:\n%s", result.CombinedOutput())
 	}
-	if !strings.Contains(string(result), "output directory path must stay on the requested directory path during preparation") {
-		t.Fatalf("expected mkdir-race rejection message, got:\n%s", result)
+	if !strings.Contains(result.CombinedOutput(), "output directory path must stay on the requested directory path during preparation") {
+		t.Fatalf("expected mkdir-race rejection message, got:\n%s", result.CombinedOutput())
 	}
 	entries, err := os.ReadDir(redirectedOutputDir)
 	if err != nil {
@@ -460,20 +443,17 @@ exec %q "$@"
 		t.Fatalf("write fake zip: %v", err)
 	}
 
-	cmd := exec.Command(
-		"scripts/build-release",
+	result := runBuildReleaseCommand(t, repoRoot,
+		append(os.Environ(), "PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH")),
 		"--version", "v0.1.0-alpha.1",
 		"--output-dir", outputDir,
 		"--platform", hostPlatform,
 	)
-	cmd.Dir = repoRoot
-	cmd.Env = append(os.Environ(), "PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	result, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected build-release to reject prepared output dir replacement during build, output:\n%s", result)
+	if result.ExitCode == 0 {
+		t.Fatalf("expected build-release to reject prepared output dir replacement during build, output:\n%s", result.CombinedOutput())
 	}
-	if !strings.Contains(string(result), "prepared output directory changed unexpectedly during build") {
-		t.Fatalf("expected output-dir replacement rejection message, got:\n%s", result)
+	if !strings.Contains(result.CombinedOutput(), "prepared output directory changed unexpectedly during build") {
+		t.Fatalf("expected output-dir replacement rejection message, got:\n%s", result.CombinedOutput())
 	}
 	redirectedEntries, err := os.ReadDir(redirectedOutputDir)
 	if err != nil {
@@ -520,18 +500,12 @@ exec %q "$@"
 		t.Fatalf("write fake checksum tool: %v", err)
 	}
 
-	cmd := exec.Command(
-		"scripts/build-release",
+	requireBuildReleaseSuccess(t, support.RepoRoot(t),
+		append(os.Environ(), "PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH")),
 		"--version", version,
 		"--output-dir", outputDir,
 		"--platform", hostPlatform,
 	)
-	cmd.Dir = support.RepoRoot(t)
-	cmd.Env = append(os.Environ(), "PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	result, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("expected build-release to safely replace symlinked output entry during publish, got:\n%s", result)
-	}
 	redirectedEntries, err := os.ReadDir(redirectedOutputDir)
 	if err != nil {
 		t.Fatalf("read redirected output dir: %v", err)
@@ -612,20 +586,17 @@ exec "$real_go" "$@"
 		t.Fatalf("write fake go wrapper: %v", err)
 	}
 
-	cmd := exec.Command(
-		"scripts/build-release",
+	result := runBuildReleaseCommand(t, repoRoot,
+		append(os.Environ(), "PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH")),
 		"--version", "v0.1.0-alpha.1",
 		"--output-dir", outputDir,
 		"--platform", hostPlatform,
 	)
-	cmd.Dir = repoRoot
-	cmd.Env = append(os.Environ(), "PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	result, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected build-release to reject prepared output directory replacement during publish, output:\n%s", result)
+	if result.ExitCode == 0 {
+		t.Fatalf("expected build-release to reject prepared output directory replacement during publish, output:\n%s", result.CombinedOutput())
 	}
-	if !strings.Contains(string(result), "prepared output directory changed unexpectedly during build") {
-		t.Fatalf("expected publish-directory replacement message, got:\n%s", result)
+	if !strings.Contains(result.CombinedOutput(), "prepared output directory changed unexpectedly during build") {
+		t.Fatalf("expected publish-directory replacement message, got:\n%s", result.CombinedOutput())
 	}
 	redirectedEntries, err := os.ReadDir(redirectedOutputDir)
 	if err != nil {
@@ -634,6 +605,29 @@ exec "$real_go" "$@"
 	if len(redirectedEntries) != 0 {
 		t.Fatalf("expected redirected output dir to stay empty, found %d entries", len(redirectedEntries))
 	}
+}
+
+func runBuildReleaseCommand(t *testing.T, repoDir string, env []string, args ...string) support.CommandResult {
+	t.Helper()
+
+	argv := append([]string{"scripts/build-release"}, args...)
+	return support.RunCommand(t, repoDir, env, argv...)
+}
+
+func requireBuildReleaseSuccess(t *testing.T, repoDir string, env []string, args ...string) support.CommandResult {
+	t.Helper()
+
+	return requireCommandSuccess(t, "build release", repoDir, env, append([]string{"scripts/build-release"}, args...)...)
+}
+
+func requireCommandSuccess(t *testing.T, description, workdir string, env []string, argv ...string) support.CommandResult {
+	t.Helper()
+
+	result := support.RunCommand(t, workdir, env, argv...)
+	if result.ExitCode != 0 {
+		t.Fatalf("%s exited with code %d\n%s", description, result.ExitCode, result.CombinedOutput())
+	}
+	return result
 }
 
 func runReleaseBuild(t *testing.T, version, outputDir string) string {
@@ -648,13 +642,8 @@ func runReleaseBuildInDir(t *testing.T, repoDir, version, outputDir string, plat
 	for _, platform := range platforms {
 		args = append(args, "--platform", platform)
 	}
-	cmd := exec.Command("scripts/build-release", args...)
-	cmd.Dir = repoDir
-	result, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("build release: %v\n%s", err, result)
-	}
-	return string(result)
+	result := requireBuildReleaseSuccess(t, repoDir, nil, args...)
+	return result.CombinedOutput()
 }
 
 func runReleaseBuildForPlatforms(t *testing.T, version, outputDir string, platforms ...string) string {
@@ -721,14 +710,8 @@ func verifyArchiveContents(t *testing.T, workspace *support.Workspace, archivePa
 	binaryPath := filepath.Join(extractDir, binaryName)
 	verifyBinaryMetadata(t, binaryPath, version, goos, goarch, expectedCommit)
 	if goos == runtime.GOOS && goarch == runtime.GOARCH {
-		versionCmd := exec.Command(binaryPath, "--version")
-		versionCmd.Dir = extractDir
-		versionOutput, err := versionCmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("run packaged binary --version: %v\n%s", err, versionOutput)
-		}
-
-		output := string(versionOutput)
+		versionResult := requireCommandSuccess(t, "run packaged binary --version", extractDir, nil, binaryPath, "--version")
+		output := versionResult.CombinedOutput()
 		if got := support.RequireVersionField(t, output, "version"); got != version {
 			t.Fatalf("expected packaged version %q, got %q\noutput:\n%s", version, got, output)
 		}
@@ -742,15 +725,9 @@ func verifyArchiveContents(t *testing.T, workspace *support.Workspace, archivePa
 			t.Fatalf("expected packaged release output to omit path, got %q", output)
 		}
 
-		statusCmd := exec.Command(binaryPath, "status")
-		statusCmd.Dir = workspace.Root
-		statusOutput, err := statusCmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("run packaged binary status: %v\n%s", err, statusOutput)
-		}
-
-		if !strings.Contains(string(statusOutput), `"current_node": "idle"`) {
-			t.Fatalf("expected packaged binary status output to report idle workspace, got:\n%s", statusOutput)
+		statusResult := requireCommandSuccess(t, "run packaged binary status", workspace.Root, nil, binaryPath, "status")
+		if !strings.Contains(statusResult.CombinedOutput(), `"current_node": "idle"`) {
+			t.Fatalf("expected packaged binary status output to report idle workspace, got:\n%s", statusResult.CombinedOutput())
 		}
 	}
 }
@@ -758,13 +735,9 @@ func verifyArchiveContents(t *testing.T, workspace *support.Workspace, archivePa
 func gitCommitTimestampUTC(t *testing.T, repoRoot, commit string) time.Time {
 	t.Helper()
 
-	cmd := exec.Command("git", "-C", repoRoot, "show", "-s", "--format=%ct", commit)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git show commit timestamp: %v\n%s", err, output)
-	}
+	result := requireCommandSuccess(t, "git show commit timestamp", repoRoot, nil, "git", "-C", repoRoot, "show", "-s", "--format=%ct", commit)
 
-	secondsText := strings.TrimSpace(string(output))
+	secondsText := strings.TrimSpace(result.CombinedOutput())
 	seconds, err := strconv.ParseInt(secondsText, 10, 64)
 	if err != nil {
 		t.Fatalf("parse commit timestamp %q: %v", secondsText, err)
@@ -928,15 +901,11 @@ func newReleaseBuildCheckout(t *testing.T) string {
 
 	repoRoot := support.RepoRoot(t)
 	checkoutRoot := filepath.Join(t.TempDir(), "checkout")
-	cmd := exec.Command("git", "-C", repoRoot, "worktree", "add", "--detach", checkoutRoot, "HEAD")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git worktree add: %v\n%s", err, output)
-	}
+	requireCommandSuccess(t, "git worktree add", repoRoot, nil, "git", "-C", repoRoot, "worktree", "add", "--detach", checkoutRoot, "HEAD")
 	t.Cleanup(func() {
-		removeCmd := exec.Command("git", "-C", repoRoot, "worktree", "remove", "--force", checkoutRoot)
-		if cleanupOutput, cleanupErr := removeCmd.CombinedOutput(); cleanupErr != nil {
-			t.Errorf("git worktree remove: %v\n%s", cleanupErr, cleanupOutput)
+		result := support.RunCommand(t, repoRoot, nil, "git", "-C", repoRoot, "worktree", "remove", "--force", checkoutRoot)
+		if result.ExitCode != 0 {
+			t.Errorf("git worktree remove exited with code %d\n%s", result.ExitCode, result.CombinedOutput())
 		}
 	})
 
