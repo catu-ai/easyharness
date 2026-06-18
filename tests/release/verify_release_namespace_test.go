@@ -239,16 +239,15 @@ func TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled(t *testing.T) {
 	extractDir := filepath.Join(t.TempDir(), "extract")
 	extractZipAsset(t, filepath.Join(downloadDir, hostAsset), extractDir)
 	binaryPath := filepath.Join(extractDir, strings.TrimSuffix(hostAsset, ".zip"), "harness")
-	versionCmd := exec.Command(binaryPath, "--version")
-	versionCmd.Dir = support.RepoRoot(t)
-	versionOutput, err := versionCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("run downloaded harness --version: %v\n%s", err, versionOutput)
+	versionResult := support.RunCommand(t, support.RepoRoot(t), nil, binaryPath, "--version")
+	if versionResult.ExitCode != 0 {
+		t.Fatalf("run downloaded harness --version exited with code %d\n%s", versionResult.ExitCode, versionResult.CombinedOutput())
 	}
-	if got := support.RequireVersionField(t, string(versionOutput), "version"); got != tag {
+	versionOutput := versionResult.CombinedOutput()
+	if got := support.RequireVersionField(t, versionOutput, "version"); got != tag {
 		t.Fatalf("expected downloaded harness version %q, got %q\noutput:\n%s", tag, got, versionOutput)
 	}
-	if got := support.RequireVersionField(t, string(versionOutput), "mode"); got != "release" {
+	if got := support.RequireVersionField(t, versionOutput, "mode"); got != "release" {
 		t.Fatalf("expected downloaded harness mode release, got %q\noutput:\n%s", got, versionOutput)
 	}
 }

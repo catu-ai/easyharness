@@ -291,7 +291,7 @@ func TestVerifyHomebrewTapInstallAgainstGitHubWhenEnabled(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		_ = exec.Command(brewPath, "uninstall", "--force", "easyharness").Run()
+		_ = support.RunCommand(t, repoRoot, env, brewPath, "uninstall", "--force", "easyharness")
 		_ = os.RemoveAll(tapRoot)
 	})
 
@@ -380,17 +380,15 @@ func requireInstalledHarnessVersion(t *testing.T, repoRoot string, env []string,
 		t.Fatalf("brew --prefix failed with exit %d\nstdout:\n%s\nstderr:\n%s", prefixResult.ExitCode, prefixResult.Stdout, prefixResult.Stderr)
 	}
 	binaryPath := filepath.Join(strings.TrimSpace(prefixResult.Stdout), "bin", "harness")
-	versionCmd := exec.Command(binaryPath, "--version")
-	versionCmd.Dir = repoRoot
-	versionCmd.Env = env
-	versionOutput, err := versionCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("run installed harness --version: %v\n%s", err, versionOutput)
+	versionResult := support.RunCommand(t, repoRoot, env, binaryPath, "--version")
+	if versionResult.ExitCode != 0 {
+		t.Fatalf("run installed harness --version exited with code %d\n%s", versionResult.ExitCode, versionResult.CombinedOutput())
 	}
-	if got := support.RequireVersionField(t, string(versionOutput), "version"); got != tag {
+	versionOutput := versionResult.CombinedOutput()
+	if got := support.RequireVersionField(t, versionOutput, "version"); got != tag {
 		t.Fatalf("expected installed harness version %q, got %q\noutput:\n%s", tag, got, versionOutput)
 	}
-	if got := support.RequireVersionField(t, string(versionOutput), "mode"); got != "release" {
+	if got := support.RequireVersionField(t, versionOutput, "mode"); got != "release" {
 		t.Fatalf("expected installed harness mode release, got %q\noutput:\n%s", got, versionOutput)
 	}
 }
@@ -434,17 +432,14 @@ func listGitHubReleases(t *testing.T, repoRoot string, env []string, repo string
 
 	releases := make([]githubRelease, 0, 100)
 	for page := 1; ; page++ {
-		cmd := exec.Command(ghPath, "api", fmt.Sprintf("repos/%s/releases?per_page=100&page=%d", repo, page))
-		cmd.Dir = repoRoot
-		cmd.Env = env
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("gh api releases page %d failed: %v\n%s", page, err, output)
+		result := support.RunCommand(t, repoRoot, env, ghPath, "api", fmt.Sprintf("repos/%s/releases?per_page=100&page=%d", repo, page))
+		if result.ExitCode != 0 {
+			t.Fatalf("gh api releases page %d exited with code %d\n%s", page, result.ExitCode, result.CombinedOutput())
 		}
 
 		var pageReleases []githubRelease
-		if err := json.Unmarshal(output, &pageReleases); err != nil {
-			t.Fatalf("parse gh release response page %d: %v\n%s", page, err, output)
+		if err := json.Unmarshal([]byte(result.Stdout), &pageReleases); err != nil {
+			t.Fatalf("parse gh release response page %d: %v\n%s", page, err, result.CombinedOutput())
 		}
 		releases = append(releases, pageReleases...)
 		if len(pageReleases) < 100 {
@@ -472,21 +467,17 @@ func releaseSupportsHomebrewFormula(t *testing.T, checksumsPath string, tag stri
 
 func mustRunGit(t *testing.T, workdir string, args ...string) {
 	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = workdir
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %v failed: %v\n%s", args, err, output)
+	result := support.RunCommand(t, workdir, nil, append([]string{"git"}, args...)...)
+	if result.ExitCode != 0 {
+		t.Fatalf("git %v exited with code %d\n%s", args, result.ExitCode, result.CombinedOutput())
 	}
 }
 
 func runGitOutput(t *testing.T, workdir string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = workdir
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %v failed: %v\n%s", args, err, output)
+	result := support.RunCommand(t, workdir, nil, append([]string{"git"}, args...)...)
+	if result.ExitCode != 0 {
+		t.Fatalf("git %v exited with code %d\n%s", args, result.ExitCode, result.CombinedOutput())
 	}
-	return string(output)
+	return result.Stdout
 }
