@@ -61,17 +61,17 @@ for about 419.75s.
 
 ## Acceptance Criteria
 
-- [ ] The ordinary quick validation command no longer runs the full cold
+- [x] The ordinary quick validation command no longer runs the full cold
       installer and release smoke suite by accident.
-- [ ] Full slow smoke coverage remains available through an explicit command or
+- [x] Full slow smoke coverage remains available through an explicit command or
       documented command set.
-- [ ] `go test ./...` or its documented replacement no longer requires raising
+- [x] `go test ./...` or its documented replacement no longer requires raising
       the package timeout just to get past the old monolithic `tests/smoke`
       package.
-- [ ] Smoke subprocess failures identify the specific slow or stuck command
+- [x] Smoke subprocess failures identify the specific slow or stuck command
       instead of surfacing only as a Go package-level timeout.
-- [ ] CI and release workflow validation match the documented quick/full split.
-- [ ] Documentation no longer describes the current full `tests/smoke` package
+- [x] CI and release workflow validation match the documented quick/full split.
+- [x] Documentation no longer describes the current full `tests/smoke` package
       as fast repo-level smoke coverage unless the implementation makes that
       true again.
 
@@ -222,7 +222,7 @@ the timeout regression covered `RunCommandWithTimeout` but not
 
 ### Step 3: Update Documentation, Workflows, and Evidence
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -284,7 +284,12 @@ testing-structure proposal layout omitted `tests/release/` and
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-004-delta` found one blocking tests issue and one minor
+docs-consistency issue: the Step 3 notes had not recorded the exact documented
+quick path, and the testing-structure proposal layout omitted `tests/release/`
+and `tests/installer/`. Repaired both by recording
+`scripts/build-embedded-ui` plus `go test ./...` evidence and updating the
+layout. Follow-up `review-005-delta` passed with no findings.
 
 ## Validation Strategy
 
