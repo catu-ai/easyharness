@@ -85,7 +85,7 @@ for about 419.75s.
 
 ### Step 1: Define and Implement the Validation Split
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -147,7 +147,8 @@ the slow installer package or tagged release archive tests.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` passed on 2026-06-19 with `correctness` and `tests`
+reviewer slots. Both reviewers reported no findings.
 
 ### Step 2: Add Command Timeouts and Reduce Repeated Cold Work
 
