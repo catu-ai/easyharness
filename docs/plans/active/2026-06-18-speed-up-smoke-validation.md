@@ -259,7 +259,23 @@ or release-only command instead of hiding the cost inside `go test ./...`.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Updated durable validation docs in `docs/development.md`, `docs/releasing.md`,
+and `docs/specs/proposals/testing-structure.md` to describe the quick default
+path and the explicit slow smoke command:
+`go test -tags slow_smoke ./tests/installer ./tests/release -count=1`.
+
+The first full documented slow-smoke attempt exposed that installer tests were
+forcing a temporary empty `GOMODCACHE`, which made parallel cold installs depend
+on fresh network downloads and hit Go proxy TLS timeouts. Repaired this by
+leaving `GOMODCACHE` on the normal warmed default unless a test explicitly
+overrides it.
+
+Validation: doc/workflow smoke tests passed with
+`go test ./tests/smoke ./tests/release -run 'TestReleaseDocsPresentStableOnboardingSurface|TestCIWorkflowBuildsEmbeddedUIBeforeGoTests|TestReleaseWorkflowWiresHomebrewTapPublishing' -count=1`.
+The full documented slow path passed in about 3:01.16:
+`go test -tags slow_smoke ./tests/installer ./tests/release -count=1`
+reported `tests/installer` at 180.956s and `tests/release` at 92.849s.
+Focused quick validation passed with `go test ./tests/smoke ./tests/release ./tests/support`.
 
 #### Review Notes
 

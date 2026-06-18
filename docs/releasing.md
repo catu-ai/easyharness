@@ -60,18 +60,23 @@ remain, and whether a post-publication repair is needed.
 1. Decide the next release version, such as `0.0.0`, and update the
    root `VERSION` file in a dedicated release PR.
 2. Make sure `main` is up to date, run `scripts/build-embedded-ui`, and then
-   run `go test ./...` in the release PR before merge.
-3. If you want an extra local packaging check before merge, run
+   run `go test ./...` in the release PR before merge. This is the quick
+   release-PR validation path and intentionally skips slow tagged installer and
+   release-archive smoke tests.
+3. If the release PR changes installer behavior, wrapper PATH behavior, release
+   archive construction, or you want full local packaging confidence, also run
+   `go test -tags slow_smoke ./tests/installer ./tests/release -count=1`.
+4. If you want an extra local packaging check before merge, run
    `scripts/build-release --version "v$(cat VERSION)"`.
-4. Merge the release PR to `main`.
-5. Confirm the `Tag Release From VERSION` workflow created the matching git
+5. Merge the release PR to `main`.
+6. Confirm the `Tag Release From VERSION` workflow created the matching git
    tag, for example `v0.0.0`, and then dispatched the `Release`
    workflow for that tag.
-6. Confirm the `Release` workflow uploaded the release archives and
+7. Confirm the `Release` workflow uploaded the release archives and
    `SHA256SUMS` file.
-7. If the Homebrew tap token is configured, confirm the workflow updated
+8. If the Homebrew tap token is configured, confirm the workflow updated
    `Formula/easyharness.rb` in `catu-ai/homebrew-tap`.
-8. Confirm the release workflow's Homebrew verification job passed.
+9. Confirm the release workflow's Homebrew verification job passed.
    It should stage a local `catu-ai/tap` checkout from the rendered formula,
    install an earlier compatible release when one exists, upgrade to the
    current release with `brew upgrade catu-ai/tap/easyharness`, and pass
@@ -145,4 +150,7 @@ The formula name remains `easyharness`, while the installed binary remains
 
 Release and CI jobs use the Go version recorded in `go.mod`, which is currently
 `go 1.25.0`. They also install Node.js/pnpm so the embedded UI assets are
-built before Go tests and release packaging consume them.
+built before Go tests and release packaging consume them. CI and release PR
+validation use the quick default `go test ./...` path; slow smoke coverage is
+available locally with
+`go test -tags slow_smoke ./tests/installer ./tests/release -count=1`.

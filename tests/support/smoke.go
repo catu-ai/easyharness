@@ -145,9 +145,6 @@ func InstallerEnv(t *testing.T, overrides map[string]string) []string {
 	if _, ok := overrides["GOCACHE"]; !ok {
 		overrides["GOCACHE"] = sharedInstallerGoCache(t)
 	}
-	if _, ok := overrides["GOMODCACHE"]; !ok {
-		overrides["GOMODCACHE"] = sharedInstallerGoModCache(t)
-	}
 	if _, ok := overrides["GOFLAGS"]; !ok {
 		overrides["GOFLAGS"] = "-modcacherw"
 	}
@@ -293,7 +290,6 @@ func RequireSubstringOrder(t *testing.T, haystack, first, second string) {
 var (
 	installerCacheOnce sync.Once
 	installerGoCache   string
-	installerModCache  string
 	installerCacheErr  error
 )
 
@@ -301,12 +297,6 @@ func sharedInstallerGoCache(t *testing.T) string {
 	t.Helper()
 	InitializeInstallerCaches(t)
 	return installerGoCache
-}
-
-func sharedInstallerGoModCache(t *testing.T) string {
-	t.Helper()
-	InitializeInstallerCaches(t)
-	return installerModCache
 }
 
 func initializeSharedInstallerCaches() {
@@ -317,12 +307,9 @@ func initializeSharedInstallerCaches() {
 			return
 		}
 		installerGoCache = filepath.Join(root, "go-build")
-		installerModCache = filepath.Join(root, "gomod")
-		for _, dir := range []string{installerGoCache, installerModCache} {
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				installerCacheErr = err
-				return
-			}
+		if err := os.MkdirAll(installerGoCache, 0o755); err != nil {
+			installerCacheErr = err
+			return
 		}
 	})
 }

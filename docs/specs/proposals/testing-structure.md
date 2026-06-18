@@ -125,11 +125,15 @@ state inference, review round artifact logic, and archive/reopen behavior.
 Location:
 
 - `tests/smoke/`
+- `tests/release/` for release script, namespace, and Homebrew smoke checks
+- `tests/installer/` for installer and wrapper smoke checks
 
 Purpose:
 
 - provide a fast confidence check that the binary starts and the most critical
   user-visible paths are not obviously broken
+- keep cold installer and release-archive coverage available without making it
+  part of every default validation run
 
 Characteristics:
 
@@ -137,6 +141,7 @@ Characteristics:
 - fast runtime
 - real binary execution
 - shallow assertions compared with end-to-end tests
+- slow cold-path coverage uses the `slow_smoke` build tag
 
 Typical smoke coverage for `easyharness` should include:
 
@@ -144,6 +149,8 @@ Typical smoke coverage for `easyharness` should include:
 - `harness status`
 - `harness plan template`
 - a minimal `plan template -> plan lint` roundtrip
+- release script and release namespace checks under `tests/release/`
+- opt-in installer and release archive checks with `-tags slow_smoke`
 
 ### End-to-End Tests
 
@@ -280,9 +287,14 @@ If future scope introduces external services or a UI, the taxonomy may expand.
 Recommended commands:
 
 - `go test ./...`
-  - default package-local suite
+  - default package-local, quick smoke, release script/namespace, E2E, and
+    resilience suite
 - `go test ./tests/smoke -count=1`
-  - fast repo-level smoke coverage
+  - focused fast CLI smoke coverage
+- `go test ./tests/release -count=1`
+  - focused release script, namespace, and Homebrew smoke coverage
+- `go test -tags slow_smoke ./tests/installer ./tests/release -count=1`
+  - explicit cold installer and release archive smoke coverage
 - `go test ./tests/e2e -count=1`
   - real binary workflow coverage
 - `go test ./tests/resilience -count=1`
@@ -331,9 +343,6 @@ The first repo-level cases should be:
 
 ## Open Questions
 
-- whether `go test ./...` should eventually include `tests/smoke` by default
-  or keep repo-level suites opt-in
-- whether any repo-level suite should use build tags such as `resilience`
-  instead of dedicated package paths
-- whether future release packaging should add a separate release-verification
-  smoke path distinct from repository development smoke coverage
+- whether future release packaging should add a separate live
+  release-verification smoke path distinct from repository development smoke
+  coverage
