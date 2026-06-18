@@ -392,4 +392,5 @@ broader end-to-end test taxonomy remains outside this issue slice.
 
 ### Follow-Up Issues
 
-NONE
+- https://github.com/catu-ai/easyharness/issues/258 tracks the broader
+  validation taxonomy work that remains outside issue 257.
