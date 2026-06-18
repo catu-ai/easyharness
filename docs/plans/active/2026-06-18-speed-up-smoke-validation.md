@@ -152,7 +152,7 @@ reviewer slots. Both reviewers reported no findings.
 
 ### Step 2: Add Command Timeouts and Reduce Repeated Cold Work
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -214,7 +214,11 @@ with `tests/e2e` uncached.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-002-delta` found one blocking tests issue and one minor tests issue:
+the timeout regression covered `RunCommandWithTimeout` but not
+`RunWithOptions`, and the nested timeout used `50ms`. Repaired both by adding a
+`RunWithOptions` timeout regression and increasing the nested timeout to
+`500ms`. Follow-up `review-003-delta` passed with no findings.
 
 ### Step 3: Update Documentation, Workflows, and Evidence
 
