@@ -21,6 +21,8 @@ type CommandResult struct {
 	ExitCode int
 }
 
+const DefaultCommandTimeout = 5 * time.Minute
+
 func (r CommandResult) CombinedOutput() string {
 	return r.Stdout + r.Stderr
 }
@@ -28,7 +30,7 @@ func (r CommandResult) CombinedOutput() string {
 func RunCommand(t *testing.T, workdir string, env []string, argv ...string) CommandResult {
 	t.Helper()
 
-	return RunCommandWithTimeout(t, 0, workdir, env, argv...)
+	return RunCommandWithTimeout(t, DefaultCommandTimeout, workdir, env, argv...)
 }
 
 func RunCommandWithTimeout(t *testing.T, timeout time.Duration, workdir string, env []string, argv ...string) CommandResult {
@@ -37,9 +39,12 @@ func RunCommandWithTimeout(t *testing.T, timeout time.Duration, workdir string, 
 	var (
 		cmd    *exec.Cmd
 		cancel func()
+		ctx    context.Context
 	)
+	if timeout == 0 {
+		timeout = DefaultCommandTimeout
+	}
 	if timeout > 0 {
-		var ctx context.Context
 		ctx, cancel = context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
@@ -62,6 +67,10 @@ func RunCommandWithTimeout(t *testing.T, timeout time.Duration, workdir string, 
 	}
 	if err == nil {
 		return result
+	}
+
+	if ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		t.Fatalf("run command %v timed out after %s\nstdout:\n%s\nstderr:\n%s", argv, timeout, stdout.String(), stderr.String())
 	}
 
 	var exitErr *exec.ExitError
@@ -156,8 +165,6 @@ func InitializeInstallerCaches(t *testing.T) {
 	if installerCacheErr != nil {
 		t.Fatalf("initialize shared installer caches: %v", installerCacheErr)
 	}
-	t.Setenv("GOCACHE", installerGoCache)
-	t.Setenv("GOMODCACHE", installerModCache)
 }
 
 func InstallerPath(t *testing.T, extraDirs ...string) string {

@@ -18,6 +18,8 @@ func TestInstallDevHarnessDefaultsToUserLocalBin(t *testing.T) {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
+	t.Parallel()
+
 	repoRoot := support.CopyInstallerFixture(t)
 	tempHome := t.TempDir()
 	firstPathDir := filepath.Join(t.TempDir(), "path-bin")
@@ -60,6 +62,8 @@ func TestInstallDevHarnessHelpDoesNotMentionGlobalFlag(t *testing.T) {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
+	t.Parallel()
+
 	repoRoot := support.CopyInstallerFixture(t)
 	result := support.RunCommand(
 		t,
@@ -86,6 +90,8 @@ func TestInstallDevHarnessRejectsRemovedGlobalFlag(t *testing.T) {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
+	t.Parallel()
+
 	repoRoot := support.CopyInstallerFixture(t)
 	result := support.RunCommand(
 		t,
@@ -109,6 +115,8 @@ func TestInstallDevHarnessVerifiesPATHResolvedWrapperWhenInstallDirIsAlreadyOnPA
 	if runtime.GOOS == "windows" {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
+
+	t.Parallel()
 
 	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
@@ -141,6 +149,8 @@ func TestInstallDevHarnessWrapperDispatchesToCurrentWorktreeOverStablePathFallba
 	if runtime.GOOS == "windows" {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
+
+	t.Parallel()
 
 	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
@@ -190,6 +200,8 @@ func TestInstallDevHarnessWrapperRequiresStableHarnessOnPathOutsideWorktree(t *t
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
+	t.Parallel()
+
 	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 
@@ -235,6 +247,8 @@ func TestInstallDevHarnessWrapperUsesStableHarnessOnPathOutsideWorktree(t *testi
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
+	t.Parallel()
+
 	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	stableDir, _ := newFakeStableHarness(t)
@@ -278,6 +292,8 @@ func TestInstallDevHarnessWrapperSkipsOtherManagedWrappersOnPathOutsideWorktree(
 	if runtime.GOOS == "windows" {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
+
+	t.Parallel()
 
 	cases := []struct {
 		name   string
@@ -344,6 +360,8 @@ func TestInstallDevHarnessWrapperSkipsSymlinkAliasesOnPathOutsideWorktree(t *tes
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
+	t.Parallel()
+
 	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	aliasOneDir := t.TempDir()
@@ -396,6 +414,8 @@ func TestInstallDevHarnessWrapperSkipsRepoLocalDevBinaryOnPathOutsideWorktree(t 
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
+	t.Parallel()
+
 	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	devDir, _ := newFakeDevHarness(t)
@@ -441,6 +461,8 @@ func TestInstallDevHarnessVersionReportsDevModeAndPathInsideWorktree(t *testing.
 	if runtime.GOOS == "windows" {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
+
+	t.Parallel()
 
 	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
@@ -500,6 +522,8 @@ func TestInstallDevHarnessVersionReportsStableModeAndPathOutsideWorktree(t *test
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
+	t.Parallel()
+
 	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	stableDir, _ := newFakeStableHarness(t)
@@ -551,6 +575,8 @@ func TestInstallDevHarnessReplacesLegacyManagedWrapperWithoutForce(t *testing.T)
 	if runtime.GOOS == "windows" {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
+
+	t.Parallel()
 
 	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
@@ -631,6 +657,8 @@ func TestInstallDevHarnessReplacesLegacySymlinkedBinaryWithoutForce(t *testing.T
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
+	t.Parallel()
+
 	cases := []struct {
 		name       string
 		moduleLine string
@@ -708,6 +736,8 @@ func TestInstallDevHarnessWrapperDoesNotUseStablePathFallbackInsideSourceTreeWit
 	if runtime.GOOS == "windows" {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
+
+	t.Parallel()
 
 	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")

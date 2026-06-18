@@ -193,7 +193,24 @@ with a prepared binary, a shared fixture, or a smaller wrapper fixture.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added default command-level timeouts to `tests/support.Run`,
+`tests/support.RunWithOptions`, and the generic smoke command helpers. Timeout
+failures now include the command plus captured stdout/stderr, and
+`tests/support` has a self-spawning regression test that proves the diagnostic
+includes timeout text and child process output.
+
+Removed global test environment mutation from installer cache setup and marked
+the opt-in installer tests parallel. The full installer slow-smoke package now
+passes with `go test -tags slow_smoke ./tests/installer -count=1` in about
+3:29.01. That keeps a true cold `scripts/install-dev-harness` path while
+materially reducing wall-clock time from the earlier serial baseline, where the
+first five installer tests alone had already accumulated roughly 7 minutes.
+
+Validation: `go test ./tests/support ./tests/smoke ./tests/release`,
+`go test -tags slow_smoke ./tests/release -run TestBuildReleaseHelpUsesStableExampleVersion -count=1`,
+`go test -tags slow_smoke ./tests/installer -count=1`, and `go test ./...`
+all pass. The final default `go test ./...` run completed in about 1:30.78
+with `tests/e2e` uncached.
 
 #### Review Notes
 
