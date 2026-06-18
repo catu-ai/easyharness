@@ -1,4 +1,4 @@
-package smoke_test
+package release_test
 
 import (
 	"archive/zip"
@@ -37,11 +37,11 @@ func TestVerifyReleaseNamespaceWithFakeGHDownloadsAndChecksums(t *testing.T) {
 	)
 
 	downloadDir := filepath.Join(t.TempDir(), "downloads")
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		support.RepoRoot(t),
-		envWithOverrides(t, map[string]string{
-			"PATH": installerPath(t, fakeGHDir),
+		support.EnvWithOverrides(t, map[string]string{
+			"PATH": support.InstallerPath(t, fakeGHDir),
 		}),
 		"/bin/bash",
 		filepath.Join(support.RepoRoot(t), "scripts", "verify-release-namespace"),
@@ -86,13 +86,13 @@ func TestVerifyReleaseNamespaceMapsGitHubTokenToGHToken(t *testing.T) {
 		},
 	)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		support.RepoRoot(t),
-		envWithOverrides(t, map[string]string{
+		support.EnvWithOverrides(t, map[string]string{
 			"GH_TOKEN":     "",
 			"GITHUB_TOKEN": "fallback-token",
-			"PATH":         installerPath(t, fakeGHDir),
+			"PATH":         support.InstallerPath(t, fakeGHDir),
 		}),
 		"/bin/bash",
 		filepath.Join(support.RepoRoot(t), "scripts", "verify-release-namespace"),
@@ -125,11 +125,11 @@ func TestVerifyReleaseNamespaceFailsWhenAssetIsMissing(t *testing.T) {
 		},
 	)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		support.RepoRoot(t),
-		envWithOverrides(t, map[string]string{
-			"PATH": installerPath(t, fakeGHDir),
+		support.EnvWithOverrides(t, map[string]string{
+			"PATH": support.InstallerPath(t, fakeGHDir),
 		}),
 		"/bin/bash",
 		filepath.Join(support.RepoRoot(t), "scripts", "verify-release-namespace"),
@@ -164,11 +164,11 @@ func TestVerifyReleaseNamespaceFailsWhenChecksumDoesNotMatch(t *testing.T) {
 	)
 
 	downloadDir := filepath.Join(t.TempDir(), "downloads")
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		support.RepoRoot(t),
-		envWithOverrides(t, map[string]string{
-			"PATH": installerPath(t, fakeGHDir),
+		support.EnvWithOverrides(t, map[string]string{
+			"PATH": support.InstallerPath(t, fakeGHDir),
 		}),
 		"/bin/bash",
 		filepath.Join(support.RepoRoot(t), "scripts", "verify-release-namespace"),
@@ -202,13 +202,13 @@ func TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled(t *testing.T) {
 	}
 
 	downloadDir := filepath.Join(t.TempDir(), "downloads")
-	var result commandResult
+	var result support.CommandResult
 	for _, asset := range assets {
-		result = runCommand(
+		result = support.RunCommand(
 			t,
 			support.RepoRoot(t),
-			envWithOverrides(t, map[string]string{
-				"PATH": releaseSmokePath(t, ghPath),
+			support.EnvWithOverrides(t, map[string]string{
+				"PATH": support.ReleaseSmokePath(t, ghPath),
 			}),
 			"/bin/bash",
 			filepath.Join(support.RepoRoot(t), "scripts", "verify-release-namespace"),
@@ -245,10 +245,10 @@ func TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run downloaded harness --version: %v\n%s", err, versionOutput)
 	}
-	if got := requireVersionField(t, string(versionOutput), "version"); got != tag {
+	if got := support.RequireVersionField(t, string(versionOutput), "version"); got != tag {
 		t.Fatalf("expected downloaded harness version %q, got %q\noutput:\n%s", tag, got, versionOutput)
 	}
-	if got := requireVersionField(t, string(versionOutput), "mode"); got != "release" {
+	if got := support.RequireVersionField(t, string(versionOutput), "mode"); got != "release" {
 		t.Fatalf("expected downloaded harness mode release, got %q\noutput:\n%s", got, versionOutput)
 	}
 }
@@ -260,7 +260,7 @@ func TestReleaseSmokePathKeepsSetupGoAheadOfExternalTools(t *testing.T) {
 	brewDir := filepath.Join(t.TempDir(), "homebrew", "bin")
 	originalPath := strings.Join([]string{ghDir, setupGoDir, brewDir}, string(os.PathListSeparator))
 
-	got := releaseSmokePathFromToolPaths(
+	got := support.ReleaseSmokePathFromToolPaths(
 		originalPath,
 		filepath.Join(setupGoDir, "go"),
 		filepath.Join(pnpmDir, "pnpm"),

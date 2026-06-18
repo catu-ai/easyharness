@@ -16,14 +16,14 @@ func TestBuildEmbeddedUIScriptFailsWithActionableMessageWhenNodeIsMissingButPnpm
 		t.Skip("embedded UI build smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	fakeBin := newBuildEmbeddedUITestBin(t)
-	writeFixtureFile(t, filepath.Join(fakeBin, "pnpm"), "#!/bin/sh\nprintf 'unexpected pnpm invocation\\n' >&2\nexit 99\n", 0o755)
+	support.WriteFixtureFile(t, filepath.Join(fakeBin, "pnpm"), "#!/bin/sh\nprintf 'unexpected pnpm invocation\\n' >&2\nexit 99\n", 0o755)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		envWithOverrides(t, map[string]string{
+		support.EnvWithOverrides(t, map[string]string{
 			"PATH": fakeBin,
 		}),
 		"/bin/bash",
@@ -45,14 +45,14 @@ func TestBuildEmbeddedUIScriptFailsWithActionableMessageWhenPnpmIsMissing(t *tes
 		t.Skip("embedded UI build smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	fakeBin := newBuildEmbeddedUITestBin(t)
-	writeFixtureFile(t, filepath.Join(fakeBin, "node"), "#!/bin/sh\nexit 0\n", 0o755)
+	support.WriteFixtureFile(t, filepath.Join(fakeBin, "node"), "#!/bin/sh\nexit 0\n", 0o755)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		envWithOverrides(t, map[string]string{
+		support.EnvWithOverrides(t, map[string]string{
 			"PATH": fakeBin,
 		}),
 		"/bin/bash",

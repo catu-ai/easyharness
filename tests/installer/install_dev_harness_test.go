@@ -1,57 +1,36 @@
-package smoke_test
+//go:build slow_smoke
+
+package installer_test
 
 import (
-	"bytes"
-	"context"
-	"errors"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/catu-ai/easyharness/tests/support"
 )
 
-type commandResult struct {
-	Stdout   string
-	Stderr   string
-	ExitCode int
-}
-
-var installerCacheDirs struct {
-	once       sync.Once
-	goCache    string
-	goModCache string
-	err        error
-}
-
-func (r commandResult) CombinedOutput() string {
-	return r.Stdout + r.Stderr
-}
-
 func TestInstallDevHarnessDefaultsToUserLocalBin(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	tempHome := t.TempDir()
 	firstPathDir := filepath.Join(t.TempDir(), "path-bin")
 	if err := os.MkdirAll(firstPathDir, 0o755); err != nil {
 		t.Fatalf("mkdir first PATH dir: %v", err)
 	}
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": tempHome,
-			"PATH": installerPath(t, firstPathDir),
+			"PATH": support.InstallerPath(t, firstPathDir),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -81,13 +60,13 @@ func TestInstallDevHarnessHelpDoesNotMentionGlobalFlag(t *testing.T) {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
-	result := runCommand(
+	repoRoot := support.CopyInstallerFixture(t)
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": t.TempDir(),
-			"PATH": installerPath(t),
+			"PATH": support.InstallerPath(t),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -107,13 +86,13 @@ func TestInstallDevHarnessRejectsRemovedGlobalFlag(t *testing.T) {
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
-	result := runCommand(
+	repoRoot := support.CopyInstallerFixture(t)
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": t.TempDir(),
-			"PATH": installerPath(t),
+			"PATH": support.InstallerPath(t),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -131,18 +110,18 @@ func TestInstallDevHarnessVerifiesPATHResolvedWrapperWhenInstallDirIsAlreadyOnPA
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	if err := os.MkdirAll(installDir, 0o755); err != nil {
 		t.Fatalf("mkdir install dir: %v", err)
 	}
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": t.TempDir(),
-			"PATH": installerPath(t, installDir),
+			"PATH": support.InstallerPath(t, installDir),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -163,16 +142,16 @@ func TestInstallDevHarnessWrapperDispatchesToCurrentWorktreeOverStablePathFallba
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	stableDir, _ := newFakeStableHarness(t)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": t.TempDir(),
-			"PATH": installerPath(t, installDir, stableDir),
+			"PATH": support.InstallerPath(t, installDir, stableDir),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -186,11 +165,11 @@ func TestInstallDevHarnessWrapperDispatchesToCurrentWorktreeOverStablePathFallba
 	support.RequireFileExists(t, wrapperPath)
 
 	_, nestedDir := newFakeWorktree(t)
-	wrapperResult := runCommand(
+	wrapperResult := support.RunCommand(
 		t,
 		nestedDir,
-		envWithOverrides(t, map[string]string{
-			"PATH": installerPath(t, installDir, stableDir),
+		support.EnvWithOverrides(t, map[string]string{
+			"PATH": support.InstallerPath(t, installDir, stableDir),
 		}),
 		wrapperPath,
 		"status",
@@ -211,15 +190,15 @@ func TestInstallDevHarnessWrapperRequiresStableHarnessOnPathOutsideWorktree(t *t
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": t.TempDir(),
-			"PATH": installerPath(t, installDir),
+			"PATH": support.InstallerPath(t, installDir),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -233,10 +212,10 @@ func TestInstallDevHarnessWrapperRequiresStableHarnessOnPathOutsideWorktree(t *t
 	support.RequireFileExists(t, wrapperPath)
 
 	otherProject := t.TempDir()
-	wrapperResult := runCommand(
+	wrapperResult := support.RunCommand(
 		t,
 		otherProject,
-		envWithOverrides(t, map[string]string{
+		support.EnvWithOverrides(t, map[string]string{
 			"PATH": strings.Join([]string{installDir, "/usr/bin", "/bin", "/usr/sbin", "/sbin"}, string(os.PathListSeparator)),
 		}),
 		wrapperPath,
@@ -256,16 +235,16 @@ func TestInstallDevHarnessWrapperUsesStableHarnessOnPathOutsideWorktree(t *testi
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	stableDir, _ := newFakeStableHarness(t)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": t.TempDir(),
-			"PATH": installerPath(t, installDir, stableDir),
+			"PATH": support.InstallerPath(t, installDir, stableDir),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -279,11 +258,11 @@ func TestInstallDevHarnessWrapperUsesStableHarnessOnPathOutsideWorktree(t *testi
 	support.RequireFileExists(t, wrapperPath)
 
 	otherProject := t.TempDir()
-	helpResult := runCommand(
+	helpResult := support.RunCommand(
 		t,
 		otherProject,
-		envWithOverrides(t, map[string]string{
-			"PATH": installerPath(t, installDir, stableDir),
+		support.EnvWithOverrides(t, map[string]string{
+			"PATH": support.InstallerPath(t, installDir, stableDir),
 		}),
 		wrapperPath,
 		"--help",
@@ -316,18 +295,18 @@ func TestInstallDevHarnessWrapperSkipsOtherManagedWrappersOnPathOutsideWorktree(
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			repoRoot := copyInstallerFixture(t)
+			repoRoot := support.CopyInstallerFixture(t)
 			installDir := filepath.Join(t.TempDir(), "path-bin")
 			managedDir := t.TempDir()
 			stableDir, _ := newFakeStableHarness(t)
-			writeFixtureFile(t, filepath.Join(managedDir, "harness"), tc.script, 0o755)
+			support.WriteFixtureFile(t, filepath.Join(managedDir, "harness"), tc.script, 0o755)
 
-			result := runCommand(
+			result := support.RunCommand(
 				t,
 				repoRoot,
-				installerEnv(t, map[string]string{
+				support.InstallerEnv(t, map[string]string{
 					"HOME": t.TempDir(),
-					"PATH": installerPath(t, installDir, managedDir, stableDir),
+					"PATH": support.InstallerPath(t, installDir, managedDir, stableDir),
 				}),
 				"/bin/bash",
 				filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -339,11 +318,11 @@ func TestInstallDevHarnessWrapperSkipsOtherManagedWrappersOnPathOutsideWorktree(
 
 			wrapperPath := filepath.Join(installDir, "harness")
 			otherProject := t.TempDir()
-			helpResult := runCommand(
+			helpResult := support.RunCommand(
 				t,
 				otherProject,
-				envWithOverrides(t, map[string]string{
-					"PATH": installerPath(t, installDir, managedDir, stableDir),
+				support.EnvWithOverrides(t, map[string]string{
+					"PATH": support.InstallerPath(t, installDir, managedDir, stableDir),
 				}),
 				wrapperPath,
 				"--help",
@@ -365,18 +344,18 @@ func TestInstallDevHarnessWrapperSkipsSymlinkAliasesOnPathOutsideWorktree(t *tes
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	aliasOneDir := t.TempDir()
 	aliasTwoDir := t.TempDir()
 	stableDir, _ := newFakeStableHarness(t)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": t.TempDir(),
-			"PATH": installerPath(t, installDir, stableDir),
+			"PATH": support.InstallerPath(t, installDir, stableDir),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -395,12 +374,12 @@ func TestInstallDevHarnessWrapperSkipsSymlinkAliasesOnPathOutsideWorktree(t *tes
 	}
 
 	otherProject := t.TempDir()
-	helpResult := runCommandWithTimeout(
+	helpResult := support.RunCommandWithTimeout(
 		t,
 		5*time.Second,
 		otherProject,
-		envWithOverrides(t, map[string]string{
-			"PATH": installerPath(t, aliasOneDir, aliasTwoDir, installDir, stableDir),
+		support.EnvWithOverrides(t, map[string]string{
+			"PATH": support.InstallerPath(t, aliasOneDir, aliasTwoDir, installDir, stableDir),
 		}),
 		wrapperPath,
 		"--help",
@@ -417,17 +396,17 @@ func TestInstallDevHarnessWrapperSkipsRepoLocalDevBinaryOnPathOutsideWorktree(t 
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	devDir, _ := newFakeDevHarness(t)
 	stableDir, _ := newFakeStableHarness(t)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": t.TempDir(),
-			"PATH": installerPath(t, installDir, devDir, stableDir),
+			"PATH": support.InstallerPath(t, installDir, devDir, stableDir),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -439,11 +418,11 @@ func TestInstallDevHarnessWrapperSkipsRepoLocalDevBinaryOnPathOutsideWorktree(t 
 
 	wrapperPath := filepath.Join(installDir, "harness")
 	otherProject := t.TempDir()
-	helpResult := runCommand(
+	helpResult := support.RunCommand(
 		t,
 		otherProject,
-		envWithOverrides(t, map[string]string{
-			"PATH": installerPath(t, installDir, devDir, stableDir),
+		support.EnvWithOverrides(t, map[string]string{
+			"PATH": support.InstallerPath(t, installDir, devDir, stableDir),
 		}),
 		wrapperPath,
 		"--help",
@@ -463,16 +442,16 @@ func TestInstallDevHarnessVersionReportsDevModeAndPathInsideWorktree(t *testing.
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	stableDir, _ := newFakeStableHarness(t)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": t.TempDir(),
-			"PATH": installerPath(t, installDir, stableDir),
+			"PATH": support.InstallerPath(t, installDir, stableDir),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -483,11 +462,11 @@ func TestInstallDevHarnessVersionReportsDevModeAndPathInsideWorktree(t *testing.
 	}
 
 	wrapperPath := filepath.Join(installDir, "harness")
-	versionResult := runCommand(
+	versionResult := support.RunCommand(
 		t,
 		repoRoot,
-		envWithOverrides(t, map[string]string{
-			"PATH": installerPath(t, installDir, stableDir),
+		support.EnvWithOverrides(t, map[string]string{
+			"PATH": support.InstallerPath(t, installDir, stableDir),
 		}),
 		wrapperPath,
 		"--version",
@@ -496,7 +475,7 @@ func TestInstallDevHarnessVersionReportsDevModeAndPathInsideWorktree(t *testing.
 		t.Fatalf("wrapper version failed with exit %d\nstdout:\n%s\nstderr:\n%s", versionResult.ExitCode, versionResult.Stdout, versionResult.Stderr)
 	}
 
-	if mode := requireVersionField(t, versionResult.Stdout, "mode"); mode != "dev" {
+	if mode := support.RequireVersionField(t, versionResult.Stdout, "mode"); mode != "dev" {
 		t.Fatalf("expected dev mode from repo-local worktree binary, got %q\noutput:\n%s", mode, versionResult.Stdout)
 	}
 	versionSeedBytes, err := os.ReadFile(filepath.Join(repoRoot, "VERSION"))
@@ -504,14 +483,14 @@ func TestInstallDevHarnessVersionReportsDevModeAndPathInsideWorktree(t *testing.
 		t.Fatalf("read VERSION: %v", err)
 	}
 	expectedVersion := "v" + strings.TrimSpace(string(versionSeedBytes)) + "-dev"
-	if version := requireVersionField(t, versionResult.Stdout, "version"); version != expectedVersion {
+	if version := support.RequireVersionField(t, versionResult.Stdout, "version"); version != expectedVersion {
 		t.Fatalf("expected dev version %q, got %q\noutput:\n%s", expectedVersion, version, versionResult.Stdout)
 	}
 	expectedPath := filepath.Join(repoRoot, ".local", "bin", "harness")
 	if resolvedPath, err := filepath.EvalSymlinks(expectedPath); err == nil {
 		expectedPath = resolvedPath
 	}
-	if path := requireVersionField(t, versionResult.Stdout, "path"); path != expectedPath {
+	if path := support.RequireVersionField(t, versionResult.Stdout, "path"); path != expectedPath {
 		t.Fatalf("expected repo-local dev path %q, got %q\noutput:\n%s", expectedPath, path, versionResult.Stdout)
 	}
 }
@@ -521,16 +500,16 @@ func TestInstallDevHarnessVersionReportsStableModeAndPathOutsideWorktree(t *test
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	stableDir, _ := newFakeStableHarness(t)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": t.TempDir(),
-			"PATH": installerPath(t, installDir, stableDir),
+			"PATH": support.InstallerPath(t, installDir, stableDir),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -544,11 +523,11 @@ func TestInstallDevHarnessVersionReportsStableModeAndPathOutsideWorktree(t *test
 	support.RequireFileExists(t, wrapperPath)
 
 	otherProject := t.TempDir()
-	versionResult := runCommand(
+	versionResult := support.RunCommand(
 		t,
 		otherProject,
-		envWithOverrides(t, map[string]string{
-			"PATH": installerPath(t, installDir, stableDir),
+		support.EnvWithOverrides(t, map[string]string{
+			"PATH": support.InstallerPath(t, installDir, stableDir),
 		}),
 		wrapperPath,
 		"--version",
@@ -557,10 +536,10 @@ func TestInstallDevHarnessVersionReportsStableModeAndPathOutsideWorktree(t *test
 		t.Fatalf("wrapper version failed with exit %d\nstdout:\n%s\nstderr:\n%s", versionResult.ExitCode, versionResult.Stdout, versionResult.Stderr)
 	}
 
-	if mode := requireVersionField(t, versionResult.Stdout, "mode"); mode != "release" {
+	if mode := support.RequireVersionField(t, versionResult.Stdout, "mode"); mode != "release" {
 		t.Fatalf("expected release mode from stable PATH fallback, got %q\noutput:\n%s", mode, versionResult.Stdout)
 	}
-	if commit := requireVersionField(t, versionResult.Stdout, "commit"); commit != "stable-test-commit" {
+	if commit := support.RequireVersionField(t, versionResult.Stdout, "commit"); commit != "stable-test-commit" {
 		t.Fatalf("expected stable fallback commit %q, got %q\noutput:\n%s", "stable-test-commit", commit, versionResult.Stdout)
 	}
 	if strings.Contains(versionResult.Stdout, `"path"`) {
@@ -573,7 +552,7 @@ func TestInstallDevHarnessReplacesLegacyManagedWrapperWithoutForce(t *testing.T)
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	if err := os.MkdirAll(installDir, 0o755); err != nil {
 		t.Fatalf("mkdir install dir: %v", err)
@@ -623,14 +602,14 @@ fi
 
 exec "${binary_path}" "$@"
 `
-	writeFixtureFile(t, wrapperPath, legacyWrapper, 0o755)
+	support.WriteFixtureFile(t, wrapperPath, legacyWrapper, 0o755)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": t.TempDir(),
-			"PATH": installerPath(t),
+			"PATH": support.InstallerPath(t),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -668,7 +647,7 @@ func TestInstallDevHarnessReplacesLegacySymlinkedBinaryWithoutForce(t *testing.T
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			repoRoot := copyInstallerFixture(t)
+			repoRoot := support.CopyInstallerFixture(t)
 			installDir := filepath.Join(t.TempDir(), "path-bin")
 			if err := os.MkdirAll(installDir, 0o755); err != nil {
 				t.Fatalf("mkdir install dir: %v", err)
@@ -684,22 +663,22 @@ func TestInstallDevHarnessReplacesLegacySymlinkedBinaryWithoutForce(t *testing.T
 					t.Fatalf("mkdir legacy dir %s: %v", dir, err)
 				}
 			}
-			writeFixtureFile(t, filepath.Join(legacyRoot, "scripts", "install-dev-harness"), "#!/usr/bin/env bash\n", 0o755)
-			writeFixtureFile(t, filepath.Join(legacyRoot, "cmd", "harness", "main.go"), "package main\n", 0o644)
-			writeFixtureFile(t, filepath.Join(legacyRoot, "go.mod"), tc.moduleLine, 0o644)
-			writeFixtureFile(t, filepath.Join(legacyRoot, ".local", "bin", "harness"), "#!/bin/sh\nexit 0\n", 0o755)
+			support.WriteFixtureFile(t, filepath.Join(legacyRoot, "scripts", "install-dev-harness"), "#!/usr/bin/env bash\n", 0o755)
+			support.WriteFixtureFile(t, filepath.Join(legacyRoot, "cmd", "harness", "main.go"), "package main\n", 0o644)
+			support.WriteFixtureFile(t, filepath.Join(legacyRoot, "go.mod"), tc.moduleLine, 0o644)
+			support.WriteFixtureFile(t, filepath.Join(legacyRoot, ".local", "bin", "harness"), "#!/bin/sh\nexit 0\n", 0o755)
 
 			wrapperPath := filepath.Join(installDir, "harness")
 			if err := os.Symlink(filepath.Join(legacyRoot, ".local", "bin", "harness"), wrapperPath); err != nil {
 				t.Fatalf("create legacy symlink: %v", err)
 			}
 
-			result := runCommand(
+			result := support.RunCommand(
 				t,
 				repoRoot,
-				installerEnv(t, map[string]string{
+				support.InstallerEnv(t, map[string]string{
 					"HOME": t.TempDir(),
-					"PATH": installerPath(t),
+					"PATH": support.InstallerPath(t),
 				}),
 				"/bin/bash",
 				filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -730,16 +709,16 @@ func TestInstallDevHarnessWrapperDoesNotUseStablePathFallbackInsideSourceTreeWit
 		t.Skip("installer smoke tests require a POSIX shell")
 	}
 
-	repoRoot := copyInstallerFixture(t)
+	repoRoot := support.CopyInstallerFixture(t)
 	installDir := filepath.Join(t.TempDir(), "path-bin")
 	stableDir, _ := newFakeStableHarness(t)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		installerEnv(t, map[string]string{
+		support.InstallerEnv(t, map[string]string{
 			"HOME": t.TempDir(),
-			"PATH": installerPath(t, installDir, stableDir),
+			"PATH": support.InstallerPath(t, installDir, stableDir),
 		}),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
@@ -751,11 +730,11 @@ func TestInstallDevHarnessWrapperDoesNotUseStablePathFallbackInsideSourceTreeWit
 
 	_, nestedDir := newFakeWorktreeWithoutLocalBinary(t)
 	wrapperPath := filepath.Join(installDir, "harness")
-	wrapperResult := runCommand(
+	wrapperResult := support.RunCommand(
 		t,
 		nestedDir,
-		envWithOverrides(t, map[string]string{
-			"PATH": installerPath(t, installDir, stableDir),
+		support.EnvWithOverrides(t, map[string]string{
+			"PATH": support.InstallerPath(t, installDir, stableDir),
 		}),
 		wrapperPath,
 		"status",
@@ -768,80 +747,6 @@ func TestInstallDevHarnessWrapperDoesNotUseStablePathFallbackInsideSourceTreeWit
 	support.RequireContains(t, wrapperResult.Stderr, filepath.Join(".local", "bin", "harness"))
 	if strings.Contains(wrapperResult.CombinedOutput(), "stable fallback harness") {
 		t.Fatalf("expected source-tree invocation to refuse the stable PATH fallback\nstdout:\n%s\nstderr:\n%s", wrapperResult.Stdout, wrapperResult.Stderr)
-	}
-}
-
-func copyInstallerFixture(t *testing.T) string {
-	t.Helper()
-
-	root := t.TempDir()
-	sourceRoot := support.RepoRoot(t)
-	for _, rel := range []string{
-		"VERSION",
-		"go.mod",
-		"go.sum",
-		"assets",
-		"cmd",
-		"internal",
-		"scripts/build-embedded-ui",
-		"scripts/install-dev-harness",
-	} {
-		copyPath(t, filepath.Join(sourceRoot, rel), filepath.Join(root, rel))
-	}
-	for _, rel := range []string{
-		"web/index.html",
-		"web/package.json",
-		"web/pnpm-lock.yaml",
-		"web/tsconfig.json",
-		"web/vite.config.ts",
-		"web/src",
-	} {
-		copyPath(t, filepath.Join(sourceRoot, rel), filepath.Join(root, rel))
-	}
-	_ = os.RemoveAll(filepath.Join(root, "internal", "ui", "generated", "build"))
-	return root
-}
-
-func copyPath(t *testing.T, src, dst string) {
-	t.Helper()
-
-	info, err := os.Stat(src)
-	if err != nil {
-		t.Fatalf("stat %s: %v", src, err)
-	}
-
-	if info.IsDir() {
-		if err := os.MkdirAll(dst, info.Mode().Perm()); err != nil {
-			t.Fatalf("mkdir %s: %v", dst, err)
-		}
-		entries, err := os.ReadDir(src)
-		if err != nil {
-			t.Fatalf("read dir %s: %v", src, err)
-		}
-		for _, entry := range entries {
-			copyPath(t, filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name()))
-		}
-		return
-	}
-
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		t.Fatalf("mkdir parent for %s: %v", dst, err)
-	}
-
-	in, err := os.Open(src)
-	if err != nil {
-		t.Fatalf("open %s: %v", src, err)
-	}
-	defer in.Close()
-
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode().Perm())
-	if err != nil {
-		t.Fatalf("create %s: %v", dst, err)
-	}
-	defer out.Close()
-
-	if _, err := io.Copy(out, in); err != nil {
-		t.Fatalf("copy %s -> %s: %v", src, dst, err)
 	}
 }
 
@@ -860,10 +765,10 @@ func newFakeWorktree(t *testing.T) (string, string) {
 		}
 	}
 
-	writeFixtureFile(t, filepath.Join(root, "scripts", "install-dev-harness"), "#!/usr/bin/env bash\n", 0o755)
-	writeFixtureFile(t, filepath.Join(root, "cmd", "harness", "main.go"), "package main\n", 0o644)
-	writeFixtureFile(t, filepath.Join(root, "go.mod"), "module github.com/catu-ai/easyharness\n", 0o644)
-	writeFixtureFile(
+	support.WriteFixtureFile(t, filepath.Join(root, "scripts", "install-dev-harness"), "#!/usr/bin/env bash\n", 0o755)
+	support.WriteFixtureFile(t, filepath.Join(root, "cmd", "harness", "main.go"), "package main\n", 0o644)
+	support.WriteFixtureFile(t, filepath.Join(root, "go.mod"), "module github.com/catu-ai/easyharness\n", 0o644)
+	support.WriteFixtureFile(
 		t,
 		filepath.Join(root, ".local", "bin", "harness"),
 		"#!/bin/sh\nprintf 'fake worktree harness\\n'\nprintf 'args=%s\\n' \"$*\"\n",
@@ -887,9 +792,9 @@ func newFakeWorktreeWithoutLocalBinary(t *testing.T) (string, string) {
 		}
 	}
 
-	writeFixtureFile(t, filepath.Join(root, "scripts", "install-dev-harness"), "#!/usr/bin/env bash\n", 0o755)
-	writeFixtureFile(t, filepath.Join(root, "cmd", "harness", "main.go"), "package main\n", 0o644)
-	writeFixtureFile(t, filepath.Join(root, "go.mod"), "module github.com/catu-ai/easyharness\n", 0o644)
+	support.WriteFixtureFile(t, filepath.Join(root, "scripts", "install-dev-harness"), "#!/usr/bin/env bash\n", 0o755)
+	support.WriteFixtureFile(t, filepath.Join(root, "cmd", "harness", "main.go"), "package main\n", 0o644)
+	support.WriteFixtureFile(t, filepath.Join(root, "go.mod"), "module github.com/catu-ai/easyharness\n", 0o644)
 
 	return root, filepath.Join(root, "nested", "dir")
 }
@@ -899,7 +804,7 @@ func newFakeStableHarness(t *testing.T) (string, string) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "harness")
-	writeFixtureFile(
+	support.WriteFixtureFile(
 		t,
 		path,
 		`#!/bin/sh
@@ -944,7 +849,7 @@ func newFakeDevHarness(t *testing.T) (string, string) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "harness")
-	writeFixtureFile(
+	support.WriteFixtureFile(
 		t,
 		path,
 		`#!/bin/sh
@@ -966,214 +871,4 @@ esac
 		0o755,
 	)
 	return dir, path
-}
-
-func writeFixtureFile(t *testing.T, path, contents string, mode os.FileMode) {
-	t.Helper()
-	if err := os.WriteFile(path, []byte(contents), mode); err != nil {
-		t.Fatalf("write %s: %v", path, err)
-	}
-}
-
-func envWithOverrides(t *testing.T, overrides map[string]string) []string {
-	t.Helper()
-
-	env := append([]string(nil), os.Environ()...)
-	for key, value := range overrides {
-		prefix := key + "="
-		replaced := false
-		for i, entry := range env {
-			if len(entry) >= len(prefix) && entry[:len(prefix)] == prefix {
-				env[i] = prefix + value
-				replaced = true
-				break
-			}
-		}
-		if !replaced {
-			env = append(env, prefix+value)
-		}
-	}
-	return env
-}
-
-func installerEnv(t *testing.T, overrides map[string]string) []string {
-	t.Helper()
-
-	if overrides == nil {
-		overrides = map[string]string{}
-	}
-	if _, ok := overrides["GOCACHE"]; !ok {
-		overrides["GOCACHE"] = sharedInstallerGoCache(t)
-	}
-	if _, ok := overrides["GOMODCACHE"]; !ok {
-		overrides["GOMODCACHE"] = sharedInstallerGoModCache(t)
-	}
-	if _, ok := overrides["GOFLAGS"]; !ok {
-		overrides["GOFLAGS"] = "-modcacherw"
-	}
-	return envWithOverrides(t, overrides)
-}
-
-func sharedInstallerGoCache(t *testing.T) string {
-	t.Helper()
-	initializeInstallerCaches(t)
-	return installerCacheDirs.goCache
-}
-
-func sharedInstallerGoModCache(t *testing.T) string {
-	t.Helper()
-	initializeInstallerCaches(t)
-	return installerCacheDirs.goModCache
-}
-
-func initializeInstallerCaches(t *testing.T) {
-	t.Helper()
-
-	installerCacheDirs.once.Do(func() {
-		root, err := os.MkdirTemp("", "easyharness-install-smoke-cache-*")
-		if err != nil {
-			installerCacheDirs.err = err
-			return
-		}
-		installerCacheDirs.goCache = filepath.Join(root, "go-build")
-		installerCacheDirs.goModCache = filepath.Join(root, "gomod")
-		for _, dir := range []string{installerCacheDirs.goCache, installerCacheDirs.goModCache} {
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				installerCacheDirs.err = err
-				return
-			}
-		}
-	})
-
-	if installerCacheDirs.err != nil {
-		t.Fatalf("initialize shared installer caches: %v", installerCacheDirs.err)
-	}
-}
-
-func installerPath(t *testing.T, extraDirs ...string) string {
-	t.Helper()
-
-	goPath, err := exec.LookPath("go")
-	if err != nil {
-		t.Fatalf("find go on PATH: %v", err)
-	}
-	pnpmPath, err := exec.LookPath("pnpm")
-	if err != nil {
-		t.Fatalf("find pnpm on PATH: %v", err)
-	}
-
-	seen := map[string]bool{}
-	dirs := make([]string, 0, len(extraDirs)+6)
-	addDir := func(dir string) {
-		if dir == "" || seen[dir] {
-			return
-		}
-		seen[dir] = true
-		dirs = append(dirs, dir)
-	}
-
-	for _, dir := range extraDirs {
-		addDir(dir)
-	}
-	addDir(filepath.Dir(goPath))
-	addDir(filepath.Dir(pnpmPath))
-	addDir("/usr/bin")
-	addDir("/bin")
-	addDir("/usr/sbin")
-	addDir("/sbin")
-
-	return strings.Join(dirs, string(os.PathListSeparator))
-}
-
-func releaseSmokePath(t *testing.T, extraToolPaths ...string) string {
-	t.Helper()
-
-	goPath, err := exec.LookPath("go")
-	if err != nil {
-		t.Fatalf("find go on PATH: %v", err)
-	}
-	pnpmPath, err := exec.LookPath("pnpm")
-	if err != nil {
-		t.Fatalf("find pnpm on PATH: %v", err)
-	}
-
-	toolPaths := make([]string, 0, len(extraToolPaths)+2)
-	toolPaths = append(toolPaths, goPath, pnpmPath)
-	toolPaths = append(toolPaths, extraToolPaths...)
-	return releaseSmokePathFromToolPaths(os.Getenv("PATH"), toolPaths...)
-}
-
-func releaseSmokePathFromToolPaths(currentPath string, toolPaths ...string) string {
-	seen := map[string]bool{}
-	dirs := make([]string, 0, len(toolPaths)+len(filepath.SplitList(currentPath))+4)
-	addDir := func(dir string) {
-		if dir == "" || seen[dir] {
-			return
-		}
-		seen[dir] = true
-		dirs = append(dirs, dir)
-	}
-
-	for _, toolPath := range toolPaths {
-		addDir(filepath.Dir(toolPath))
-	}
-	for _, dir := range filepath.SplitList(currentPath) {
-		addDir(dir)
-	}
-	addDir("/usr/bin")
-	addDir("/bin")
-	addDir("/usr/sbin")
-	addDir("/sbin")
-
-	return strings.Join(dirs, string(os.PathListSeparator))
-}
-
-func runCommand(t *testing.T, workdir string, env []string, argv ...string) commandResult {
-	t.Helper()
-
-	return runCommandWithTimeout(t, 0, workdir, env, argv...)
-}
-
-func runCommandWithTimeout(t *testing.T, timeout time.Duration, workdir string, env []string, argv ...string) commandResult {
-	t.Helper()
-
-	var (
-		cmd    *exec.Cmd
-		cancel func()
-	)
-	if timeout > 0 {
-		var ctx context.Context
-		ctx, cancel = context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
-	} else {
-		cmd = exec.Command(argv[0], argv[1:]...)
-	}
-
-	cmd.Dir = workdir
-	cmd.Env = env
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	result := commandResult{
-		Stdout: stdout.String(),
-		Stderr: stderr.String(),
-	}
-	if err == nil {
-		return result
-	}
-
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
-		if errors.Is(err, context.DeadlineExceeded) {
-			t.Fatalf("run command %v timed out after %s\nstdout:\n%s\nstderr:\n%s", argv, timeout, stdout.String(), stderr.String())
-		}
-		t.Fatalf("run command %v: %v", argv, err)
-	}
-	result.ExitCode = exitErr.ExitCode()
-	return result
 }

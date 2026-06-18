@@ -2,9 +2,7 @@ package smoke_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -111,14 +109,14 @@ func TestVersionPrintsJSONBuildInfo(t *testing.T) {
 	result := support.Run(t, workspace.Root, "--version")
 	support.RequireSuccess(t, result)
 	support.RequireNoStderr(t, result)
-	if version := requireVersionField(t, result.Stdout, "version"); version == "" {
+	if version := support.RequireVersionField(t, result.Stdout, "version"); version == "" {
 		t.Fatalf("expected non-empty release version\noutput:\n%s", result.Stdout)
 	}
-	if mode := requireVersionField(t, result.Stdout, "mode"); mode != "release" {
+	if mode := support.RequireVersionField(t, result.Stdout, "mode"); mode != "release" {
 		t.Fatalf("expected release mode, got %q\noutput:\n%s", mode, result.Stdout)
 	}
-	expectedCommit := gitHeadCommit(t, support.RepoRoot(t))
-	if commit := requireVersionField(t, result.Stdout, "commit"); commit != expectedCommit {
+	expectedCommit := support.GitHeadCommit(t, support.RepoRoot(t))
+	if commit := support.RequireVersionField(t, result.Stdout, "commit"); commit != expectedCommit {
 		t.Fatalf("expected release version commit %q, got %q\noutput:\n%s", expectedCommit, commit, result.Stdout)
 	}
 	if strings.Contains(result.Stdout, `"path"`) {
@@ -1094,44 +1092,4 @@ func TestPlanTemplateAndLintRoundTrip(t *testing.T) {
 	if payload.Artifacts.PlanPath != planRelPath {
 		t.Fatalf("expected lint plan path %q, got %#v", planRelPath, payload)
 	}
-}
-
-func requireVersionField(t *testing.T, output, field string) string {
-	t.Helper()
-
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(output), &payload); err != nil {
-		t.Fatalf("expected JSON version output: %v\noutput:\n%s", err, output)
-	}
-	value, ok := payload[field]
-	if !ok {
-		t.Fatalf("expected version field %q in output:\n%s", field, output)
-	}
-	switch typed := value.(type) {
-	case string:
-		if typed == "" {
-			t.Fatalf("expected version field %q to be non-empty\noutput:\n%s", field, output)
-		}
-		return typed
-	case bool:
-		return fmt.Sprintf("%t", typed)
-	default:
-		return fmt.Sprint(typed)
-	}
-}
-
-func gitHeadCommit(t *testing.T, repoRoot string) string {
-	t.Helper()
-
-	cmd := exec.Command("git", "-C", repoRoot, "rev-parse", "HEAD")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git rev-parse HEAD: %v\n%s", err, output)
-	}
-
-	commit := strings.TrimSpace(string(output))
-	if commit == "" {
-		t.Fatalf("expected git HEAD commit for %s", repoRoot)
-	}
-	return commit
 }

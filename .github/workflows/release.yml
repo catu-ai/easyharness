@@ -133,7 +133,7 @@ jobs:
           EASYHARNESS_LIVE_GH_REPO: ${{ github.repository }}
           EASYHARNESS_LIVE_GH_TAG: ${{ steps.release-version.outputs.version }}
           EASYHARNESS_LIVE_GH_ASSET: easyharness_${{ steps.release-version.outputs.version }}_linux_amd64.zip
-        run: go test ./tests/smoke -run TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled -count=1
+        run: go test ./tests/release -run TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled -count=1
 
       - name: Render Homebrew formula
         run: |
@@ -207,4 +207,4 @@ jobs:
         env:
           EASYHARNESS_LIVE_GH_REPO: ${{ github.repository }}
           EASYHARNESS_LIVE_GH_TAG: ${{ steps.release-version.outputs.version }}
-        run: go test ./tests/smoke -run TestVerifyHomebrewTapInstallAgainstGitHubWhenEnabled -count=1
+        run: go test ./tests/release -run TestVerifyHomebrewTapInstallAgainstGitHubWhenEnabled -count=1

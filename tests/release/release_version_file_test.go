@@ -1,4 +1,4 @@
-package smoke_test
+package release_test
 
 import (
 	"os"
@@ -12,10 +12,10 @@ import (
 func TestRepositoryVersionFileUsesUnprefixedReleaseVersion(t *testing.T) {
 	repoRoot := support.RepoRoot(t)
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		envWithOverrides(t, nil),
+		support.EnvWithOverrides(t, nil),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "read-release-version"),
 	)
@@ -44,10 +44,10 @@ func TestRepositoryVersionFileResolvesMatchingReleaseTag(t *testing.T) {
 		t.Fatalf("expected repository VERSION file to contain a release version")
 	}
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		envWithOverrides(t, nil),
+		support.EnvWithOverrides(t, nil),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "read-release-version"),
 		"--tag",
@@ -69,10 +69,10 @@ func TestReadReleaseVersionOutputsVersionAndTag(t *testing.T) {
 		t.Fatalf("write VERSION file: %v", err)
 	}
 
-	versionResult := runCommand(
+	versionResult := support.RunCommand(
 		t,
 		repoRoot,
-		envWithOverrides(t, nil),
+		support.EnvWithOverrides(t, nil),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "read-release-version"),
 		"--version-file", versionFile,
@@ -84,10 +84,10 @@ func TestReadReleaseVersionOutputsVersionAndTag(t *testing.T) {
 		t.Fatalf("expected raw version output %q, got %q", "0.2.0-alpha.1", got)
 	}
 
-	tagResult := runCommand(
+	tagResult := support.RunCommand(
 		t,
 		repoRoot,
-		envWithOverrides(t, nil),
+		support.EnvWithOverrides(t, nil),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "read-release-version"),
 		"--version-file", versionFile,
@@ -108,10 +108,10 @@ func TestReadReleaseVersionRejectsPrefixedVersionFile(t *testing.T) {
 		t.Fatalf("write VERSION file: %v", err)
 	}
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		envWithOverrides(t, nil),
+		support.EnvWithOverrides(t, nil),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "read-release-version"),
 		"--version-file", versionFile,
@@ -126,10 +126,10 @@ func TestReadReleaseVersionRejectsMissingVersionFile(t *testing.T) {
 	repoRoot := support.RepoRoot(t)
 	versionFile := filepath.Join(t.TempDir(), "missing-version")
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		envWithOverrides(t, nil),
+		support.EnvWithOverrides(t, nil),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "read-release-version"),
 		"--version-file", versionFile,
@@ -147,10 +147,10 @@ func TestReadReleaseVersionRejectsEmptyVersionFile(t *testing.T) {
 		t.Fatalf("write VERSION file: %v", err)
 	}
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		envWithOverrides(t, nil),
+		support.EnvWithOverrides(t, nil),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "read-release-version"),
 		"--version-file", versionFile,
@@ -168,10 +168,10 @@ func TestReadReleaseVersionRejectsVersionThatCannotFormGitTag(t *testing.T) {
 		t.Fatalf("write VERSION file: %v", err)
 	}
 
-	result := runCommand(
+	result := support.RunCommand(
 		t,
 		repoRoot,
-		envWithOverrides(t, nil),
+		support.EnvWithOverrides(t, nil),
 		"/bin/bash",
 		filepath.Join(repoRoot, "scripts", "read-release-version"),
 		"--version-file", versionFile,
@@ -191,8 +191,8 @@ func TestCreateReleaseTagFromVersionSkipsWhenTagAlreadyMatchesCommit(t *testing.
 	mustRunGit(t, cloneDir, "commit", "-m", "Add VERSION")
 	mustRunGit(t, cloneDir, "push", "-u", "origin", "main")
 
-	env := envWithOverrides(t, nil)
-	firstResult := runCommand(
+	env := support.EnvWithOverrides(t, nil)
+	firstResult := support.RunCommand(
 		t,
 		cloneDir,
 		env,
@@ -205,7 +205,7 @@ func TestCreateReleaseTagFromVersionSkipsWhenTagAlreadyMatchesCommit(t *testing.
 	support.RequireContains(t, firstResult.Stdout, "Created and pushed tag v0.2.0")
 
 	headCommit := strings.TrimSpace(runGitOutput(t, cloneDir, "rev-parse", "HEAD"))
-	secondResult := runCommand(
+	secondResult := support.RunCommand(
 		t,
 		cloneDir,
 		env,
@@ -232,8 +232,8 @@ func TestCreateReleaseTagFromVersionFailsWhenTagPointsAtDifferentCommit(t *testi
 	mustRunGit(t, cloneDir, "commit", "-m", "Add VERSION")
 	mustRunGit(t, cloneDir, "push", "-u", "origin", "main")
 
-	env := envWithOverrides(t, nil)
-	firstResult := runCommand(
+	env := support.EnvWithOverrides(t, nil)
+	firstResult := support.RunCommand(
 		t,
 		cloneDir,
 		env,
@@ -251,7 +251,7 @@ func TestCreateReleaseTagFromVersionFailsWhenTagPointsAtDifferentCommit(t *testi
 	mustRunGit(t, cloneDir, "commit", "-m", "Change README")
 	mustRunGit(t, cloneDir, "push", "origin", "main")
 
-	secondResult := runCommand(
+	secondResult := support.RunCommand(
 		t,
 		cloneDir,
 		env,
@@ -311,7 +311,7 @@ func newTaggedReleaseRepo(t *testing.T) (string, string) {
 	mustRunGit(t, tempDir, "clone", remoteDir, cloneDir)
 	mustRunGit(t, cloneDir, "config", "user.name", "Test User")
 	mustRunGit(t, cloneDir, "config", "user.email", "test@example.com")
-	writeFixtureFile(t, filepath.Join(cloneDir, "README.md"), "# repo\n", 0o644)
+	support.WriteFixtureFile(t, filepath.Join(cloneDir, "README.md"), "# repo\n", 0o644)
 	mustRunGit(t, cloneDir, "add", "README.md")
 	mustRunGit(t, cloneDir, "commit", "-m", "Initial commit")
 	mustRunGit(t, cloneDir, "branch", "-M", "main")

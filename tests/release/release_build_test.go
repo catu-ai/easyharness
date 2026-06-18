@@ -1,4 +1,6 @@
-package smoke_test
+//go:build slow_smoke
+
+package release_test
 
 import (
 	"archive/zip"
@@ -27,7 +29,7 @@ func TestBuildReleaseProducesSupportedAlphaArchivesAndVersionedBinary(t *testing
 	firstOutputDir := newReleaseOutputDir(t, "supported-alpha-a")
 	secondOutputDir := newReleaseOutputDir(t, "supported-alpha-b")
 	version := "v0.1.0-alpha.1"
-	expectedCommit := gitHeadCommit(t, support.RepoRoot(t))
+	expectedCommit := support.GitHeadCommit(t, support.RepoRoot(t))
 	expectedArchiveTime := gitCommitTimestampUTC(t, support.RepoRoot(t), expectedCommit)
 
 	firstResult := runReleaseBuild(t, version, firstOutputDir)
@@ -81,7 +83,7 @@ func TestBuildReleaseProducesStableArchiveAndVersionedBinary(t *testing.T) {
 	}
 
 	version := "v0.0.0"
-	expectedCommit := gitHeadCommit(t, support.RepoRoot(t))
+	expectedCommit := support.GitHeadCommit(t, support.RepoRoot(t))
 	expectedArchiveTime := gitCommitTimestampUTC(t, support.RepoRoot(t), expectedCommit)
 
 	runReleaseBuildForPlatforms(t, version, outputDir, hostPlatform)
@@ -727,13 +729,13 @@ func verifyArchiveContents(t *testing.T, workspace *support.Workspace, archivePa
 		}
 
 		output := string(versionOutput)
-		if got := requireVersionField(t, output, "version"); got != version {
+		if got := support.RequireVersionField(t, output, "version"); got != version {
 			t.Fatalf("expected packaged version %q, got %q\noutput:\n%s", version, got, output)
 		}
-		if got := requireVersionField(t, output, "mode"); got != "release" {
+		if got := support.RequireVersionField(t, output, "mode"); got != "release" {
 			t.Fatalf("expected packaged mode release, got %q\noutput:\n%s", got, output)
 		}
-		if got := requireVersionField(t, output, "commit"); got != expectedCommit {
+		if got := support.RequireVersionField(t, output, "commit"); got != expectedCommit {
 			t.Fatalf("expected packaged commit %q, got %q\noutput:\n%s", expectedCommit, got, output)
 		}
 		if strings.Contains(output, `"path"`) {
@@ -965,7 +967,7 @@ func newReleaseBuildCheckout(t *testing.T) string {
 		"web/src",
 		"internal/ui",
 	} {
-		copyPath(t, filepath.Join(repoRoot, rel), filepath.Join(checkoutRoot, rel))
+		support.CopyPath(t, filepath.Join(repoRoot, rel), filepath.Join(checkoutRoot, rel))
 	}
 	_ = os.RemoveAll(filepath.Join(checkoutRoot, "internal", "ui", "generated", "build"))
 
