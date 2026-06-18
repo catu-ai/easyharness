@@ -362,6 +362,13 @@ contains checked acceptance criteria, completed tracked steps, validation
 evidence, review history, and no deferred follow-up issue requirement beyond
 the existing broader test-taxonomy deferral. No supplements were used.
 
+- PR: NONE
+- Ready: All tracked steps are complete, acceptance criteria are checked, quick
+  and slow validation pass, and final repair review is expected to confirm no
+  remaining blockers before archive.
+- Merge Handoff: After archive, publish this branch as a PR for issue 257,
+  record publish/CI/sync evidence, and wait for explicit human merge approval.
+
 ## Outcome Summary
 
 ### Delivered
