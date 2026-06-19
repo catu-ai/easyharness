@@ -332,7 +332,7 @@ layout. Follow-up `review-005-delta` passed with no findings.
 
 ### Step 4: Replace Duration-Based Smoke Selection with Validation Profiles
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -429,7 +429,14 @@ ordinary development validation portion passed.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-016-delta` found two blocking issues: the active plan closeout
+summaries still described the old duration-oriented validation contract, and
+the smoke tests did not prove `installer_smoke` and `release_smoke` selected
+the intended tests. Repaired both by rewriting the current closeout summaries
+and adding `TestValidationProfileTagsSelectReleaseReadySmokeTests`.
+
+Follow-up `review-017-delta` passed with `docs-consistency` and `tests`
+reviewer slots reporting no findings.
 
 ## Validation Strategy
 
