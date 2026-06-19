@@ -470,8 +470,6 @@ reviewer slots reporting no findings.
 
 ## Validation Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 Ordinary development validation is now `scripts/validate`, which builds
 embedded UI assets and runs `go test ./...`. It passed locally after Step 4,
 and after the finalize repair it also passed when invoked from `docs/` as
@@ -540,6 +538,9 @@ After revision 3 reopened the archived candidate for a CI failure,
 `CopyInstallerFixture` stopped copying `web/node_modules` so smoke fixtures do
 not traverse pnpm's CI symlink forest. The local `scripts/validate` run and
 focused CI-failure smoke tests passed before revision 3 repair review.
+`review-020-delta` found that reopen summary markers still remained in
+archive-facing summaries; those markers were removed before the follow-up
+review.
 
 ## Archive Summary
 
@@ -580,14 +581,10 @@ were used.
 
 ### Not Delivered
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 No product behavior changes were delivered outside the validation split. A
 broader end-to-end test taxonomy remains outside this issue slice.
 
 ### Follow-Up Issues
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - https://github.com/catu-ai/easyharness/issues/258 tracks the broader
   validation taxonomy work that remains outside issue 257.
