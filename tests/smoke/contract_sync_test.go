@@ -106,7 +106,17 @@ func copyCurrentRepo(t *testing.T, src, dst string) {
 	ctx, cancel := context.WithTimeout(context.Background(), support.DefaultCommandTimeout)
 	defer cancel()
 
-	archive := exec.CommandContext(ctx, "tar", "-cf", "-", "--exclude=.git", "--exclude=.local", ".")
+	archive := exec.CommandContext(
+		ctx,
+		"tar",
+		"-cf",
+		"-",
+		"--exclude=.git",
+		"--exclude=.local",
+		"--exclude=web/node_modules",
+		"--exclude=internal/ui/generated/build",
+		".",
+	)
 	archive.Dir = src
 	extract := exec.CommandContext(ctx, "tar", "-xf", "-", "-C", dst)
 

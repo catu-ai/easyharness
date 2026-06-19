@@ -471,14 +471,18 @@ reviewer slots reporting no findings.
 ## Validation Summary
 
 Ordinary development validation is now `scripts/validate`, which builds
-embedded UI assets and runs `go test ./...`. It passed locally after Step 4.
+embedded UI assets and runs `go test ./...`. It passed locally after Step 4,
+and after the finalize repair it also passed when invoked from `docs/` as
+`../scripts/validate`, proving the profile anchors Go tests to the repository
+root instead of the caller directory.
 
 Full release-ready validation is now `scripts/validate-release`, which runs
 `scripts/validate` and then the purpose-tagged installer and release archive
-smoke suites. It passed locally after Step 4; the installer profile ran with
-`go test -tags installer_smoke ./tests/installer -count=1` in 250.429s, and
-the release archive profile ran with
-`go test -tags release_smoke ./tests/release -count=1` in 66.450s.
+smoke suites. It passed locally after Step 4, and again after the finalize
+repair with warmed installer Corepack/pnpm caches; the latest installer
+profile ran with `go test -tags installer_smoke ./tests/installer -count=1`
+in 182.964s, and the latest release archive profile ran with
+`go test -tags release_smoke ./tests/release -count=1` in 113.788s.
 
 Focused validation also passed:
 `go test -list . ./tests/smoke ./tests/release`,
@@ -486,6 +490,10 @@ Focused validation also passed:
 `go test -tags release_smoke -list . ./tests/release`,
 `go test ./tests/smoke ./tests/release -count=1`, and
 `harness plan lint docs/plans/active/2026-06-18-speed-up-smoke-validation.md`.
+Finalize repair validation also covered
+`go test ./tests/smoke -run 'TestSyncContractArtifactsCheckFailsOnStaleGeneratedFiles|TestSyncContractArtifactsCheckFailsOnDeprecatedGeneratedDocs|TestValidationScriptsDefineDevelopmentAndReleaseProfiles|TestValidationProfileTagsSelectReleaseReadySmokeTests|TestCIWorkflowUsesDevelopmentValidationProfile' -count=1`,
+`go test ./tests/support -count=1`, and
+`go test -tags installer_smoke ./tests/installer -run 'TestInstallDevHarnessWrapperSkipsOtherManagedWrappersOnPathOutsideWorktree' -count=1`.
 Timeout regression tests still cover the command helper repairs from revision
 1, and the current profile tests prove the user-facing scripts plus functional
 build tags select the intended release-ready smoke tests.
@@ -512,19 +520,27 @@ tests did not prove the functional build tags selected the intended tests.
 Both were repaired in the active plan and smoke test coverage before follow-up
 review.
 
+Finalize review `review-018-full` found three archive-blocking issues and one
+duplicate non-blocking issue: the validation scripts ran Go tests from the
+caller directory instead of the repository root, installer smoke could still
+fall through to a live Corepack/pnpm download from temporary homes, and the
+Archive Summary still said the Step 4 repair review was pending. The repairs
+anchor validation scripts to `repo_root`, share warmed installer Corepack and
+pnpm caches, and update the archive handoff text before follow-up review.
+
 ## Archive Summary
 
 - Archived At: PENDING_ARCHIVE
 - Revision: 2
-Ready for archive once the Step 4 follow-up review and finalize review pass.
+Ready for archive once the finalize repair review passes.
 The active plan contains checked acceptance criteria, completed tracked steps
-through Step 4 implementation, validation evidence, review history, and no
-deferred follow-up issue requirement beyond the existing broader test-taxonomy
-deferral. No supplements were used.
+through Step 4, validation evidence, review history through
+`review-018-full`, and no deferred follow-up issue requirement beyond the
+existing broader test-taxonomy deferral. No supplements were used.
 
 - PR: NONE
-- Ready: Pending Step 4 repair review, finalize review, archive, publish/CI,
-  and sync evidence.
+- Ready: Pending finalize repair review, archive, publish/CI, and sync
+  evidence.
 - Merge Handoff: After archive, update PR #259 for issue 257, record
   publish/CI/sync evidence, and wait for explicit human merge approval.
 

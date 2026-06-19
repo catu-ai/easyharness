@@ -151,6 +151,12 @@ func InstallerEnv(t *testing.T, overrides map[string]string) []string {
 	if _, ok := overrides["GOFLAGS"]; !ok {
 		overrides["GOFLAGS"] = "-modcacherw"
 	}
+	if _, ok := overrides["COREPACK_HOME"]; !ok {
+		overrides["COREPACK_HOME"] = sharedInstallerCorepackHome(t)
+	}
+	if _, ok := overrides["NPM_CONFIG_STORE_DIR"]; !ok {
+		overrides["NPM_CONFIG_STORE_DIR"] = sharedInstallerPnpmStore(t)
+	}
 	return EnvWithOverrides(t, overrides)
 }
 
@@ -184,6 +190,7 @@ func InstallerPath(t *testing.T, extraDirs ...string) string {
 	for _, dir := range extraDirs {
 		addDir(dir)
 	}
+	addDir(filepath.Join(RepoRoot(t), "web", "node_modules", ".bin"))
 	addDir(filepath.Join(RepoRoot(t), "node_modules", ".bin"))
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
 		addDir(dir)
@@ -291,15 +298,29 @@ func RequireSubstringOrder(t *testing.T, haystack, first, second string) {
 }
 
 var (
-	installerCacheOnce sync.Once
-	installerGoCache   string
-	installerCacheErr  error
+	installerCacheOnce    sync.Once
+	installerGoCache      string
+	installerCorepackHome string
+	installerPnpmStore    string
+	installerCacheErr     error
 )
 
 func sharedInstallerGoCache(t *testing.T) string {
 	t.Helper()
 	InitializeInstallerCaches(t)
 	return installerGoCache
+}
+
+func sharedInstallerCorepackHome(t *testing.T) string {
+	t.Helper()
+	InitializeInstallerCaches(t)
+	return installerCorepackHome
+}
+
+func sharedInstallerPnpmStore(t *testing.T) string {
+	t.Helper()
+	InitializeInstallerCaches(t)
+	return installerPnpmStore
 }
 
 func initializeSharedInstallerCaches() {
@@ -310,7 +331,17 @@ func initializeSharedInstallerCaches() {
 			return
 		}
 		installerGoCache = filepath.Join(root, "go-build")
+		installerCorepackHome = filepath.Join(root, "corepack")
+		installerPnpmStore = filepath.Join(root, "pnpm-store")
 		if err := os.MkdirAll(installerGoCache, 0o755); err != nil {
+			installerCacheErr = err
+			return
+		}
+		if err := os.MkdirAll(installerCorepackHome, 0o755); err != nil {
+			installerCacheErr = err
+			return
+		}
+		if err := os.MkdirAll(installerPnpmStore, 0o755); err != nil {
 			installerCacheErr = err
 			return
 		}
@@ -318,7 +349,45 @@ func initializeSharedInstallerCaches() {
 			installerCacheErr = fmt.Errorf("warm installer Go module cache: %w", err)
 			return
 		}
+		cacheEnv := append(
+			os.Environ(),
+			"CI=true",
+			"COREPACK_HOME="+installerCorepackHome,
+			"NPM_CONFIG_STORE_DIR="+installerPnpmStore,
+		)
+		if _, err := runOutputWithEnvWithTimeout(repoRoot(), cacheEnv, "corepack", "prepare", "pnpm@10.32.1", "--activate"); err != nil {
+			installerCacheErr = fmt.Errorf("warm installer Corepack cache: %w", err)
+			return
+		}
+		if _, err := runOutputWithEnvWithTimeout(repoRoot(), cacheEnv, "pnpm", "--dir", "web", "fetch", "--frozen-lockfile"); err != nil {
+			installerCacheErr = fmt.Errorf("warm installer pnpm store: %w", err)
+			return
+		}
 	})
+}
+
+func runOutputWithEnvWithTimeout(workdir string, env []string, argv ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultCommandTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.Dir = workdir
+	cmd.Env = env
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	output := stdout.String() + stderr.String()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return output, fmt.Errorf("run command %v timed out after %s", argv, DefaultCommandTimeout)
+	}
+	if err != nil {
+		return output, fmt.Errorf("run command %v: %w\n%s", argv, err, output)
+	}
+	return output, nil
 }
 
 func WriteFixtureFile(t *testing.T, path, contents string, mode os.FileMode) {
