@@ -527,20 +527,22 @@ fall through to a live Corepack/pnpm download from temporary homes, and the
 Archive Summary still said the Step 4 repair review was pending. The repairs
 anchor validation scripts to `repo_root`, share warmed installer Corepack and
 pnpm caches, and update the archive handoff text before follow-up review.
+Follow-up `review-019-delta` passed with correctness, tests, docs-consistency,
+and risk-scan slots reporting no findings.
 
 ## Archive Summary
 
-- Archived At: PENDING_ARCHIVE
+- Archived At: 2026-06-20T00:30:40+08:00
 - Revision: 2
-Ready for archive once the finalize repair review passes.
-The active plan contains checked acceptance criteria, completed tracked steps
-through Step 4, validation evidence, review history through
-`review-018-full`, and no deferred follow-up issue requirement beyond the
-existing broader test-taxonomy deferral. No supplements were used.
+Ready for archive after `review-019-delta` passed. The active plan contains
+checked acceptance criteria, completed tracked steps through Step 4,
+validation evidence, review history through the finalize repair review, and no
+deferred follow-up issue requirement beyond the existing broader test-taxonomy
+deferral. No supplements were used.
 
 - PR: NONE
-- Ready: Pending finalize repair review, archive, publish/CI, and sync
-  evidence.
+- Ready: Ready to archive; after archive, update PR #259 and refresh
+  publish/CI/sync evidence.
 - Merge Handoff: After archive, update PR #259 for issue 257, record
   publish/CI/sync evidence, and wait for explicit human merge approval.
 
