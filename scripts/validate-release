@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+
+"${repo_root}/scripts/validate"
+go test -tags installer_smoke ./tests/installer -count=1
+go test -tags release_smoke ./tests/release -count=1

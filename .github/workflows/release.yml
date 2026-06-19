@@ -90,15 +90,11 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Build embedded UI assets
-        working-directory: dist/release-source
-        run: scripts/build-embedded-ui
-
-      - name: Run tests
+      - name: Run publish validation
         env:
           EASYHARNESS_HOMEBREW_TAP_TOKEN: ""
         working-directory: dist/release-source
-        run: go test ./...
+        run: scripts/validate
 
       - name: Build release artifacts
         run: dist/release-source/scripts/build-release --version "${{ steps.release-version.outputs.version }}" --output-dir dist/release

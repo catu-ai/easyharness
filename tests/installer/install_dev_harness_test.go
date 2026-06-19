@@ -1,4 +1,4 @@
-//go:build slow_smoke
+//go:build installer_smoke
 
 package installer_test
 

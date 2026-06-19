@@ -69,27 +69,28 @@ Repo-level UI development also expects `pnpm` to be available locally. If it
 is missing, install Node.js and pnpm before rerunning the embedded UI build or
 development installer.
 
-## Go Validation
+## Validation
 
-For routine local validation, build the embedded UI assets and run the default
-Go suite:
-
-```bash
-scripts/build-embedded-ui
-go test ./...
-```
-
-The default `go test ./...` path includes package tests, quick smoke coverage,
-release script/namespace checks, E2E tests, and resilience tests. It does not
-run the cold installer or release-archive smoke tests that are tagged as slow.
-
-Run the explicit slow smoke path when changing installer behavior, release
-archive construction, wrapper PATH behavior, or when preparing a release that
-needs packaging confidence beyond the default suite:
+For routine local development validation, run:
 
 ```bash
-go test -tags slow_smoke ./tests/installer ./tests/release -count=1
+scripts/validate
 ```
+
+That profile builds the embedded UI assets and then runs the default Go suite:
+package tests, ordinary smoke coverage, release script/namespace checks, E2E
+tests, and resilience tests. It does not run installer or release archive
+smoke tests that require explicit release-readiness coverage.
+
+For release-ready validation, including `VERSION` PRs and any release PR before
+merge, run:
+
+```bash
+scripts/validate-release
+```
+
+That profile includes ordinary development validation and then runs the
+purpose-tagged installer and release archive smoke suites.
 
 ## UI Development
 

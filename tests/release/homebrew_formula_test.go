@@ -208,7 +208,7 @@ func TestReleaseWorkflowWiresHomebrewTapPublishing(t *testing.T) {
 	support.RequireContains(t, workflow, `cache-dependency-path: dist/release-source/web/pnpm-lock.yaml`)
 	support.RequireContains(t, workflow, `run: corepack enable`)
 	support.RequireContains(t, workflow, `working-directory: dist/release-source`)
-	support.RequireContains(t, workflow, `run: scripts/build-embedded-ui`)
+	support.RequireContains(t, workflow, `run: scripts/validate`)
 	support.RequireContains(t, workflow, `EASYHARNESS_HOMEBREW_TAP_TOKEN: ""`)
 	support.RequireContains(t, workflow, `if: ${{ env.EASYHARNESS_HOMEBREW_TAP_TOKEN != '' }}`)
 	support.RequireContains(t, workflow, `repository: catu-ai/homebrew-tap`)
@@ -247,8 +247,7 @@ func TestReleaseWorkflowWiresHomebrewTapPublishing(t *testing.T) {
 	support.RequireContains(t, workflow, `go test ./tests/release -run TestVerifyHomebrewTapInstallAgainstGitHubWhenEnabled -count=1`)
 	support.RequireSubstringOrder(t, workflow, `uses: pnpm/action-setup@v5`, `uses: actions/setup-node@v6`)
 	support.RequireSubstringOrder(t, workflow, "- name: Set up pnpm\n        uses: pnpm/action-setup@v5", `go test ./tests/release -run TestVerifyHomebrewTapInstallAgainstGitHubWhenEnabled -count=1`)
-	support.RequireSubstringOrder(t, workflow, "working-directory: dist/release-source\n        run: scripts/build-embedded-ui", "working-directory: dist/release-source\n        run: go test ./...")
-	support.RequireSubstringOrder(t, workflow, "working-directory: dist/release-source\n        run: scripts/build-embedded-ui", `run: dist/release-source/scripts/build-release --version "${{ steps.release-version.outputs.version }}" --output-dir dist/release`)
+	support.RequireSubstringOrder(t, workflow, "working-directory: dist/release-source\n        run: scripts/validate", `run: dist/release-source/scripts/build-release --version "${{ steps.release-version.outputs.version }}" --output-dir dist/release`)
 }
 
 func TestVerifyHomebrewTapInstallAgainstGitHubWhenEnabled(t *testing.T) {

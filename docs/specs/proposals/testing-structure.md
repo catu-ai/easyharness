@@ -115,7 +115,7 @@ Execution model:
 
 - in-process
 - may use temporary files or directories
-- should remain fast and be part of the default `go test ./...` path
+- should remain part of the ordinary `scripts/validate` development profile
 
 Examples in the current repository include plan linting, plan parsing, status
 state inference, review round artifact logic, and archive/reopen behavior.
@@ -141,7 +141,8 @@ Characteristics:
 - fast runtime
 - real binary execution
 - shallow assertions compared with end-to-end tests
-- slow cold-path coverage uses the `slow_smoke` build tag
+- release-readiness cold-path coverage uses functional build tags such as
+  `installer_smoke` and `release_smoke`
 
 Typical smoke coverage for `easyharness` should include:
 
@@ -150,7 +151,7 @@ Typical smoke coverage for `easyharness` should include:
 - `harness plan template`
 - a minimal `plan template -> plan lint` roundtrip
 - release script and release namespace checks under `tests/release/`
-- opt-in installer and release archive checks with `-tags slow_smoke`
+- opt-in installer and release archive checks through `scripts/validate-release`
 
 ### End-to-End Tests
 
@@ -223,9 +224,9 @@ tests/
     release_version_file_test.go
     verify_release_namespace_test.go
     homebrew_formula_test.go
-    release_build_test.go       # slow_smoke
+    release_build_test.go       # release_smoke
   installer/
-    install_dev_harness_test.go # slow_smoke
+    install_dev_harness_test.go # installer_smoke
   e2e/
     happy_path_test.go
     review_round_test.go
@@ -293,21 +294,22 @@ If future scope introduces external services or a UI, the taxonomy may expand.
 
 Recommended commands:
 
-- `go test ./...`
-  - default package-local, quick smoke, release script/namespace, E2E, and
-    resilience suite
+- `scripts/validate`
+  - ordinary development validation: embedded UI assets plus default
+    package-local, smoke, release script/namespace, E2E, and resilience suite
 - `go test ./tests/smoke -count=1`
   - focused fast CLI smoke coverage
 - `go test ./tests/release -count=1`
   - focused release script, namespace, and Homebrew smoke coverage
-- `go test -tags slow_smoke ./tests/installer ./tests/release -count=1`
-  - explicit cold installer and release archive smoke coverage
+- `scripts/validate-release`
+  - full release-ready validation: ordinary development validation plus
+    purpose-tagged installer and release archive smoke coverage
 - `go test ./tests/e2e -count=1`
   - real binary workflow coverage
 - `go test ./tests/resilience -count=1`
   - deterministic failure-injection coverage
 
-Optional wrapper scripts may exist, for example:
+Other optional wrapper scripts may exist, for example:
 
 - `scripts/test-smoke`
 - `scripts/test-e2e`

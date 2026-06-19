@@ -1,4 +1,4 @@
-//go:build slow_smoke
+//go:build release_smoke
 
 package release_test
 

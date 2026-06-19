@@ -8,7 +8,7 @@ import (
 	"github.com/catu-ai/easyharness/tests/support"
 )
 
-func TestCIWorkflowBuildsEmbeddedUIBeforeGoTests(t *testing.T) {
+func TestCIWorkflowUsesDevelopmentValidationProfile(t *testing.T) {
 	repoRoot := support.RepoRoot(t)
 
 	workflowData, err := os.ReadFile(filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
@@ -27,8 +27,45 @@ func TestCIWorkflowBuildsEmbeddedUIBeforeGoTests(t *testing.T) {
 	support.RequireContains(t, workflow, `cache-dependency-path: web/pnpm-lock.yaml`)
 	support.RequireContains(t, workflow, `run: corepack enable`)
 	support.RequireContains(t, workflow, `uses: actions/setup-go@v6`)
-	support.RequireContains(t, workflow, `run: scripts/build-embedded-ui`)
-	support.RequireContains(t, workflow, `run: go test ./...`)
+	support.RequireContains(t, workflow, `run: scripts/validate`)
 	support.RequireSubstringOrder(t, workflow, `uses: pnpm/action-setup@v5`, `uses: actions/setup-node@v6`)
-	support.RequireSubstringOrder(t, workflow, `run: scripts/build-embedded-ui`, `run: go test ./...`)
+}
+
+func TestValidationScriptsDefineDevelopmentAndReleaseProfiles(t *testing.T) {
+	repoRoot := support.RepoRoot(t)
+
+	validatePath := filepath.Join(repoRoot, "scripts", "validate")
+	validateInfo, err := os.Stat(validatePath)
+	if err != nil {
+		t.Fatalf("stat scripts/validate: %v", err)
+	}
+	if validateInfo.Mode()&0o111 == 0 {
+		t.Fatalf("expected scripts/validate to be executable, mode %s", validateInfo.Mode())
+	}
+	validateData, err := os.ReadFile(validatePath)
+	if err != nil {
+		t.Fatalf("read scripts/validate: %v", err)
+	}
+	validate := string(validateData)
+	support.RequireContains(t, validate, "scripts/build-embedded-ui")
+	support.RequireContains(t, validate, "go test ./...")
+
+	validateReleasePath := filepath.Join(repoRoot, "scripts", "validate-release")
+	validateReleaseInfo, err := os.Stat(validateReleasePath)
+	if err != nil {
+		t.Fatalf("stat scripts/validate-release: %v", err)
+	}
+	if validateReleaseInfo.Mode()&0o111 == 0 {
+		t.Fatalf("expected scripts/validate-release to be executable, mode %s", validateReleaseInfo.Mode())
+	}
+	validateReleaseData, err := os.ReadFile(validateReleasePath)
+	if err != nil {
+		t.Fatalf("read scripts/validate-release: %v", err)
+	}
+	validateRelease := string(validateReleaseData)
+	support.RequireContains(t, validateRelease, "scripts/validate")
+	support.RequireContains(t, validateRelease, "go test -tags installer_smoke ./tests/installer -count=1")
+	support.RequireContains(t, validateRelease, "go test -tags release_smoke ./tests/release -count=1")
+	support.RequireSubstringOrder(t, validateRelease, "scripts/validate", "installer_smoke")
+	support.RequireSubstringOrder(t, validateRelease, "installer_smoke", "release_smoke")
 }

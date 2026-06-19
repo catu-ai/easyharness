@@ -99,15 +99,15 @@ validation.
 - [x] Documentation no longer describes the current full `tests/smoke` package
       as fast repo-level smoke coverage unless the implementation makes that
       true again.
-- [ ] User-facing validation commands are named by purpose rather than runtime,
+- [x] User-facing validation commands are named by purpose rather than runtime,
       with an ordinary development profile and a full release-ready profile.
-- [ ] Opt-in installer and release test tags use functional names instead of
+- [x] Opt-in installer and release test tags use functional names instead of
       `slow_smoke`.
-- [ ] `VERSION` and release PR documentation requires the full release-ready
+- [x] `VERSION` and release PR documentation requires the full release-ready
       validation profile before merge.
-- [ ] The release workflow is documented as post-merge publish validation, not
+- [x] The release workflow is documented as post-merge publish validation, not
       as a substitute for release-ready PR validation.
-- [ ] CI, docs, and tests avoid relying on an agent or maintainer's subjective
+- [x] CI, docs, and tests avoid relying on an agent or maintainer's subjective
       judgment that a release-adjacent change is "small".
 
 ## Deferred Items
@@ -406,7 +406,26 @@ profile.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added purpose-named validation entrypoints. `scripts/validate` now owns the
+ordinary development profile by building embedded UI assets and running
+`go test ./...`; CI invokes that script directly. `scripts/validate-release`
+includes `scripts/validate`, then runs installer smoke with
+`installer_smoke` and release archive smoke with `release_smoke`.
+
+Renamed the opt-in build tags from duration language to functional meaning and
+updated release/development docs plus workflow smoke assertions. `VERSION` and
+release PR guidance now requires `scripts/validate-release` before merge, and
+the post-merge Release workflow is described as publish validation from the
+packaged source tree rather than a substitute for PR validation.
+
+Validation passed:
+`go test -list . ./tests/smoke ./tests/release`;
+`go test -tags installer_smoke -list . ./tests/installer`;
+`go test -tags release_smoke -list . ./tests/release`;
+`go test ./tests/smoke ./tests/release -count=1`;
+`scripts/validate`; and `scripts/validate-release`. The release-ready profile
+ran installer smoke in 250.429s and release archive smoke in 66.450s after the
+ordinary development validation portion passed.
 
 #### Review Notes
 

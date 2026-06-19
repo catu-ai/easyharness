@@ -39,8 +39,5 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build embedded UI assets
-        run: scripts/build-embedded-ui
-
-      - name: Run tests
-        run: go test ./...
+      - name: Run development validation
+        run: scripts/validate
