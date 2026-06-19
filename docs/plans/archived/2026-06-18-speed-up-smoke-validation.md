@@ -540,22 +540,21 @@ not traverse pnpm's CI symlink forest. The local `scripts/validate` run and
 focused CI-failure smoke tests passed before revision 3 repair review.
 `review-020-delta` found that reopen summary markers still remained in
 archive-facing summaries; those markers were removed before the follow-up
-review.
+review. Follow-up `review-021-delta` passed with no findings.
 
 ## Archive Summary
 
-- Archived At: PENDING_ARCHIVE
+- Archived At: 2026-06-20T00:44:19+08:00
 - Revision: 3
-Ready for archive once the revision 3 CI-failure repair review passes. The
-active plan contains checked acceptance criteria, completed tracked steps
-through Step 4, validation evidence through the CI repair, review history
-through the finalize repair review, and no deferred follow-up issue
-requirement beyond the existing broader test-taxonomy deferral. No supplements
-were used.
+Ready for archive after `review-021-delta` passed. The active plan contains
+checked acceptance criteria, completed tracked steps through Step 4,
+validation evidence through the CI repair, review history through revision 3
+repair review, and no deferred follow-up issue requirement beyond the existing
+broader test-taxonomy deferral. No supplements were used.
 
 - PR: NONE
-- Ready: Pending revision 3 repair review, archive, PR update, and refreshed
-  CI/sync evidence.
+- Ready: Ready to archive; after archive, update PR #259 and refresh CI/sync
+  evidence.
 - Merge Handoff: After archive, update PR #259 for issue 257, record
   publish/CI/sync evidence, and wait for explicit human merge approval.
 
