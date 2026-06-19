@@ -69,3 +69,43 @@ func TestValidationScriptsDefineDevelopmentAndReleaseProfiles(t *testing.T) {
 	support.RequireSubstringOrder(t, validateRelease, "scripts/validate", "installer_smoke")
 	support.RequireSubstringOrder(t, validateRelease, "installer_smoke", "release_smoke")
 }
+
+func TestValidationProfileTagsSelectReleaseReadySmokeTests(t *testing.T) {
+	repoRoot := support.RepoRoot(t)
+
+	installerList := support.RunCommand(
+		t,
+		repoRoot,
+		nil,
+		"go",
+		"test",
+		"-tags",
+		"installer_smoke",
+		"-list",
+		"TestInstallDevHarness",
+		"./tests/installer",
+	)
+	if installerList.ExitCode != 0 {
+		t.Fatalf("list installer_smoke tests failed\nstdout:\n%s\nstderr:\n%s", installerList.Stdout, installerList.Stderr)
+	}
+	support.RequireContains(t, installerList.Stdout, "TestInstallDevHarnessDefaultsToUserLocalBin")
+	support.RequireContains(t, installerList.Stdout, "TestInstallDevHarnessWrapperDispatchesToCurrentWorktreeOverStablePathFallback")
+
+	releaseList := support.RunCommand(
+		t,
+		repoRoot,
+		nil,
+		"go",
+		"test",
+		"-tags",
+		"release_smoke",
+		"-list",
+		"TestBuildRelease",
+		"./tests/release",
+	)
+	if releaseList.ExitCode != 0 {
+		t.Fatalf("list release_smoke tests failed\nstdout:\n%s\nstderr:\n%s", releaseList.Stdout, releaseList.Stderr)
+	}
+	support.RequireContains(t, releaseList.Stdout, "TestBuildReleaseProducesSupportedAlphaArchivesAndVersionedBinary")
+	support.RequireContains(t, releaseList.Stdout, "TestBuildReleaseRejectsUnsafeOutputDirectory")
+}

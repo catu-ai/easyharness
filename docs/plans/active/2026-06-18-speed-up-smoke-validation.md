@@ -463,33 +463,27 @@ PENDING_STEP_REVIEW
 
 ## Validation Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
+Ordinary development validation is now `scripts/validate`, which builds
+embedded UI assets and runs `go test ./...`. It passed locally after Step 4.
 
-Quick/default validation is split from slow smoke coverage. The documented
-quick path, `scripts/build-embedded-ui` plus `go test ./...`, passed after the
-split and again after finalize repairs. The latest `go test ./...` run passed
-with default packages, including `tests/e2e` at 68.486s, `tests/smoke` at
-13.938s, and default `tests/release` at 2.391s.
+Full release-ready validation is now `scripts/validate-release`, which runs
+`scripts/validate` and then the purpose-tagged installer and release archive
+smoke suites. It passed locally after Step 4; the installer profile ran with
+`go test -tags installer_smoke ./tests/installer -count=1` in 250.429s, and
+the release archive profile ran with
+`go test -tags release_smoke ./tests/release -count=1` in 66.450s.
 
-Explicit slow smoke coverage remains available with
-`go test -tags slow_smoke ./tests/installer ./tests/release -count=1`. The
-latest full slow run passed with `tests/installer` at 157.887s and
-`tests/release` at 90.183s. Earlier slow runs also proved the release archive
-path after timeout repairs.
-
-Focused validation covered the repaired timeout surfaces:
-`go test ./tests/support ./tests/smoke`,
-`go test ./tests/smoke -run 'TestSyncBootstrapAssetsCheckPassesForCurrentRepo|TestSyncContractArtifacts' -count=1`,
-`go test ./tests/release`, and
-`go test -tags slow_smoke ./tests/release -count=1` all passed. Timeout
-regression tests cover both generic command helpers and harness command
-helpers, and default smoke, release archive, live release, git, gh, tar,
-downloaded/installed harness, and build-binary setup subprocesses now use
-timeout-aware helpers or contexts.
+Focused validation also passed:
+`go test -list . ./tests/smoke ./tests/release`,
+`go test -tags installer_smoke -list . ./tests/installer`,
+`go test -tags release_smoke -list . ./tests/release`,
+`go test ./tests/smoke ./tests/release -count=1`, and
+`harness plan lint docs/plans/active/2026-06-18-speed-up-smoke-validation.md`.
+Timeout regression tests still cover the command helper repairs from revision
+1, and the current profile tests prove the user-facing scripts plus functional
+build tags select the intended release-ready smoke tests.
 
 ## Review Summary
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 Step reviews passed after targeted repairs:
 `review-001-delta` passed the validation split, `review-003-delta` passed the
@@ -504,51 +498,55 @@ subprocesses plus installer slow-smoke repeatability. The final full review
 round, `review-015-full`, passed with correctness, tests, docs-consistency,
 and risk-scan slots reporting no findings.
 
+After revision 2 reopened the plan for the purpose-named validation profile
+repair, Step 4 review `review-016-delta` found two blocking issues: closeout
+summaries still described the old duration-oriented contract, and automated
+tests did not prove the functional build tags selected the intended tests.
+Both were repaired in the active plan and smoke test coverage before follow-up
+review.
+
 ## Archive Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
-- Archived At: 2026-06-19T01:37:41+08:00
-- Revision: 1
-Ready for archive once the final post-repair review passes. The active plan
-contains checked acceptance criteria, completed tracked steps, validation
-evidence, review history, and no deferred follow-up issue requirement beyond
-the existing broader test-taxonomy deferral. No supplements were used.
+- Archived At: PENDING_ARCHIVE
+- Revision: 2
+Ready for archive once the Step 4 follow-up review and finalize review pass.
+The active plan contains checked acceptance criteria, completed tracked steps
+through Step 4 implementation, validation evidence, review history, and no
+deferred follow-up issue requirement beyond the existing broader test-taxonomy
+deferral. No supplements were used.
 
 - PR: NONE
-- Ready: All tracked steps are complete, acceptance criteria are checked, quick
-  and slow validation pass, and final full review passed with no findings.
-- Merge Handoff: After archive, publish this branch as a PR for issue 257,
-  record publish/CI/sync evidence, and wait for explicit human merge approval.
+- Ready: Pending Step 4 repair review, finalize review, archive, publish/CI,
+  and sync evidence.
+- Merge Handoff: After archive, update PR #259 for issue 257, record
+  publish/CI/sync evidence, and wait for explicit human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
-- Default validation no longer runs the cold installer and release archive
-  smoke suite by accident.
-- Slow installer and release coverage moved behind the explicit
-  `slow_smoke` command while release workflow live smoke references point at
-  the moved release package.
+- Ordinary development validation no longer runs installer and release archive
+  smoke coverage by accident.
+- User-facing validation commands are now named by purpose:
+  `scripts/validate` for daily development and `scripts/validate-release` for
+  full release-ready validation.
+- Installer and release archive smoke coverage moved behind functional build
+  tags, `installer_smoke` and `release_smoke`, invoked by
+  `scripts/validate-release`.
 - Smoke command helpers gained conservative command-level timeouts with
   captured stdout/stderr diagnostics.
 - Installer smoke tests now run in parallel with shared setup and warmed
   dependencies, while preserving real `scripts/install-dev-harness` coverage.
-- Documentation now describes the quick/default and explicit slow validation
-  paths in development, release, and testing-structure docs.
+- Documentation now requires `scripts/validate-release` for `VERSION` and
+  release PRs before merge, and describes the post-merge Release workflow as
+  publish validation rather than a substitute for release-ready PR validation.
 
 ### Not Delivered
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 No product behavior changes were delivered outside the validation split. A
 broader end-to-end test taxonomy remains outside this issue slice.
 
 ### Follow-Up Issues
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - https://github.com/catu-ai/easyharness/issues/258 tracks the broader
   validation taxonomy work that remains outside issue 257.
