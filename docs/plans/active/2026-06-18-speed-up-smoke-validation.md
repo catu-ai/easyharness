@@ -5,6 +5,7 @@ approved_at: "2026-06-18T23:56:10+08:00"
 source_type: issue
 source_refs:
     - https://github.com/catu-ai/easyharness/issues/257
+    - https://github.com/catu-ai/easyharness/pull/259
 size: M
 ---
 
@@ -18,9 +19,10 @@ supplements. -->
 
 ## Goal
 
-Make routine validation fast and predictable again by separating quick
-package-local tests from slower binary-driven smoke coverage, while keeping the
-full installer and release confidence checks available on an explicit path.
+Make routine validation fast and predictable again by separating ordinary
+development validation from full release-ready validation, while keeping the
+installer and release confidence checks available through purpose-named,
+deterministic entrypoints.
 
 Issue 257 was opened because `tests/smoke` dominated `go test ./...` during
 release validation and could exceed Go's default 10 minute package timeout.
@@ -30,6 +32,14 @@ completed tests had already accumulated 430.24s, and the release-build smoke
 tests had not started yet. The five completed installer tests alone accounted
 for about 419.75s.
 
+Revision 2 reopened the archived PR because the first implementation framed
+the split as quick versus slow. That made the release/installer checks
+available, but the human clarified that test selection should not depend on a
+subjective judgment that a change is "small" or on duration-oriented names
+such as `slow_smoke`. The remaining work is to express the split as two clear
+validation profiles: ordinary development validation and full release-ready
+validation.
+
 ## Scope
 
 ### In Scope
@@ -37,6 +47,14 @@ for about 419.75s.
 - Split the current smoke coverage into an explicit quick/default validation
   path and one or more slow opt-in smoke paths for installer and release
   workflows.
+- Replace the duration-oriented validation framing with purpose-oriented
+  validation profiles: ordinary development validation and full release-ready
+  validation.
+- Provide simple script entrypoints for those profiles so humans and agents do
+  not need to remember build tags or make subjective risk calls for `VERSION`
+  and release PRs.
+- Rename opt-in build tags away from `slow_smoke` toward functional meaning,
+  such as release and installer smoke coverage.
 - Keep important installer, wrapper PATH, release archive, and live release
   workflow coverage, but make slow cold-path tests intentional rather than an
   accidental part of every quick validation run.
@@ -47,6 +65,9 @@ for about 419.75s.
 - Update CI, release workflow, and docs so agents and humans know which command
   is the ordinary quick validation path and which command runs full slow smoke
   coverage.
+- Update release guidance so `VERSION` and release PRs use the release-ready
+  validation profile before merge, while the post-merge Release workflow
+  remains publish validation.
 
 ### Out of Scope
 
@@ -58,6 +79,10 @@ for about 419.75s.
   faster.
 - Reworking unrelated Playwright UI smoke scripts except where docs need to
   describe the overall validation split accurately.
+- Adding a complex path-filter matrix that tries to infer every possible
+  release or installer surface. The intended rule is simpler: ordinary
+  development uses the default profile; release-ready work, including
+  `VERSION` PRs, uses the full release profile.
 
 ## Acceptance Criteria
 
@@ -74,12 +99,26 @@ for about 419.75s.
 - [x] Documentation no longer describes the current full `tests/smoke` package
       as fast repo-level smoke coverage unless the implementation makes that
       true again.
+- [ ] User-facing validation commands are named by purpose rather than runtime,
+      with an ordinary development profile and a full release-ready profile.
+- [ ] Opt-in installer and release test tags use functional names instead of
+      `slow_smoke`.
+- [ ] `VERSION` and release PR documentation requires the full release-ready
+      validation profile before merge.
+- [ ] The release workflow is documented as post-merge publish validation, not
+      as a substitute for release-ready PR validation.
+- [ ] CI, docs, and tests avoid relying on an agent or maintainer's subjective
+      judgment that a release-adjacent change is "small".
 
 ## Deferred Items
 
 - Broader test taxonomy changes beyond issue 257, such as adding a complete
   end-to-end or resilience suite, remain deferred unless they are the smallest
   clean way to express this validation split.
+- Fine-grained path-specific validation profiles remain deferred. This plan
+  should not introduce separate release-surface and installer-surface CI
+  matrices unless they become the simplest way to express the two approved
+  profiles.
 
 ## Work Breakdown
 
@@ -291,14 +330,96 @@ and `tests/installer/`. Repaired both by recording
 `scripts/build-embedded-ui` plus `go test ./...` evidence and updating the
 layout. Follow-up `review-005-delta` passed with no findings.
 
+### Step 4: Replace Duration-Based Smoke Selection with Validation Profiles
+
+- Done: [ ]
+
+#### Objective
+
+Turn the reopened split into two purpose-named validation profiles so release
+readiness is deterministic and not hidden behind subjective "small change" or
+"slow test" judgment.
+
+#### Details
+
+The approved direction is:
+
+- ordinary development validation: a default profile for normal feature,
+  documentation, and bug-fix work;
+- full release-ready validation: a profile for `VERSION` PRs, release PRs, and
+  pre-release confidence checks.
+
+Add simple script entrypoints so humans and agents do not need to remember
+build tags directly. Preferred names are:
+
+- `scripts/validate`
+- `scripts/validate-release`
+
+`scripts/validate` should run the ordinary development profile, currently
+expected to include `scripts/build-embedded-ui` and `go test ./...`.
+
+`scripts/validate-release` should include `scripts/validate` and then run the
+installer and release archive/package smoke coverage that is intentionally
+outside ordinary development validation.
+
+Rename `slow_smoke` build tags to functional names. The exact names can be
+chosen during implementation, but the intended meaning is release smoke and
+installer smoke, not generic slowness. A likely clean shape is:
+
+- `//go:build release_smoke` for release archive/package construction tests;
+- `//go:build installer_smoke` for installer and wrapper PATH tests;
+- `scripts/validate-release` invokes the needed tags/packages directly.
+
+Update documentation and workflow checks so `VERSION` and release PRs are
+instructed to run the release-ready validation profile before merge. The
+post-merge Release workflow should remain described as publish validation: it
+builds and publishes from the tag, verifies published release assets, and
+checks Homebrew behavior after assets exist.
+
+Do not add a path-filter matrix for this step unless it becomes simpler than
+the two-profile rule. The accepted model is deliberately coarse: ordinary
+development gets the default profile; release-ready work gets the full release
+profile.
+
+#### Expected Files
+
+- `scripts/validate`
+- `scripts/validate-release`
+- `tests/installer/**`
+- `tests/release/**`
+- `docs/releasing.md`
+- `docs/development.md`
+- `docs/specs/proposals/testing-structure.md`
+- `.github/workflows/ci.yml` if CI should call `scripts/validate` instead of
+  spelling out its commands
+- `docs/plans/active/2026-06-18-speed-up-smoke-validation.md`
+
+#### Validation
+
+- Run `scripts/validate`.
+- Run `scripts/validate-release`.
+- Run `go test -list` with the new functional tags to confirm installer and
+  release archive tests are reachable through the expected profile.
+- Run focused docs/workflow smoke tests that assert release checklist and CI
+  guidance.
+- Run `harness plan lint docs/plans/active/2026-06-18-speed-up-smoke-validation.md`.
+
+#### Execution Notes
+
+PENDING_STEP_EXECUTION
+
+#### Review Notes
+
+PENDING_STEP_REVIEW
+
 ## Validation Strategy
 
 - Use `go test -list` before and after the split to confirm tests moved into
   the intended command surfaces.
-- Run quick validation with elapsed-time output and confirm it avoids the old
-  monolithic smoke timeout risk.
-- Run the slow smoke command or focused slow suites to prove installer and
-  release confidence checks still exist.
+- Run ordinary development validation with elapsed-time output and confirm it
+  avoids the old monolithic smoke timeout risk.
+- Run the full release-ready validation profile to prove installer and release
+  confidence checks still exist.
 - Run workflow/documentation checks as plain file inspection plus relevant Go
   smoke tests that assert workflow wiring where such tests already exist.
 
@@ -306,8 +427,9 @@ layout. Follow-up `review-005-delta` passed with no findings.
 
 - Risk: The split could make important installer or release coverage less
   visible.
-  - Mitigation: Keep explicit slow smoke commands and update CI/release docs so
-    the coverage is opt-in by design, not forgotten.
+  - Mitigation: Keep explicit release-ready validation commands and update
+    release docs so `VERSION` and release PRs use the full profile before
+    merge.
 - Risk: Reducing repeated installer work could accidentally stop testing the
   real cold install path.
   - Mitigation: Preserve at least one true cold installer smoke and convert only
@@ -316,8 +438,13 @@ layout. Follow-up `review-005-delta` passed with no findings.
   - Mitigation: Choose conservative defaults, include useful diagnostics, and
     allow only intentional opt-in overrides if the repository already has a
     clear pattern for that.
+- Risk: Functional profiles could grow into another ambiguous taxonomy.
+  - Mitigation: Keep this step to two user-facing profiles and defer
+    fine-grained path-specific matrices to follow-up work.
 
 ## Validation Summary
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 Quick/default validation is split from slow smoke coverage. The documented
 quick path, `scripts/build-embedded-ui` plus `go test ./...`, passed after the
@@ -343,6 +470,8 @@ timeout-aware helpers or contexts.
 
 ## Review Summary
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 Step reviews passed after targeted repairs:
 `review-001-delta` passed the validation split, `review-003-delta` passed the
 timeout regression repair for `RunWithOptions`, and `review-005-delta` passed
@@ -357,6 +486,8 @@ round, `review-015-full`, passed with correctness, tests, docs-consistency,
 and risk-scan slots reporting no findings.
 
 ## Archive Summary
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - Archived At: 2026-06-19T01:37:41+08:00
 - Revision: 1
@@ -375,6 +506,8 @@ the existing broader test-taxonomy deferral. No supplements were used.
 
 ### Delivered
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 - Default validation no longer runs the cold installer and release archive
   smoke suite by accident.
 - Slow installer and release coverage moved behind the explicit
@@ -389,10 +522,14 @@ the existing broader test-taxonomy deferral. No supplements were used.
 
 ### Not Delivered
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 No product behavior changes were delivered outside the validation split. A
 broader end-to-end test taxonomy remains outside this issue slice.
 
 ### Follow-Up Issues
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - https://github.com/catu-ai/easyharness/issues/258 tracks the broader
   validation taxonomy work that remains outside issue 257.
