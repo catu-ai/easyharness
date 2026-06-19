@@ -111,9 +111,6 @@ func CopyInstallerFixture(t *testing.T) string {
 	} {
 		CopyPath(t, filepath.Join(sourceRoot, rel), filepath.Join(root, rel))
 	}
-	if _, err := os.Stat(filepath.Join(sourceRoot, "web", "node_modules")); err == nil {
-		CopyPath(t, filepath.Join(sourceRoot, "web", "node_modules"), filepath.Join(root, "web", "node_modules"))
-	}
 	_ = os.RemoveAll(filepath.Join(root, "internal", "ui", "generated", "build"))
 	return root
 }

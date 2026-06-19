@@ -470,6 +470,8 @@ reviewer slots reporting no findings.
 
 ## Validation Summary
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 Ordinary development validation is now `scripts/validate`, which builds
 embedded UI assets and runs `go test ./...`. It passed locally after Step 4,
 and after the finalize repair it also passed when invoked from `docs/` as
@@ -494,6 +496,10 @@ Finalize repair validation also covered
 `go test ./tests/smoke -run 'TestSyncContractArtifactsCheckFailsOnStaleGeneratedFiles|TestSyncContractArtifactsCheckFailsOnDeprecatedGeneratedDocs|TestValidationScriptsDefineDevelopmentAndReleaseProfiles|TestValidationProfileTagsSelectReleaseReadySmokeTests|TestCIWorkflowUsesDevelopmentValidationProfile' -count=1`,
 `go test ./tests/support -count=1`, and
 `go test -tags installer_smoke ./tests/installer -run 'TestInstallDevHarnessWrapperSkipsOtherManagedWrappersOnPathOutsideWorktree' -count=1`.
+Revision 3 CI repair validation covered
+`go test ./tests/smoke -run 'TestBuildEmbeddedUIScriptFailsWithActionableMessageWhenNodeIsMissingButPnpmExists|TestBuildEmbeddedUIScriptFailsWithActionableMessageWhenPnpmIsMissing|TestSyncContractArtifactsCheckFailsOnStaleGeneratedFiles|TestSyncContractArtifactsCheckFailsOnDeprecatedGeneratedDocs' -count=1`,
+`go test -tags installer_smoke ./tests/installer -run 'TestInstallDevHarnessWrapperSkipsOtherManagedWrappersOnPathOutsideWorktree' -count=1`,
+and `scripts/validate`.
 Timeout regression tests still cover the command helper repairs from revision
 1, and the current profile tests prove the user-facing scripts plus functional
 build tags select the intended release-ready smoke tests.
@@ -530,19 +536,25 @@ pnpm caches, and update the archive handoff text before follow-up review.
 Follow-up `review-019-delta` passed with correctness, tests, docs-consistency,
 and risk-scan slots reporting no findings.
 
+After revision 3 reopened the archived candidate for a CI failure,
+`CopyInstallerFixture` stopped copying `web/node_modules` so smoke fixtures do
+not traverse pnpm's CI symlink forest. The local `scripts/validate` run and
+focused CI-failure smoke tests passed before revision 3 repair review.
+
 ## Archive Summary
 
-- Archived At: 2026-06-20T00:30:40+08:00
-- Revision: 2
-Ready for archive after `review-019-delta` passed. The active plan contains
-checked acceptance criteria, completed tracked steps through Step 4,
-validation evidence, review history through the finalize repair review, and no
-deferred follow-up issue requirement beyond the existing broader test-taxonomy
-deferral. No supplements were used.
+- Archived At: PENDING_ARCHIVE
+- Revision: 3
+Ready for archive once the revision 3 CI-failure repair review passes. The
+active plan contains checked acceptance criteria, completed tracked steps
+through Step 4, validation evidence through the CI repair, review history
+through the finalize repair review, and no deferred follow-up issue
+requirement beyond the existing broader test-taxonomy deferral. No supplements
+were used.
 
 - PR: NONE
-- Ready: Ready to archive; after archive, update PR #259 and refresh
-  publish/CI/sync evidence.
+- Ready: Pending revision 3 repair review, archive, PR update, and refreshed
+  CI/sync evidence.
 - Merge Handoff: After archive, update PR #259 for issue 257, record
   publish/CI/sync evidence, and wait for explicit human merge approval.
 
@@ -568,10 +580,14 @@ deferral. No supplements were used.
 
 ### Not Delivered
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 No product behavior changes were delivered outside the validation split. A
 broader end-to-end test taxonomy remains outside this issue slice.
 
 ### Follow-Up Issues
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - https://github.com/catu-ai/easyharness/issues/258 tracks the broader
   validation taxonomy work that remains outside issue 257.
