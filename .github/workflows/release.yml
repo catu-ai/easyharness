@@ -90,15 +90,11 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Build embedded UI assets
-        working-directory: dist/release-source
-        run: scripts/build-embedded-ui
-
-      - name: Run tests
+      - name: Run publish validation
         env:
           EASYHARNESS_HOMEBREW_TAP_TOKEN: ""
         working-directory: dist/release-source
-        run: go test ./...
+        run: scripts/validate
 
       - name: Build release artifacts
         run: dist/release-source/scripts/build-release --version "${{ steps.release-version.outputs.version }}" --output-dir dist/release
@@ -133,7 +129,7 @@ jobs:
           EASYHARNESS_LIVE_GH_REPO: ${{ github.repository }}
           EASYHARNESS_LIVE_GH_TAG: ${{ steps.release-version.outputs.version }}
           EASYHARNESS_LIVE_GH_ASSET: easyharness_${{ steps.release-version.outputs.version }}_linux_amd64.zip
-        run: go test ./tests/smoke -run TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled -count=1
+        run: go test ./tests/release -run TestVerifyReleaseNamespaceAgainstGitHubWhenEnabled -count=1
 
       - name: Render Homebrew formula
         run: |
@@ -207,4 +203,4 @@ jobs:
         env:
           EASYHARNESS_LIVE_GH_REPO: ${{ github.repository }}
           EASYHARNESS_LIVE_GH_TAG: ${{ steps.release-version.outputs.version }}
-        run: go test ./tests/smoke -run TestVerifyHomebrewTapInstallAgainstGitHubWhenEnabled -count=1
+        run: go test ./tests/release -run TestVerifyHomebrewTapInstallAgainstGitHubWhenEnabled -count=1

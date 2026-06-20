@@ -1,6 +1,9 @@
 package support
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -53,9 +56,7 @@ func BuildBinary(t *testing.T) string {
 		}
 
 		ldflags := fmt.Sprintf("-X %s.BuildCommit=%s -X %s.BuildVersion=%s", versionPackage, commit, versionPackage, version)
-		cmd := exec.Command("go", "build", "-ldflags", ldflags, "-o", buildPath, "./cmd/harness")
-		cmd.Dir = repoRoot()
-		output, err := cmd.CombinedOutput()
+		output, err := runOutputWithTimeout(repoRoot(), "go", "build", "-ldflags", ldflags, "-o", buildPath, "./cmd/harness")
 		if err != nil {
 			buildErr = fmt.Errorf("build harness binary: %w\n%s", err, output)
 		}
@@ -76,7 +77,7 @@ func repoRoot() string {
 }
 
 func repoHeadCommit(root string) (string, error) {
-	output, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").CombinedOutput()
+	output, err := runOutputWithTimeout(root, "git", "-C", root, "rev-parse", "HEAD")
 	if err != nil {
 		return "", fmt.Errorf("git rev-parse HEAD: %w\n%s", err, output)
 	}
@@ -98,4 +99,27 @@ func repoReleaseVersion(root string) (string, error) {
 		return "", fmt.Errorf("VERSION file is empty")
 	}
 	return "v" + version, nil
+}
+
+func runOutputWithTimeout(workdir string, argv ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultCommandTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.Dir = workdir
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	output := stdout.String() + stderr.String()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return output, fmt.Errorf("run command %v timed out after %s", argv, DefaultCommandTimeout)
+	}
+	if err != nil {
+		return output, fmt.Errorf("run command %v: %w", argv, err)
+	}
+	return output, nil
 }

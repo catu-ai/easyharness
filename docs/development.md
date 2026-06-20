@@ -69,6 +69,29 @@ Repo-level UI development also expects `pnpm` to be available locally. If it
 is missing, install Node.js and pnpm before rerunning the embedded UI build or
 development installer.
 
+## Validation
+
+For routine local development validation, run:
+
+```bash
+scripts/validate
+```
+
+That profile builds the embedded UI assets and then runs the default Go suite:
+package tests, ordinary smoke coverage, release script/namespace checks, E2E
+tests, and resilience tests. It does not run installer or release archive
+smoke tests that require explicit release-readiness coverage.
+
+For release-ready validation, including `VERSION` PRs and any release PR before
+merge, run:
+
+```bash
+scripts/validate-release
+```
+
+That profile includes ordinary development validation and then runs the
+purpose-tagged installer and release archive smoke suites.
+
 ## UI Development
 
 When changing the embedded UI shell under `web/`, rebuild the production UI

@@ -2,11 +2,13 @@ package support
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 )
 
 type RunOptions struct {
@@ -14,6 +16,7 @@ type RunOptions struct {
 	Args    []string
 	Stdin   string
 	Env     []string
+	Timeout time.Duration
 }
 
 type Result struct {
@@ -38,7 +41,14 @@ func Run(t *testing.T, workdir string, args ...string) Result {
 func RunWithOptions(t *testing.T, opts RunOptions) Result {
 	t.Helper()
 
-	cmd := exec.Command(BuildBinary(t), opts.Args...)
+	timeout := opts.Timeout
+	if timeout == 0 {
+		timeout = DefaultCommandTimeout
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, BuildBinary(t), opts.Args...)
 	cmd.Dir = opts.Workdir
 	cmd.Env = append(os.Environ(), opts.Env...)
 	cmd.Stdin = strings.NewReader(opts.Stdin)
@@ -58,9 +68,13 @@ func RunWithOptions(t *testing.T, opts RunOptions) Result {
 		return result
 	}
 
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		t.Fatalf("run harness %v timed out after %s\nstdout:\n%s\nstderr:\n%s", opts.Args, timeout, stdout.String(), stderr.String())
+	}
+
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) {
-		t.Fatalf("run harness %v: %v", opts.Args, err)
+		t.Fatalf("run harness %v: %v\nstdout:\n%s\nstderr:\n%s", opts.Args, err, stdout.String(), stderr.String())
 	}
 	result.ExitCode = exitErr.ExitCode()
 	return result

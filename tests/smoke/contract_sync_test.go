@@ -1,6 +1,8 @@
 package smoke_test
 
 import (
+	"bytes"
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,14 +14,12 @@ import (
 
 func TestSyncContractArtifactsCheckPassesForCurrentRepo(t *testing.T) {
 	repoRoot := support.RepoRoot(t)
-	cmd := exec.Command(filepath.Join(repoRoot, "scripts", "sync-contract-artifacts"), "--check")
-	cmd.Dir = repoRoot
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("sync-contract-artifacts --check: %v\n%s", err, output)
+	result := support.RunCommand(t, repoRoot, nil, filepath.Join(repoRoot, "scripts", "sync-contract-artifacts"), "--check")
+	if result.ExitCode != 0 {
+		t.Fatalf("sync-contract-artifacts --check exited with code %d\n%s", result.ExitCode, result.CombinedOutput())
 	}
-	if !strings.Contains(string(output), "Contract schemas are in sync.") {
-		t.Fatalf("unexpected check output:\n%s", output)
+	if !strings.Contains(result.CombinedOutput(), "Contract schemas are in sync.") {
+		t.Fatalf("unexpected check output:\n%s", result.CombinedOutput())
 	}
 }
 
@@ -36,31 +36,25 @@ func TestSyncContractArtifactsCheckFailsOnStaleGeneratedFiles(t *testing.T) {
 		t.Fatalf("write stale schema: %v", err)
 	}
 
-	checkCmd := exec.Command(filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"), "--check")
-	checkCmd.Dir = cloneRoot
-	output, err := checkCmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected stale generated file check to fail:\n%s", output)
+	result := support.RunCommand(t, cloneRoot, nil, filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"), "--check")
+	if result.ExitCode == 0 {
+		t.Fatalf("expected stale generated file check to fail:\n%s", result.CombinedOutput())
 	}
-	if !strings.Contains(string(output), "stale generated file") {
-		t.Fatalf("expected stale-file error, got:\n%s", output)
+	if !strings.Contains(result.CombinedOutput(), "stale generated file") {
+		t.Fatalf("expected stale-file error, got:\n%s", result.CombinedOutput())
 	}
 
-	syncCmd := exec.Command(filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"))
-	syncCmd.Dir = cloneRoot
-	output, err = syncCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("sync-contract-artifacts repair run: %v\n%s", err, output)
+	result = support.RunCommand(t, cloneRoot, nil, filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"))
+	if result.ExitCode != 0 {
+		t.Fatalf("sync-contract-artifacts repair run exited with code %d\n%s", result.ExitCode, result.CombinedOutput())
 	}
 
-	checkCmd = exec.Command(filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"), "--check")
-	checkCmd.Dir = cloneRoot
-	output, err = checkCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("post-repair sync-contract-artifacts --check: %v\n%s", err, output)
+	result = support.RunCommand(t, cloneRoot, nil, filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"), "--check")
+	if result.ExitCode != 0 {
+		t.Fatalf("post-repair sync-contract-artifacts --check exited with code %d\n%s", result.ExitCode, result.CombinedOutput())
 	}
-	if !strings.Contains(string(output), "Contract schemas are in sync.") {
-		t.Fatalf("unexpected post-repair check output:\n%s", output)
+	if !strings.Contains(result.CombinedOutput(), "Contract schemas are in sync.") {
+		t.Fatalf("unexpected post-repair check output:\n%s", result.CombinedOutput())
 	}
 }
 
@@ -80,31 +74,25 @@ func TestSyncContractArtifactsCheckFailsOnDeprecatedGeneratedDocs(t *testing.T) 
 		t.Fatalf("write stale docs: %v", err)
 	}
 
-	checkCmd := exec.Command(filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"), "--check")
-	checkCmd.Dir = cloneRoot
-	output, err := checkCmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("expected deprecated generated docs check to fail:\n%s", output)
+	result := support.RunCommand(t, cloneRoot, nil, filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"), "--check")
+	if result.ExitCode == 0 {
+		t.Fatalf("expected deprecated generated docs check to fail:\n%s", result.CombinedOutput())
 	}
-	if !strings.Contains(string(output), "unexpected generated file") {
-		t.Fatalf("expected unexpected-file error, got:\n%s", output)
+	if !strings.Contains(result.CombinedOutput(), "unexpected generated file") {
+		t.Fatalf("expected unexpected-file error, got:\n%s", result.CombinedOutput())
 	}
 
-	syncCmd := exec.Command(filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"))
-	syncCmd.Dir = cloneRoot
-	output, err = syncCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("sync-contract-artifacts cleanup run: %v\n%s", err, output)
+	result = support.RunCommand(t, cloneRoot, nil, filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"))
+	if result.ExitCode != 0 {
+		t.Fatalf("sync-contract-artifacts cleanup run exited with code %d\n%s", result.ExitCode, result.CombinedOutput())
 	}
 
-	checkCmd = exec.Command(filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"), "--check")
-	checkCmd.Dir = cloneRoot
-	output, err = checkCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("post-repair sync-contract-artifacts --check: %v\n%s", err, output)
+	result = support.RunCommand(t, cloneRoot, nil, filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"), "--check")
+	if result.ExitCode != 0 {
+		t.Fatalf("post-repair sync-contract-artifacts --check exited with code %d\n%s", result.ExitCode, result.CombinedOutput())
 	}
-	if !strings.Contains(string(output), "Contract schemas are in sync.") {
-		t.Fatalf("unexpected post-repair check output:\n%s", output)
+	if !strings.Contains(result.CombinedOutput(), "Contract schemas are in sync.") {
+		t.Fatalf("unexpected post-repair check output:\n%s", result.CombinedOutput())
 	}
 
 	if _, err := os.Stat(stalePath); !os.IsNotExist(err) {
@@ -114,16 +102,34 @@ func TestSyncContractArtifactsCheckFailsOnDeprecatedGeneratedDocs(t *testing.T) 
 
 func copyCurrentRepo(t *testing.T, src, dst string) {
 	t.Helper()
-	archive := exec.Command("tar", "-cf", "-", "--exclude=.git", "--exclude=.local", ".")
+
+	ctx, cancel := context.WithTimeout(context.Background(), support.DefaultCommandTimeout)
+	defer cancel()
+
+	archive := exec.CommandContext(
+		ctx,
+		"tar",
+		"-cf",
+		"-",
+		"--exclude=.git",
+		"--exclude=.local",
+		"--exclude=web/node_modules",
+		"--exclude=internal/ui/generated/build",
+		".",
+	)
 	archive.Dir = src
-	extract := exec.Command("tar", "-xf", "-", "-C", dst)
+	extract := exec.CommandContext(ctx, "tar", "-xf", "-", "-C", dst)
+
+	var archiveStderr bytes.Buffer
+	var extractStderr bytes.Buffer
+	archive.Stderr = &archiveStderr
+	extract.Stderr = &extractStderr
 
 	pipe, err := archive.StdoutPipe()
 	if err != nil {
 		t.Fatalf("archive stdout pipe: %v", err)
 	}
 	extract.Stdin = pipe
-	extract.Stderr = os.Stderr
 
 	if err := archive.Start(); err != nil {
 		t.Fatalf("start archive: %v", err)
@@ -132,9 +138,15 @@ func copyCurrentRepo(t *testing.T, src, dst string) {
 		t.Fatalf("start extract: %v", err)
 	}
 	if err := archive.Wait(); err != nil {
-		t.Fatalf("archive repo: %v", err)
+		if ctx.Err() == context.DeadlineExceeded {
+			t.Fatalf("archive repo timed out after %s: %v\nstderr:\n%s", support.DefaultCommandTimeout, err, archiveStderr.String())
+		}
+		t.Fatalf("archive repo: %v\nstderr:\n%s", err, archiveStderr.String())
 	}
 	if err := extract.Wait(); err != nil {
-		t.Fatalf("extract repo: %v", err)
+		if ctx.Err() == context.DeadlineExceeded {
+			t.Fatalf("extract repo timed out after %s: %v\nstderr:\n%s", support.DefaultCommandTimeout, err, extractStderr.String())
+		}
+		t.Fatalf("extract repo: %v\nstderr:\n%s", err, extractStderr.String())
 	}
 }

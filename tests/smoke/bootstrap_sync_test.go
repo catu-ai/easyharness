@@ -1,7 +1,6 @@
 package smoke_test
 
 import (
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,13 +10,11 @@ import (
 
 func TestSyncBootstrapAssetsCheckPassesForCurrentRepo(t *testing.T) {
 	repoRoot := support.RepoRoot(t)
-	cmd := exec.Command(filepath.Join(repoRoot, "scripts", "sync-bootstrap-assets"), "--check")
-	cmd.Dir = repoRoot
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("sync-bootstrap-assets --check: %v\n%s", err, output)
+	result := support.RunCommand(t, repoRoot, nil, filepath.Join(repoRoot, "scripts", "sync-bootstrap-assets"), "--check")
+	if result.ExitCode != 0 {
+		t.Fatalf("sync-bootstrap-assets --check exited with code %d\n%s", result.ExitCode, result.CombinedOutput())
 	}
-	if !strings.Contains(string(output), "Bootstrap dogfood outputs are in sync with assets/bootstrap.") {
-		t.Fatalf("unexpected check output:\n%s", output)
+	if !strings.Contains(result.CombinedOutput(), "Bootstrap dogfood outputs are in sync with assets/bootstrap.") {
+		t.Fatalf("unexpected check output:\n%s", result.CombinedOutput())
 	}
 }
