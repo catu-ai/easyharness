@@ -6,6 +6,7 @@ import { App } from "./main";
 import { PlanWorkspace, ReviewWorkspace, TimelineWorkspace } from "./pages";
 import type {
   DashboardResult,
+  PlanDocument,
   PlanResult,
   PlanWorkspaceState,
   ReviewResult,
@@ -299,6 +300,22 @@ function PlanStateHarness() {
   );
 }
 
+function PlanDocumentHarness(props: { planDocument: PlanDocument }) {
+  const [state, setState] = useState<PlanWorkspaceState>({ selectedNodeId: null, expandedNodeIds: null });
+  return (
+    <PlanWorkspace
+      loading={false}
+      error={null}
+      summary={planResult.summary}
+      document={props.planDocument}
+      supplements={null}
+      warnings={[]}
+      state={state}
+      onStateChange={setState}
+    />
+  );
+}
+
 function TimelineStateHarness() {
   const [mounted, setMounted] = useState(true);
   const [state, setState] = useState<TimelineWorkspaceState>({ selectedEventId: null, selectedTab: "event" });
@@ -425,6 +442,34 @@ describe("workbench page state continuity", () => {
       document: planResult.document ? { ...planResult.document, title: "Refreshed Plan", markdown: "# Refreshed Plan" } : null,
     });
     await waitFor(() => expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Refreshed Plan"));
+  });
+
+  test("keeps manual Plan reader scroll when refreshed document data keeps the same selection", async () => {
+    if (!planResult.document) throw new Error("missing plan document fixture");
+    const { rerender } = render(<PlanDocumentHarness planDocument={planResult.document} />);
+
+    await waitFor(() => expect(document.querySelector(".plan-tree-text")?.textContent).toBe("Warm Plan"));
+    const reader = document.querySelector(".plan-reader") as HTMLElement | null;
+    const scope = document.querySelector("#scope") as HTMLElement | null;
+    if (!reader || !scope) throw new Error("missing plan reader fixture elements");
+
+    reader.getBoundingClientRect = () => ({ left: 0, right: 640, width: 640, top: 100, bottom: 700, height: 600, x: 0, y: 100, toJSON: () => ({}) });
+    scope.getBoundingClientRect = () => ({ left: 0, right: 640, width: 640, top: 520, bottom: 548, height: 28, x: 0, y: 520, toJSON: () => ({}) });
+
+    clickPlanTreeLabel("Scope");
+    await waitFor(() => expect(reader.scrollTop).toBeGreaterThan(300));
+
+    reader.scrollTop = 111;
+    rerender(
+      <PlanDocumentHarness
+        planDocument={{
+          ...planResult.document,
+          headings: planResult.document.headings.map((heading) => ({ ...heading })),
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(reader.scrollTop).toBe(111));
   });
 
   test("keeps supplements-only Plan child selection warm across tab switches", async () => {
