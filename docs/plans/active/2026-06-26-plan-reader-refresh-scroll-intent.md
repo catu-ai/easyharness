@@ -49,16 +49,16 @@ still navigate the reader to that heading once at the time of selection.
 
 ## Acceptance Criteria
 
-- [ ] A Plan heading selection scrolls the reader to that heading once.
-- [ ] A subsequent live refresh or equivalent rerender with a fresh
+- [x] A Plan heading selection scrolls the reader to that heading once.
+- [x] A subsequent live refresh or equivalent rerender with a fresh
       `document`/markdown payload does not snap the reader back to the selected
       heading after the user has manually scrolled away.
-- [ ] Selecting the document root may still take the reader to the top as an
+- [x] Selecting the document root may still take the reader to the top as an
       explicit navigation action, but refreshes do not repeatedly force that
       top position.
-- [ ] Supplement file/directory selection remains functional and does not
+- [x] Supplement file/directory selection remains functional and does not
       trigger markdown reader scroll restoration.
-- [ ] Automated coverage fails on the old repeated-scroll behavior and passes
+- [x] Automated coverage fails on the old repeated-scroll behavior and passes
       with the new scroll intent boundary.
 
 ## Deferred Items
@@ -176,6 +176,11 @@ equivalent fresh `PlanDocument` object. With the old implementation this test
 failed because rerender replayed the selected-heading scroll and changed
 `scrollTop` from 111 to 513; after the Step 1 fix it passes.
 
+After finalize review, added a second focused regression for the document-root
+path: default root selection preserves manual reader `scrollTop` across an
+equivalent fresh `PlanDocument` rerender, while an explicit root click still
+scrolls the reader back to top once.
+
 Validation run:
 
 - `pnpm --dir web test -- main.test.tsx`
@@ -218,7 +223,19 @@ PENDING_UNTIL_ARCHIVE
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+`review-001-delta` passed with zero findings for the implementation and first
+regression test.
+
+`review-002-full` requested changes for two archive-readiness gaps:
+
+- the document-root/default-root refresh replay path lacked explicit
+  regression coverage
+- the top-level acceptance criteria were still unchecked despite completed
+  steps and validation
+
+Both findings were fixed by adding the root/default-root regression test and
+checking off the satisfied acceptance criteria. Follow-up review remains
+pending.
 
 ## Archive Summary
 

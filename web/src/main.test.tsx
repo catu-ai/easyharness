@@ -472,6 +472,30 @@ describe("workbench page state continuity", () => {
     await waitFor(() => expect(reader.scrollTop).toBe(111));
   });
 
+  test("keeps manual Plan reader scroll at the document root until root is selected again", async () => {
+    if (!planResult.document) throw new Error("missing plan document fixture");
+    const { rerender } = render(<PlanDocumentHarness planDocument={planResult.document} />);
+
+    await waitFor(() => expect(activePlanTreeText()).toBe("Warm Plan"));
+    const reader = document.querySelector(".plan-reader") as HTMLElement | null;
+    if (!reader) throw new Error("missing plan reader fixture element");
+
+    reader.scrollTop = 222;
+    rerender(
+      <PlanDocumentHarness
+        planDocument={{
+          ...planResult.document,
+          headings: planResult.document.headings.map((heading) => ({ ...heading })),
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(reader.scrollTop).toBe(222));
+
+    clickPlanTreeLabel("Warm Plan");
+    await waitFor(() => expect(reader.scrollTop).toBe(0));
+  });
+
   test("keeps supplements-only Plan child selection warm across tab switches", async () => {
     currentPlanResult = supplementsOnlyPlanResult;
     window.history.pushState({}, "", "/workspace/wk_alpha/plan");
