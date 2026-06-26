@@ -254,6 +254,8 @@ Final archive review `review-004-full` passed with `correctness`, `tests`, and
 
 ## Archive Summary
 
+- Archived At: 2026-06-26T16:36:16+08:00
+- Revision: 1
 - PR: Pending post-archive publish.
 - Ready: Yes, after archive and publish/CI/sync evidence are recorded.
 - Merge Handoff: Use the PR body to summarize the scroll-intent behavior fix,
