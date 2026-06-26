@@ -219,7 +219,18 @@ closeout.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+Validation completed successfully:
+
+- `pnpm --dir web test -- main.test.tsx`
+- `pnpm --dir web test`
+- `pnpm --dir web check`
+- `harness plan lint docs/plans/active/2026-06-26-plan-reader-refresh-scroll-intent.md`
+
+The focused frontend regression first failed against the old selected-heading
+scroll replay behavior, then passed after the PlanWorkspace scroll-intent fix.
+Follow-up root/default-root coverage also passed, proving refreshed equivalent
+Plan document data no longer forces the reader back to top while explicit root
+selection still navigates to top once.
 
 ## Review Summary
 
@@ -238,19 +249,32 @@ checking off the satisfied acceptance criteria. Follow-up review remains
 complete: `review-003-delta` passed with `tests` and `agent-ux` reviewer slots
 and zero findings.
 
+Final archive review `review-004-full` passed with `correctness`, `tests`, and
+`agent-ux` reviewer slots and zero findings.
+
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: Pending post-archive publish.
+- Ready: Yes, after archive and publish/CI/sync evidence are recorded.
+- Merge Handoff: Use the PR body to summarize the scroll-intent behavior fix,
+  selected-heading and document-root regression coverage, and the clean review
+  history.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Split Plan reader anchor assignment from one-time scroll navigation intent in
+  `PlanWorkspace`.
+- Preserved manual reader scrolling across refreshed equivalent Plan document
+  payloads for both selected heading and document-root/default-root states.
+- Preserved explicit heading and root navigation as one-time scroll actions.
+- Added Vitest regression coverage for selected-heading and document-root
+  refresh replay behavior.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+None.
 
 ### Follow-Up Issues
 
