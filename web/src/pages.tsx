@@ -476,6 +476,8 @@ export function PlanWorkspace(props: {
   const { loading, error, summary, document, supplements, warnings, state, onStateChange } = props;
   const documentRootId = document ? `document:${document.path}` : "document";
   const readerRef = useRef<HTMLDivElement | null>(null);
+  const pendingScrollNodeIdRef = useRef<string | null>(null);
+  const [scrollRequestVersion, setScrollRequestVersion] = useState(0);
 
   const flattenedHeadings = useMemo(() => flattenPlanHeadings(document?.headings ?? []), [document?.headings]);
   const documentHTML = useMemo(() => (document ? markdownRenderer.render(document.markdown) : ""), [document]);
@@ -543,8 +545,23 @@ export function PlanWorkspace(props: {
         element.id = heading.anchor;
       }
     });
+  }, [document, documentHTML, flattenedHeadings, selectedFile]);
 
+  useEffect(() => {
+    const pendingScrollNodeId = pendingScrollNodeIdRef.current;
+    if (!pendingScrollNodeId || pendingScrollNodeId !== selectedNodeId) return;
+    pendingScrollNodeIdRef.current = null;
+    if (!document || selectedFile) return;
+    const root = readerRef.current;
+    if (!root) return;
+
+    if (pendingScrollNodeId === documentRootId) {
+      const scrollContainer = findNearestScrollableAncestor(root) || root;
+      scrollContainer.scrollTop = 0;
+      return;
+    }
     if (selectedHeading) {
+      const headingElements = Array.from(root.querySelectorAll("h1, h2, h3, h4, h5, h6"));
       const target = headingElements.find((element) => element.id === selectedHeading.anchor) as HTMLElement | undefined;
       if (target) {
         const scrollContainer = findNearestScrollableAncestor(target) || findNearestScrollableAncestor(root) || root;
@@ -554,9 +571,7 @@ export function PlanWorkspace(props: {
         return;
       }
     }
-    const scrollContainer = findNearestScrollableAncestor(root) || root;
-    scrollContainer.scrollTop = 0;
-  }, [document, documentHTML, flattenedHeadings, selectedFile, selectedHeading]);
+  }, [document, documentRootId, scrollRequestVersion, selectedFile, selectedHeading, selectedNodeId]);
 
   const toggleNode = (id: string) => {
     setExpandedNodeIds((current) => {
@@ -574,6 +589,8 @@ export function PlanWorkspace(props: {
     if (opts?.toggle) {
       toggleNode(id);
     }
+    pendingScrollNodeIdRef.current = id;
+    setScrollRequestVersion((current) => current + 1);
     setSelectedNodeId(id);
   };
 
