@@ -69,7 +69,7 @@ still navigate the reader to that heading once at the time of selection.
 
 ### Step 1: Separate Scroll Intent From Render Refresh
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -127,11 +127,15 @@ Validation run:
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` passed on 2026-06-26 with `correctness` and `tests`
+reviewer slots. Both reviewers submitted valid results through
+`harness review submit`, both reported no findings, and
+`harness review aggregate --round review-001-delta` passed with zero blocking
+or non-blocking findings.
 
 ### Step 2: Add Regression Coverage And Verify
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -165,11 +169,27 @@ if execution changes the browser-only scroll path.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added a focused Vitest regression in `web/src/main.test.tsx` that mounts
+`PlanWorkspace`, clicks the `Scope` heading, verifies the explicit navigation
+scroll, manually changes reader `scrollTop`, then rerenders with an
+equivalent fresh `PlanDocument` object. With the old implementation this test
+failed because rerender replayed the selected-heading scroll and changed
+`scrollTop` from 111 to 513; after the Step 1 fix it passes.
+
+Validation run:
+
+- `pnpm --dir web test -- main.test.tsx`
+- `pnpm --dir web test`
+- `pnpm --dir web check`
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 2 was the regression coverage half of the same
+tightly coupled Step 1 implementation slice already reviewed in
+`review-001-delta`. The `tests` reviewer specifically reviewed whether the new
+regression proves the refreshed-document scroll replay risk and reported no
+findings, so a separate second step review would duplicate that accepted
+closeout.
 
 ## Validation Strategy
 
