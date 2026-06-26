@@ -235,7 +235,8 @@ regression test.
 
 Both findings were fixed by adding the root/default-root regression test and
 checking off the satisfied acceptance criteria. Follow-up review remains
-pending.
+complete: `review-003-delta` passed with `tests` and `agent-ux` reviewer slots
+and zero findings.
 
 ## Archive Summary
 
