@@ -1,0 +1,165 @@
+---
+template_version: 0.2.0
+created_at: "2026-06-26T17:08:21+08:00"
+approved_at: "2026-06-26T17:09:17+08:00"
+source_type: direct_request
+source_refs:
+    - 'patch release after #264/#261'
+size: XS
+---
+
+# Patch Release 0.5.1
+
+<!-- If this plan uses supplements/<plan-stem>/, keep the markdown concise,
+absorb any repository-facing normative content into formal tracked locations
+before archive, and record archive-time supplement absorption in Archive
+Summary or Outcome Summary. Lightweight plans should normally avoid
+supplements. -->
+
+## Goal
+
+Prepare a patch release PR for `easyharness` version `0.5.1` so users can get
+the Plan reader live-refresh scroll fix from #264/#261 without waiting for a
+later minor release.
+
+This is intentionally narrow: it is a release PR, not another product-change
+PR. The work uses the standard harness workflow rather than
+`workflow_profile: lightweight` because changing `VERSION` is release-safety
+work and triggers release automation.
+
+## Scope
+
+### In Scope
+
+- Update the root `VERSION` file from `0.5.0` to `0.5.1`.
+- Track the minimal pnpm build approval needed for release validation and make
+  installer fixtures copy it.
+- Validate the release PR with the repository release validation profile.
+- Keep the PR body focused on the patch release purpose and the shipped #261
+  fix.
+- Archive and publish the release candidate through harness evidence so it can
+  wait for merge approval.
+
+### Out of Scope
+
+- Additional product, workflow, or release automation changes.
+- Milestone creation or broader minor-release scope shaping.
+- Publishing the GitHub release or Homebrew artifacts directly from this
+  branch; those are expected to run after the release PR merges.
+
+## Acceptance Criteria
+
+- [x] `VERSION` contains `0.5.1`.
+- [x] `scripts/validate-release` passes for the release PR.
+- [ ] The release PR explains that `0.5.1` ships the Plan reader refresh-scroll
+      bug fix from #264/#261.
+- [x] Any non-`VERSION` change is directly required for `scripts/validate-release`.
+
+## Deferred Items
+
+- None.
+
+## Work Breakdown
+
+### Step 1: Prepare Patch Release Version
+
+- Done: [ ]
+
+#### Objective
+
+Update the repository to represent the `0.5.1` patch release candidate and
+validate it with the release profile.
+
+#### Details
+
+The current public release is `v0.5.0`, and the root `VERSION` file currently
+contains `0.5.0`. The newly landed #264 fix resolved #261, a user-facing Plan
+UI bug where live refresh could snap the reader back to the selected section.
+Per `docs/releasing.md`, this is a small repair that fits a patch release.
+
+Only bump `VERSION` to `0.5.1` unless validation proves a directly related
+release-readiness repair is required. During execution, release validation
+showed fresh installer fixtures need the pnpm build approval for `esbuild`, so
+the plan also permits the minimal config/test-fixture update needed to make the
+release profile deterministic.
+
+#### Expected Files
+
+- `VERSION`
+- `web/pnpm-workspace.yaml`
+- `tests/support/smoke.go`
+- `tests/release/release_build_test.go`
+
+#### Validation
+
+- `scripts/validate-release` passes.
+- `git diff` shows no unrelated file changes.
+
+#### Execution Notes
+
+Updated `VERSION` from `0.5.0` to `0.5.1`.
+
+The first release validation attempt exposed a deterministic pnpm build-script
+approval gap in fresh installer and release-build fixtures:
+`scripts/install-dev-harness` and `scripts/build-release` run `CI=true pnpm
+install --frozen-lockfile`, and fresh copied fixtures lacked the generated
+`web/pnpm-workspace.yaml` approval for `esbuild`. Tracked that minimal
+approval file and copied it in both installer and release-build fixture helpers
+so the release profile can validate from fresh checkouts.
+
+Validation run:
+
+- `scripts/validate-release` initially failed on missing fresh-fixture pnpm
+  build approval.
+- `go test -tags installer_smoke ./tests/installer -count=1` passed after
+  adding/copying the approval file.
+- `go test -tags release_smoke ./tests/release -count=1` passed after adding
+  the release-build fixture copy.
+- Final `scripts/validate-release` passed.
+
+#### Review Notes
+
+PENDING_STEP_REVIEW
+
+## Validation Strategy
+
+- Use `scripts/validate-release` as the release-ready validation profile for
+  the `VERSION` PR, as required by `docs/releasing.md`.
+- Use harness review to verify the release bump is scoped, validated, and
+  consistent with the patch release policy before archive.
+
+## Risks
+
+- Risk: A release PR can trigger tag and release automation after merge.
+  - Mitigation: Keep the change limited to `VERSION`, run
+    `scripts/validate-release`, and use standard harness review rather than
+    lightweight workflow.
+- Risk: The patch release may be too narrow or poorly justified.
+  - Mitigation: Tie the release PR explicitly to #264/#261 and the patch
+    policy in `docs/releasing.md`.
+
+## Validation Summary
+
+PENDING_UNTIL_ARCHIVE
+
+## Review Summary
+
+PENDING_UNTIL_ARCHIVE
+
+## Archive Summary
+
+PENDING_UNTIL_ARCHIVE
+
+## Outcome Summary
+
+### Delivered
+
+PENDING_UNTIL_ARCHIVE
+
+### Not Delivered
+
+PENDING_UNTIL_ARCHIVE
+
+### Follow-Up Issues
+
+NONE
