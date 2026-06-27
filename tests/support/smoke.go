@@ -107,7 +107,7 @@ func CopyInstallerFixture(t *testing.T) string {
 		"web/pnpm-lock.yaml",
 		"web/pnpm-workspace.yaml",
 		"web/tsconfig.json",
-		"web/vite.config.ts",
+		"web/vite.config.mjs",
 		"web/src",
 	} {
 		CopyPath(t, filepath.Join(sourceRoot, rel), filepath.Join(root, rel))

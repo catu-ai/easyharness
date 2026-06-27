@@ -95,6 +95,8 @@ release profile deterministic.
 - `scripts/validate-release`
 - `tests/smoke/build_embedded_ui_test.go`
 - `tests/smoke/ci_workflow_test.go`
+- `web/package.json`
+- `web/vite.config.mjs`
 
 #### Validation
 
@@ -124,9 +126,12 @@ Validation run:
 - Finalize review reruns exposed intermittent fresh-checkout Vite/esbuild
   `The service was stopped` / `write EPIPE` failures during installer smoke.
   Updated `scripts/build-embedded-ui` to retry that observed transient failure
-  shape once, added smoke coverage for the retry, and made the release profile
-  run installer smoke with `-parallel=1` so multiple fresh install/build
-  subprocesses do not compete during release validation.
+  shape once, added smoke coverage for the retry, converted the Vite config
+  from TypeScript to native-loadable ESM so config loading no longer depends on
+  esbuild in fresh fixtures, and made the release profile run installer smoke
+  with `-parallel=1 -timeout=20m` so multiple fresh install/build subprocesses
+  do not compete during release validation while retaining enough timeout
+  headroom for the serialized smoke package.
 - Final `scripts/validate-release` passed on 2026-06-27 after the
   validation-stability repair.
 
@@ -143,6 +148,15 @@ Vite/esbuild failures. The repair added a bounded transient esbuild retry to
 the embedded UI build helper, serialized installer smoke in the release
 validation profile, and reran focused plus full release validation before the
 next finalize review.
+
+`review-003-full` requested changes because serializing installer smoke without
+raising Go's default package timeout could make `scripts/validate-release`
+time out before release smoke ran. During the repair, another full release
+validation attempt showed the esbuild service failures could repeat even after
+one retry, so the final repair also switched Vite config loading to native ESM
+with `web/vite.config.mjs`. The serialized installer smoke command now has
+explicit `-timeout=20m` headroom, and the release profile was rerun to a clean
+pass.
 
 ## Validation Strategy
 
