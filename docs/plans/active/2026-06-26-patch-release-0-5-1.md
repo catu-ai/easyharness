@@ -95,6 +95,7 @@ release profile deterministic.
 - `scripts/validate-release`
 - `tests/smoke/build_embedded_ui_test.go`
 - `tests/smoke/ci_workflow_test.go`
+- `scripts/install-dev-harness`
 - `web/package.json`
 - `web/vite.config.mjs`
 
@@ -132,6 +133,13 @@ Validation run:
   with `-parallel=1 -timeout=20m` so multiple fresh install/build subprocesses
   do not compete during release validation while retaining enough timeout
   headroom for the serialized smoke package.
+- `review-005-full` then found that even native Vite config loading can still
+  hit repeated esbuild service failures during the Vite bundle step when every
+  installer wrapper smoke case rebuilds the UI in a fresh fixture. The final
+  repair makes installer smoke set an explicit test-only environment variable
+  to reuse a minimal embedded UI fixture, keeping wrapper/install behavior
+  coverage separate from the real UI build coverage already provided by
+  `scripts/validate` and release smoke.
 - Final `scripts/validate-release` passed on 2026-06-27 after the
   validation-stability repair.
 
@@ -157,6 +165,14 @@ one retry, so the final repair also switched Vite config loading to native ESM
 with `web/vite.config.mjs`. The serialized installer smoke command now has
 explicit `-timeout=20m` headroom, and the release profile was rerun to a clean
 pass.
+
+`review-005-full` requested one more change because the exact serialized
+installer smoke command could still fail when every installer wrapper test ran
+the real Vite bundle in a fresh checkout. The final repair changed installer
+smoke to skip the embedded UI rebuild only under the explicit
+`EASYHARNESS_TEST_SKIP_EMBEDDED_UI_BUILD=1` test environment and seeded a
+minimal embedded UI fixture for Go's embed requirement. The real UI build
+remains covered by `scripts/validate` and release smoke.
 
 ## Validation Strategy
 
