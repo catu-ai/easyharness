@@ -63,7 +63,7 @@ work and triggers release automation.
 
 ### Step 1: Prepare Patch Release Version
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -119,7 +119,10 @@ Validation run:
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-full` passed on 2026-06-27 with `correctness`, `tests`, and
+`risk-scan` reviewer slots. Reviewers reported no findings. The review covered
+the `VERSION` bump, pnpm `esbuild` build approval, fresh installer/release
+fixture copies, validation evidence, and release-safety scope.
 
 ## Validation Strategy
 
