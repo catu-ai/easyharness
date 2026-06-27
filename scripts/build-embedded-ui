@@ -23,4 +23,16 @@ fi
 
 cd "${web_dir}"
 CI=true pnpm install --frozen-lockfile
-pnpm build
+build_output=""
+if build_output="$(pnpm build 2>&1)"; then
+  printf '%s\n' "${build_output}"
+else
+  build_status=$?
+  printf '%s\n' "${build_output}" >&2
+  if [[ "${build_output}" == *"The service was stopped"* || "${build_output}" == *"write EPIPE"* ]]; then
+    echo "Embedded UI build hit a transient esbuild service failure; retrying once." >&2
+    pnpm build
+    exit $?
+  fi
+  exit "${build_status}"
+fi

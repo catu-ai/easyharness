@@ -65,7 +65,7 @@ func TestValidationScriptsDefineDevelopmentAndReleaseProfiles(t *testing.T) {
 	}
 	validateRelease := string(validateReleaseData)
 	support.RequireContains(t, validateRelease, "scripts/validate")
-	support.RequireContains(t, validateRelease, "go test -tags installer_smoke ./tests/installer -count=1")
+	support.RequireContains(t, validateRelease, "go test -tags installer_smoke ./tests/installer -count=1 -parallel=1")
 	support.RequireContains(t, validateRelease, "go test -tags release_smoke ./tests/release -count=1")
 	support.RequireSubstringOrder(t, validateRelease, `cd "${repo_root}"`, "scripts/validate")
 	support.RequireSubstringOrder(t, validateRelease, "scripts/validate", "installer_smoke")

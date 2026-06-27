@@ -34,6 +34,8 @@ work and triggers release automation.
 - Update the root `VERSION` file from `0.5.0` to `0.5.1`.
 - Track the minimal pnpm build approval needed for release validation and make
   installer fixtures copy it.
+- Stabilize the release validation path where fresh installer smoke builds
+  exposed transient Vite/esbuild service failures.
 - Validate the release PR with the repository release validation profile.
 - Keep the PR body focused on the patch release purpose and the shipped #261
   fix.
@@ -89,6 +91,10 @@ release profile deterministic.
 - `web/pnpm-workspace.yaml`
 - `tests/support/smoke.go`
 - `tests/release/release_build_test.go`
+- `scripts/build-embedded-ui`
+- `scripts/validate-release`
+- `tests/smoke/build_embedded_ui_test.go`
+- `tests/smoke/ci_workflow_test.go`
 
 #### Validation
 
@@ -115,7 +121,14 @@ Validation run:
   adding/copying the approval file.
 - `go test -tags release_smoke ./tests/release -count=1` passed after adding
   the release-build fixture copy.
-- Final `scripts/validate-release` passed.
+- Finalize review reruns exposed intermittent fresh-checkout Vite/esbuild
+  `The service was stopped` / `write EPIPE` failures during installer smoke.
+  Updated `scripts/build-embedded-ui` to retry that observed transient failure
+  shape once, added smoke coverage for the retry, and made the release profile
+  run installer smoke with `-parallel=1` so multiple fresh install/build
+  subprocesses do not compete during release validation.
+- Final `scripts/validate-release` passed on 2026-06-27 after the
+  validation-stability repair.
 
 #### Review Notes
 
@@ -123,6 +136,13 @@ Validation run:
 `risk-scan` reviewer slots. Reviewers reported no findings. The review covered
 the `VERSION` bump, pnpm `esbuild` build approval, fresh installer/release
 fixture copies, validation evidence, and release-safety scope.
+
+`review-002-full` requested changes during finalize because reviewer reruns
+contradicted the earlier validation evidence with installer-smoke
+Vite/esbuild failures. The repair added a bounded transient esbuild retry to
+the embedded UI build helper, serialized installer smoke in the release
+validation profile, and reran focused plus full release validation before the
+next finalize review.
 
 ## Validation Strategy
 
