@@ -53,7 +53,7 @@ work and triggers release automation.
 
 - [x] `VERSION` contains `0.5.1`.
 - [x] `scripts/validate-release` passes for the release PR.
-- [ ] The release PR explains that `0.5.1` ships the Plan reader refresh-scroll
+- [x] The release PR explains that `0.5.1` ships the Plan reader refresh-scroll
       bug fix from #264/#261.
 - [x] Any non-`VERSION` change is directly required for `scripts/validate-release`.
 
@@ -203,25 +203,77 @@ without reintroducing repeated Vite rebuilds.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+Final validation passed on 2026-06-27:
+
+- `pnpm --dir web check`
+- `pnpm --dir web build`
+- `go test ./tests/smoke -run 'TestBuildEmbeddedUIScript|TestValidationScriptsDefineDevelopmentAndReleaseProfiles' -count=1`
+- `go test -tags installer_smoke ./tests/installer -run 'TestInstallDevHarnessRunsEmbeddedUIBuildByDefault|TestInstallDevHarnessDefaultsToUserLocalBin' -count=1 -parallel=1 -timeout=20m`
+- `go test -tags installer_smoke ./tests/installer -count=1 -parallel=1 -timeout=20m`
+- `go test -tags release_smoke ./tests/release -count=1`
+- `scripts/validate-release`
+- `harness plan lint docs/plans/active/2026-06-26-patch-release-0-5-1.md`
+- `git diff --check origin/main...HEAD`
+
+The final full release profile includes the real embedded UI build through
+`scripts/validate`, the serialized installer smoke profile, and release smoke.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Review history:
+
+- `review-001-full` passed the initial release bump and fresh-fixture pnpm
+  approval repair.
+- `review-002-full`, `review-003-full`, and `review-005-full` found release
+  validation instability in fresh installer smoke. Each finding was repaired
+  before continuing.
+- `review-004-delta` passed the timeout/native Vite config repair.
+- `review-006-delta` passed the installer-smoke UI rebuild separation repair,
+  then a minor coverage note was addressed with
+  `TestInstallDevHarnessRunsEmbeddedUIBuildByDefault`.
+- `review-007-full` passed with `correctness`, `tests`, `risk-scan`, and
+  `agent-ux` reviewer slots reporting no findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-06-27T23:57:57+08:00
+- Revision: 1
+- PR: Open a patch release PR from `codex/patch-release-0.5.1` to `main` with a
+body that explains `0.5.1` ships the Plan reader refresh-scroll bug fix from
+#264/#261 and summarizes the release-validation repairs.
+
+- Ready: Yes. The plan steps are complete, acceptance criteria are checked,
+`scripts/validate-release` passes, and `review-007-full` passed with no
+findings.
+
+- Merge Handoff: After merge, the `VERSION` change is expected to trigger the
+tag/release flow for `v0.5.1`; GitHub release/Homebrew publishing remain
+post-merge release automation work, not work performed from this branch.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Prepared the `0.5.1` patch release candidate for the #264/#261 Plan reader
+  refresh-scroll fix by updating `VERSION`.
+- Added the pnpm `esbuild` build approval and copied it into fresh installer
+  and release smoke fixtures.
+- Stabilized release validation by using native-loadable Vite config,
+  serializing installer smoke with explicit timeout headroom, and separating
+  installer wrapper smoke from repeated real Vite rebuilds while preserving
+  real UI build coverage in `scripts/validate`.
+- Added focused coverage for the transient embedded UI build retry, release
+  validation command shape, fresh fixture copy paths, and default
+  `install-dev-harness` embedded UI build behavior.
+- Left a clear PR handoff for the patch release purpose and post-merge release
+  automation boundary.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No additional product fixes beyond the already landed #264/#261 Plan reader
+  fix.
+- No manual GitHub release, tag publication, or Homebrew publishing from this
+  branch.
 
 ### Follow-Up Issues
 
