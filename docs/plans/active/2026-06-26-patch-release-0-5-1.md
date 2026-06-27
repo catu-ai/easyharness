@@ -140,6 +140,10 @@ Validation run:
   to reuse a minimal embedded UI fixture, keeping wrapper/install behavior
   coverage separate from the real UI build coverage already provided by
   `scripts/validate` and release smoke.
+- `review-006-delta` passed with one minor coverage note, then a focused
+  installer smoke assertion was added to prove the default installer path still
+  runs `scripts/build-embedded-ui` when the test-only skip environment variable
+  is absent.
 - Final `scripts/validate-release` passed on 2026-06-27 after the
   validation-stability repair.
 
@@ -173,6 +177,12 @@ smoke to skip the embedded UI rebuild only under the explicit
 `EASYHARNESS_TEST_SKIP_EMBEDDED_UI_BUILD=1` test environment and seeded a
 minimal embedded UI fixture for Go's embed requirement. The real UI build
 remains covered by `scripts/validate` and release smoke.
+
+`review-006-delta` passed with one minor tests finding asking for coverage of
+the default installer path when the skip env is absent. Added
+`TestInstallDevHarnessRunsEmbeddedUIBuildByDefault` with a fake
+`scripts/build-embedded-ui` helper so the default integration path is covered
+without reintroducing repeated Vite rebuilds.
 
 ## Validation Strategy
 

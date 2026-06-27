@@ -57,6 +57,44 @@ func TestInstallDevHarnessDefaultsToUserLocalBin(t *testing.T) {
 	}
 }
 
+func TestInstallDevHarnessRunsEmbeddedUIBuildByDefault(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("installer smoke tests require a POSIX shell")
+	}
+
+	t.Parallel()
+
+	repoRoot := support.CopyInstallerFixture(t)
+	buildMarker := filepath.Join(t.TempDir(), "embedded-ui-build-called")
+	support.WriteFixtureFile(
+		t,
+		filepath.Join(repoRoot, "scripts", "build-embedded-ui"),
+		"#!/usr/bin/env bash\nset -euo pipefail\nprintf called > \"${EASYHARNESS_TEST_BUILD_MARKER}\"\n",
+		0o755,
+	)
+
+	result := support.RunCommand(
+		t,
+		repoRoot,
+		support.InstallerEnv(t, map[string]string{
+			"EASYHARNESS_TEST_BUILD_MARKER":           buildMarker,
+			"EASYHARNESS_TEST_SKIP_EMBEDDED_UI_BUILD": "",
+			"HOME": t.TempDir(),
+			"PATH": support.InstallerPath(t),
+		}),
+		"/bin/bash",
+		filepath.Join(repoRoot, "scripts", "install-dev-harness"),
+	)
+	if result.ExitCode != 0 {
+		t.Fatalf("install-dev-harness failed with exit %d\nstdout:\n%s\nstderr:\n%s", result.ExitCode, result.Stdout, result.Stderr)
+	}
+
+	support.RequireFileExists(t, buildMarker)
+	if strings.Contains(result.Stdout, "Skipping embedded UI build") {
+		t.Fatalf("expected default installer path to run embedded UI build\nstdout:\n%s\nstderr:\n%s", result.Stdout, result.Stderr)
+	}
+}
+
 func TestInstallDevHarnessHelpDoesNotMentionGlobalFlag(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("installer smoke tests require a POSIX shell")
