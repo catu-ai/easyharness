@@ -146,9 +146,9 @@ The formula name remains `easyharness`, while the installed binary remains
 ## Contributor Baseline
 
 Release and CI jobs use the Go version recorded in `go.mod`, which is currently
-`go 1.25.0`. They also use Node.js 22, matching the root `.nvmrc`, with pnpm
-resolved through Corepack from `web/package.json` so the embedded UI assets are
-built before Go tests and release packaging consume them. Ordinary CI uses
+`go 1.25.0`. They also use Node.js 22, matching the root `.nvmrc`, and
+explicitly install the pinned pnpm version used to build embedded UI assets
+before Go tests and release packaging consume them. Ordinary CI uses
 `scripts/validate` for the development validation profile. `VERSION` and
 release PRs use `scripts/validate-release` before merge. The post-merge
 `Release` workflow reruns publish validation from the packaged source tree, but

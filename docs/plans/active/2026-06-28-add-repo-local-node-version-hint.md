@@ -185,8 +185,12 @@ docs, release docs, and this plan.
 - Revision 2 finalize full review `review-002-full` passed with 0 blocking
   findings and 0 non-blocking findings across `correctness`, `tests`, and
   `risk-scan`.
-- Revision 3 finalize review is pending after slimming PR #267 back to Node
-  hint scope.
+- Revision 3 finalize review `review-003-full` found one blocking
+  docs-consistency issue: `docs/releasing.md` overstated CI/release pnpm
+  resolution as Corepack-from-`web/package.json`, while workflows explicitly
+  install the pinned pnpm version.
+- Repaired the wording so release docs say CI/release use Node 22 and
+  explicitly install pinned pnpm.
 
 ## Archive Summary
 
