@@ -833,7 +833,7 @@ func TestRepoConfigRefreshDiffPlanningErrorDoesNotFallbackToApply(t *testing.T) 
 	if ok, _ := payload["ok"].(bool); ok {
 		t.Fatalf("expected config refresh --diff failure, got %#v", payload)
 	}
-	if mode, _ := payload["mode"].(string); mode != "apply" {
+	if mode, _ := payload["mode"].(string); mode != "dry_run" {
 		t.Fatalf("expected existing error envelope mode, got %#v", payload)
 	}
 	data, err := os.ReadFile(obstruction)
