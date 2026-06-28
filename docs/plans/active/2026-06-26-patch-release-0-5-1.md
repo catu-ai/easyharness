@@ -58,7 +58,7 @@ work and triggers release automation.
       installer-smoke, or validation-stability code churn.
 - [x] `scripts/validate-release` passes for the release PR under the CI-aligned
       local environment: Node 22 via `nvm` and pnpm 10.32.1 via Corepack.
-- [ ] The release PR explains that `0.5.1` ships the Plan reader refresh-scroll
+- [x] The release PR explains that `0.5.1` ships the Plan reader refresh-scroll
       bug fix from #264/#261.
 
 ## Deferred Items
@@ -199,25 +199,44 @@ Reviewer conclusions:
 
 ## Validation Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
+Validated the slimmed release candidate with CI-aligned local tooling:
+
+- Node `v22.23.0` selected through `nvm`
+- pnpm `10.32.1` selected through Corepack
+- `scripts/validate-release` passed end-to-end after one local installer-smoke
+  timeout was retried successfully
+
+The effective branch diff against `origin/main` contains only the `VERSION`
+bump to `0.5.1` and tracked harness plan/archive material.
 
 ## Review Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
+The superseded broad #265 candidate review history is obsolete after reopen.
+The relevant reopened-candidate closeout is `review-008-delta`, which passed on
+2026-06-28 with no findings across `correctness`, `tests`, and `risk-scan`.
+
+Finalize review still needs to pass before archive.
 
 ## Archive Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
+- PR: https://github.com/catu-ai/easyharness/pull/265
+- Ready: Pending finalize review, archive, push, and post-archive evidence
+  refresh.
+- Merge Handoff: Keep the PR body focused on the `0.5.1` patch release for the
+  #264/#261 Plan reader refresh-scroll fix.
 
 ## Outcome Summary
 
 ### Delivered
 
-UPDATE_REQUIRED_AFTER_REOPEN
+- `VERSION` is bumped from `0.5.0` to `0.5.1`.
+- The reopened #265 candidate is slimmed back to the minimal patch release
+  scope.
+- Local release validation passes with Node `v22.23.0` and pnpm `10.32.1`.
+- PR #265 describes the patch release as shipping the already-landed #264/#261
+  Plan reader refresh-scroll fix.
 
 ### Not Delivered
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - No additional product fixes beyond the already landed #264/#261 Plan reader
   fix.
@@ -227,6 +246,6 @@ UPDATE_REQUIRED_AFTER_REOPEN
 
 ### Follow-Up Issues
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
-NONE
+- https://github.com/catu-ai/easyharness/issues/266 tracks adding a repo-local
+  Node version hint such as `.nvmrc`, `.node-version`, mise/asdf config, or
+  equivalent contributor guidance.
