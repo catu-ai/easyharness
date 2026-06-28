@@ -191,6 +191,9 @@ docs, release docs, and this plan.
   install the pinned pnpm version.
 - Repaired the wording so release docs say CI/release use Node 22 and
   explicitly install pinned pnpm.
+- Follow-up review `review-004-full` found the same stale Corepack wording in
+  this plan's Outcome Summary; repaired the archive-bound plan text to match
+  `docs/releasing.md`.
 
 ## Archive Summary
 
@@ -209,7 +212,7 @@ docs, release docs, and this plan.
 - Updated `docs/development.md` to tell contributors to use Node 22 and
   Corepack-backed pnpm resolution from `web/package.json`.
 - Updated `docs/releasing.md` so the contributor baseline explicitly names
-  Node 22 and Corepack-backed pnpm resolution.
+  Node 22 and pinned pnpm installation for CI/release jobs.
 
 ### Not Delivered
 
