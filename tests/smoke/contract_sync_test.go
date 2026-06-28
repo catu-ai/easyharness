@@ -23,6 +23,36 @@ func TestSyncContractArtifactsCheckPassesForCurrentRepo(t *testing.T) {
 	}
 }
 
+func TestSyncContractArtifactsCheckIgnoresTransientFrontendDependencyDirs(t *testing.T) {
+	repoRoot := support.RepoRoot(t)
+	cloneRoot := filepath.Join(t.TempDir(), "repo")
+	if err := os.MkdirAll(cloneRoot, 0o755); err != nil {
+		t.Fatalf("mkdir clone root: %v", err)
+	}
+	copyCurrentRepo(t, repoRoot, cloneRoot)
+
+	transientDir := filepath.Join(cloneRoot, "web", "node_modules", ".pnpm", "vite_tmp_missing")
+	if err := os.MkdirAll(transientDir, 0o755); err != nil {
+		t.Fatalf("mkdir transient dependency dir: %v", err)
+	}
+	if err := os.Chmod(transientDir, 0); err != nil {
+		t.Fatalf("chmod transient dependency dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chmod(transientDir, 0o755); err != nil && !os.IsNotExist(err) {
+			t.Fatalf("restore transient dependency dir permissions: %v", err)
+		}
+	}()
+
+	result := support.RunCommand(t, cloneRoot, nil, filepath.Join(cloneRoot, "scripts", "sync-contract-artifacts"), "--check")
+	if result.ExitCode != 0 {
+		t.Fatalf("sync-contract-artifacts --check should ignore transient frontend dependency dirs, exited with code %d\n%s", result.ExitCode, result.CombinedOutput())
+	}
+	if !strings.Contains(result.CombinedOutput(), "Contract schemas are in sync.") {
+		t.Fatalf("unexpected check output:\n%s", result.CombinedOutput())
+	}
+}
+
 func TestSyncContractArtifactsCheckFailsOnStaleGeneratedFiles(t *testing.T) {
 	repoRoot := support.RepoRoot(t)
 	cloneRoot := filepath.Join(t.TempDir(), "repo")
