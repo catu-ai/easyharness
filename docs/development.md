@@ -65,9 +65,21 @@ After changing Go CLI code, rerun `scripts/install-dev-harness` so the direct
 Contributors should use the Go toolchain recorded in `go.mod`, which is
 currently `go 1.25.0`.
 
-Repo-level UI development also expects `pnpm` to be available locally. If it
-is missing, install Node.js and pnpm before rerunning the embedded UI build or
-development installer.
+Contributors should use Node.js 22 for repo-level UI and release validation.
+The root `.nvmrc` records that expected major version for `nvm` users:
+
+```bash
+nvm install
+nvm use
+```
+
+Use Corepack so `pnpm` resolves from the `packageManager` pin in
+`web/package.json`, currently `pnpm@10.32.1`, before rerunning the embedded UI
+build or development installer:
+
+```bash
+corepack enable
+```
 
 ## Validation
 
