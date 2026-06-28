@@ -657,6 +657,14 @@ func TestRepoConfigRefreshCommandUpdatesOldDefaultConfig(t *testing.T) {
 	if payload["command"] != "repo config refresh" || payload["operation"] != "refresh" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
+	if _, ok := payload["diff"]; ok {
+		t.Fatalf("ordinary refresh JSON must not include diff field: %#v", payload)
+	}
+	for _, forbidden := range []string{"--- a/.harness/config.yaml", "+++ b/.harness/config.yaml", "@@ -"} {
+		if strings.Contains(stdout.String(), forbidden) {
+			t.Fatalf("ordinary refresh JSON must not include diff marker %q:\n%s", forbidden, stdout.String())
+		}
+	}
 	configData, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("read repo config: %v", err)
