@@ -52,16 +52,16 @@ the work is sized `XXS`, but the human did not request
 
 ## Acceptance Criteria
 
-- [ ] The repository root contains a committed `.nvmrc` that clearly selects
+- [x] The repository root contains a committed `.nvmrc` that clearly selects
       Node 22.
-- [ ] `docs/development.md` tells contributors to use the repo-local Node 22
+- [x] `docs/development.md` tells contributors to use the repo-local Node 22
       hint and to use Corepack/pnpm through the existing `web/package.json`
       package-manager pin.
-- [ ] `docs/releasing.md` no longer leaves the Node major implicit in the
+- [x] `docs/releasing.md` no longer leaves the Node major implicit in the
       contributor baseline; it names Node 22 consistently with `.nvmrc`.
-- [ ] The diff contains no release-script, CI-workflow, dependency, or
+- [x] The diff contains no release-script, CI-workflow, dependency, or
       generated-asset changes.
-- [ ] Issue #266 can be closed by the PR body or archive summary.
+- [x] Issue #266 can be closed by the PR body or archive summary.
 
 ## Deferred Items
 
@@ -139,25 +139,50 @@ build behavior.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `git diff --check` passed.
+- `harness plan lint docs/plans/active/2026-06-28-add-repo-local-node-version-hint.md`
+  passed after implementation and closeout updates.
+- `nvm use` was not run because `nvm` is not available in this non-interactive
+  shell; the repo-level hint is still static and reviewable through `.nvmrc`.
+- Diff review confirmed the candidate touches only `.nvmrc`,
+  `docs/development.md`, `docs/releasing.md`, and this tracked plan.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Finalize full review `review-001-full` passed with 0 blocking findings and
+  0 non-blocking findings.
+- `docs-consistency` found no defects and confirmed the Node 22 hint,
+  development guidance, release baseline, workflow pins, and plan scope align.
+- `risk-scan` found no leaked scope or release/tooling hazards; the candidate
+  does not touch release scripts, CI workflows, dependencies, lockfiles, or
+  generated assets.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-06-28T11:35:03+08:00
+- Revision: 1
+- PR: pending post-archive publish from branch
+  `codex/add-node-version-hint`.
+- Ready: The candidate satisfies all acceptance criteria, static validation
+  passed, and finalize full review `review-001-full` passed cleanly.
+- Merge Handoff: After archive, commit the tracked archive move, push the
+  branch, open the PR, record publish/CI/sync evidence, and wait for explicit
+  human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added a root `.nvmrc` selecting Node 22.
+- Updated `docs/development.md` to tell contributors to use Node 22 and
+  Corepack-backed pnpm resolution from `web/package.json`.
+- Updated `docs/releasing.md` so the contributor baseline explicitly names
+  Node 22 and Corepack-backed pnpm resolution.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No release behavior, CI workflow, dependency, lockfile, Vite, installer
+  smoke, or generated-asset changes were made.
 
 ### Follow-Up Issues
 
