@@ -119,7 +119,8 @@ no generated schema diff.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Step-closeout delta review `review-001-delta` passed with `correctness` and
+`tests` reviewer slots, 0 blocking findings, and 0 non-blocking findings.
 
 ### Step 2: Add Transient Dependency Regression Coverage
 
@@ -166,7 +167,8 @@ comment-loading scope fix.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Step-closeout delta review `review-002-delta` passed with the `tests`
+reviewer slot, 0 blocking findings, and 0 non-blocking findings.
 
 ## Validation Strategy
 
