@@ -53,10 +53,10 @@ work and triggers release automation.
 
 ## Acceptance Criteria
 
-- [ ] `VERSION` contains `0.5.1`.
-- [ ] The branch diff against `origin/main` contains no Vite, pnpm,
+- [x] `VERSION` contains `0.5.1`.
+- [x] The branch diff against `origin/main` contains no Vite, pnpm,
       installer-smoke, or validation-stability code churn.
-- [ ] `scripts/validate-release` passes for the release PR under the CI-aligned
+- [x] `scripts/validate-release` passes for the release PR under the CI-aligned
       local environment: Node 22 via `nvm` and pnpm 10.32.1 via Corepack.
 - [ ] The release PR explains that `0.5.1` ships the Plan reader refresh-scroll
       bug fix from #264/#261.
@@ -115,7 +115,7 @@ handoff clearly explains the #264/#261 fix.
 
 ### Step 2: Slim Reopened Release Candidate
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -168,7 +168,17 @@ run passed end-to-end without code changes.
 
 #### Review Notes
 
-PENDING
+`review-008-delta` passed on 2026-06-28 with no blocking or non-blocking
+findings across `correctness`, `tests`, and `risk-scan`.
+
+Reviewer conclusions:
+
+- the effective branch diff is limited to `VERSION=0.5.1` plus the active plan
+- the Node `v22.23.0` / pnpm `10.32.1` `scripts/validate-release` pass is
+  sufficient for this VERSION-only patch release candidate
+- the local installer-smoke timeout was adequately handled as a documented
+  retry without broadening the PR
+- Node-version hint work remains correctly deferred outside this release slice
 
 ## Validation Strategy
 
