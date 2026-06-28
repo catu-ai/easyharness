@@ -71,7 +71,7 @@ the work is sized `XXS`, but the human did not request
 
 ### Step 1: Add Node 22 Hint And Docs
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -114,7 +114,8 @@ documentation and a tool-version hint rather than executable behavior.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: This single-step XXS documentation/tooling hint is
+covered by the required finalize full review for the complete candidate.
 
 ## Validation Strategy
 
