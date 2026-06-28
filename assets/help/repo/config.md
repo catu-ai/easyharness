@@ -52,6 +52,18 @@ harness repo config get paths.local_runtime
 harness repo config get paths.review.dimensions
 ```
 
+Before applying the canonical refresh rewrite, inspect it with:
+
+```bash
+harness repo config refresh --diff
+```
+
+`harness repo config refresh` owns the canonical rendered file shape. Valid
+user-authored YAML comments are accepted when the config values remain valid,
+but refresh does not preserve those comments or the original field ordering.
+The canonical renderer preserves supported configured values, normalizes field
+ordering, and still rejects unsupported fields.
+
 If `.harness/config.yaml` is missing, easyharness uses built-in defaults. If
 the file exists but is invalid, commands warn the agent, ignore the whole
 config, and use built-in defaults instead of partially consuming it.

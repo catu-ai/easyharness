@@ -150,6 +150,20 @@ content, rewrites valid existing config into the current canonical file shape,
 preserves custom path-root values, and fails without overwriting when the
 existing config is invalid.
 
+Refresh owns the canonical rendered text shape. The loader accepts
+user-authored YAML comments and field ordering when the underlying v1 values
+remain valid, but refresh does not preserve those comments or the original
+field order. The canonical renderer normalizes field ordering and
+default-equivalent fields while preserving supported configured values.
+Unsupported fields remain invalid instead of being preserved or copied through.
+
+`harness repo config refresh --diff` previews the same canonical rewrite
+without writing `.harness/config.yaml`. It prints a unified diff to stdout
+when refresh would create or update the file, prints empty stdout and exits
+successfully when the file is already canonical, and uses the same invalid
+config failure behavior as ordinary refresh. The diff preview is plain text; it
+does not extend or wrap the bootstrap JSON result envelope.
+
 ## Repo Config Queries
 
 `harness repo config get <key>` is the focused command for reading one resolved

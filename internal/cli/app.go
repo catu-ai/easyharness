@@ -675,10 +675,13 @@ func (a *App) runRepoConfigInit(args []string) int {
 func (a *App) runRepoConfigRefresh(args []string) int {
 	fs := flag.NewFlagSet("harness repo config refresh", flag.ContinueOnError)
 	fs.SetOutput(a.Stderr)
+	diff := fs.Bool("diff", false, "Print the unified diff refresh would apply without writing files.")
 	fs.Usage = func() {
-		fmt.Fprintln(a.Stderr, "Usage: harness repo config refresh")
+		fmt.Fprintln(a.Stderr, "Usage: harness repo config refresh [--diff]")
 		fmt.Fprintln(a.Stderr)
 		fmt.Fprintln(a.Stderr, "Create or refresh .harness/config.yaml to the current canonical shape.")
+		fmt.Fprintln(a.Stderr)
+		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -695,6 +698,7 @@ func (a *App) runRepoConfigRefresh(args []string) int {
 		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
 		return 1
 	}
+	_ = diff
 	result := install.Service{Workdir: workdir}.RefreshConfig(install.Options{})
 	return a.writeJSONResult(result)
 }

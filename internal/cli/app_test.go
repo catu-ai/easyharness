@@ -408,6 +408,7 @@ func TestHelpRepoConfigPrintsAgentGuide(t *testing.T) {
 		"version: 1",
 		"harness repo config get paths.plans.active",
 		"harness repo config list",
+		"harness repo config refresh --diff",
 		".harness/review/dimensions",
 		"humans describe the outcome",
 	} {
@@ -1001,6 +1002,18 @@ func TestRepoConfigRefreshHelpExitsZero(t *testing.T) {
 	exitCode := app.Run([]string{"repo", "config", "refresh", "--help"})
 	if exitCode != 0 {
 		t.Fatalf("expected help exit code 0, got %d", exitCode)
+	}
+	for _, want := range []string{
+		"Usage: harness repo config refresh",
+		"--diff",
+		"unified diff",
+	} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("expected config refresh help to contain %q, got %q", want, stderr.String())
+		}
+	}
+	if strings.Contains(stderr.String(), "--dry-run") {
+		t.Fatalf("expected config refresh help not to advertise --dry-run, got %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "Usage: harness repo config refresh") {
 		t.Fatalf("expected config refresh help text, got %q", stderr.String())
