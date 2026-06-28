@@ -203,21 +203,44 @@ reviewer slot, 0 blocking findings, and 0 non-blocking findings.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+Step-closeout review passed in two delta rounds:
+
+- `review-001-delta` covered Step 1 with `correctness` and `tests`; both
+  reviewers reported no findings.
+- `review-002-delta` covered Step 2 with `tests`; the reviewer reported no
+  findings.
+
+Finalize review `review-003-full` covered the full candidate with
+`correctness`, `tests`, and `risk-scan`; all reviewers reported no findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: To be opened after archive on branch
+  `codex/harden-contract-sync-comment-scope`.
+- Ready: Yes. The candidate has completed implementation, focused validation,
+  step-closeout review, and finalize review with no findings.
+- Merge Handoff: After archive, push the branch, open a PR for issue #260,
+  record publish/CI/sync evidence through harness, and wait for explicit human
+  merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Contract schema generation no longer asks `jsonschema` to recursively load
+  Go comments from the repository root, so frontend dependency directories
+  under `web/node_modules` are outside the contract sync comment-loading path.
+- Contract descriptions remain sourced from the existing
+  `internal/contracts` parser, and `scripts/sync-contract-artifacts --check`
+  passed with no generated schema diff.
+- Smoke coverage now proves `scripts/sync-contract-artifacts --check` succeeds
+  in a copied repository containing a hostile transient
+  `web/node_modules/.pnpm/vite_tmp_missing` directory.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No frontend dependency, pnpm, Vite, or broad validation-profile behavior was
+  changed.
 
 ### Follow-Up Issues
 
