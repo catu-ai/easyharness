@@ -28,6 +28,12 @@ pinned by `web/package.json`. This plan is intentionally standard workflow:
 the work is sized `XXS`, but the human did not request
 `workflow_profile: lightweight`.
 
+Revision 2 reopened the archived candidate after PR #267 CI failed in
+`scripts/validate`: `contract-sync` scanned `web/node_modules` while loading Go
+comments and hit dependency-tree files. The finalize fix keeps the Node hint
+work intact and removes that unrelated full-tree comment scan so contract sync
+only depends on repository contract sources.
+
 ## Scope
 
 ### In Scope
@@ -37,6 +43,8 @@ the work is sized `XXS`, but the human did not request
   rely on Corepack to honor `web/package.json`'s `pnpm@10.32.1` pin.
 - Update release/contributor baseline wording if needed so release validation
   guidance matches the new repo-local hint.
+- Stabilize contract-sync comment loading after PR #267 CI showed that scanning
+  frontend dependency trees can break validation.
 - Keep the change narrow and issue-focused.
 
 ### Out of Scope
@@ -49,6 +57,7 @@ the work is sized `XXS`, but the human did not request
   cannot fit this repository.
 - Changing frontend dependencies, pnpm lockfiles, Vite config, or installer
   smoke behavior.
+- Changing CI workflows or release scripts to work around the PR #267 failure.
 
 ## Acceptance Criteria
 
@@ -95,12 +104,17 @@ not require repo churn. Keep pnpm versioning delegated to the existing
 - `.nvmrc`
 - `docs/development.md`
 - `docs/releasing.md`
+- `internal/contractsync/sync.go`
+- `internal/contractsync/sync_test.go`
 - this tracked plan, including its archived form after closeout
 
 #### Validation
 
 - `git diff --check`
 - `harness plan lint docs/plans/active/2026-06-28-add-repo-local-node-version-hint.md`
+- `go test ./internal/contractsync ./tests/smoke -count=1`
+- `scripts/sync-contract-artifacts --check`
+- `scripts/validate`
 - If local Node tooling is available, optionally confirm `nvm use` selects
   Node 22 and Corepack resolves the pinned pnpm version from `web/package.json`.
 
@@ -111,6 +125,12 @@ point contributors at Node 22 plus Corepack-backed pnpm resolution from
 `web/package.json`, and updated `docs/releasing.md` so the contributor baseline
 names Node 22 explicitly. TDD was not applicable because this slice changes
 documentation and a tool-version hint rather than executable behavior.
+
+Revision 2 removed the redundant `jsonschema.AddGoComments` full-workdir scan
+from contract sync after PR #267 CI failed while scanning `web/node_modules`.
+`contractsync` already loads comments directly from `internal/contracts`, so
+generated schemas stayed in sync. Added a regression test proving
+`expectedFiles` ignores frontend dependency trees containing invalid Go files.
 
 #### Review Notes
 
@@ -124,6 +144,10 @@ static: lint the plan, check whitespace with `git diff --check`, and review the
 diff to confirm it only touches the hint and docs. Do not run release
 validation unless implementation unexpectedly changes executable release or UI
 build behavior.
+
+Revision 2 adds a narrow validation-stability fix for the PR #267 CI failure,
+so it uses the same `scripts/validate` profile that failed remotely, plus
+focused contract-sync and smoke coverage.
 
 ## Risks
 
@@ -144,8 +168,14 @@ build behavior.
   passed after implementation and closeout updates.
 - `nvm use` was not run because `nvm` is not available in this non-interactive
   shell; the repo-level hint is still static and reviewable through `.nvmrc`.
-- Diff review confirmed the candidate touches only `.nvmrc`,
-  `docs/development.md`, `docs/releasing.md`, and this tracked plan.
+- Revision 1 diff review confirmed the Node hint candidate touched only
+  `.nvmrc`, `docs/development.md`, `docs/releasing.md`, and this tracked plan.
+- PR #267 CI failed in `scripts/validate` because `contract-sync` scanned
+  `web/node_modules` while loading Go comments.
+- Revision 2 focused validation passed:
+  `go test ./internal/contractsync ./tests/smoke -count=1`,
+  `scripts/sync-contract-artifacts --check`, and `git diff --check`.
+- Revision 2 full validation passed with `scripts/validate`.
 
 ## Review Summary
 
@@ -156,18 +186,16 @@ build behavior.
 - `risk-scan` found no leaked scope or release/tooling hazards; the candidate
   does not touch release scripts, CI workflows, dependencies, lockfiles, or
   generated assets.
+- Revision 2 finalize review is pending after the PR #267 CI finalize-fix.
 
 ## Archive Summary
 
-- Archived At: 2026-06-28T11:35:03+08:00
-- Revision: 1
-- PR: pending post-archive publish from branch
-  `codex/add-node-version-hint`.
-- Ready: The candidate satisfies all acceptance criteria, static validation
-  passed, and finalize full review `review-001-full` passed cleanly.
-- Merge Handoff: After archive, commit the tracked archive move, push the
-  branch, open the PR, record publish/CI/sync evidence, and wait for explicit
-  human merge approval.
+- PR: https://github.com/catu-ai/easyharness/pull/267
+- Ready: Revision 2 has repaired the PR #267 CI failure locally and is waiting
+  for a fresh finalize review before re-archive.
+- Merge Handoff: After re-archive, commit and push the revision 2 archive move,
+  refresh PR #267 publish/CI/sync evidence, and wait for explicit human merge
+  approval.
 
 ## Outcome Summary
 
@@ -178,6 +206,9 @@ build behavior.
   Corepack-backed pnpm resolution from `web/package.json`.
 - Updated `docs/releasing.md` so the contributor baseline explicitly names
   Node 22 and Corepack-backed pnpm resolution.
+- Removed contract-sync's redundant full-workdir Go comment scan so frontend
+  dependency trees do not break schema generation.
+- Added contract-sync regression coverage for dependency-tree isolation.
 
 ### Not Delivered
 
