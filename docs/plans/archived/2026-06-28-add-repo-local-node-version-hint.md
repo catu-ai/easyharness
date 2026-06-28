@@ -194,12 +194,17 @@ docs, release docs, and this plan.
 - Follow-up review `review-004-full` found the same stale Corepack wording in
   this plan's Outcome Summary; repaired the archive-bound plan text to match
   `docs/releasing.md`.
+- Final follow-up review `review-005-full` passed with 0 blocking findings and
+  0 non-blocking findings.
 
 ## Archive Summary
 
+- Archived At: 2026-06-28T21:03:21+08:00
+- Revision: 3
 - PR: https://github.com/catu-ai/easyharness/pull/267
 - Ready: Revision 3 merged `origin/main` after PR #268 landed and slimmed PR
-  #267 back to Node hint scope; fresh finalize review is pending.
+  #267 back to Node hint scope; final follow-up review `review-005-full`
+  passed cleanly.
 - Merge Handoff: After re-archive, commit and push the revision 3 archive move,
   refresh PR #267 publish/CI/sync evidence, and wait for explicit human merge
   approval.
