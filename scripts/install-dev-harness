@@ -377,11 +377,7 @@ if [[ ! -x "${build_embedded_ui_script}" ]]; then
 fi
 (
   cd "${repo_root}"
-  if [[ "${EASYHARNESS_TEST_SKIP_EMBEDDED_UI_BUILD:-}" == "1" ]]; then
-    echo "Skipping embedded UI build because EASYHARNESS_TEST_SKIP_EMBEDDED_UI_BUILD=1."
-  else
-    "${build_embedded_ui_script}"
-  fi
+  "${build_embedded_ui_script}"
 )
 build_commit=""
 if command -v git >/dev/null 2>&1; then

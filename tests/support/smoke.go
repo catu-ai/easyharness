@@ -105,14 +105,13 @@ func CopyInstallerFixture(t *testing.T) string {
 		"web/index.html",
 		"web/package.json",
 		"web/pnpm-lock.yaml",
-		"web/pnpm-workspace.yaml",
 		"web/tsconfig.json",
-		"web/vite.config.mjs",
+		"web/vite.config.ts",
 		"web/src",
 	} {
 		CopyPath(t, filepath.Join(sourceRoot, rel), filepath.Join(root, rel))
 	}
-	seedMinimalEmbeddedUI(t, filepath.Join(root, "internal", "ui", "generated", "build"))
+	_ = os.RemoveAll(filepath.Join(root, "internal", "ui", "generated", "build"))
 	return root
 }
 
@@ -155,24 +154,7 @@ func InstallerEnv(t *testing.T, overrides map[string]string) []string {
 	if _, ok := overrides["NPM_CONFIG_STORE_DIR"]; !ok {
 		overrides["NPM_CONFIG_STORE_DIR"] = sharedInstallerPnpmStore(t)
 	}
-	if _, ok := overrides["EASYHARNESS_TEST_SKIP_EMBEDDED_UI_BUILD"]; !ok {
-		overrides["EASYHARNESS_TEST_SKIP_EMBEDDED_UI_BUILD"] = "1"
-	}
 	return EnvWithOverrides(t, overrides)
-}
-
-func seedMinimalEmbeddedUI(t *testing.T, buildDir string) {
-	t.Helper()
-
-	if err := os.RemoveAll(buildDir); err != nil {
-		t.Fatalf("remove generated UI build: %v", err)
-	}
-	assetsDir := filepath.Join(buildDir, "assets")
-	if err := os.MkdirAll(assetsDir, 0o755); err != nil {
-		t.Fatalf("mkdir generated UI assets: %v", err)
-	}
-	WriteFixtureFile(t, filepath.Join(buildDir, "index.html"), "<!doctype html><div id=\"app\"></div>\n", 0o644)
-	WriteFixtureFile(t, filepath.Join(assetsDir, "index.js"), "console.log('installer smoke fixture');\n", 0o644)
 }
 
 func InitializeInstallerCaches(t *testing.T) {

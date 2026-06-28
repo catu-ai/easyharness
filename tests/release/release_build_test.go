@@ -931,9 +931,8 @@ func newReleaseBuildCheckout(t *testing.T) string {
 		"web/index.html",
 		"web/package.json",
 		"web/pnpm-lock.yaml",
-		"web/pnpm-workspace.yaml",
 		"web/tsconfig.json",
-		"web/vite.config.mjs",
+		"web/vite.config.ts",
 		"web/src",
 		"internal/ui",
 	} {
