@@ -228,25 +228,68 @@ aggregate decision was `pass`.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `go test ./internal/repoconfig`
+- `go test ./internal/install`
+- `go test ./internal/cli -run 'TestRepoConfigRefresh'`
+- `go test ./tests/smoke -run TestRepoConfigRefresh`
+- `go test ./internal/cli -run 'TestRepoConfigRefreshHelp|TestHelpRepoConfig'`
+- `go test ./...`
+- `git diff --check`
+- `scripts/install-dev-harness`
+- Manual repo-local binary checks confirmed `harness repo config refresh
+  --diff` prints unified diff output for planned changes and leaves
+  `.harness/config.yaml` untouched, including invalid/planning-error paths.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step review `review-001-delta` passed with 0 findings for the implementation
+  and tests slice.
+- Finalize review found and drove repairs for invalid-config help wording,
+  ordinary refresh JSON regression coverage, apply-after-preview docs wording,
+  preview planning errors accidentally falling back through mutating refresh,
+  unchecked acceptance criteria, and preview error mode reporting.
+- Focused repair review `review-011-delta` passed with 0 findings after
+  preview-planning errors were modeled as `dry_run`/no-write results.
+- Final full archive-candidate review `review-012-full` passed with 0
+  findings across `correctness`, `tests`, `docs-consistency`, and `agent-ux`.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-06-29T00:17:33+08:00
+- Revision: 1
+- PR: Pending post-archive publish from branch
+  `codex/repo-config-refresh-diff-preview`.
+- Ready: Yes. Acceptance criteria are checked, local validation passed,
+  `review-012-full` passed with 0 findings, and the candidate is ready to
+  archive before publish/CI/sync evidence.
+- Merge Handoff: After archive, commit the tracked plan move and summary
+  updates, push the branch, open the PR for issue #247, record publish evidence
+  with the PR URL, refresh CI/sync evidence, and stop at wait-for-merge
+  approval once `harness status` reaches `execution/finalize/await_merge`.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added `harness repo config refresh --diff` as a non-writing plain-text
+  unified diff preview for the existing refresh operation.
+- Reused the canonical refresh render and validation rules so previews match
+  ordinary refresh writes while preserving the ordinary refresh JSON result
+  envelope.
+- Covered missing, stale/non-canonical valid, already canonical, invalid, and
+  preview-planning-error paths, including tests that protect ordinary refresh
+  JSON from diff content.
+- Updated specs and help text to explain the command shape, canonical comment
+  removal, field-order normalization, configured value preservation, invalid
+  unsupported-field behavior, and the apply command after preview.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No `harness repo config refresh --dry-run` alias.
+- No separate `harness repo config diff` command.
+- No YAML AST round-trip editing or preservation of user-authored comments and
+  original field ordering during refresh.
+- No repo config schema or path-root semantic changes.
 
 ### Follow-Up Issues
 
