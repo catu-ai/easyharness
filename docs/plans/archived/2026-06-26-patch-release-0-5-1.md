@@ -222,13 +222,16 @@ and still showed the superseded broad diff. The local branch was pushed to
 showed only `VERSION` and
 `docs/plans/active/2026-06-26-patch-release-0-5-1.md`.
 
-Finalize review needs to be rerun after that handoff repair before archive.
+Final finalize review `review-010-full` passed on 2026-06-28 with no findings
+across `correctness`, `tests`, `risk-scan`, and `agent-ux`.
 
 ## Archive Summary
 
+- Archived At: 2026-06-28T10:40:33+08:00
+- Revision: 2
 - PR: https://github.com/catu-ai/easyharness/pull/265
-- Ready: Pending finalize review, archive, push, and post-archive evidence
-  refresh.
+- Ready: The candidate passed finalize review and is ready to archive, push the
+  archived plan move, and refresh post-archive evidence.
 - Merge Handoff: Keep the PR body focused on the `0.5.1` patch release for the
   #264/#261 Plan reader refresh-scroll fix.
 
