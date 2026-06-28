@@ -215,7 +215,14 @@ The superseded broad #265 candidate review history is obsolete after reopen.
 The relevant reopened-candidate closeout is `review-008-delta`, which passed on
 2026-06-28 with no findings across `correctness`, `tests`, and `risk-scan`.
 
-Finalize review still needs to pass before archive.
+The first finalize review after reopen, `review-009-full`, found one blocking
+handoff issue: local `HEAD` was slimmed, but PR #265 had not yet been pushed
+and still showed the superseded broad diff. The local branch was pushed to
+`origin/codex/patch-release-0.5.1`, and `gh pr diff 265 --name-only` then
+showed only `VERSION` and
+`docs/plans/active/2026-06-26-patch-release-0-5-1.md`.
+
+Finalize review needs to be rerun after that handoff repair before archive.
 
 ## Archive Summary
 
