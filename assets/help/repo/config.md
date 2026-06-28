@@ -64,9 +64,11 @@ but refresh does not preserve those comments or the original field ordering.
 The canonical renderer preserves supported configured values, normalizes field
 ordering, and still rejects unsupported fields.
 
-If `.harness/config.yaml` is missing, easyharness uses built-in defaults. If
-the file exists but is invalid, commands warn the agent, ignore the whole
-config, and use built-in defaults instead of partially consuming it.
+If `.harness/config.yaml` is missing, easyharness uses built-in defaults.
+Config-consuming commands warn the agent, ignore an invalid existing config as
+a whole, and use built-in defaults instead of partially consuming it. Refresh
+commands are stricter: `harness repo config refresh` and `harness repo config
+refresh --diff` fail invalid existing configs without overwriting them.
 
 Repo-defined review dimensions are Markdown files directly under the resolved
 `paths.review.dimensions` root, which defaults to:
