@@ -141,7 +141,7 @@ after the behavior and tests exist.
 
 ### Step 2: Implement preview output and regression coverage
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -196,7 +196,9 @@ output and no-write behavior.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Step-closeout review `review-001-delta` passed with 0 findings. Reviewer
+slots: `correctness` and `tests`; both submitted clean results and the
+aggregate decision was `pass`.
 
 ## Validation Strategy
 
