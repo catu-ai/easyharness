@@ -215,6 +215,8 @@ Finalize review `review-003-full` covered the full candidate with
 
 ## Archive Summary
 
+- Archived At: 2026-06-28T11:41:24+08:00
+- Revision: 1
 - PR: To be opened after archive on branch
   `codex/harden-contract-sync-comment-scope`.
 - Ready: Yes. The candidate has completed implementation, focused validation,
