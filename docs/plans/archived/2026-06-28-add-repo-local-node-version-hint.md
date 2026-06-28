@@ -186,13 +186,17 @@ focused contract-sync and smoke coverage.
 - `risk-scan` found no leaked scope or release/tooling hazards; the candidate
   does not touch release scripts, CI workflows, dependencies, lockfiles, or
   generated assets.
-- Revision 2 finalize review is pending after the PR #267 CI finalize-fix.
+- Revision 2 finalize full review `review-002-full` passed with 0 blocking
+  findings and 0 non-blocking findings across `correctness`, `tests`, and
+  `risk-scan`.
 
 ## Archive Summary
 
+- Archived At: 2026-06-28T11:47:07+08:00
+- Revision: 2
 - PR: https://github.com/catu-ai/easyharness/pull/267
-- Ready: Revision 2 has repaired the PR #267 CI failure locally and is waiting
-  for a fresh finalize review before re-archive.
+- Ready: Revision 2 repaired the PR #267 CI failure locally, passed full
+  `scripts/validate`, and passed finalize review `review-002-full`.
 - Merge Handoff: After re-archive, commit and push the revision 2 archive move,
   refresh PR #267 publish/CI/sync evidence, and wait for explicit human merge
   approval.
