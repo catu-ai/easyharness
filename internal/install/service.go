@@ -156,6 +156,32 @@ func (s Service) RefreshConfig(opts Options) Result {
 	return s.successResult("repo config refresh", ResourceConfig, OperationRefresh, scope, agent, opts.DryRun, writes)
 }
 
+func (s Service) PlanConfigRefreshDiff() (string, []CommandError) {
+	writes, errs := s.planRepoConfigRefresh()
+	if len(errs) > 0 {
+		return "", errs
+	}
+	if len(writes) == 0 || writes[0].kind == ActionNoop {
+		return "", nil
+	}
+	write := writes[0]
+	switch write.kind {
+	case ActionCreate:
+		return renderUnifiedFileDiff(pathLabel(s.Workdir, write.path), nil, false, write.content), nil
+	case ActionUpdate:
+		current, err := os.ReadFile(write.path)
+		if err != nil {
+			return "", []CommandError{{
+				Path:    pathLabel(s.Workdir, write.path),
+				Message: fmt.Sprintf("read repo config target: %v", err),
+			}}
+		}
+		return renderUnifiedFileDiff(pathLabel(s.Workdir, write.path), current, true, write.content), nil
+	default:
+		return "", nil
+	}
+}
+
 func (s Service) runSkillCommand(command, operation string, opts Options) Result {
 	scope := normalizeScope(opts.Scope)
 	if scope == "" {
@@ -910,6 +936,55 @@ func pathLabel(workdir, path string) string {
 		return filepath.ToSlash(rel)
 	}
 	return filepath.Clean(path)
+}
+
+func renderUnifiedFileDiff(path string, oldContent []byte, oldExists bool, newContent []byte) string {
+	if oldExists && string(oldContent) == string(newContent) {
+		return ""
+	}
+	oldLines := splitDiffLines(string(oldContent))
+	newLines := splitDiffLines(string(newContent))
+	var b strings.Builder
+	if oldExists {
+		fmt.Fprintf(&b, "--- a/%s\n", path)
+	} else {
+		b.WriteString("--- /dev/null\n")
+	}
+	fmt.Fprintf(&b, "+++ b/%s\n", path)
+	fmt.Fprintf(&b, "@@ -%s +%s @@\n", unifiedRange(len(oldLines), oldExists), unifiedRange(len(newLines), true))
+	for _, line := range oldLines {
+		writeDiffLine(&b, '-', line)
+	}
+	for _, line := range newLines {
+		writeDiffLine(&b, '+', line)
+	}
+	return b.String()
+}
+
+func splitDiffLines(content string) []string {
+	if content == "" {
+		return nil
+	}
+	lines := strings.SplitAfter(content, "\n")
+	if lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
+}
+
+func unifiedRange(lineCount int, exists bool) string {
+	if !exists || lineCount == 0 {
+		return "0,0"
+	}
+	return fmt.Sprintf("1,%d", lineCount)
+}
+
+func writeDiffLine(b *strings.Builder, prefix byte, line string) {
+	b.WriteByte(prefix)
+	b.WriteString(line)
+	if !strings.HasSuffix(line, "\n") {
+		b.WriteByte('\n')
+	}
 }
 
 func repoConfigWarningsForWorkdir(workdir string, warnings []string) []string {

@@ -181,7 +181,18 @@ the ordinary refresh-style failure and leave the file untouched.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added `install.Service.PlanConfigRefreshDiff` plus internal unified-file diff
+rendering for repo config refresh previews. Wired `harness repo config refresh
+--diff` to print plain diff text without writing files, while ordinary refresh
+continues to emit the existing bootstrap JSON result and apply changes. Added
+install, CLI, and smoke tests for missing config creation preview,
+commented/out-of-order valid config normalization, canonical no-op empty
+stdout, invalid config failure/no-write behavior, and ordinary refresh JSON
+preservation. Validation: `go test ./internal/repoconfig`; `go test
+./internal/install`; `go test ./internal/cli -run 'TestRepoConfigRefresh'`;
+`go test ./tests/smoke -run TestRepoConfigRefresh`; `git diff --check`;
+`scripts/install-dev-harness`; manual repo-local binary preview confirmed diff
+output and no-write behavior.
 
 #### Review Notes
 

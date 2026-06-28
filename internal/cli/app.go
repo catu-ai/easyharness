@@ -698,7 +698,15 @@ func (a *App) runRepoConfigRefresh(args []string) int {
 		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
 		return 1
 	}
-	_ = diff
+	if *diff {
+		service := install.Service{Workdir: workdir}
+		diffText, errs := service.PlanConfigRefreshDiff()
+		if len(errs) > 0 {
+			return a.writeJSONResult(service.RefreshConfig(install.Options{}))
+		}
+		fmt.Fprint(a.Stdout, diffText)
+		return 0
+	}
 	result := install.Service{Workdir: workdir}.RefreshConfig(install.Options{})
 	return a.writeJSONResult(result)
 }

@@ -417,6 +417,41 @@ func TestRepoConfigRefreshUpdatesOldDefaultConfig(t *testing.T) {
 	}
 }
 
+func TestRepoConfigRefreshDiffPreviewsCanonicalRewrite(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	configPath := workspace.Path(".harness/config.yaml")
+	original := `# local note
+paths:
+  local_runtime: tmp/harness-runtime
+  plans:
+    archived: workflow/plans/done
+    active: workflow/plans/open
+version: 1
+`
+	workspace.WriteFile(t, ".harness/config.yaml", []byte(original))
+
+	result := support.Run(t, workspace.Root, "repo", "config", "refresh", "--diff")
+	support.RequireSuccess(t, result)
+	support.RequireNoStderr(t, result)
+	for _, want := range []string{
+		"--- a/.harness/config.yaml",
+		"+++ b/.harness/config.yaml",
+		"-# local note",
+		"+    active: workflow/plans/open",
+		"+    archived: workflow/plans/done",
+		"+  local_runtime: tmp/harness-runtime",
+	} {
+		support.RequireContains(t, result.Stdout, want)
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != original {
+		t.Fatalf("expected diff preview to leave config untouched, got:\n%s", configData)
+	}
+}
+
 func TestRepoConfigQueriesResolvedValuesViaCLI(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 	workspace.WriteFile(t, ".harness/config.yaml", []byte(`version: 1
