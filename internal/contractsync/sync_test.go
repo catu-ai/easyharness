@@ -3,7 +3,6 @@ package contractsync
 import (
 	"bytes"
 	"encoding/json"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,23 +66,6 @@ func TestExpectedFilesStableForRelativeAndAbsoluteWorkdir(t *testing.T) {
 	}
 }
 
-func TestExpectedFilesIgnoresFrontendDependencyTrees(t *testing.T) {
-	workdir := t.TempDir()
-	copyTree(t, filepath.Join("..", "..", "internal", "contracts"), filepath.Join(workdir, "internal", "contracts"))
-
-	dependencyDir := filepath.Join(workdir, "web", "node_modules", ".pnpm", "vitest", "node_modules", "vitest")
-	if err := os.MkdirAll(dependencyDir, 0o755); err != nil {
-		t.Fatalf("mkdir dependency dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dependencyDir, "bad.go"), []byte("package broken\nfunc nope(\n"), 0o644); err != nil {
-		t.Fatalf("write broken dependency source: %v", err)
-	}
-
-	if _, err := expectedFiles(workdir); err != nil {
-		t.Fatalf("expectedFiles should ignore frontend dependency trees: %v", err)
-	}
-}
-
 func TestReviewInputSchemasMatchValidatorBoundaries(t *testing.T) {
 	repoRoot := filepath.Clean(filepath.Join("..", ".."))
 	files, err := expectedFiles(repoRoot)
@@ -136,35 +118,6 @@ func TestReviewInputSchemasMatchValidatorBoundaries(t *testing.T) {
 	}
 	aggregateFinding := aggregate["$defs"].(map[string]any)["ReviewAggregateFinding"].(map[string]any)
 	assertLocationsSchema(t, aggregateFinding)
-}
-
-func copyTree(t *testing.T, src, dst string) {
-	t.Helper()
-
-	if err := filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dst, rel)
-		if d.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(target, data, info.Mode().Perm())
-	}); err != nil {
-		t.Fatalf("copy tree %s to %s: %v", src, dst, err)
-	}
 }
 
 func TestSchemaIndexNoLongerPointsAtGeneratedMarkdown(t *testing.T) {

@@ -28,11 +28,9 @@ pinned by `web/package.json`. This plan is intentionally standard workflow:
 the work is sized `XXS`, but the human did not request
 `workflow_profile: lightweight`.
 
-Revision 2 reopened the archived candidate after PR #267 CI failed in
-`scripts/validate`: `contract-sync` scanned `web/node_modules` while loading Go
-comments and hit dependency-tree files. The finalize fix keeps the Node hint
-work intact and removes that unrelated full-tree comment scan so contract sync
-only depends on repository contract sources.
+Revision 3 reopened the archived candidate after PR #268 landed the
+contract-sync hardening that had temporarily lived in PR #267. The repair
+merges the latest `main` and keeps PR #267 focused on the Node version hint.
 
 ## Scope
 
@@ -43,8 +41,6 @@ only depends on repository contract sources.
   rely on Corepack to honor `web/package.json`'s `pnpm@10.32.1` pin.
 - Update release/contributor baseline wording if needed so release validation
   guidance matches the new repo-local hint.
-- Stabilize contract-sync comment loading after PR #267 CI showed that scanning
-  frontend dependency trees can break validation.
 - Keep the change narrow and issue-focused.
 
 ### Out of Scope
@@ -57,7 +53,8 @@ only depends on repository contract sources.
   cannot fit this repository.
 - Changing frontend dependencies, pnpm lockfiles, Vite config, or installer
   smoke behavior.
-- Changing CI workflows or release scripts to work around the PR #267 failure.
+- Carrying the contract-sync validation-stability fix that landed separately in
+  PR #268.
 
 ## Acceptance Criteria
 
@@ -104,17 +101,13 @@ not require repo churn. Keep pnpm versioning delegated to the existing
 - `.nvmrc`
 - `docs/development.md`
 - `docs/releasing.md`
-- `internal/contractsync/sync.go`
-- `internal/contractsync/sync_test.go`
 - this tracked plan, including its archived form after closeout
 
 #### Validation
 
 - `git diff --check`
 - `harness plan lint docs/plans/active/2026-06-28-add-repo-local-node-version-hint.md`
-- `go test ./internal/contractsync ./tests/smoke -count=1`
-- `scripts/sync-contract-artifacts --check`
-- `scripts/validate`
+- `git diff --name-status origin/main...HEAD`
 - If local Node tooling is available, optionally confirm `nvm use` selects
   Node 22 and Corepack resolves the pinned pnpm version from `web/package.json`.
 
@@ -126,11 +119,9 @@ point contributors at Node 22 plus Corepack-backed pnpm resolution from
 names Node 22 explicitly. TDD was not applicable because this slice changes
 documentation and a tool-version hint rather than executable behavior.
 
-Revision 2 removed the redundant `jsonschema.AddGoComments` full-workdir scan
-from contract sync after PR #267 CI failed while scanning `web/node_modules`.
-`contractsync` already loads comments directly from `internal/contracts`, so
-generated schemas stayed in sync. Added a regression test proving
-`expectedFiles` ignores frontend dependency trees containing invalid Go files.
+Revision 3 merged `origin/main` after PR #268 landed the contract-sync
+hardening, then removed the duplicate contract-sync test/change from PR #267 so
+this candidate returns to the approved Node hint scope.
 
 #### Review Notes
 
@@ -145,9 +136,9 @@ diff to confirm it only touches the hint and docs. Do not run release
 validation unless implementation unexpectedly changes executable release or UI
 build behavior.
 
-Revision 2 adds a narrow validation-stability fix for the PR #267 CI failure,
-so it uses the same `scripts/validate` profile that failed remotely, plus
-focused contract-sync and smoke coverage.
+Revision 3 is a finalize-scope cleanup after PR #268 landed. Validate that the
+remaining diff against `origin/main` contains only the Node hint, contributor
+docs, release docs, and this plan.
 
 ## Risks
 
@@ -176,6 +167,11 @@ focused contract-sync and smoke coverage.
   `go test ./internal/contractsync ./tests/smoke -count=1`,
   `scripts/sync-contract-artifacts --check`, and `git diff --check`.
 - Revision 2 full validation passed with `scripts/validate`.
+- Revision 3 merged `origin/main` after PR #268 landed the contract-sync fix and
+  removed duplicate contract-sync scope from PR #267.
+- Revision 3 validation confirmed `git diff --name-status origin/main...HEAD`
+  contains only `.nvmrc`, `docs/development.md`, `docs/releasing.md`, and this
+  tracked plan, and `git diff --check` passed.
 
 ## Review Summary
 
@@ -189,15 +185,15 @@ focused contract-sync and smoke coverage.
 - Revision 2 finalize full review `review-002-full` passed with 0 blocking
   findings and 0 non-blocking findings across `correctness`, `tests`, and
   `risk-scan`.
+- Revision 3 finalize review is pending after slimming PR #267 back to Node
+  hint scope.
 
 ## Archive Summary
 
-- Archived At: 2026-06-28T11:47:07+08:00
-- Revision: 2
 - PR: https://github.com/catu-ai/easyharness/pull/267
-- Ready: Revision 2 repaired the PR #267 CI failure locally, passed full
-  `scripts/validate`, and passed finalize review `review-002-full`.
-- Merge Handoff: After re-archive, commit and push the revision 2 archive move,
+- Ready: Revision 3 merged `origin/main` after PR #268 landed and slimmed PR
+  #267 back to Node hint scope; fresh finalize review is pending.
+- Merge Handoff: After re-archive, commit and push the revision 3 archive move,
   refresh PR #267 publish/CI/sync evidence, and wait for explicit human merge
   approval.
 
@@ -210,14 +206,13 @@ focused contract-sync and smoke coverage.
   Corepack-backed pnpm resolution from `web/package.json`.
 - Updated `docs/releasing.md` so the contributor baseline explicitly names
   Node 22 and Corepack-backed pnpm resolution.
-- Removed contract-sync's redundant full-workdir Go comment scan so frontend
-  dependency trees do not break schema generation.
-- Added contract-sync regression coverage for dependency-tree isolation.
 
 ### Not Delivered
 
 - No release behavior, CI workflow, dependency, lockfile, Vite, installer
   smoke, or generated-asset changes were made.
+- The contract-sync hardening is no longer part of PR #267 because it landed in
+  PR #268.
 
 ### Follow-Up Issues
 
