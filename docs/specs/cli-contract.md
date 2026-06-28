@@ -349,6 +349,8 @@ Recommended next action:
 
 - for bootstrap commands that support `--dry-run`, rerun without `--dry-run`
   to apply a previewed bootstrap change
+- after reviewing `harness repo config refresh --diff`, rerun
+  `harness repo config refresh` to apply the previewed canonical config rewrite
 - open the target instructions file or skills directory to review the installed
   contract
 
