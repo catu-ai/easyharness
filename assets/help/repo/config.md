@@ -58,6 +58,12 @@ Before applying the canonical refresh rewrite, inspect it with:
 harness repo config refresh --diff
 ```
 
+After reviewing and accepting the preview, apply it with:
+
+```bash
+harness repo config refresh
+```
+
 `harness repo config refresh` owns the canonical rendered file shape. Valid
 user-authored YAML comments are accepted when the config values remain valid,
 but refresh does not preserve those comments or the original field ordering.

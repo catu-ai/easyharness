@@ -808,6 +808,43 @@ func TestRepoConfigRefreshDiffRejectsInvalidConfigWithoutOverwrite(t *testing.T)
 	}
 }
 
+func TestRepoConfigRefreshDiffPlanningErrorDoesNotFallbackToApply(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	obstruction := filepath.Join(root, ".harness")
+	if err := os.WriteFile(obstruction, []byte("not a directory"), 0o644); err != nil {
+		t.Fatalf("write obstructing .harness file: %v", err)
+	}
+
+	exitCode := app.Run([]string{"repo", "config", "refresh", "--diff"})
+	if exitCode != 1 {
+		t.Fatalf("expected config refresh --diff exit code 1, got %d", exitCode)
+	}
+	if strings.Contains(stdout.String(), "--- /dev/null") || strings.Contains(stdout.String(), "+++ b/.harness/config.yaml") {
+		t.Fatalf("expected no diff for planning error, got:\n%s", stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON config error output: %v\n%s", err, stdout.String())
+	}
+	if ok, _ := payload["ok"].(bool); ok {
+		t.Fatalf("expected config refresh --diff failure, got %#v", payload)
+	}
+	if mode, _ := payload["mode"].(string); mode != "apply" {
+		t.Fatalf("expected existing error envelope mode, got %#v", payload)
+	}
+	data, err := os.ReadFile(obstruction)
+	if err != nil {
+		t.Fatalf("read obstruction: %v", err)
+	}
+	if string(data) != "not a directory" {
+		t.Fatalf("expected preview error not to mutate obstruction, got:\n%s", data)
+	}
+}
+
 func TestRepoConfigRefreshCommandRejectsInvalidConfig(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)

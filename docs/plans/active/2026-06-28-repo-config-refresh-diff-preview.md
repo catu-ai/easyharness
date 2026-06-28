@@ -56,22 +56,22 @@ bootstrap JSON result envelope.
 
 ## Acceptance Criteria
 
-- [ ] `harness repo config refresh --diff` leaves `.harness/config.yaml`
+- [x] `harness repo config refresh --diff` leaves `.harness/config.yaml`
       untouched for missing, stale, non-canonical valid, already canonical, and
       invalid existing config cases.
-- [ ] `--diff` prints a unified diff to stdout when refresh would create or
+- [x] `--diff` prints a unified diff to stdout when refresh would create or
       update `.harness/config.yaml`.
-- [ ] `--diff` prints empty stdout and exits successfully when the current file
+- [x] `--diff` prints empty stdout and exits successfully when the current file
       is already canonical.
-- [ ] `--diff` rejects invalid existing config with the same failure semantics
+- [x] `--diff` rejects invalid existing config with the same failure semantics
       as ordinary refresh and does not print a misleading diff.
-- [ ] Ordinary `harness repo config refresh` still rewrites valid config to the
+- [x] Ordinary `harness repo config refresh` still rewrites valid config to the
       canonical render, preserves configured values, emits the existing JSON
       result envelope, and does not include diff text in JSON.
-- [ ] Tests cover a valid config with user-authored comments and non-canonical
+- [x] Tests cover a valid config with user-authored comments and non-canonical
       field order so the expected diff demonstrates comment removal/order
       normalization while preserving configured values.
-- [ ] Docs/spec/help text explain that refresh owns canonical file shape:
+- [x] Docs/spec/help text explain that refresh owns canonical file shape:
       valid comments are accepted on load but not preserved by refresh, field
       ordering is normalized by the renderer, configured values are preserved,
       and unsupported fields remain invalid.

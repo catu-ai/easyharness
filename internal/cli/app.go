@@ -702,7 +702,7 @@ func (a *App) runRepoConfigRefresh(args []string) int {
 		service := install.Service{Workdir: workdir}
 		diffText, errs := service.PlanConfigRefreshDiff()
 		if len(errs) > 0 {
-			return a.writeJSONResult(service.RefreshConfig(install.Options{}))
+			return a.writeJSONResult(service.RefreshConfigPreviewError(errs))
 		}
 		fmt.Fprint(a.Stdout, diffText)
 		return 0

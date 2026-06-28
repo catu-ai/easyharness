@@ -182,6 +182,10 @@ func (s Service) PlanConfigRefreshDiff() (string, []CommandError) {
 	}
 }
 
+func (s Service) RefreshConfigPreviewError(errs []CommandError) Result {
+	return s.errorResult("repo config refresh", ResourceConfig, OperationRefresh, ScopeRepo, defaultAgent, false, "Unable to refresh the repo config target.", errs)
+}
+
 func (s Service) runSkillCommand(command, operation string, opts Options) Result {
 	scope := normalizeScope(opts.Scope)
 	if scope == "" {
