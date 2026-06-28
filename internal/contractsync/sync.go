@@ -20,7 +20,6 @@ import (
 
 const (
 	schemaBaseID = "https://github.com/catu-ai/easyharness/tree/main/"
-	moduleRootID = "github.com/catu-ai/easyharness"
 )
 
 // Sync generates the checked-in contract schemas and removes deprecated generated docs.
@@ -56,9 +55,6 @@ func expectedFiles(workdir string) (map[string][]byte, error) {
 		return nil, err
 	}
 	reflector := &jsonschema.Reflector{}
-	if err := reflector.AddGoComments(moduleRootID, workdir, jsonschema.WithFullComment()); err != nil {
-		return nil, fmt.Errorf("load contract comments: %w", err)
-	}
 
 	index := schemaIndex{
 		Title:       "easyharness contract schema index",
