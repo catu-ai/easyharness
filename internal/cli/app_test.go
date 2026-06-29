@@ -408,6 +408,7 @@ func TestHelpRepoConfigPrintsAgentGuide(t *testing.T) {
 		"version: 1",
 		"harness repo config get paths.plans.active",
 		"harness repo config list",
+		"harness repo config refresh --diff",
 		".harness/review/dimensions",
 		"humans describe the outcome",
 	} {
@@ -656,12 +657,191 @@ func TestRepoConfigRefreshCommandUpdatesOldDefaultConfig(t *testing.T) {
 	if payload["command"] != "repo config refresh" || payload["operation"] != "refresh" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
+	if _, ok := payload["diff"]; ok {
+		t.Fatalf("ordinary refresh JSON must not include diff field: %#v", payload)
+	}
+	for _, forbidden := range []string{"--- a/.harness/config.yaml", "+++ b/.harness/config.yaml", "@@ -"} {
+		if strings.Contains(stdout.String(), forbidden) {
+			t.Fatalf("ordinary refresh JSON must not include diff marker %q:\n%s", forbidden, stdout.String())
+		}
+	}
 	configData, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("read repo config: %v", err)
 	}
 	if string(configData) != repoconfig.DefaultContent {
 		t.Fatalf("expected refreshed canonical repo config, got:\n%s", configData)
+	}
+}
+
+func TestRepoConfigRefreshDiffPrintsUnifiedDiffWithoutWriting(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	original := `# local note
+paths:
+  local_runtime: tmp/harness-runtime
+  plans:
+    archived: workflow/plans/done
+    active: workflow/plans/open
+version: 1
+`
+	writeCLIRepoConfig(t, root, original)
+
+	exitCode := app.Run([]string{"repo", "config", "refresh", "--diff"})
+	if exitCode != 0 {
+		t.Fatalf("repo config refresh --diff failed with %d: %s", exitCode, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr for diff preview, got %q", stderr.String())
+	}
+	if json.Valid(stdout.Bytes()) {
+		t.Fatalf("expected plain diff output, got JSON: %s", stdout.String())
+	}
+	for _, want := range []string{
+		"--- a/.harness/config.yaml",
+		"+++ b/.harness/config.yaml",
+		"-# local note",
+		"+    active: workflow/plans/open",
+		"+    archived: workflow/plans/done",
+		"+  local_runtime: tmp/harness-runtime",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("expected diff to contain %q, got:\n%s", want, stdout.String())
+		}
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != original {
+		t.Fatalf("expected diff preview to leave config untouched, got:\n%s", configData)
+	}
+}
+
+func TestRepoConfigRefreshDiffCreatesMissingConfigWithoutWriting(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	configPath := filepath.Join(root, ".harness/config.yaml")
+
+	exitCode := app.Run([]string{"repo", "config", "refresh", "--diff"})
+	if exitCode != 0 {
+		t.Fatalf("repo config refresh --diff failed with %d: %s", exitCode, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr for diff preview, got %q", stderr.String())
+	}
+	for _, want := range []string{
+		"--- /dev/null",
+		"+++ b/.harness/config.yaml",
+		"+version: 1",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("expected diff to contain %q, got:\n%s", want, stdout.String())
+		}
+	}
+	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		t.Fatalf("expected diff preview to leave config absent, got err=%v", err)
+	}
+}
+
+func TestRepoConfigRefreshDiffNoopsWithEmptyStdout(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	writeCLIRepoConfig(t, root, repoconfig.DefaultContent)
+
+	exitCode := app.Run([]string{"repo", "config", "refresh", "--diff"})
+	if exitCode != 0 {
+		t.Fatalf("repo config refresh --diff failed with %d: %s", exitCode, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected empty stdout for no-op diff, got %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr for no-op diff, got %q", stderr.String())
+	}
+}
+
+func TestRepoConfigRefreshDiffRejectsInvalidConfigWithoutOverwrite(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: 2\n"), 0o644); err != nil {
+		t.Fatalf("write invalid config: %v", err)
+	}
+
+	exitCode := app.Run([]string{"repo", "config", "refresh", "--diff"})
+	if exitCode != 1 {
+		t.Fatalf("expected config refresh --diff exit code 1, got %d", exitCode)
+	}
+	if strings.Contains(stdout.String(), "--- a/.harness/config.yaml") || strings.Contains(stdout.String(), "+++ b/.harness/config.yaml") {
+		t.Fatalf("expected no diff for invalid config, got:\n%s", stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON config error output: %v\n%s", err, stdout.String())
+	}
+	if ok, _ := payload["ok"].(bool); ok {
+		t.Fatalf("expected config refresh --diff failure, got %#v", payload)
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != "version: 2\n" {
+		t.Fatalf("expected invalid config to remain untouched, got:\n%s", configData)
+	}
+}
+
+func TestRepoConfigRefreshDiffPlanningErrorDoesNotFallbackToApply(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+	obstruction := filepath.Join(root, ".harness")
+	if err := os.WriteFile(obstruction, []byte("not a directory"), 0o644); err != nil {
+		t.Fatalf("write obstructing .harness file: %v", err)
+	}
+
+	exitCode := app.Run([]string{"repo", "config", "refresh", "--diff"})
+	if exitCode != 1 {
+		t.Fatalf("expected config refresh --diff exit code 1, got %d", exitCode)
+	}
+	if strings.Contains(stdout.String(), "--- /dev/null") || strings.Contains(stdout.String(), "+++ b/.harness/config.yaml") {
+		t.Fatalf("expected no diff for planning error, got:\n%s", stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON config error output: %v\n%s", err, stdout.String())
+	}
+	if ok, _ := payload["ok"].(bool); ok {
+		t.Fatalf("expected config refresh --diff failure, got %#v", payload)
+	}
+	if mode, _ := payload["mode"].(string); mode != "dry_run" {
+		t.Fatalf("expected existing error envelope mode, got %#v", payload)
+	}
+	data, err := os.ReadFile(obstruction)
+	if err != nil {
+		t.Fatalf("read obstruction: %v", err)
+	}
+	if string(data) != "not a directory" {
+		t.Fatalf("expected preview error not to mutate obstruction, got:\n%s", data)
 	}
 }
 
@@ -1001,6 +1181,18 @@ func TestRepoConfigRefreshHelpExitsZero(t *testing.T) {
 	exitCode := app.Run([]string{"repo", "config", "refresh", "--help"})
 	if exitCode != 0 {
 		t.Fatalf("expected help exit code 0, got %d", exitCode)
+	}
+	for _, want := range []string{
+		"Usage: harness repo config refresh",
+		"--diff",
+		"unified diff",
+	} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("expected config refresh help to contain %q, got %q", want, stderr.String())
+		}
+	}
+	if strings.Contains(stderr.String(), "--dry-run") {
+		t.Fatalf("expected config refresh help not to advertise --dry-run, got %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "Usage: harness repo config refresh") {
 		t.Fatalf("expected config refresh help text, got %q", stderr.String())

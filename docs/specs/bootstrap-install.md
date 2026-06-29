@@ -145,7 +145,12 @@ Contract:
   file shape
 - fail without overwriting when the existing config is invalid
 - return the existing repo resource JSON result shape
-- do not support `--dry-run` in the initial command shape
+- support `--diff` as a plain-text preview mode that prints the unified diff
+  refresh would apply without writing `.harness/config.yaml`
+- print empty stdout and exit successfully for `--diff` when the existing
+  config already matches the current canonical file shape
+- do not embed `--diff` output in the repo resource JSON result shape
+- do not support `--dry-run`
 - leave explicit validation commands such as `harness repo config lint` to
   future work
 

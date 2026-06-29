@@ -339,11 +339,18 @@ Contract:
   `harness repo config get <key>` prints one resolved scalar value, while
   `harness repo config list [prefix]` prints resolved `key=value` leaf entries
   in deterministic order
+- `harness repo config refresh --diff` is a narrow plain-text preview
+  exception for the refresh mutation command: it prints the unified diff that
+  refresh would apply, prints empty stdout when the file is already canonical,
+  and does not write `.harness/config.yaml` or embed diff text in the bootstrap
+  JSON result envelope
 
 Recommended next action:
 
 - for bootstrap commands that support `--dry-run`, rerun without `--dry-run`
   to apply a previewed bootstrap change
+- after reviewing `harness repo config refresh --diff`, rerun
+  `harness repo config refresh` to apply the previewed canonical config rewrite
 - open the target instructions file or skills directory to review the installed
   contract
 

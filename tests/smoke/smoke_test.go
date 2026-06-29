@@ -408,12 +408,52 @@ func TestRepoConfigRefreshUpdatesOldDefaultConfig(t *testing.T) {
 	if !payload.OK || payload.Command != "repo config refresh" || payload.Resource != "config" || payload.Operation != "refresh" {
 		t.Fatalf("unexpected config refresh payload: %#v", payload)
 	}
+	for _, forbidden := range []string{"\"diff\"", "--- a/.harness/config.yaml", "+++ b/.harness/config.yaml", "@@ -"} {
+		if strings.Contains(result.Stdout, forbidden) {
+			t.Fatalf("ordinary refresh JSON must not include diff marker %q:\n%s", forbidden, result.Stdout)
+		}
+	}
 	configData, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("read repo config: %v", err)
 	}
 	if string(configData) != repoconfig.DefaultContent {
 		t.Fatalf("expected refreshed canonical repo config, got:\n%s", configData)
+	}
+}
+
+func TestRepoConfigRefreshDiffPreviewsCanonicalRewrite(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	configPath := workspace.Path(".harness/config.yaml")
+	original := `# local note
+paths:
+  local_runtime: tmp/harness-runtime
+  plans:
+    archived: workflow/plans/done
+    active: workflow/plans/open
+version: 1
+`
+	workspace.WriteFile(t, ".harness/config.yaml", []byte(original))
+
+	result := support.Run(t, workspace.Root, "repo", "config", "refresh", "--diff")
+	support.RequireSuccess(t, result)
+	support.RequireNoStderr(t, result)
+	for _, want := range []string{
+		"--- a/.harness/config.yaml",
+		"+++ b/.harness/config.yaml",
+		"-# local note",
+		"+    active: workflow/plans/open",
+		"+    archived: workflow/plans/done",
+		"+  local_runtime: tmp/harness-runtime",
+	} {
+		support.RequireContains(t, result.Stdout, want)
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read repo config: %v", err)
+	}
+	if string(configData) != original {
+		t.Fatalf("expected diff preview to leave config untouched, got:\n%s", configData)
 	}
 }
 

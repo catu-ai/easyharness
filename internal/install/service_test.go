@@ -243,6 +243,118 @@ func TestRefreshConfigRejectsInvalidConfigWithoutOverwrite(t *testing.T) {
 	}
 }
 
+func TestPlanConfigRefreshDiffUpdatesCommentedOutOfOrderConfigWithoutWriting(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	original := `# keep my local note
+paths:
+  local_runtime: tmp/harness-runtime
+  plans:
+    archived: workflow/plans/done
+    active: workflow/plans/open
+version: 1
+`
+	if err := os.WriteFile(configPath, []byte(original), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	diff, errs := testService(root).PlanConfigRefreshDiff()
+	if len(errs) != 0 {
+		t.Fatalf("expected diff planning success, got %#v", errs)
+	}
+	for _, want := range []string{
+		"--- a/.harness/config.yaml",
+		"+++ b/.harness/config.yaml",
+		"-# keep my local note",
+		"-    archived: workflow/plans/done",
+		"+    active: workflow/plans/open",
+		"+    archived: workflow/plans/done",
+		"+  local_runtime: tmp/harness-runtime",
+	} {
+		if !strings.Contains(diff, want) {
+			t.Fatalf("expected diff to contain %q, got:\n%s", want, diff)
+		}
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	if string(configData) != original {
+		t.Fatalf("expected diff preview to leave config untouched, got:\n%s", configData)
+	}
+}
+
+func TestPlanConfigRefreshDiffCreatesMissingConfigWithoutWriting(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".harness/config.yaml")
+
+	diff, errs := testService(root).PlanConfigRefreshDiff()
+	if len(errs) != 0 {
+		t.Fatalf("expected diff planning success, got %#v", errs)
+	}
+	for _, want := range []string{
+		"--- /dev/null",
+		"+++ b/.harness/config.yaml",
+		"+version: 1",
+		"+# Optional path roots. Omit this block to use the built-in defaults.",
+	} {
+		if !strings.Contains(diff, want) {
+			t.Fatalf("expected diff to contain %q, got:\n%s", want, diff)
+		}
+	}
+	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		t.Fatalf("expected diff preview to leave config absent, got err=%v", err)
+	}
+}
+
+func TestPlanConfigRefreshDiffNoopsWhenAlreadyCanonical(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte(repoconfig.DefaultContent), 0o644); err != nil {
+		t.Fatalf("write canonical config: %v", err)
+	}
+
+	diff, errs := testService(root).PlanConfigRefreshDiff()
+	if len(errs) != 0 {
+		t.Fatalf("expected diff planning success, got %#v", errs)
+	}
+	if diff != "" {
+		t.Fatalf("expected empty diff for canonical config, got:\n%s", diff)
+	}
+}
+
+func TestPlanConfigRefreshDiffRejectsInvalidConfigWithoutOverwrite(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".harness/config.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: 2\n"), 0o644); err != nil {
+		t.Fatalf("write invalid config: %v", err)
+	}
+
+	diff, errs := testService(root).PlanConfigRefreshDiff()
+	if diff != "" {
+		t.Fatalf("expected no diff for invalid config, got:\n%s", diff)
+	}
+	if len(errs) == 0 || !strings.Contains(errs[0].Message, "unsupported version 2") {
+		t.Fatalf("expected unsupported version error, got %#v", errs)
+	}
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	if string(configData) != "version: 2\n" {
+		t.Fatalf("expected invalid config to remain untouched, got:\n%s", configData)
+	}
+}
+
 func TestInitConfigDryRunDoesNotWrite(t *testing.T) {
 	root := t.TempDir()
 
