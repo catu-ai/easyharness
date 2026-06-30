@@ -453,6 +453,10 @@ Contract:
   lightweight template with explicit `size: XXS`
 - in standard mode, preserve current behavior when `workflow_profile` is
   omitted
+- goal-oriented authoring support belongs to the goal-oriented template slice;
+  when added, it should seed `workflow_profile: goal_oriented` and the
+  required concepts from [Goal-Oriented Workflow](./goal-oriented-workflow.md)
+  without changing ordinary standard or lightweight authoring
 
 The template asset belongs to the harness version, not to the user's tracked
 plan history. Upgrading the harness may upgrade the generated template for new
@@ -514,7 +518,7 @@ understand what is happening now and what to do next.
 Contract:
 
 - detect the current plan artifact, whether it is a tracked active plan, a
-  tracked standard archive, or a lightweight local archive
+  tracked standard or goal-oriented archive, or a lightweight local archive
 - before resolving the status snapshot for a current plan, briefly wait for an
   actively held state mutation lock to settle; if the lock remains held beyond
   the bounded wait, return a clear local-mutation-in-progress result
@@ -580,6 +584,11 @@ Contract:
   leave the agreed repo-visible breadcrumb, such as a readable PR body merge
   memo explaining what changed, why the branch is mergeable, and why the
   lightweight path was used
+- when the current plan uses the goal-oriented profile, future status guidance
+  may surface advisory checkpoint-round next actions from
+  [Goal-Oriented Workflow](./goal-oriented-workflow.md), but status must not
+  infer or mutate `state.current_node` from checkpoint markdown and must not
+  silently replace `harness plan lint`
 - return recommended next actions for both "continue work" and "wait/observe"
   situations
 - if an already completed earlier step is missing review-complete closeout,
@@ -1074,7 +1083,8 @@ Contract:
 - move the plan from its active path to its archived path:
   - active plan root resolved by `harness repo config get paths.plans.active`
     -> archived plan root resolved by
-    `harness repo config get paths.plans.archived` for `standard`
+    `harness repo config get paths.plans.archived` for `standard` and
+    `goal_oriented`
   - active plan root resolved by `harness repo config get paths.plans.active`
     -> lightweight archived snapshot root under the local runtime root resolved
     by `harness repo config get paths.local_runtime` for `lightweight`
@@ -1090,13 +1100,13 @@ Contract:
   post-archive handoff node, concise `facts`, transition artifacts, and
   actionable `next_actions`
 - return next actions that explicitly include the profile-appropriate handoff:
-  commit and push the archive move for `standard`, or update the repo-visible
-  breadcrumb for `lightweight`
+  commit and push the archive move for `standard` and `goal_oriented`, or
+  update the repo-visible breadcrumb for `lightweight`
 
 Important note:
 
-- `harness archive` changes tracked files locally for both profiles because the
-  active tracked plan is removed from the active plan root resolved by
+- `harness archive` changes tracked files locally for every profile because
+  the active tracked plan is removed from the active plan root resolved by
   `harness repo config get paths.plans.active`
 - the controller agent should commit and push the archive change before
   treating the candidate as truly waiting for merge approval
@@ -1119,8 +1129,8 @@ Important note:
 Recommended next action:
 
 - create or verify durable follow-up notes for deferred work
-- commit and push the archived plan for `standard`, or update the repo-visible
-  breadcrumb for `lightweight`
+- commit and push the archived plan for `standard` or `goal_oriented`, or
+  update the repo-visible breadcrumb for `lightweight`
 - wait for post-archive CI or human merge approval once publish, CI, and sync
   evidence move the candidate into `execution/finalize/await_merge`
 - reopen with `harness reopen --mode finalize-fix` for narrow repair or
