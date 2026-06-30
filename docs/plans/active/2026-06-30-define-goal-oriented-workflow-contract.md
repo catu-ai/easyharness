@@ -360,6 +360,12 @@ define profile identity preservation explicitly. Follow-up review
   requires future template/lint/status work to choose stable parseable anchors,
   prefers plan-body structure over frontmatter for working concepts, and
   discourages tracked supplements for bulky raw data.
+- Finalize review `review-004-full` requested a handoff wording repair because
+  the reopened plan still said to open a PR even though PR #279 already
+  existed.
+- Handoff repair review `review-005-delta` passed with no findings after the
+  Archive Summary was updated to direct the next controller to update PR #279
+  and refresh evidence.
 
 ## Archive Summary
 
@@ -369,8 +375,8 @@ define profile identity preservation explicitly. Follow-up review
   `codex/define-goal-oriented-workflow-contract`; update it after the
   revision 2 archive commit.
 - Ready: Yes. Acceptance criteria are checked, validation passed,
-  step-closeout review passed after repair, finalize review passed with no
-  findings, and PR feedback repair validation passed.
+  step-closeout review passed after repair, finalize review passed after
+  handoff repair, and PR feedback repair validation passed.
 - Merge Handoff: After archive, push the branch to update PR #279, refresh
   publish/CI/sync evidence through harness for the repaired candidate, and wait
   for explicit human merge approval.
