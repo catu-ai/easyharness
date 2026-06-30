@@ -297,7 +297,12 @@ found beyond the plan lint and repository validation script.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Review `review-001-delta` requested changes: the first draft made
+`workflow_profile: goal_oriented` read like a currently lint-valid active-plan
+value, and left archive/reopen profile identity handling implicit. Fixed by
+framing `goal_oriented` as a reserved contract until the follow-up authoring,
+lint, status, archive, and reopen slices land, and by requiring those slices to
+define profile identity preservation explicitly.
 
 ## Validation Strategy
 

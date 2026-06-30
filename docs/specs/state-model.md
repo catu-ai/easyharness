@@ -98,12 +98,13 @@ schema and the same active-plan root resolved by
 `harness repo config get paths.plans.active`, but its archived snapshot moves
 under the local runtime root resolved by
 `harness repo config get paths.local_runtime` so the workflow can stay
-lightweight for narrow low-risk changes. Goal-oriented work uses the same
-tracked active and tracked archived plan roots as ordinary standard work while
-adding adaptive plan semantics for checkpoint digests, challenge, evidence,
-and synthesis. Runtime trajectory, milestone timestamps, and external-fact
-capture also belong in the resolved local runtime root. There is no separate
-local active path for either lightweight or goal-oriented work in this model.
+lightweight for narrow low-risk changes. The reserved goal-oriented profile is
+specified as using the same canonical node tree while adding adaptive plan
+semantics for checkpoint digests, challenge, evidence, and synthesis, but its
+frontmatter, lint, archive, status, and reopen support belongs to follow-up
+implementation work. Runtime trajectory, milestone timestamps, and
+external-fact capture also belong in the resolved local runtime root. There is
+no separate local active lightweight plan path in this model.
 
 ### Explicit Command Boundaries
 
@@ -141,14 +142,13 @@ root
 - step-local `Review Notes`
 - archive-time summaries and outcome notes
 
-For active work in all workflow profiles, this plan artifact is a tracked file
-under the active plan root resolved by
+For active work in the currently implemented workflow profiles, this plan
+artifact is a tracked file under the active plan root resolved by
 `harness repo config get paths.plans.active`, which defaults to
-`docs/plans/active/`. Standard and goal-oriented archives stay tracked under
-the archived plan root resolved by
-`harness repo config get paths.plans.archived`, which defaults to
-`docs/plans/archived/`. Lightweight archived snapshots move under the local
-runtime root resolved by
+`docs/plans/active/`. Standard archives stay tracked under the archived plan
+root resolved by `harness repo config get paths.plans.archived`, which
+defaults to `docs/plans/archived/`. Lightweight archived snapshots move under
+the local runtime root resolved by
 `harness repo config get paths.local_runtime`, defaulting to
 `.local/harness/plans/archived/` for the snapshot directory.
 Agents and scripts should resolve these roots with
@@ -266,10 +266,10 @@ The exact transition matrix is normative in
 
 Workflow profiles do not add a second node tree. Lightweight reuses the same
 canonical nodes while changing where the archived snapshot lives and what
-closeout guidance `harness status` should emphasize. Goal-oriented also
-reuses the same canonical nodes; checkpoint digests and challenge notes may
-inform guidance, but they must not derive, mutate, or override
-`current_node`.
+closeout guidance `harness status` should emphasize. The reserved
+goal-oriented profile is specified to reuse the same canonical nodes once
+implemented; checkpoint digests and challenge notes may inform guidance, but
+they must not derive, mutate, or override `current_node`.
 
 ## Node Semantics
 
@@ -280,7 +280,8 @@ No current work is in flight. This is the normal post-land resting state.
 ### `plan`
 
 A current tracked active plan exists, but execution has not started. Plan
-edits, approval, and step refinement happen here for all workflow profiles.
+edits, approval, and step refinement happen here for all implemented workflow
+profiles.
 
 ### `execution/step-<n>/implement`
 

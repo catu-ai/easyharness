@@ -14,6 +14,13 @@ not create a separate workflow engine. Goal-oriented plans still use explicit
 human approval, stable plan steps, formal step-closeout and finalize review,
 archive, evidence, and the canonical node state model.
 
+This document defines the product contract before the supporting CLI surfaces
+are implemented. Until the follow-up implementation slices add authoring,
+lint, status, archive, and reopen support, agents must not assume that a
+tracked plan containing `workflow_profile: goal_oriented` will pass
+`harness plan lint` or that archive/reopen will preserve goal-oriented profile
+identity automatically.
+
 ## When To Use It
 
 Use `goal_oriented` for work where the plan can name the desired outcome but
@@ -298,5 +305,10 @@ follow-up issues:
   tracked plan digests are not enough
 - #272 adds evidence-validity and hypothesis-challenge guidance
 - #273 teaches status and next-action behavior for goal-oriented plans
-- #274 adds lint coverage for goal-oriented plans
+- #274 adds lint coverage for goal-oriented plans, including when
+  `workflow_profile: goal_oriented` becomes a lint-valid active-plan value
 - #275 adds user-facing docs, help text, and examples
+
+The implementation slices must also define how archive and reopen preserve the
+goal-oriented profile identity without relying on hidden chat memory or
+contradicting tracked archived-plan frontmatter rules.
