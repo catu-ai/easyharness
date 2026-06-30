@@ -342,6 +342,8 @@ define profile identity preservation explicitly. Follow-up review
   #270-#275 remain the implementation follow-up surface.
 - `scripts/validate` passed, including UI build, Go package tests, and e2e,
   release, resilience, smoke, and support test packages.
+- After reopen revision 2, `harness plan lint`, `git diff --check`, and
+  targeted `rg` checks passed for the PR feedback repair.
 
 ## Review Summary
 
@@ -353,16 +355,21 @@ define profile identity preservation explicitly. Follow-up review
   lint, status, archive, and reopen support.
 - Finalize review `review-003-full` passed with no blocking or non-blocking
   findings.
+- Reopened in `finalize-fix` mode for PR feedback about parseable
+  goal-oriented fields and overly broad supplement guidance. The repair
+  requires future template/lint/status work to choose stable parseable anchors,
+  prefers plan-body structure over frontmatter for working concepts, and
+  discourages tracked supplements for bulky raw data.
 
 ## Archive Summary
 
 - Archived At: 2026-06-30T22:47:13+08:00
-- Revision: 1
+- Revision: 2
 - PR: Pending post-archive publish from branch
   `codex/define-goal-oriented-workflow-contract`.
 - Ready: Yes. Acceptance criteria are checked, validation passed,
-  step-closeout review passed after repair, and finalize review passed with no
-  findings.
+  step-closeout review passed after repair, finalize review passed with no
+  findings, and PR feedback repair validation passed.
 - Merge Handoff: After archive, push the branch, open a PR for issue #269,
   record publish/CI/sync evidence through harness, and wait for explicit human
   merge approval.
@@ -381,6 +388,10 @@ define profile identity preservation explicitly. Follow-up review
   lint boundaries, final synthesis, review, archive, and follow-up boundaries.
 - Clarified that `goal_oriented` is reserved until follow-up implementation
   slices add authoring, lint, status, archive, and reopen support.
+- Clarified that future status/lint support needs stable parseable anchors
+  rather than prose guessing, while checkpoint digests should remain
+  self-contained in the plan body and supplements should not become the default
+  home for bulky raw data.
 
 ### Not Delivered
 

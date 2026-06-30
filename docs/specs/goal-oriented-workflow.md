@@ -87,6 +87,9 @@ agent can resume without hidden chat context:
     checkpoint digests for the main exploration step"
   - a cadence is guidance for keeping the work bounded, not a global hard
     minimum or maximum
+  - follow-up template and lint work must give this cadence a stable
+    parseable anchor, such as a dedicated heading, bounded metadata block, or
+    another explicit structure
 - `challenge triggers`
   - when advisory challenge should be considered or is required by the plan
 - `evidence requirements`
@@ -101,6 +104,15 @@ agent can resume without hidden chat context:
 The plan may express these concepts in dedicated sections, step details, or a
 goal-oriented template once that template exists. The contract requires the
 meaning, not a particular heading set in this first slice.
+
+Future lint and status support must not rely on unstructured prose guessing.
+The implementation slices that make `workflow_profile: goal_oriented`
+lint-valid must choose stable parseable anchors for the fields status and lint
+need, especially the success scorecard, checkpoint cadence, tracked
+checkpoint digest index, and final synthesis. Prefer plan-body structure for
+goal-oriented working concepts; reserve frontmatter for durable command-level
+metadata such as profile selection unless a field truly affects command
+resolution.
 
 ## Steps, Checkpoint Rounds, And Model Turns
 
@@ -161,11 +173,20 @@ Tracked checkpoint digests should normally live in the plan body under a
 readable. Use one subsection per digest so a single checkpoint can compare
 several hypotheses without turning the plan into a nested bullet log.
 
-When a digest or durable supporting material would bloat the plan, put the
-larger material in the matching tracked plan package under
-`supplements/<plan-stem>/` and keep a concise digest or index in the plan body.
-Supplements share the same approval boundary as the plan package; they are not
-free-form scratch space.
+Tracked checkpoint digests should be self-contained enough that a future agent
+can understand the decision trail from the plan body. Do not push essential
+checkpoint meaning into a separate file merely to keep the plan short.
+
+Supplements are allowed only for curated durable material that the approved
+plan deliberately keeps with the plan package. Do not use tracked supplements
+as the default home for bulky raw experiment data, JSON/CSV dumps, transcripts,
+or command logs. Large or messy probe artifacts should stay local,
+regenerable, external, or be summarized into a smaller approved deliverable
+unless the user objective explicitly requires committing them.
+
+When a small durable support artifact is approved for the tracked plan package,
+keep a concise digest or index in the plan body. Supplements share the same
+approval boundary as the plan package; they are not free-form scratch space.
 
 A useful digest should answer, at summary level:
 
