@@ -369,7 +369,7 @@ define profile identity preservation explicitly. Follow-up review
 
 ## Archive Summary
 
-- Archived At: 2026-06-30T22:47:13+08:00
+- Archived At: 2026-06-30T23:26:43+08:00
 - Revision: 2
 - PR: Existing PR https://github.com/catu-ai/easyharness/pull/279 on branch
   `codex/define-goal-oriented-workflow-contract`; update it after the
