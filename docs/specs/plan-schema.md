@@ -6,15 +6,19 @@ This document defines the normative v0.2 plan contract for `easyharness`.
 
 In v0.2, standard and lightweight plans share one markdown schema, but the
 durable planning unit is a markdown-led plan package rather than a lone file.
-Active plans for both profiles live in tracked markdown under the active plan
-root resolved by `harness repo config get paths.plans.active`, which defaults
-to `docs/plans/active/`, and may carry approval-scoped companion material
-under a matching `supplements/<plan-stem>/` directory. Lightweight diverges
-only at archive time, when the archived snapshot moves into command-owned
-local storage. Runtime lifecycle, milestone timestamps, review rounds,
-evidence history, and resolved node state live in the local runtime root
-resolved by `harness repo config get paths.local_runtime`, which defaults to
-`.local/harness/`.
+Active plans for both currently implemented profiles live in tracked markdown
+under the active plan root resolved by
+`harness repo config get paths.plans.active`, which defaults to
+`docs/plans/active/`, and may carry approval-scoped companion material under a
+matching `supplements/<plan-stem>/` directory. Lightweight diverges only at
+archive time, when the archived snapshot moves into command-owned local
+storage. The reserved goal-oriented profile contract is defined separately in
+[Goal-Oriented Workflow](./goal-oriented-workflow.md); authoring, lint,
+archive, and reopen support for `workflow_profile: goal_oriented` belongs to
+the follow-up implementation slices. Runtime lifecycle, milestone timestamps,
+review rounds, evidence history, and resolved node state live in the local
+runtime root resolved by `harness repo config get paths.local_runtime`, which
+defaults to `.local/harness/`.
 Agents and scripts that need concrete resolved roots should query them with
 `harness repo config get paths.plans.active`,
 `harness repo config get paths.plans.archived`, and
@@ -78,8 +82,11 @@ contracts.
 
 The source-of-truth split is:
 
-- this schema document defines the shared plan contract for standard and
-  lightweight profiles
+- this schema document defines the shared markdown plan contract for standard
+  and lightweight profiles
+- [Goal-Oriented Workflow](./goal-oriented-workflow.md) defines the reserved
+  adaptive semantics for `workflow_profile: goal_oriented`, with authoring,
+  lint, archive, and reopen support left to follow-up implementation slices
 - [the packaged plan template asset](../../assets/templates/plan-template.md)
   is the canonical authoring example shipped by harness
 - `harness plan template` is a convenience wrapper around the packaged asset
@@ -243,6 +250,10 @@ approved_at: 2026-03-17T10:30:00+08:00
     `harness repo config get paths.plans.archived` must omit this field
   - local archived plans under the lightweight archived snapshot root must set
     it to `lightweight`
+  - `workflow_profile: goal_oriented` is reserved by
+    [Goal-Oriented Workflow](./goal-oriented-workflow.md), but is not a
+    currently lint-valid plan frontmatter value until the goal-oriented
+    authoring and lint implementation slices land
 
 ## Lightweight Eligibility
 
@@ -290,9 +301,12 @@ v0.2 plans must not carry these top-level runtime fields:
 - `updated_at`
 
 Path placement plus optional `workflow_profile: lightweight` answer whether a
-plan is standard or lightweight and whether it is active or archived. Runtime
-milestones and revision history belong in command-owned artifacts, not plan
-frontmatter.
+plan is standard or lightweight and whether it is active or archived. The
+reserved `workflow_profile: goal_oriented` contract is documented in
+[Goal-Oriented Workflow](./goal-oriented-workflow.md), but its concrete
+frontmatter, lint, archive, and reopen behavior belongs to follow-up
+implementation work. Runtime milestones and revision history belong in
+command-owned artifacts, not plan frontmatter.
 
 ## Required Sections
 
@@ -388,7 +402,7 @@ Rules:
 ## Placeholder Policy
 
 These exact active-plan placeholders are allowed in active tracked plans for
-both profiles:
+all workflow profiles:
 
 - `Execution Notes`: `PENDING_STEP_EXECUTION`
 - `Review Notes`: `PENDING_STEP_REVIEW`
@@ -490,6 +504,32 @@ it as durable tracked history.
 
 When there is any doubt, escalate to the standard tracked-plan workflow.
 
+## Reserved Goal-Oriented Profile
+
+`workflow_profile: goal_oriented` is for adaptive work where the objective and
+success scorecard are explicit, but the path must proceed through hypotheses,
+probes, checkpoint rounds, optional challenge, and final synthesis.
+
+This value is a reserved profile contract, not a currently lint-valid plan
+frontmatter value. Goal-oriented authoring, lint, archive, status, and reopen
+support belongs to the v0.6.0 follow-up implementation slices. Until that
+support lands, plan authors should not expect a tracked plan containing
+`workflow_profile: goal_oriented` to pass `harness plan lint`.
+
+The target profile uses standard tracked plan packages for path and archive
+purposes. It does not create a separate local active path, local archive path,
+node tree, review gate, or workflow engine. It adds the additional planning and
+execution semantics defined in
+[Goal-Oriented Workflow](./goal-oriented-workflow.md).
+
+The plan body or tracked plan package should carry the durable goal-oriented
+record required by that contract, including objective, success scorecard,
+checkpoint cadence, tracked checkpoint digests or equivalent synthesis,
+challenge triggers, evidence requirements, stopping conditions, and final
+synthesis. Local checkpoint drafts remain disposable runtime working memory
+unless their content is promoted into the tracked plan package or another
+approved deliverable.
+
 ## Active Plan Rules
 
 An active plan must satisfy all of these:
@@ -512,6 +552,8 @@ An active plan must satisfy all of these:
 - when the active plan uses `workflow_profile: lightweight`, supplements are
   supported but should be exceptional rather than the default way to carry plan
   detail
+- future goal-oriented implementation work must update these rules before
+  `workflow_profile: goal_oriented` becomes a lint-valid active-plan value
 
 ## Archived Plan Rules
 
@@ -525,6 +567,9 @@ An archived plan must satisfy all of these:
 - any optional `workflow_profile` field is compatible with the path:
   - tracked archived plans must omit `workflow_profile`
   - local archived plans require `workflow_profile: lightweight`
+- future goal-oriented implementation work must define how archive and reopen
+  preserve goal-oriented profile identity without violating tracked archived
+  plan frontmatter rules
 - every acceptance criterion is checked
 - the markdown plan does not live inside an archived `supplements/` subtree
 - every step is `Done: [x]`

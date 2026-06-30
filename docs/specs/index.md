@@ -9,6 +9,10 @@
 - [Plan Schema](./plan-schema.md): shared plan contract for tracked `standard`
   and `lightweight` plans, their markdown-led package layout, and local state
   expectations.
+- [Goal-Oriented Workflow](./goal-oriented-workflow.md): normative
+  reserved `workflow_profile: goal_oriented` contract for adaptive work with
+  explicit objectives, scorecards, checkpoint digests, optional challenge,
+  evidence, and final synthesis.
 - [Bootstrap Install](./bootstrap-install.md): normative bootstrap resource
   model for `harness repo init`, `harness repo skills ...`,
   `harness repo instructions ...`, and `harness repo config ...`, including

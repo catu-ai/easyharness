@@ -453,6 +453,12 @@ Contract:
   lightweight template with explicit `size: XXS`
 - in standard mode, preserve current behavior when `workflow_profile` is
   omitted
+- goal-oriented authoring support belongs to the goal-oriented template slice;
+  when added, it should seed `workflow_profile: goal_oriented` and the
+  required concepts from [Goal-Oriented Workflow](./goal-oriented-workflow.md)
+  without changing ordinary standard or lightweight authoring; until that
+  implementation lands, `workflow_profile: goal_oriented` is a reserved
+  contract value rather than a lint-valid template output
 
 The template asset belongs to the harness version, not to the user's tracked
 plan history. Upgrading the harness may upgrade the generated template for new
@@ -580,6 +586,12 @@ Contract:
   leave the agreed repo-visible breadcrumb, such as a readable PR body merge
   memo explaining what changed, why the branch is mergeable, and why the
   lightweight path was used
+- when the current plan uses the goal-oriented profile, future status guidance
+  may surface advisory checkpoint-round next actions from
+  [Goal-Oriented Workflow](./goal-oriented-workflow.md), but status must not
+  infer or mutate `state.current_node` from checkpoint markdown and must not
+  silently replace `harness plan lint`; concrete status support belongs to the
+  goal-oriented status implementation slice
 - return recommended next actions for both "continue work" and "wait/observe"
   situations
 - if an already completed earlier step is missing review-complete closeout,
@@ -1095,8 +1107,8 @@ Contract:
 
 Important note:
 
-- `harness archive` changes tracked files locally for both profiles because the
-  active tracked plan is removed from the active plan root resolved by
+- `harness archive` changes tracked files locally for every profile because
+  the active tracked plan is removed from the active plan root resolved by
   `harness repo config get paths.plans.active`
 - the controller agent should commit and push the archive change before
   treating the candidate as truly waiting for merge approval

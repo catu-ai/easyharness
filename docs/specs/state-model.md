@@ -93,15 +93,18 @@ resolving the snapshot.
 ### Durable Plan, Disposable Runtime
 
 Tracked active plans remain the durable source of scope, step closeout, and
-archive summaries for both profiles. Lightweight work uses the same schema and
-the same active-plan root resolved by
+archive summaries for all workflow profiles. Lightweight work uses the same
+schema and the same active-plan root resolved by
 `harness repo config get paths.plans.active`, but its archived snapshot moves
 under the local runtime root resolved by
 `harness repo config get paths.local_runtime` so the workflow can stay
-lightweight for narrow low-risk changes. Runtime trajectory, milestone
-timestamps, and external-fact capture also belong in the resolved local
-runtime root. There is no separate local active lightweight plan path in this
-model.
+lightweight for narrow low-risk changes. The reserved goal-oriented profile is
+specified as using the same canonical node tree while adding adaptive plan
+semantics for checkpoint digests, challenge, evidence, and synthesis, but its
+frontmatter, lint, archive, status, and reopen support belongs to follow-up
+implementation work. Runtime trajectory, milestone timestamps, and
+external-fact capture also belong in the resolved local runtime root. There is
+no separate local active lightweight plan path in this model.
 
 ### Explicit Command Boundaries
 
@@ -139,8 +142,8 @@ root
 - step-local `Review Notes`
 - archive-time summaries and outcome notes
 
-For active work in both profiles, this plan artifact is a tracked file under
-the active plan root resolved by
+For active work in the currently implemented workflow profiles, this plan
+artifact is a tracked file under the active plan root resolved by
 `harness repo config get paths.plans.active`, which defaults to
 `docs/plans/active/`. Standard archives stay tracked under the archived plan
 root resolved by `harness repo config get paths.plans.archived`, which
@@ -210,7 +213,7 @@ Resolution rules:
 `harness status` resolves `current_node` from:
 
 - the current plan content
-- the plan path and optional `workflow_profile: lightweight`
+- the plan path and any optional `workflow_profile`
 - whether execution-start has been recorded
 - the first unfinished step from the current plan
 - review artifacts for the current step or the finalize gate
@@ -261,9 +264,12 @@ silently queue behind each other.
 The exact transition matrix is normative in
 [State Transitions](./state-transitions.md).
 
-The lightweight profile does not add a second node tree. It reuses the same
+Workflow profiles do not add a second node tree. Lightweight reuses the same
 canonical nodes while changing where the archived snapshot lives and what
-closeout guidance `harness status` should emphasize.
+closeout guidance `harness status` should emphasize. The reserved
+goal-oriented profile is specified to reuse the same canonical nodes once
+implemented; checkpoint digests and challenge notes may inform guidance, but
+they must not derive, mutate, or override `current_node`.
 
 ## Node Semantics
 
@@ -274,7 +280,8 @@ No current work is in flight. This is the normal post-land resting state.
 ### `plan`
 
 A current tracked active plan exists, but execution has not started. Plan
-edits, approval, and step refinement happen here for both profiles.
+edits, approval, and step refinement happen here for all implemented workflow
+profiles.
 
 ### `execution/step-<n>/implement`
 
