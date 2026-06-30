@@ -351,21 +351,48 @@ define profile identity preservation explicitly. Follow-up review
 - Repair review `review-002-delta` passed with no findings after the contract
   was reframed as reserved until follow-up implementation slices add authoring,
   lint, status, archive, and reopen support.
+- Finalize review `review-003-full` passed with no blocking or non-blocking
+  findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: Pending post-archive publish from branch
+  `codex/define-goal-oriented-workflow-contract`.
+- Ready: Yes. Acceptance criteria are checked, validation passed,
+  step-closeout review passed after repair, and finalize review passed with no
+  findings.
+- Merge Handoff: After archive, push the branch, open a PR for issue #269,
+  record publish/CI/sync evidence through harness, and wait for explicit human
+  merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added `docs/specs/goal-oriented-workflow.md` as the normative reserved
+  `workflow_profile: goal_oriented` contract.
+- Updated the spec index, plan schema, state model, and CLI contract to point
+  to the goal-oriented contract while preserving current standard/lightweight
+  implementation behavior.
+- Defined checkpoint drafts, tracked checkpoint digests, checkpoint cadence,
+  optional challenge, evidence/report ownership, advisory status guidance,
+  lint boundaries, final synthesis, review, archive, and follow-up boundaries.
+- Clarified that `goal_oriented` is reserved until follow-up implementation
+  slices add authoring, lint, status, archive, and reopen support.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- CLI authoring, lint, status, archive, reopen, review-dimension, help, and
+  example behavior for `goal_oriented`; those remain assigned to existing
+  follow-up issues.
 
 ### Follow-Up Issues
 
-NONE
+- #270: Add the goal-oriented plan template and workflow guidance.
+- #271: Define richer checkpoint report conventions and storage details if
+  tracked plan digests are not enough.
+- #272: Add evidence-validity and hypothesis-challenge guidance.
+- #273: Teach status and next-action behavior for goal-oriented plans.
+- #274: Add lint coverage for goal-oriented plans, including when
+  `workflow_profile: goal_oriented` becomes lint-valid.
+- #275: Add user-facing docs, help text, and examples.
