@@ -365,14 +365,15 @@ define profile identity preservation explicitly. Follow-up review
 
 - Archived At: 2026-06-30T22:47:13+08:00
 - Revision: 2
-- PR: Pending post-archive publish from branch
-  `codex/define-goal-oriented-workflow-contract`.
+- PR: Existing PR https://github.com/catu-ai/easyharness/pull/279 on branch
+  `codex/define-goal-oriented-workflow-contract`; update it after the
+  revision 2 archive commit.
 - Ready: Yes. Acceptance criteria are checked, validation passed,
   step-closeout review passed after repair, finalize review passed with no
   findings, and PR feedback repair validation passed.
-- Merge Handoff: After archive, push the branch, open a PR for issue #269,
-  record publish/CI/sync evidence through harness, and wait for explicit human
-  merge approval.
+- Merge Handoff: After archive, push the branch to update PR #279, refresh
+  publish/CI/sync evidence through harness for the repaired candidate, and wait
+  for explicit human merge approval.
 
 ## Outcome Summary
 
