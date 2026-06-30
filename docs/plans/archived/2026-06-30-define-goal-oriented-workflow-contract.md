@@ -356,6 +356,8 @@ define profile identity preservation explicitly. Follow-up review
 
 ## Archive Summary
 
+- Archived At: 2026-06-30T22:47:13+08:00
+- Revision: 1
 - PR: Pending post-archive publish from branch
   `codex/define-goal-oriented-workflow-contract`.
 - Ready: Yes. Acceptance criteria are checked, validation passed,
