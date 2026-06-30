@@ -302,7 +302,8 @@ Review `review-001-delta` requested changes: the first draft made
 value, and left archive/reopen profile identity handling implicit. Fixed by
 framing `goal_oriented` as a reserved contract until the follow-up authoring,
 lint, status, archive, and reopen slices land, and by requiring those slices to
-define profile identity preservation explicitly.
+define profile identity preservation explicitly. Follow-up review
+`review-002-delta` passed with no blocking or non-blocking findings.
 
 ## Validation Strategy
 
@@ -333,11 +334,23 @@ define profile identity preservation explicitly.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `harness plan lint docs/plans/active/2026-06-30-define-goal-oriented-workflow-contract.md`
+  passed.
+- `git diff --check` passed.
+- Targeted `rg` checks confirmed the specs describe `goal_oriented` as a
+  reserved contract instead of a currently lint-valid profile value, and that
+  #270-#275 remain the implementation follow-up surface.
+- `scripts/validate` passed, including UI build, Go package tests, and e2e,
+  release, resilience, smoke, and support test packages.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step-closeout review `review-001-delta` requested changes for two related
+  contract risks: the first draft made `goal_oriented` look currently
+  lint-valid, and archive/reopen profile identity handling was implicit.
+- Repair review `review-002-delta` passed with no findings after the contract
+  was reframed as reserved until follow-up implementation slices add authoring,
+  lint, status, archive, and reopen support.
 
 ## Archive Summary
 
