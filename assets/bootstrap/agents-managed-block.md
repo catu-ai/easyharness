@@ -26,7 +26,6 @@ The default harness split in this repository is:
   `harness repo config get paths.local_runtime` and defaulting to
   `.local/harness/`: disposable runtime state, review artifacts, evidence
   artifacts, trajectory, and `plans/archived/` lightweight archived snapshots
-- `docs/specs/`: normative harness contracts
 - `.agents/skills/`: repo-local harness workflow skills
 
 If a tracked plan conflicts with a repo-local skill, the tracked plan wins.
