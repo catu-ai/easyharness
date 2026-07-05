@@ -44,18 +44,18 @@ repository documentation and code language.
 
 ## Acceptance Criteria
 
-- [ ] The managed block no longer presents `docs/specs/` as an unconditional
+- [x] The managed block no longer presents `docs/specs/` as an unconditional
       downstream easyharness product-contract location.
-- [ ] The managed block no longer broadly requires all tracked docs and code in
+- [x] The managed block no longer broadly requires all tracked docs and code in
       downstream repositories to be English unless repo-owned instructions add
       that rule outside the managed block.
-- [ ] The managed workflow list has coherent numbering in raw markdown.
-- [ ] The managed block wording distinguishes easyharness-managed workflow
+- [x] The managed workflow list has coherent numbering in raw markdown.
+- [x] The managed block wording distinguishes easyharness-managed workflow
       skills from repo-owned local skills.
-- [ ] `scripts/sync-bootstrap-assets` has refreshed materialized output after
+- [x] `scripts/sync-bootstrap-assets` has refreshed materialized output after
       the bootstrap source edit.
-- [ ] Focused validation passes for bootstrap sync/install/status behavior.
-- [ ] Issue #280 is triaged with a short rationale comment.
+- [x] Focused validation passes for bootstrap sync/install/status behavior.
+- [x] Issue #280 is triaged with a short rationale comment.
 
 ## Deferred Items
 
@@ -67,7 +67,7 @@ repository documentation and code language.
 
 ### Step 1: Tighten the managed block source
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -105,11 +105,15 @@ step is a documentation/prompt wording change.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` passed with 0 blocking and 0 non-blocking findings across
+`docs-consistency` and `agent-ux`. Reviewer submissions confirmed the source
+and materialized managed block align with plan intent, the wording reduces the
+downstream ownership ambiguity, and the `.agents/skills/` source versus
+rendered `.agents/skills` display difference is expected rendering behavior.
 
 ### Step 2: Validate and triage the issue
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -134,11 +138,22 @@ rationale comment explaining the decision.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Ran focused validation:
+`go test ./internal/bootstrapsync ./internal/install ./internal/status`,
+`harness repo init --dry-run`, and
+`harness plan lint docs/plans/active/2026-07-05-clarify-managed-block-wording.md`.
+Reinstalled the dev harness binary with `scripts/install-dev-harness` after the
+embedded bootstrap asset changed, then reran `harness repo init --dry-run` to
+confirm the installed binary reports managed assets as current. Triaged
+GitHub issue #280 with `documentation` and `state/accepted`, and left a
+rationale comment explaining the documentation scope and why no new config
+field or concrete milestone is needed yet.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 2 only recorded validation evidence and GitHub issue
+triage after the managed block wording change had already passed step-closeout
+review.
 
 ## Validation Strategy
 
@@ -153,10 +168,10 @@ PENDING_STEP_REVIEW
 
 - Risk: The managed block becomes too vague and stops giving downstream agents
   enough useful defaults.
-  - Mitigation: Keep resolved harness roots and command pointers explicit while
+  - Mitigation: Kept resolved harness roots and command pointers explicit while
     narrowing only the misleading ownership language.
 - Risk: Sync output accidentally changes unrelated managed skills.
-  - Mitigation: Review the diff after `scripts/sync-bootstrap-assets` and keep
+  - Mitigation: Reviewed the diff after `scripts/sync-bootstrap-assets` and kept
     the source edit limited to `agents-managed-block.md`.
 
 ## Validation Summary
