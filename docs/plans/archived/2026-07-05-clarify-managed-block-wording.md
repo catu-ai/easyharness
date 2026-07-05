@@ -209,20 +209,22 @@ review.
   issue triage record, validation coverage, and plan notes align with the
   approved wording cleanup.
 - Revision 2 repaired PR feedback that the managed block still assumed
-  non-configured repo paths. Fresh finalize review is required before archive.
+  non-configured repo paths. Finalize repair review `review-003-delta` passed
+  with 0 blocking and 0 non-blocking findings across `docs-consistency`,
+  `agent-ux`, and `tests`.
 
 ## Archive Summary
 
-- Archived At: 2026-07-05T08:32:34+08:00
-- Revision: 1
+- Archived At: 2026-07-05T09:17:07+08:00
+- Revision: 2
 - Reopened At: revision 2, after PR feedback on non-configured repo path
   assumptions.
 - PR: https://github.com/catu-ai/easyharness/pull/281
-- Ready: Not yet. Revision 2 repair is implemented and validated, but it still
-  needs fresh finalize review and archive.
-- Merge Handoff: After fresh finalize review and archive, commit and push the
-  archive move, update PR #281, refresh CI/sync evidence, and wait for explicit
-  human merge approval.
+- Ready: Yes. Revision 2 removes non-configured repo path assumptions from the
+  managed block, syncs the materialized output, updates regression coverage,
+  validates cleanly, and passed finalize repair review with no findings.
+- Merge Handoff: After archive, commit and push the archive move, update PR
+  #281, refresh CI/sync evidence, and wait for explicit human merge approval.
 
 ## Outcome Summary
 
