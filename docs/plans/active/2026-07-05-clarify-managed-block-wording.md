@@ -103,6 +103,15 @@ harness execution. Ran `scripts/sync-bootstrap-assets` so the root `AGENTS.md`
 managed block matches the bootstrap source. TDD was not applicable because this
 step is a documentation/prompt wording change.
 
+Revision 2 addressed PR feedback that the managed block must not assume user
+repositories have `docs/specs/`, `.agents/skills/`, or any other non-configured
+repo path. The source-of-truth section now lists only roots resolved through
+`harness repo config get ...`; durable repository contracts are described as
+living wherever repo-owned instructions, plans, docs, or code say they live,
+and bootstrap-installed skills are described conditionally. Ran
+`scripts/sync-bootstrap-assets` again so the root `AGENTS.md` managed block
+matches the repaired bootstrap source.
+
 #### Review Notes
 
 `review-001-delta` passed with 0 blocking and 0 non-blocking findings across
@@ -177,15 +186,18 @@ review.
 ## Validation Summary
 
 - `scripts/sync-bootstrap-assets` refreshed the materialized root `AGENTS.md`
-  managed block from `assets/bootstrap/agents-managed-block.md`.
+  managed block from `assets/bootstrap/agents-managed-block.md`, including the
+  revision 2 repair.
 - `go test ./internal/bootstrapsync ./internal/install ./internal/status`
-  passed before finalize and again during archive prep.
+  passed before finalize, during archive prep, and after the revision 2 repair.
 - `harness repo init --dry-run` reports bootstrap assets are already up to
   date after reinstalling the dev harness binary with the updated embedded
-  bootstrap asset.
+  bootstrap asset for both the original wording change and the revision 2
+  repair.
 - `harness plan lint docs/plans/active/2026-07-05-clarify-managed-block-wording.md`
   passed after the plan was written, after step notes were updated, and during
-  archive prep.
+  revision 2 repair.
+- `git diff --check` passed after the revision 2 repair.
 
 ## Review Summary
 
@@ -196,17 +208,21 @@ review.
 - Reviewers confirmed the managed block source, materialized root `AGENTS.md`,
   issue triage record, validation coverage, and plan notes align with the
   approved wording cleanup.
+- Revision 2 repaired PR feedback that the managed block still assumed
+  non-configured repo paths. Fresh finalize review is required before archive.
 
 ## Archive Summary
 
 - Archived At: 2026-07-05T08:32:34+08:00
 - Revision: 1
-- PR: Pending post-archive publish.
-- Ready: Yes. The managed block wording cleanup is implemented, synced,
-validated, and passed step and finalize review with no findings.
-- Merge Handoff: After archive, commit and push the archive move, open a PR with
-a readable merge memo, record publish evidence, refresh CI/sync evidence, and
-wait for explicit human merge approval.
+- Reopened At: revision 2, after PR feedback on non-configured repo path
+  assumptions.
+- PR: https://github.com/catu-ai/easyharness/pull/281
+- Ready: Not yet. Revision 2 repair is implemented and validated, but it still
+  needs fresh finalize review and archive.
+- Merge Handoff: After fresh finalize review and archive, commit and push the
+  archive move, update PR #281, refresh CI/sync evidence, and wait for explicit
+  human merge approval.
 
 ## Outcome Summary
 
@@ -215,6 +231,10 @@ wait for explicit human merge approval.
 - Clarified the managed block source so downstream repositories do not read
   `docs/specs/` as an unconditional upstream easyharness product-contract
   location.
+- Repaired revision 2 feedback by removing `docs/specs/`, `.agents/skills/`,
+  and other non-configured repo paths from the managed block's default split.
+  The block now lists only harness roots resolved through repo config, and
+  describes repo-owned contracts and bootstrap-installed skills conditionally.
 - Narrowed the managed block language policy from all tracked docs and code to
   harness workflow artifacts unless repo-owned instructions say otherwise.
 - Fixed the raw workflow numbering and rephrased the workflow as work

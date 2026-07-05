@@ -107,7 +107,7 @@ Keep easyharness-specific guidance outside the managed markers.
 
 ## Harness Source of Truth
 
-The default harness split for repositories using this bootstrap is:
+Harness resolves these workflow roots from repo config:
 
 - active plan root, resolved with
   `harness repo config get paths.plans.active` and defaulting to
@@ -121,14 +121,16 @@ The default harness split for repositories using this bootstrap is:
   `harness repo config get paths.local_runtime` and defaulting to
   `.local/harness/`: disposable runtime state, review artifacts, evidence
   artifacts, trajectory, and `plans/archived/` lightweight archived snapshots
-- `docs/specs/`: default location for durable harness-facing contracts that
-  the repository chooses to keep as specs; do not assume every repo-local spec
-  is an upstream easyharness product contract
-- `.agents/skills`: agent skill packages; easyharness-managed `harness-*`
-  skills are refreshed by bootstrap, while other repo-owned skills stay
-  outside easyharness ownership
 
-If a tracked plan conflicts with a repo-local skill, the tracked plan wins.
+Other durable repository contracts live wherever repo-owned instructions,
+plans, docs, or code say they live. Do not assume a repository has
+`docs/specs/`, or that any repo-local specs are upstream easyharness product
+contracts.
+
+When bootstrap-installed skills are present, easyharness-managed `harness-*`
+skills are refreshed by bootstrap. Other repo-owned skills stay outside
+easyharness ownership. If a tracked plan conflicts with a repo-local skill, the
+tracked plan wins.
 
 ## Harness Product Help
 
