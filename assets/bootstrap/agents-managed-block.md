@@ -46,8 +46,8 @@ For harness-managed work that is not already clear enough to execute directly:
 2. Plan
 3. Plan approval
 4. Execute
-4. Archive / publish / await merge approval
-5. Land
+5. Archive / publish / await merge approval
+6. Land
 
 Plan approval is explicit. Writing a plan or hearing the original task request
 does not by itself approve execution. After the plan is shown and the human
@@ -111,8 +111,8 @@ multiple subagents in parallel according to the current question shape:
 
 - stay local when the controller can answer the next question from the shared
   context it already needs to hold
-- use `1` when one bounded question or hypothesis needs independent repo
-  checking
+- use one subagent when one bounded question or hypothesis needs independent
+  repo checking
 - use multiple subagents in parallel only when multiple hypotheses or
   questions are genuinely independent
 
