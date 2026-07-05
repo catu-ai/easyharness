@@ -39,7 +39,7 @@ adding a known CLI flag, fixing an already-localized bug, updating narrow docs,
 or applying a known template change.
 
 Do not use `goal_oriented` as a heavier name for ordinary standard work. If
-the work does not need hypotheses, probes, checkpoint digests, or final
+the work does not need hypotheses, probes, checkpoint reports, or final
 synthesis, the ordinary standard workflow is clearer.
 
 ## Workflow Profile Semantics
@@ -61,7 +61,7 @@ The profile preserves these core harness boundaries:
 
 Goal-oriented execution adds a disciplined layer inside approved steps: the
 controller runs bounded checkpoint rounds, records concise tracked checkpoint
-digests when the work reaches meaningful decision points, optionally requests
+reports when the work reaches meaningful decision points, optionally requests
 challenge when hypotheses or evidence need stress testing, and writes a final
 synthesis before closeout.
 
@@ -84,7 +84,7 @@ agent can resume without hidden chat context:
     signal, scorecard comparison, and next decision
 - `checkpoint cadence or budget`
   - the expected checkpoint rhythm for adaptive steps, such as "write 2-4
-    checkpoint digests for the main exploration step"
+    checkpoint reports for the main exploration step"
   - a cadence is guidance for keeping the work bounded, not a global hard
     minimum or maximum
   - follow-up template and lint work must give this cadence a stable
@@ -109,7 +109,7 @@ Future lint and status support must not rely on unstructured prose guessing.
 The implementation slices that make `workflow_profile: goal_oriented`
 lint-valid must choose stable parseable anchors for the fields status and lint
 need, especially the success scorecard, checkpoint cadence, tracked
-checkpoint digest index, and final synthesis. Prefer plan-body structure for
+checkpoint report index, and final synthesis. Prefer plan-body structure for
 goal-oriented working concepts; reserve frontmatter for durable command-level
 metadata such as profile selection unless a field truly affects command
 resolution.
@@ -122,14 +122,14 @@ or accounting unit. A checkpoint round is the goal-oriented layer between them.
 Do not make one harness step per model turn the default shape. A single
 adaptive step may contain several model continuations, probes, observations,
 and pivots. Durable learning from that work belongs in tracked checkpoint
-digests or final synthesis, not in a growing list of tiny plan steps.
+reports or final synthesis, not in a growing list of tiny plan steps.
 
 Use stable steps for boundaries that need approval, review, and archive
 visibility. Use checkpoint rounds for meaningful intermediate learning inside
 those steps.
 
 Before an adaptive step closes, the plan must contain at least one tracked
-checkpoint digest or equivalent final synthesis explaining the adaptive work
+checkpoint report or equivalent final synthesis explaining the adaptive work
 that happened in the step. A step that performs no adaptive work should not use
 goal-oriented ceremony just to satisfy the profile.
 
@@ -149,31 +149,36 @@ Checkpoint drafts may contain transient details such as:
 
 Checkpoint drafts are local and disposable by default. They do not enter git,
 archive, or review unless their content is promoted into a tracked checkpoint
-digest, an approved supplement, a formal evidence artifact, or another
+report, an approved supplement, a formal evidence artifact, or another
 approved deliverable.
 
-## Tracked Checkpoint Digests
+## Tracked Checkpoint Reports
 
-A tracked checkpoint digest is a concise, git-tracked summary of a meaningful
-checkpoint round. It records the hypotheses or directions considered, observed
-signal, scorecard movement, decision, residual uncertainty, and evidence
-pointers needed for future resume, review, and archive.
+A tracked checkpoint report is a concise, git-tracked structured narrative
+digest of a meaningful checkpoint round. It records the hypotheses or
+candidate directions considered, probe or experiment, observed result,
+scorecard movement, decision or next mutation, residual uncertainty, and
+evidence pointers needed for future resume, review, and archive.
 
-A tracked checkpoint digest is not:
+A tracked checkpoint report is not:
 
 - a raw log
 - a transcript
 - a list of every command
+- a record of every small attempt
+- a bullet-only form
 - a formal review gate
 - the canonical evidence report unless the plan explicitly designates it as
   such
 
-Tracked checkpoint digests should normally live in the plan body under a
-`Checkpoint Digests` section when they are concise enough to keep the plan
-readable. Use one subsection per digest so a single checkpoint can compare
-several hypotheses without turning the plan into a nested bullet log.
+Tracked checkpoint reports should normally live in the plan body under a
+`Checkpoint Reports` section. For step-local reports, use a dedicated
+`#### Checkpoint Reports` subsection inside the adaptive step. Use one
+subsection per report with a stable checkpoint ID, such as `CP1`, `CP2`, or
+`S2-CP1`, so a single checkpoint can compare several hypotheses without
+turning the plan into a nested bullet log or a series of tiny pseudo-steps.
 
-Tracked checkpoint digests should be self-contained enough that a future agent
+Tracked checkpoint reports should be self-contained enough that a future agent
 can understand the decision trail from the plan body. Do not push essential
 checkpoint meaning into a separate file merely to keep the plan short.
 
@@ -185,24 +190,46 @@ regenerable, external, or be summarized into a smaller approved deliverable
 unless the user objective explicitly requires committing them.
 
 When a small durable support artifact is approved for the tracked plan package,
-keep a concise digest or index in the plan body. Supplements share the same
-approval boundary as the plan package; they are not free-form scratch space.
+keep the actual checkpoint report in the plan body and index the support
+artifact from that report. Supplements share the same approval boundary as the
+plan package; they are not free-form scratch space.
 
-A useful digest should answer, at summary level:
+Checkpoint report structure is a shallow parseable contract, not a prose
+straitjacket. Required label names are stable enough for future lint/status
+support to find them, but the content under a label may be prose, bullets,
+tables, or short lists according to what the checkpoint needs to explain.
+Future tooling may inspect headings, IDs, and labels; it must not require
+bullet-only content or judge whether a hypothesis, probe, evidence argument, or
+next mutation is good.
 
-- why this checkpoint exists
-- which hypothesis, hypotheses, or candidate directions were tested or
-  reconsidered
-- what signal the probe produced
-- how that signal moved the scorecard or decision space
-- whether the controller should continue probing, pivot, request challenge,
-  synthesize, close the step, or stop for human scope input
-- what residual uncertainty remains
-- which durable evidence or deliverable supports the decision
+A tracked checkpoint report must include these labels. The only interchangeable
+required label names are the pairs shown explicitly below:
 
-The digest should explain decision movement, not activity. Do not preserve raw
-terminal output, every failed attempt, or already-absorbed report detail merely
-because it existed during execution.
+- `Trigger`
+- `Hypotheses` or `Candidate Directions`
+- `Probe` or `Experiment`
+- `Observed Result`
+- `Scorecard Movement`
+- `Decision / Next Mutation`
+- `Residuals`
+- `Evidence`
+
+A tracked checkpoint report may include these labels when useful:
+
+- `Challenge`
+- `Rejected Alternatives`
+- `Human Decision Needed`
+- `Follow-Up / Deferred`
+- `Supplement`
+- `Validation / Reproduction`
+
+The report should explain decision movement, not activity. Many small attempts
+that do not independently change the decision space should be summarized inside
+one report, for example under `Probe`, `Observed Result`, or an optional
+attempts summary. A meaningful pivot, plateau, challenge request, scorecard
+movement, pre-synthesis boundary, or human-scope decision is usually a better
+reason to write a new checkpoint report than the mere fact that another model
+turn or command happened.
 
 ## Challenge
 
@@ -230,8 +257,8 @@ When evidence is decisive and the plan did not require challenge, the
 controller may synthesize and proceed to formal review without challenge.
 
 If challenge changes the work materially, record the result in a new tracked
-checkpoint digest. If it only sharpens an existing decision, a short challenge
-summary inside the relevant digest is enough.
+checkpoint report. If it only sharpens an existing decision, a short challenge
+summary inside the relevant report is enough.
 
 ## Evidence And Reports
 
@@ -243,10 +270,10 @@ code change, configuration change, documentation change, benchmark artifact,
 or other file is the deliverable. Use the user's objective and plan scope to
 choose the durable artifact.
 
-When the deliverable is an evidence or decision report, checkpoint digests
+When the deliverable is an evidence or decision report, checkpoint reports
 should point to it or summarize key pivots without duplicating the report.
 When the deliverable is code, docs, configuration, or another artifact,
-checkpoint digests and ordinary validation evidence may be sufficient for
+checkpoint reports and ordinary validation evidence may be sufficient for
 review and archive.
 
 Archive should preserve conclusions, evidence, rejected hypotheses, residuals,
@@ -273,8 +300,8 @@ The controller remains responsible for deciding which action fits the current
 evidence. The CLI should not attempt to judge hypothesis quality from prose.
 
 Status may later warn about shallow structural gaps, such as no checkpoint
-cadence, zero tracked checkpoint digests in an adaptive step, or missing
-digest anchors. Those warnings are navigation guidance. They are not a
+cadence, zero tracked checkpoint reports in an adaptive step, or missing
+report anchors. Those warnings are navigation guidance. They are not a
 substitute for explicit plan lint or formal review.
 
 ## Lint Boundary
@@ -283,22 +310,22 @@ substitute for explicit plan lint or formal review.
 
 Goal-oriented lint coverage belongs in a follow-up implementation slice. That
 coverage may check structural requirements such as objective, success
-scorecard, checkpoint cadence, tracked checkpoint digest anchors, and final
+scorecard, checkpoint cadence, tracked checkpoint report anchors, and final
 synthesis presence. It should avoid judging whether a hypothesis is good or
 whether evidence is persuasive; those are review and challenge concerns.
 
-Status may point the controller toward lint when tracked checkpoint digests or
+Status may point the controller toward lint when tracked checkpoint reports or
 final synthesis change, but status should not silently run or replace full
 lint.
 
 ## Review And Archive
 
 Formal step-closeout and finalize reviews remain hard gates. Challenge does
-not replace formal review, and checkpoint digests do not create new review
+not replace formal review, and checkpoint reports do not create new review
 states.
 
 Review for goal-oriented work should focus on whether the final synthesis is
-supported by the scorecard, tracked checkpoint digests, durable evidence,
+supported by the scorecard, tracked checkpoint reports, durable evidence,
 rejected hypotheses, residual uncertainty, and follow-up handling. The exact
 review dimensions and challenge guidance belong to follow-up implementation
 work.
@@ -318,12 +345,11 @@ plan package or another approved durable artifact before archive.
 
 ## Follow-Up Boundaries
 
-This contract intentionally leaves implementation details to the v0.6.0
+This contract now owns the #271 checkpoint report convention. It intentionally
+leaves the remaining goal-oriented implementation details to the v0.6.0
 follow-up issues:
 
 - #270 adds the goal-oriented plan template and workflow guidance
-- #271 defines richer checkpoint report conventions and storage details if
-  tracked plan digests are not enough
 - #272 adds evidence-validity and hypothesis-challenge guidance
 - #273 teaches status and next-action behavior for goal-oriented plans
 - #274 adds lint coverage for goal-oriented plans, including when

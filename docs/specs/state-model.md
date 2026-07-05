@@ -100,7 +100,7 @@ under the local runtime root resolved by
 `harness repo config get paths.local_runtime` so the workflow can stay
 lightweight for narrow low-risk changes. The reserved goal-oriented profile is
 specified as using the same canonical node tree while adding adaptive plan
-semantics for checkpoint digests, challenge, evidence, and synthesis, but its
+semantics for checkpoint reports, challenge, evidence, and synthesis, but its
 frontmatter, lint, archive, status, and reopen support belongs to follow-up
 implementation work. Runtime trajectory, milestone timestamps, and
 external-fact capture also belong in the resolved local runtime root. There is
@@ -268,7 +268,7 @@ Workflow profiles do not add a second node tree. Lightweight reuses the same
 canonical nodes while changing where the archived snapshot lives and what
 closeout guidance `harness status` should emphasize. The reserved
 goal-oriented profile is specified to reuse the same canonical nodes once
-implemented; checkpoint digests and challenge notes may inform guidance, but
+implemented; checkpoint reports and challenge notes may inform guidance, but
 they must not derive, mutate, or override `current_node`.
 
 ## Node Semantics
