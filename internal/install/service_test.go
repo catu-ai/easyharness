@@ -46,16 +46,17 @@ func TestInitCreatesManagedInstructionsAndSkills(t *testing.T) {
 	if strings.Contains(agentsBody, "- `docs/specs/`:") || strings.Contains(agentsBody, "- `.agents/skills") {
 		t.Fatalf("managed block should not assume non-configured repo paths, got:\n%s", agentsBody)
 	}
-	if !strings.Contains(agentsBody, "may live in `docs/specs/` or anywhere") ||
-		!strings.Contains(agentsBody, "else repo-owned instructions") {
-		t.Fatalf("expected optional repo contract location guidance in managed block, got:\n%s", agentsBody)
+	if strings.Contains(agentsBody, "Do not assume") {
+		t.Fatalf("managed block should avoid defensive non-assumption wording, got:\n%s", agentsBody)
 	}
-	if !strings.Contains(agentsBody, "`.agents/skills` by default unless a different skills target was used") {
-		t.Fatalf("expected conditional default skills target guidance in managed block, got:\n%s", agentsBody)
+	if !strings.Contains(agentsBody, "When present, `docs/specs/` is a common place") {
+		t.Fatalf("expected positive repo contract location guidance in managed block, got:\n%s", agentsBody)
 	}
-	if !strings.Contains(agentsBody, "When") ||
-		!strings.Contains(agentsBody, "bootstrap-installed skills are present") {
-		t.Fatalf("expected bootstrap-installed skills conditional in managed block, got:\n%s", agentsBody)
+	if !strings.Contains(agentsBody, "default bootstrap skills target is `.agents/skills` unless") {
+		t.Fatalf("expected default skills target guidance in managed block, got:\n%s", agentsBody)
+	}
+	if !strings.Contains(agentsBody, "easyharness refreshes managed `harness-*` skills") {
+		t.Fatalf("expected managed skill refresh guidance in managed block, got:\n%s", agentsBody)
 	}
 
 	skillData, err := os.ReadFile(filepath.Join(root, ".agents/skills/harness-discovery/SKILL.md"))

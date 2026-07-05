@@ -126,6 +126,14 @@ the new default `.agents/skills` cue but no longer explicitly protected the
 so the test covers both the default discovery cue and the conditional ownership
 guard.
 
+Revision 4 addressed follow-up PR feedback that the revision 3 wording sounded
+too defensive. The managed block now uses positive discovery language:
+`docs/specs/` is named as a common repo-owned specs/workflow-contract location
+when present, `.agents/skills/` is named as the default Codex bootstrap skills
+target unless customized, and the old "Do not assume" wording is removed.
+Updated the install regression test to protect that tone while still rejecting
+the old unconditional path bullets.
+
 #### Review Notes
 
 `review-001-delta` passed with 0 blocking and 0 non-blocking findings across
@@ -201,10 +209,10 @@ review.
 
 - `scripts/sync-bootstrap-assets` refreshed the materialized root `AGENTS.md`
   managed block from `assets/bootstrap/agents-managed-block.md`, including the
-  revision 2 and revision 3 repairs.
+  revision 2, revision 3, and revision 4 repairs.
 - `go test ./internal/bootstrapsync ./internal/install ./internal/status`
   passed before finalize, during archive prep, after the revision 2 repair, and
-  after the revision 3 review-finding fix.
+  after the revision 3 and revision 4 repair work.
 - `harness repo init --dry-run` reports bootstrap assets are already up to
   date after reinstalling the dev harness binary with the updated embedded
   bootstrap asset for the original wording change and later repairs.
@@ -216,6 +224,8 @@ review.
   discovery cues for `docs/specs/` and `.agents/skills/`.
 - After the `review-004-delta` tests finding, focused validation was rerun with
   the restored bootstrap-installed-skills conditional assertion.
+- Revision 4 reran focused validation after replacing defensive wording with
+  positive discovery cues.
 
 ## Review Summary
 
@@ -236,6 +246,8 @@ review.
   regression coverage. The assertion was restored.
 - `review-005-delta` passed with 0 blocking and 0 non-blocking findings for the
   restored test assertion.
+- Revision 4 repaired follow-up PR feedback that the managed block sounded too
+  defensive. Fresh finalize review is required before archive.
 
 ## Archive Summary
 
@@ -245,12 +257,14 @@ review.
   assumptions.
 - Reopened At: revision 3, after follow-up PR feedback that the conditional
   guidance still needs to mention the conventional/default locations.
+- Reopened At: revision 4, after follow-up PR feedback that the discovery
+  wording should be positive rather than defensive.
 - PR: https://github.com/catu-ai/easyharness/pull/281
-- Ready: Yes. Revision 3 restores conditional discovery cues for conventional
-  locations, keeps non-assumption guardrails, validates cleanly, and passed the
-  follow-up tests review.
-- Merge Handoff: After archive, commit and push the archive move, update PR
-  #281, refresh CI/sync evidence, and wait for explicit human merge approval.
+- Ready: Not yet. Revision 4 is implemented and validated, but still needs
+  fresh finalize review and archive.
+- Merge Handoff: After fresh review and archive, commit and push the archive
+  move, update PR #281, refresh CI/sync evidence, and wait for explicit human
+  merge approval.
 
 ## Outcome Summary
 
@@ -267,6 +281,9 @@ review.
   `docs/specs/` is named as one possible repo-owned contract location, and
   `.agents/skills/` is named as the default Codex bootstrap skills target unless
   a different target was used.
+- Repaired revision 4 feedback by replacing defensive "do not assume" wording
+  with positive discovery guidance for common repo-owned specs and Codex
+  bootstrap skill locations.
 - Narrowed the managed block language policy from all tracked docs and code to
   harness workflow artifacts unless repo-owned instructions say otherwise.
 - Fixed the raw workflow numbering and rephrased the workflow as work
