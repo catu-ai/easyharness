@@ -84,7 +84,10 @@ validation passed with `scripts/validate-release`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Step closeout delta review `review-001-delta` passed with 0 findings across
+`risk-scan` and `tests`. Review confirmed the delta is limited to `VERSION`
+plus the active plan, matches the dedicated release PR policy, and uses the
+documented release-ready validation profile for `VERSION` PRs.
 
 ## Validation Strategy
 
