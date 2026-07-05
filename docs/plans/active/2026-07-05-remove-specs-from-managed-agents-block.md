@@ -98,7 +98,10 @@ change with no behavior change. Validation passed with
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+Step closeout delta review `review-001-delta` passed with 0 findings. The
+`docs-consistency` reviewer confirmed that the managed block removes the
+`docs/specs/` assumption from both packaged and materialized bootstrap text
+without adding a replacement claim about downstream private specs.
 
 ## Validation Strategy
 
