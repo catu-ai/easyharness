@@ -176,26 +176,64 @@ review.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `scripts/sync-bootstrap-assets` refreshed the materialized root `AGENTS.md`
+  managed block from `assets/bootstrap/agents-managed-block.md`.
+- `go test ./internal/bootstrapsync ./internal/install ./internal/status`
+  passed before finalize and again during archive prep.
+- `harness repo init --dry-run` reports bootstrap assets are already up to
+  date after reinstalling the dev harness binary with the updated embedded
+  bootstrap asset.
+- `harness plan lint docs/plans/active/2026-07-05-clarify-managed-block-wording.md`
+  passed after the plan was written, after step notes were updated, and during
+  archive prep.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step closeout review `review-001-delta` passed with 0 blocking and 0
+  non-blocking findings across `docs-consistency` and `agent-ux`.
+- Finalize review `review-002-full` passed with 0 blocking and 0 non-blocking
+  findings across `docs-consistency`, `agent-ux`, and `tests`.
+- Reviewers confirmed the managed block source, materialized root `AGENTS.md`,
+  issue triage record, validation coverage, and plan notes align with the
+  approved wording cleanup.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-07-05T08:32:34+08:00
+- Revision: 1
+- PR: Pending post-archive publish.
+- Ready: Yes. The managed block wording cleanup is implemented, synced,
+validated, and passed step and finalize review with no findings.
+- Merge Handoff: After archive, commit and push the archive move, open a PR with
+a readable merge memo, record publish evidence, refresh CI/sync evidence, and
+wait for explicit human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Clarified the managed block source so downstream repositories do not read
+  `docs/specs/` as an unconditional upstream easyharness product-contract
+  location.
+- Narrowed the managed block language policy from all tracked docs and code to
+  harness workflow artifacts unless repo-owned instructions say otherwise.
+- Fixed the raw workflow numbering and rephrased the workflow as work
+  coordinated through harness.
+- Clarified that easyharness-managed `harness-*` skills are bootstrap-owned
+  while other repo-owned skills stay outside easyharness ownership.
+- Synced the root `AGENTS.md` managed block from the bootstrap source.
+- Triaged issue #280 with `documentation` and `state/accepted`, plus a
+  rationale comment.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No new repo config field or managed-instructions help topic was added.
+- No command behavior, state transition, review, archive, evidence, or
+  bootstrap install mechanics changed.
 
 ### Follow-Up Issues
 
-NONE
+- No GitHub follow-up issue created. The deferred help-topic idea remains
+  conditional: consider a future `harness help repo instructions` topic only if
+  more downstream customization examples show that compact managed-block
+  wording is not enough.
