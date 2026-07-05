@@ -162,7 +162,7 @@ the behavior and documentation changes are implemented and reviewed under Step
 
 ### Step 2: Implement the preview authoring shape
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -235,11 +235,16 @@ remains blocked only in `tests/release` because `corepack` is not on PATH.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+`review-001-delta` requested changes: archive could write lint-invalid
+goal-oriented preview artifacts, the goal-oriented template silently chose
+`size: M`, the plan schema still used a stale reserved-profile heading, and
+lint tests did not exercise the generated goal-oriented template. Repaired all
+findings in commit `d916fe4`. Follow-up `review-002-delta` passed across
+correctness, docs-consistency, tests, and risk-scan with no findings.
 
 ### Step 3: Validate and prepare for review
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -272,11 +277,21 @@ lightweight behavior changed.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Completed final validation for the implementation and review-repair batch.
+Passed: `go test ./internal/plan ./internal/cli ./internal/lifecycle`, `go
+test $(go list ./... | grep -v '/tests/release$')`, `git diff --check`,
+`harness plan template --goal-oriented --size M` targeted text check, generated
+goal-oriented active-plan lint smoke test, and `harness plan lint` for this
+plan. Targeted `rg` checks confirmed the preview boundary, checkpoint-report
+terminology, and sibling issue ownership remain explicit. `go test ./...` was
+also attempted after the repair and remains blocked only in `tests/release`
+because `corepack` is not on PATH.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: Step 3 only recorded validation and closeout evidence
+after Step 2's clean repair review; the complete candidate proceeds to
+finalize review.
 
 ## Validation Strategy
 
