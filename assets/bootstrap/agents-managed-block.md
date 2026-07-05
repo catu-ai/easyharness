@@ -8,11 +8,13 @@
    tracked docs or code before archive.
 5. Evidence beats memory. Use `harness status`, tracked plans, and owned local
    artifacts instead of relying on long-session recall.
-6. Keep tracked docs and code in English.
+6. Keep harness workflow artifacts such as plans, summaries, and review notes
+   in English unless repo-owned instructions explicitly set a different
+   language policy.
 
 ## Harness Source of Truth
 
-The default harness split in this repository is:
+The default harness split for repositories using this bootstrap is:
 
 - active plan root, resolved with
   `harness repo config get paths.plans.active` and defaulting to
@@ -26,8 +28,12 @@ The default harness split in this repository is:
   `harness repo config get paths.local_runtime` and defaulting to
   `.local/harness/`: disposable runtime state, review artifacts, evidence
   artifacts, trajectory, and `plans/archived/` lightweight archived snapshots
-- `docs/specs/`: normative harness contracts
-- `.agents/skills/`: repo-local harness workflow skills
+- `docs/specs/`: default location for durable harness-facing contracts that
+  the repository chooses to keep as specs; do not assume every repo-local spec
+  is an upstream easyharness product contract
+- `.agents/skills/`: agent skill packages; easyharness-managed `harness-*`
+  skills are refreshed by bootstrap, while other repo-owned skills stay
+  outside easyharness ownership
 
 If a tracked plan conflicts with a repo-local skill, the tracked plan wins.
 
@@ -41,14 +47,15 @@ result back to the human.
 
 ## Harness Workflow
 
-For harness-managed work that is not already clear enough to execute directly:
+For work coordinated through harness that is not already clear enough to
+execute directly:
 
 1. Discovery
 2. Plan
 3. Plan approval
 4. Execute
-4. Archive / publish / await merge approval
-5. Land
+5. Archive / publish / await merge approval
+6. Land
 
 Plan approval is explicit. Writing a plan or hearing the original task request
 does not by itself approve execution. After the plan is shown and the human
@@ -169,7 +176,8 @@ When entering the repository or resuming after compaction:
    candidates may live under the local runtime root resolved by
    `harness repo config get paths.local_runtime`.
    If status reports `idle`, there is no current plan to resume yet.
-4. Most resumed work should continue in `harness-execute`.
+4. If status reports approved or in-progress harness execution, most resumed
+   work should continue in `harness-execute`.
 5. Switch only when `harness status` and the workflow boundary clearly call for
    a different skill:
    - `harness-discovery` when direction is unclear
