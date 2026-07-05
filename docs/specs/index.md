@@ -11,7 +11,7 @@
   expectations.
 - [Goal-Oriented Workflow](./goal-oriented-workflow.md): normative
   reserved `workflow_profile: goal_oriented` contract for adaptive work with
-  explicit objectives, scorecards, checkpoint digests, optional challenge,
+  explicit objectives, scorecards, checkpoint reports, optional challenge,
   evidence, and final synthesis.
 - [Bootstrap Install](./bootstrap-install.md): normative bootstrap resource
   model for `harness repo init`, `harness repo skills ...`,

@@ -524,11 +524,25 @@ execution semantics defined in
 
 The plan body or tracked plan package should carry the durable goal-oriented
 record required by that contract, including objective, success scorecard,
-checkpoint cadence, tracked checkpoint digests or equivalent synthesis,
+checkpoint cadence, tracked checkpoint reports or equivalent synthesis,
 challenge triggers, evidence requirements, stopping conditions, and final
 synthesis. Local checkpoint drafts remain disposable runtime working memory
 unless their content is promoted into the tracked plan package or another
 approved deliverable.
+
+Tracked checkpoint reports are the goal-oriented plan body's durable
+intermediate record for meaningful adaptive work boundaries. They should be
+discoverable from the markdown plan, normally through a dedicated section such
+as `#### Checkpoint Reports` inside an adaptive step, and each report should
+use a stable checkpoint ID such as `CP1` or `S2-CP1`. The report itself remains
+the review and resume entrypoint even when it indexes approved curated support
+material under the matching `supplements/<plan-stem>/` directory.
+
+Future goal-oriented lint and status support may consume checkpoint report
+headings, IDs, and labels shallowly. That future tooling must not require
+bullet-only report content, treat supplements as the canonical report body, or
+judge whether a hypothesis, probe, evidence argument, or next mutation is
+persuasive.
 
 ## Active Plan Rules
 
