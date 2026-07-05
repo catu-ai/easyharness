@@ -72,24 +72,24 @@ the sibling v0.6.0 issues.
 
 ## Acceptance Criteria
 
-- [ ] A controller can draft a credible goal-oriented tracked plan from the
+- [x] A controller can draft a credible goal-oriented tracked plan from the
       template and repository guidance without relying on hidden issue or chat
       context.
-- [ ] The authoring shape includes setup, adaptive exploration, synthesis, and
+- [x] The authoring shape includes setup, adaptive exploration, synthesis, and
       closeout phases and names where tracked checkpoint reports live.
-- [ ] Goal-oriented plans require objective, success scorecard, hypotheses or
+- [x] Goal-oriented plans require objective, success scorecard, hypotheses or
       candidate directions, checkpoint cadence, evidence requirements,
       challenge triggers, stopping conditions, and final synthesis.
-- [ ] The guidance says checkpoint reports live inside goal-oriented steps and
+- [x] The guidance says checkpoint reports live inside goal-oriented steps and
       do not automatically become separate harness workflow steps.
-- [ ] The CLI, docs, or both describe `workflow_profile: goal_oriented` as a
+- [x] The CLI, docs, or both describe `workflow_profile: goal_oriented` as a
       recognized preview workflow profile defined for v0.6.0 authoring, with
       full execution support still being completed.
-- [ ] Existing standard and lightweight template behavior remains unchanged
+- [x] Existing standard and lightweight template behavior remains unchanged
       unless the caller explicitly requests the goal-oriented preview.
-- [ ] Any lint or CLI guard added in this slice is explicitly narrow preview
+- [x] Any lint or CLI guard added in this slice is explicitly narrow preview
       recognition, not full #274 structural lint enforcement.
-- [ ] Deferred sibling issues #272, #273, #274, and #275 remain named as the
+- [x] Deferred sibling issues #272, #273, #274, and #275 remain named as the
       owners for challenge/review guidance, next actions, lint coverage, and
       docs/examples.
 
@@ -325,26 +325,86 @@ finalize review.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `harness plan lint docs/plans/active/2026-07-05-add-goal-oriented-plan-authoring-preview.md`
+  passed after plan creation, step closeout, review repair, and archive
+  closeout.
+- `go test ./internal/plan ./internal/cli ./internal/lifecycle` passed.
+- `go test $(go list ./... | grep -v '/tests/release$')` passed.
+- `git diff --check` passed.
+- `harness plan template --goal-oriented --size M` targeted text checks passed
+  for profile, preview-boundary, adaptive-step, and checkpoint-report anchors.
+- A generated goal-oriented active-plan smoke test passed
+  `harness plan lint`.
+- Targeted `rg` checks confirmed the preview boundary, checkpoint-report
+  terminology, and sibling issue ownership remain explicit.
+- `go test ./...` was attempted and remains blocked only in `tests/release`
+  because `corepack` is not on PATH.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step review `review-001-delta` requested changes for three blocking issues
+  and two non-blocking issues: archive could write lint-invalid goal-oriented
+  preview artifacts, the goal-oriented template silently chose `size: M`, docs
+  still had stale reserved-profile wording, and lint coverage did not exercise
+  the generated goal-oriented template.
+- Repaired the findings by preserving the explicit size-placeholder contract,
+  adding generated-template lint coverage, renaming stale heading text,
+  tightening preview lifecycle wording, blocking goal-oriented preview archive
+  before any archived artifact is written, and polishing the explicit-standard
+  lint diagnostic.
+- Repair review `review-002-delta` passed across correctness,
+  docs-consistency, tests, and risk-scan with no findings.
+- Finalize review `review-003-full` passed across correctness, tests, and
+  risk-scan with no findings and one non-blocking docs-consistency finding;
+  the non-blocking lint-diagnostic wording issue was fixed afterward.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: NONE
+- Ready: Candidate is ready for publish/CI/sync evidence after archive.
+  Acceptance criteria are checked, tracked steps are complete, focused and
+  broad-minus-release validation passed, final full review passed, and the
+  only blocked broad check is the known missing-`corepack` release-test
+  environment gap.
+- Merge Handoff: Commit the archive move, push
+  `codex/270-goal-oriented-template`, open a PR for #270, record publish, CI,
+  and sync evidence through harness, and wait for explicit human merge
+  approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added `harness plan template --goal-oriented`, a goal-oriented authoring
+  preview variant that seeds `workflow_profile: goal_oriented`, setup,
+  adaptive exploration, synthesis, closeout, and step-local checkpoint report
+  anchors.
+- Added `WorkflowProfileGoalOriented` and shallow active-plan lint recognition
+  for the preview profile without adding full structural lint enforcement.
+- Added archive preflight rejection for goal-oriented preview plans so the CLI
+  does not write a lint-invalid archived artifact before archive/reopen support
+  lands.
+- Updated goal-oriented workflow, plan schema, state model, CLI contract, spec
+  index, and harness-plan skill guidance to describe `goal_oriented` as a
+  recognized preview workflow profile for v0.6.0 authoring.
+- Synced the bootstrap-managed harness-plan skill into `.agents/skills/`.
+- Added focused tests for CLI flag behavior, generated template shape, active
+  preview lint, archive preflight rejection, and diagnostic wording.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Full goal-oriented execution support, status next actions, archive/reopen
+  profile preservation, challenge/review guidance, public docs/examples, and
+  UI checkpoint rendering remain out of scope.
+- No hypothesis state machine or separate workflow engine was added.
+- No default standard or lightweight behavior was changed.
+- No full structural lint enforcement for objective, scorecard, hypotheses,
+  checkpoint cadence, checkpoint report quality, or final synthesis was added.
 
 ### Follow-Up Issues
 
-NONE
+- #272: Add evidence-validity review and hypothesis-challenge guidance.
+- #273: Teach next actions for goal-oriented plans.
+- #274: Add full lint coverage for goal-oriented plans.
+- #275: Add docs and examples for goal-oriented workflow.
+- #276: Add UI support for goal-oriented checkpoint timelines.
