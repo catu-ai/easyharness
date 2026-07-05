@@ -199,29 +199,25 @@ review.
 
 ## Validation Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 - `scripts/sync-bootstrap-assets` refreshed the materialized root `AGENTS.md`
   managed block from `assets/bootstrap/agents-managed-block.md`, including the
-  revision 2 repair.
+  revision 2 and revision 3 repairs.
 - `go test ./internal/bootstrapsync ./internal/install ./internal/status`
-  passed before finalize, during archive prep, and after the revision 2 repair.
+  passed before finalize, during archive prep, after the revision 2 repair, and
+  after the revision 3 review-finding fix.
 - `harness repo init --dry-run` reports bootstrap assets are already up to
   date after reinstalling the dev harness binary with the updated embedded
-  bootstrap asset for both the original wording change and the revision 2
-  repair.
+  bootstrap asset for the original wording change and later repairs.
 - `harness plan lint docs/plans/active/2026-07-05-clarify-managed-block-wording.md`
   passed after the plan was written, after step notes were updated, and during
-  revision 2 repair.
-- `git diff --check` passed after the revision 2 repair.
+  the repair rounds.
+- `git diff --check` passed after the repair rounds.
 - Revision 3 reran the same focused validation after restoring conditional
   discovery cues for `docs/specs/` and `.agents/skills/`.
 - After the `review-004-delta` tests finding, focused validation was rerun with
   the restored bootstrap-installed-skills conditional assertion.
 
 ## Review Summary
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - Step closeout review `review-001-delta` passed with 0 blocking and 0
   non-blocking findings across `docs-consistency` and `agent-ux`.
@@ -235,33 +231,30 @@ UPDATE_REQUIRED_AFTER_REOPEN
   with 0 blocking and 0 non-blocking findings across `docs-consistency`,
   `agent-ux`, and `tests`.
 - Revision 3 repaired follow-up PR feedback that the managed block should still
-  mention conventional/default surfaces so agents can discover them. Fresh
-  finalize review is required before archive.
+  mention conventional/default surfaces so agents can discover them.
 - `review-004-delta` requested one blocking tests fix for the install
-  regression coverage. The assertion was restored; fresh delta review is
-  required before archive.
+  regression coverage. The assertion was restored.
+- `review-005-delta` passed with 0 blocking and 0 non-blocking findings for the
+  restored test assertion.
 
 ## Archive Summary
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
-- Archived At: 2026-07-05T09:17:07+08:00
-- Revision: 2
+- Archived At: 2026-07-05T09:31:22+08:00
+- Revision: 3
 - Reopened At: revision 2, after PR feedback on non-configured repo path
   assumptions.
 - Reopened At: revision 3, after follow-up PR feedback that the conditional
   guidance still needs to mention the conventional/default locations.
 - PR: https://github.com/catu-ai/easyharness/pull/281
-- Ready: Not yet. Revision 3 is implemented and ready for validation/review.
-- Merge Handoff: After validation, fresh finalize review, and archive, commit
-  and push the archive move, update PR #281, refresh CI/sync evidence, and wait
-  for explicit human merge approval.
+- Ready: Yes. Revision 3 restores conditional discovery cues for conventional
+  locations, keeps non-assumption guardrails, validates cleanly, and passed the
+  follow-up tests review.
+- Merge Handoff: After archive, commit and push the archive move, update PR
+  #281, refresh CI/sync evidence, and wait for explicit human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - Clarified the managed block source so downstream repositories do not read
   `docs/specs/` as an unconditional upstream easyharness product-contract
@@ -286,15 +279,11 @@ UPDATE_REQUIRED_AFTER_REOPEN
 
 ### Not Delivered
 
-UPDATE_REQUIRED_AFTER_REOPEN
-
 - No new repo config field or managed-instructions help topic was added.
 - No command behavior, state transition, review, archive, evidence, or
   bootstrap install mechanics changed.
 
 ### Follow-Up Issues
-
-UPDATE_REQUIRED_AFTER_REOPEN
 
 - No GitHub follow-up issue created. The deferred help-topic idea remains
   conditional: consider a future `harness help repo instructions` topic only if
