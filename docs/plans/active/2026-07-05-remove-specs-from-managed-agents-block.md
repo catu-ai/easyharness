@@ -44,13 +44,13 @@ that easyharness owns the meaning of such repo-local specs.
 
 ## Acceptance Criteria
 
-- [ ] The generated managed block no longer mentions `docs/specs/` as a
+- [x] The generated managed block no longer mentions `docs/specs/` as a
       default harness source of truth.
-- [ ] The wording does not introduce a new claim about downstream repo-local
+- [x] The wording does not introduce a new claim about downstream repo-local
       spec folders or easyharness ownership of private specs.
-- [ ] `AGENTS.md` is refreshed from `assets/bootstrap/agents-managed-block.md`
+- [x] `AGENTS.md` is refreshed from `assets/bootstrap/agents-managed-block.md`
       through `scripts/sync-bootstrap-assets`.
-- [ ] Bootstrap sync validation passes.
+- [x] Bootstrap sync validation passes.
 
 ## Deferred Items
 
@@ -118,25 +118,42 @@ without adding a replacement claim about downstream private specs.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `scripts/sync-bootstrap-assets`
+- `scripts/sync-bootstrap-assets --check`
+- `git diff --check -- assets/bootstrap/agents-managed-block.md AGENTS.md`
+- `git diff --check`
+- `harness plan lint docs/plans/active/2026-07-05-remove-specs-from-managed-agents-block.md`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step closeout delta review `review-001-delta` passed with 0 findings in the
+  `docs-consistency` dimension.
+- Finalize full review `review-002-full` passed with 0 findings across
+  `docs-consistency` and `risk-scan`.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: Pending publish after archive.
+- Ready: The candidate is archive-ready after passing bootstrap sync,
+  whitespace validation, plan lint, step review, and finalize review.
+- Merge Handoff: Publish should open a PR with a lightweight handoff memo
+  before the candidate waits for merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Removed the generated managed-block `docs/specs/` source-of-truth entry from
+  `assets/bootstrap/agents-managed-block.md`.
+- Refreshed the root `AGENTS.md` managed block with
+  `scripts/sync-bootstrap-assets`.
+- Preserved downstream repo-specific spec guidance as out of scope for
+  user-owned `AGENTS.md` content outside the easyharness-managed block.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No repo config field, template variable, customization point, or new
+  downstream-spec explanation was added.
 
 ### Follow-Up Issues
 
