@@ -329,26 +329,90 @@ candidate.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `harness plan lint docs/plans/active/2026-07-05-define-goal-oriented-checkpoint-reports.md`
+  passed after plan creation, step closeout, review repair, and archive
+  closeout.
+- `git diff --check` passed.
+- Targeted `rg` checks passed for checkpoint report terminology, stable
+  required labels, optional labels, storage convention, issue boundaries, and
+  absence of stale `checkpoint digest` wording.
+- `go test $(go list ./... | grep -v '/internal/ui$' | grep -v '/tests/release$')`
+  passed.
+- `scripts/validate` was attempted with bundled Node and pnpm on `PATH`, but
+  pnpm blocked the embedded UI build because `esbuild` build scripts require
+  local approval in this environment.
+- `go test ./internal/ui` reproduced the same unbuilt embedded-UI-asset
+  symptom with `TestNewHandlerFallsBackToIndexForSPAPath` returning 500
+  instead of 200.
+- `go test ./tests/release` was blocked because `corepack` is unavailable in
+  this environment.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Finalize review `review-001-full` requested changes across docs-consistency,
+  agent-ux, and risk-scan. The blocking findings were stale follow-up-boundary
+  wording that still described #271 as future digest work, plus ambiguous
+  required-label aliases.
+- Repaired the findings by making required checkpoint-report label names stable
+  except for the explicitly listed pairs, and by stating that this contract now
+  owns the #271 checkpoint report convention while leaving #270, #272, #273,
+  #274, and #275 as follow-up implementation/documentation slices.
+- Repair review `review-002-delta` passed across docs-consistency, agent-ux,
+  and risk-scan with no findings.
+- Finalize review `review-003-full` passed across docs-consistency, agent-ux,
+  risk-scan, and tests with no blocking or non-blocking findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-07-05T12:56:27+08:00
+- Revision: 1
+- PR: NONE
+- Ready: Yes. Acceptance criteria are checked, tracked steps are complete,
+  targeted validation passed, the only broader validation gaps are documented
+  environment blockers, repair review passed, and final full review passed.
+- Merge Handoff: After archive, commit the archive move, push
+  `codex/define-goal-oriented-checkpoint-reports`, open a PR for #271, record
+  publish/CI/sync evidence through harness, and wait for explicit human merge
+  approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Defined tracked checkpoint reports in `docs/specs/goal-oriented-workflow.md`
+  as concise, git-tracked structured narrative digests for meaningful adaptive
+  work boundaries.
+- Replaced stale checkpoint digest terminology in the touched normative specs
+  with checkpoint report terminology.
+- Defined what checkpoint reports are not: raw logs, transcripts, every-command
+  lists, every-small-attempt records, bullet-only forms, formal review gates,
+  or evidence reports by default.
+- Defined the durable storage convention: inline plan-body checkpoint reports
+  are the canonical review/resume entrypoint, with supplements only for
+  approved curated support artifacts indexed from the inline report.
+- Defined stable shallow structure for future tooling: checkpoint report
+  headings, stable IDs such as `CP1` or `S2-CP1`, and required labels.
+- Clarified that label content may use prose, bullets, tables, or short lists,
+  and that future tooling must not require bullet-only content or judge
+  hypothesis/evidence quality.
+- Connected the convention into `docs/specs/plan-schema.md`,
+  `docs/specs/state-model.md`, and `docs/specs/index.md` without implementing
+  template, status, lint, archive, reopen, or UI behavior.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No CLI status, next-action, lint, template, archive, or reopen behavior was
+  implemented.
+- No automatic checkpoint generation was added.
+- No UI timeline or dashboard behavior was added.
+- No new hypothesis state machine or review aggregation behavior was added.
+- No user-facing help text or example plan was added.
 
 ### Follow-Up Issues
 
-NONE
+- #270: Add the goal-oriented plan template and workflow guidance.
+- #272: Add evidence-validity and hypothesis-challenge guidance.
+- #273: Teach next actions for goal-oriented plans.
+- #274: Add lint coverage for goal-oriented plans.
+- #275: Add docs and examples for goal-oriented workflow.
+- #276: Add UI support for goal-oriented checkpoint timelines.
