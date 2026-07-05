@@ -141,16 +141,19 @@ without adding a replacement claim about downstream private specs.
   `docs-consistency` dimension.
 - Finalize full review `review-002-full` passed with 0 findings across
   `docs-consistency` and `risk-scan`.
-- Revision 2 fresh finalize review is pending after the proofread fixes.
+- Revision 2 finalize full review `review-003-full` passed with 0 findings
+  across `docs-consistency` and `risk-scan`.
 
 ## Archive Summary
 
 - Archived At: 2026-07-05T11:10:22+08:00
 - Revision: 1
-- Reopened: Revision 2 finalize-fix proofread updates are in progress.
+- Reopened: Revision 2 finalize-fix proofread updates corrected workflow
+  numbering and clarified one-subagent wording in the managed block.
 - PR: Pending publish after archive.
 - Ready: The candidate is archive-ready after passing bootstrap sync,
-  whitespace validation, plan lint, step review, and finalize review.
+  whitespace validation, plan lint, step review, the original finalize review,
+  and the revision 2 finalize review.
 - Merge Handoff: Publish should open a PR with a lightweight handoff memo
   before the candidate waits for merge approval.
 
