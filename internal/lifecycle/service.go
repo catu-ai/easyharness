@@ -1108,6 +1108,12 @@ func restoreStateSnapshot(workdir, planStem string, originalState *runstate.Stat
 
 func EvaluateArchiveReadiness(workdir, planStem string, doc *plan.Document, state *runstate.State) []CommandError {
 	issues := make([]CommandError, 0)
+	if doc.WorkflowProfile() == plan.WorkflowProfileGoalOriented {
+		issues = append(issues, CommandError{
+			Path:    "frontmatter.workflow_profile",
+			Message: "goal_oriented is a recognized preview workflow profile for active-plan authoring; archive support is still being completed",
+		})
+	}
 	for _, issue := range doc.ArchiveReadinessIssues() {
 		issues = append(issues, CommandError{Path: issue.Path, Message: issue.Message})
 	}

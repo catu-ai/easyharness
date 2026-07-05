@@ -429,6 +429,40 @@ func TestLintFileAcceptsTrackedActiveLightweightPlan(t *testing.T) {
 	}
 }
 
+func TestLintFileAcceptsTrackedActiveGoalOrientedPreviewPlan(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-goal-oriented-plan.md")
+	content := mustRenderTemplate(t, "Goal-Oriented Preview Plan")
+	content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: goal_oriented", 1)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if !result.OK {
+		t.Fatalf("expected tracked goal-oriented preview lint success, got %#v", result)
+	}
+}
+
+func TestLintFileAcceptsGeneratedGoalOrientedPreviewPlan(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-goal-oriented-plan.md")
+	content, err := plan.RenderTemplate(plan.TemplateOptions{
+		Title:           "Generated Goal-Oriented Preview Plan",
+		Timestamp:       time.Date(2026, 3, 17, 14, 0, 0, 0, time.FixedZone("CST", 8*60*60)),
+		SourceType:      "direct_request",
+		Size:            "M",
+		WorkflowProfile: plan.WorkflowProfileGoalOriented,
+	})
+	if err != nil {
+		t.Fatalf("render goal-oriented template: %v", err)
+	}
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if !result.OK {
+		t.Fatalf("expected generated goal-oriented preview lint success, got %#v", result)
+	}
+}
+
 func TestLintFileAcceptsArchivedLightweightLocalPlan(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".local/harness/plans/archived/2026-03-17-lightweight-plan.md")
@@ -479,6 +513,20 @@ func TestLintFileRejectsLightweightActivePlanUnderLocalPath(t *testing.T) {
 	assertHasError(t, result, "path")
 }
 
+func TestLintFileRejectsArchivedGoalOrientedPreviewPlan(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/archived/2026-03-17-goal-oriented-plan.md")
+	content := makeArchiveReady(checkAllBoxes(mustRenderTemplate(t, "Archived Goal-Oriented Plan")))
+	content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: goal_oriented", 1)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected archived goal-oriented preview lint failure, got %#v", result)
+	}
+	assertHasError(t, result, "frontmatter.workflow_profile")
+}
+
 func TestLintFileRejectsUnsupportedWorkflowProfile(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-bad-profile.md")
@@ -491,6 +539,23 @@ func TestLintFileRejectsUnsupportedWorkflowProfile(t *testing.T) {
 		t.Fatalf("expected lint failure, got %#v", result)
 	}
 	assertHasError(t, result, "frontmatter.workflow_profile")
+}
+
+func TestLintFileRejectsExplicitStandardWithGoalOrientedDiagnostic(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-standard-profile.md")
+	content := mustRenderTemplate(t, "Explicit Standard Plan")
+	content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: standard", 1)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected explicit standard profile lint failure, got %#v", result)
+	}
+	assertHasError(t, result, "frontmatter.workflow_profile")
+	if !strings.Contains(result.Errors[0].Message, "goal_oriented authoring preview") {
+		t.Fatalf("expected diagnostic to mention goal_oriented authoring preview, got %#v", result.Errors)
+	}
 }
 
 func TestLintFileRejectsInvalidStepHeading(t *testing.T) {

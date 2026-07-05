@@ -10,16 +10,20 @@ are explicit, but the path to the result must adapt through hypotheses,
 probes, checkpoint rounds, optional challenge, and synthesis.
 
 `goal_oriented` is a profile on top of the existing harness workflow. It does
-not create a separate workflow engine. Goal-oriented plans still use explicit
-human approval, stable plan steps, formal step-closeout and finalize review,
-archive, evidence, and the canonical node state model.
+not create a separate workflow engine. The completed v0.6.0 profile is
+designed to use explicit human approval, stable plan steps, formal
+step-closeout and finalize review, archive, evidence, and the canonical node
+state model. In the current authoring preview, agents can draft and lint active
+tracked goal-oriented plans, but must not rely on full lifecycle support until
+the follow-up implementation slices land.
 
-This document defines the product contract before the supporting CLI surfaces
-are implemented. Until the follow-up implementation slices add authoring,
-lint, status, archive, and reopen support, agents must not assume that a
-tracked plan containing `workflow_profile: goal_oriented` will pass
-`harness plan lint` or that archive/reopen will preserve goal-oriented profile
-identity automatically.
+`goal_oriented` is a recognized preview workflow profile for v0.6.0 authoring.
+`harness plan template --goal-oriented` can seed the goal-oriented plan shape,
+and `harness plan lint` recognizes active tracked plans that declare
+`workflow_profile: goal_oriented` with shallow preview validation. Full
+execution support is still being completed: follow-up implementation slices own
+status next actions, challenge/review guidance, structural lint coverage,
+archive/reopen profile preservation, docs/examples, and UI rendering.
 
 ## When To Use It
 
@@ -45,9 +49,10 @@ synthesis, the ordinary standard workflow is clearer.
 ## Workflow Profile Semantics
 
 `workflow_profile: goal_oriented` means the active plan is a standard tracked
-plan with an adaptive execution contract. It is not a lightweight shortcut.
+plan with an adaptive authoring contract. It is not a lightweight shortcut.
 
-The profile preserves these core harness boundaries:
+The completed profile preserves these core harness boundaries once full
+execution support lands:
 
 - human approval still approves the tracked plan package
 - plan steps still represent stable approved phase boundaries
@@ -59,11 +64,14 @@ The profile preserves these core harness boundaries:
 - `current_node` still comes from the canonical state model, not from plan
   prose or checkpoint markdown
 
-Goal-oriented execution adds a disciplined layer inside approved steps: the
-controller runs bounded checkpoint rounds, records concise tracked checkpoint
-reports when the work reaches meaningful decision points, optionally requests
-challenge when hypotheses or evidence need stress testing, and writes a final
-synthesis before closeout.
+The current authoring preview seeds these concepts so future work can be
+planned credibly, while archive/reopen behavior, status next actions,
+challenge/review guidance, and full structural lint remain follow-up work.
+Goal-oriented execution will add a disciplined layer inside approved steps:
+the controller runs bounded checkpoint rounds, records concise tracked
+checkpoint reports when the work reaches meaningful decision points,
+optionally requests challenge when hypotheses or evidence need stress testing,
+and writes a final synthesis before closeout.
 
 ## Plan Requirements
 
@@ -87,9 +95,8 @@ agent can resume without hidden chat context:
     checkpoint reports for the main exploration step"
   - a cadence is guidance for keeping the work bounded, not a global hard
     minimum or maximum
-  - follow-up template and lint work must give this cadence a stable
-    parseable anchor, such as a dedicated heading, bounded metadata block, or
-    another explicit structure
+  - the preview template gives this cadence a stable authoring anchor, and
+    follow-up lint/status work may tighten the parseable contract as needed
 - `challenge triggers`
   - when advisory challenge should be considered or is required by the plan
 - `evidence requirements`
@@ -101,18 +108,17 @@ agent can resume without hidden chat context:
   - the closeout explanation of accepted conclusions, rejected hypotheses,
     residual uncertainty, evidence, and follow-up work
 
-The plan may express these concepts in dedicated sections, step details, or a
-goal-oriented template once that template exists. The contract requires the
-meaning, not a particular heading set in this first slice.
+The plan may express these concepts in dedicated sections, step details, or
+the goal-oriented template shape. The preview template uses stable authoring
+anchors, but the full structural lint contract remains follow-up work.
 
 Future lint and status support must not rely on unstructured prose guessing.
-The implementation slices that make `workflow_profile: goal_oriented`
-lint-valid must choose stable parseable anchors for the fields status and lint
-need, especially the success scorecard, checkpoint cadence, tracked
-checkpoint report index, and final synthesis. Prefer plan-body structure for
-goal-oriented working concepts; reserve frontmatter for durable command-level
-metadata such as profile selection unless a field truly affects command
-resolution.
+Those implementation slices may consume stable parseable anchors for the
+fields status and lint need, especially the success scorecard, checkpoint
+cadence, tracked checkpoint report index, and final synthesis. Prefer
+plan-body structure for goal-oriented working concepts; reserve frontmatter for
+durable command-level metadata such as profile selection unless a field truly
+affects command resolution.
 
 ## Steps, Checkpoint Rounds, And Model Turns
 
@@ -308,11 +314,13 @@ substitute for explicit plan lint or formal review.
 
 `harness plan lint` remains the explicit validation surface for tracked plans.
 
-Goal-oriented lint coverage belongs in a follow-up implementation slice. That
-coverage may check structural requirements such as objective, success
-scorecard, checkpoint cadence, tracked checkpoint report anchors, and final
-synthesis presence. It should avoid judging whether a hypothesis is good or
-whether evidence is persuasive; those are review and challenge concerns.
+Current goal-oriented lint support is intentionally shallow preview
+recognition for active tracked plans. Full coverage belongs in a follow-up
+implementation slice. That coverage may check structural requirements such as
+objective, success scorecard, checkpoint cadence, tracked checkpoint report
+anchors, and final synthesis presence. It should avoid judging whether a
+hypothesis is good or whether evidence is persuasive; those are review and
+challenge concerns.
 
 Status may point the controller toward lint when tracked checkpoint reports or
 final synthesis change, but status should not silently run or replace full
@@ -349,11 +357,12 @@ This contract now owns the #271 checkpoint report convention. It intentionally
 leaves the remaining goal-oriented implementation details to the v0.6.0
 follow-up issues:
 
-- #270 adds the goal-oriented plan template and workflow guidance
+- #270 adds the goal-oriented plan template and authoring-preview workflow
+  guidance
 - #272 adds evidence-validity and hypothesis-challenge guidance
 - #273 teaches status and next-action behavior for goal-oriented plans
-- #274 adds lint coverage for goal-oriented plans, including when
-  `workflow_profile: goal_oriented` becomes a lint-valid active-plan value
+- #274 adds full structural lint coverage for goal-oriented plans beyond the
+  shallow active-plan preview recognition
 - #275 adds user-facing docs, help text, and examples
 
 The implementation slices must also define how archive and reopen preserve the

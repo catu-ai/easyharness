@@ -52,8 +52,9 @@ var (
 		"Step Acceptance Criteria": 2,
 		"Expected Files":           3,
 		"Validation":               4,
-		"Execution Notes":          5,
-		"Review Notes":             6,
+		"Checkpoint Reports":       5,
+		"Execution Notes":          6,
+		"Review Notes":             7,
 	}
 	allowedStepStatuses = []string{"pending", "in_progress", "completed", "blocked"}
 )
@@ -281,10 +282,10 @@ func validateFrontmatter(ctx *lintContext) []LintIssue {
 	}
 	if rawProfile, ok := ctx.rawFrontmatter["workflow_profile"]; ok {
 		value, ok := rawProfile.(string)
-		if !ok || (strings.TrimSpace(value) != WorkflowProfileStandard && strings.TrimSpace(value) != WorkflowProfileLightweight) {
+		if !ok || !isSupportedWorkflowProfile(strings.TrimSpace(value)) {
 			issues = append(issues, LintIssue{
 				Path:    "frontmatter.workflow_profile",
-				Message: "must be standard or lightweight when provided",
+				Message: "must be standard, lightweight, or goal_oriented when provided",
 			})
 		}
 	}
@@ -545,24 +546,36 @@ func validatePathRules(ctx *lintContext) []LintIssue {
 	pathProfile := inferWorkflowProfileFromPath(ctx.path)
 	declaredProfile := strings.TrimSpace(ctx.frontmatter.WorkflowProfile)
 	if declaredProfile == WorkflowProfileStandard {
-		issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "omit workflow_profile for standard plans; only lightweight plans should declare it"})
+		issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "omit workflow_profile for standard plans; only lightweight plans or the goal_oriented authoring preview should declare it"})
 	}
 	switch pathProfile {
 	case WorkflowProfileStandard:
-		if declaredProfile == WorkflowProfileLightweight {
+		switch declaredProfile {
+		case WorkflowProfileLightweight:
 			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "standard archived paths must omit workflow_profile"})
+		case WorkflowProfileGoalOriented:
+			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "goal_oriented is a recognized preview workflow profile for active-plan authoring; archive support is still being completed"})
 		}
 	case WorkflowProfileLightweight:
 		if declaredProfile != WorkflowProfileLightweight {
 			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "lightweight archived paths require workflow_profile: lightweight"})
 		}
 	default:
-		if ctx.pathKind == "active" && declaredProfile != "" && declaredProfile != WorkflowProfileLightweight {
-			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "tracked active plans must omit workflow_profile unless they explicitly use lightweight"})
+		if ctx.pathKind == "active" && declaredProfile != "" && declaredProfile != WorkflowProfileLightweight && declaredProfile != WorkflowProfileGoalOriented {
+			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "tracked active plans must omit workflow_profile unless they explicitly use lightweight or the goal_oriented authoring preview"})
 		}
 	}
 	issues = append(issues, validateSupplementsRules(ctx)...)
 	return issues
+}
+
+func isSupportedWorkflowProfile(value string) bool {
+	switch value {
+	case WorkflowProfileStandard, WorkflowProfileLightweight, WorkflowProfileGoalOriented:
+		return true
+	default:
+		return false
+	}
 }
 
 func validateSupplementsRules(ctx *lintContext) []LintIssue {

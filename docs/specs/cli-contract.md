@@ -453,12 +453,14 @@ Contract:
   lightweight template with explicit `size: XXS`
 - in standard mode, preserve current behavior when `workflow_profile` is
   omitted
-- goal-oriented authoring support belongs to the goal-oriented template slice;
-  when added, it should seed `workflow_profile: goal_oriented` and the
-  required concepts from [Goal-Oriented Workflow](./goal-oriented-workflow.md)
-  without changing ordinary standard or lightweight authoring; until that
-  implementation lands, `workflow_profile: goal_oriented` is a reserved
-  contract value rather than a lint-valid template output
+- goal-oriented authoring support is exposed through `--goal-oriented`; it
+  seeds `workflow_profile: goal_oriented` and the required authoring concepts
+  from [Goal-Oriented Workflow](./goal-oriented-workflow.md) without changing
+  ordinary standard or lightweight authoring
+- `workflow_profile: goal_oriented` is a recognized preview workflow profile
+  for active-plan authoring; full execution support, archive/reopen behavior,
+  status next actions, challenge/review guidance, docs/examples, and
+  structural lint coverage remain follow-up work
 
 The template asset belongs to the harness version, not to the user's tracked
 plan history. Upgrading the harness may upgrade the generated template for new

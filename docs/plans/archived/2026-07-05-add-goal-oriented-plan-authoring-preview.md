@@ -1,0 +1,412 @@
+---
+template_version: 0.2.0
+created_at: "2026-07-05T18:15:56+08:00"
+approved_at: "2026-07-05T18:26:33+08:00"
+source_type: github_issue
+source_refs:
+    - https://github.com/catu-ai/easyharness/issues/270
+    - https://github.com/catu-ai/easyharness/pull/284
+size: S
+---
+
+# Add Goal-Oriented Plan Authoring Preview
+
+<!-- If this plan uses supplements/<plan-stem>/, keep the markdown concise,
+absorb any repository-facing normative content into formal tracked locations
+before archive, and record archive-time supplement absorption in Archive
+Summary or Outcome Summary. Lightweight plans should normally avoid
+supplements. -->
+
+## Goal
+
+Add a first-class authoring preview for `workflow_profile: goal_oriented` so
+controllers can draft credible goal-oriented tracked plans from repository
+guidance alone, without implying the full v0.6.0 execution surface has shipped.
+
+The finished slice should make `goal_oriented` recognizable as a defined
+preview workflow profile for v0.6.0 authoring. It should seed or document a
+stable plan shape with objective, scorecard, hypotheses, checkpoint cadence,
+tracked checkpoint reports, evidence requirements, stopping conditions, and
+final synthesis, while leaving full execution support, challenge/review
+guidance, status next actions, structural lint coverage, and public examples to
+the sibling v0.6.0 issues.
+
+## Scope
+
+### In Scope
+
+- Add goal-oriented authoring guidance and, if the existing CLI shape supports
+  it cleanly, a dedicated `harness plan template` variant for the preview
+  profile.
+- Show the stable goal-oriented step shape: setup, adaptive exploration,
+  synthesis, and closeout.
+- Make the generated or documented shape include objective, success scorecard,
+  hypotheses or candidate directions, checkpoint cadence, checkpoint report
+  anchors, evidence requirements, challenge triggers, stopping conditions, and
+  final synthesis.
+- Keep checkpoint reports under goal-oriented steps rather than turning each
+  checkpoint into a separate harness workflow step.
+- Clearly label `workflow_profile: goal_oriented` as a recognized preview
+  workflow profile defined for v0.6.0 authoring while full execution support is
+  still being completed.
+- Add only the narrow CLI or lint recognition needed to avoid misleading users
+  about the authoring preview, without adding full goal-oriented lint
+  enforcement.
+- Update bootstrap-managed agent guidance from `assets/bootstrap/` if the
+  harness-managed skills or managed `AGENTS.md` block need new authoring cues,
+  then sync materialized assets.
+- Add focused tests or validation for the authoring/template behavior and the
+  chosen preview boundary.
+
+### Out of Scope
+
+- Implementing a hypothesis state machine or separate workflow engine.
+- Changing default `standard` or `lightweight` behavior.
+- Adding full goal-oriented execution guidance, status next actions, archive
+  and reopen support, challenge/review protocol, or UI rendering.
+- Adding broad structural lint coverage for goal-oriented plans; #274 owns
+  full lint enforcement.
+- Adding user-facing docs, examples, or tutorials beyond the repo guidance
+  needed for this authoring preview; #275 owns broader docs/examples.
+- Changing review aggregation semantics.
+
+## Acceptance Criteria
+
+- [x] A controller can draft a credible goal-oriented tracked plan from the
+      template and repository guidance without relying on hidden issue or chat
+      context.
+- [x] The authoring shape includes setup, adaptive exploration, synthesis, and
+      closeout phases and names where tracked checkpoint reports live.
+- [x] Goal-oriented plans require objective, success scorecard, hypotheses or
+      candidate directions, checkpoint cadence, evidence requirements,
+      challenge triggers, stopping conditions, and final synthesis.
+- [x] The guidance says checkpoint reports live inside goal-oriented steps and
+      do not automatically become separate harness workflow steps.
+- [x] The CLI, docs, or both describe `workflow_profile: goal_oriented` as a
+      recognized preview workflow profile defined for v0.6.0 authoring, with
+      full execution support still being completed.
+- [x] Existing standard and lightweight template behavior remains unchanged
+      unless the caller explicitly requests the goal-oriented preview.
+- [x] Any lint or CLI guard added in this slice is explicitly narrow preview
+      recognition, not full #274 structural lint enforcement.
+- [x] Deferred sibling issues #272, #273, #274, and #275 remain named as the
+      owners for challenge/review guidance, next actions, lint coverage, and
+      docs/examples.
+
+## Deferred Items
+
+- #272 owns evidence-validity review and hypothesis-challenge guidance.
+- #273 owns status and next-action behavior for goal-oriented plans.
+- #274 owns full lint coverage for goal-oriented structure.
+- #275 owns user-facing docs, help text, and examples.
+- #276 owns any UI checkpoint timeline support.
+
+## Work Breakdown
+
+### Step 1: Align the authoring contract
+
+- Done: [x]
+
+#### Objective
+
+Decide the narrow implementation shape for the goal-oriented authoring preview
+and align the normative wording before touching behavior.
+
+#### Details
+
+Read the current goal-oriented workflow spec, plan schema, state model, plan
+template code, template CLI help, lint path/profile checks, and the archived
+#271 checkpoint-report plan together.
+
+Use that context to choose the smallest durable change that makes
+`goal_oriented` authorable without pretending it is fully deliverable. The
+likely target is a preview authoring template plus narrow profile recognition.
+If inspection shows that making generated goal-oriented plans lint-valid would
+absorb #274 or imply full archive/reopen support, stop and keep the generated
+shape documented as preview-only instead.
+
+#### Expected Files
+
+- `docs/specs/goal-oriented-workflow.md`
+- `docs/specs/plan-schema.md`
+- `internal/plan/template.go`
+- `internal/plan/lint.go`
+- `internal/cli/app.go`
+- `assets/templates/plan-template.md`
+- `assets/bootstrap/skills/harness-plan/SKILL.md`
+
+#### Validation
+
+- The selected implementation path is written into this plan's execution notes
+  with an explicit boundary for #272, #273, #274, and #275.
+- Targeted searches show no wording that claims full goal-oriented execution,
+  status, archive, reopen, challenge/review, or lint support has shipped.
+
+#### Execution Notes
+
+Selected a narrow #270 implementation path: add `harness plan template
+--goal-oriented` as a recognized preview authoring variant, seed
+`workflow_profile: goal_oriented` plus the required goal-oriented plan
+concepts, and add shallow active-plan lint recognition so generated preview
+plans can lint from a valid active-plan path. Full structural lint coverage,
+status next actions, challenge/review guidance, archive/reopen profile
+preservation, docs/examples, and UI behavior remain deferred to #272, #273,
+#274, #275, and #276. Targeted searches found no remaining stale wording that
+describes `goal_oriented` as not lint-valid or not yet templated.
+
+#### Review Notes
+
+NO_STEP_REVIEW_NEEDED: This step recorded the contract decision and boundary;
+the behavior and documentation changes are implemented and reviewed under Step
+2 and final validation.
+
+### Step 2: Implement the preview authoring shape
+
+- Done: [x]
+
+#### Objective
+
+Add the goal-oriented preview template or equivalent authoring guidance, plus
+focused recognition tests, while preserving existing standard and lightweight
+behavior.
+
+#### Details
+
+The goal-oriented shape should seed stable phase boundaries rather than a
+linear list of every future probe:
+
+- setup and scorecard framing;
+- adaptive exploration with checkpoint reports under the step body;
+- synthesis of accepted conclusions, rejected hypotheses, residuals, evidence,
+  and follow-up;
+- closeout/validation/archive readiness.
+
+The preview should include anchors or headings that future lint/status work can
+consume shallowly, but this slice must not implement full structural linting.
+If the implementation touches bootstrap-managed skills or the managed root
+`AGENTS.md` block, edit `assets/bootstrap/` first and run
+`scripts/sync-bootstrap-assets`.
+
+#### Expected Files
+
+- `internal/plan/template.go`
+- `internal/cli/app.go`
+- `internal/cli/app_test.go`
+- `assets/templates/plan-template.md`
+- `docs/specs/goal-oriented-workflow.md`
+- `docs/specs/plan-schema.md`
+- `assets/bootstrap/skills/harness-plan/SKILL.md`
+- `.agents/skills/harness-plan/SKILL.md`
+
+#### Validation
+
+- Add or update focused tests proving standard and lightweight templates keep
+  their existing shape.
+- Add focused tests for any new goal-oriented template flag, rendering path, or
+  narrow lint/profile guard.
+- Run `scripts/sync-bootstrap-assets` if bootstrap assets change.
+
+#### Execution Notes
+
+Implemented the goal-oriented authoring preview. Added
+`WorkflowProfileGoalOriented`, `harness plan template --goal-oriented`, a
+three-step preview template shape, a `#### Checkpoint Reports` step subsection
+anchor, and shallow active-plan lint recognition for
+`workflow_profile: goal_oriented`. Archived goal-oriented plans still fail lint
+with preview-boundary wording because archive/reopen profile preservation is
+out of scope. Updated the goal-oriented workflow, plan schema, state model,
+CLI contract, spec index, and harness-plan skill guidance from
+`assets/bootstrap/`, then synced materialized `.agents/skills/` output.
+Validation so far: `go test ./internal/plan ./internal/cli`, generated
+template text check for preview/checkpoint anchors, and generated active-plan
+lint smoke test all passed.
+
+Repair after `review-001-delta`: preserved the explicit size-placeholder
+contract for goal-oriented templates unless `--size` is supplied, added a
+generated-template lint test, renamed stale reserved-profile wording, tightened
+goal-oriented docs so lifecycle support is described as target behavior rather
+than available preview behavior, and added archive preflight rejection for
+goal-oriented preview plans so archive does not write a lint-invalid artifact.
+Repair validation passed for `go test ./internal/plan ./internal/cli
+./internal/lifecycle`, generated `--goal-oriented --size M` template text and
+lint smoke checks, `harness plan lint` on this plan, `git diff --check`, and
+`go test $(go list ./... | grep -v '/tests/release$')`. `go test ./...`
+remains blocked only in `tests/release` because `corepack` is not on PATH.
+
+#### Review Notes
+
+`review-001-delta` requested changes: archive could write lint-invalid
+goal-oriented preview artifacts, the goal-oriented template silently chose
+`size: M`, the plan schema still used a stale reserved-profile heading, and
+lint tests did not exercise the generated goal-oriented template. Repaired all
+findings in commit `d916fe4`. Follow-up `review-002-delta` passed across
+correctness, docs-consistency, tests, and risk-scan with no findings.
+
+### Step 3: Validate and prepare for review
+
+- Done: [x]
+
+#### Objective
+
+Confirm the #270 slice is internally consistent, tested, and PR-ready without
+expanding into the rest of the v0.6.0 goal-oriented capability.
+
+#### Details
+
+Validate that the candidate can generate or document a credible goal-oriented
+plan, that it uses checkpoint report terminology from #271/PR #284, and that
+it clearly describes the preview boundary. Check that no default standard or
+lightweight behavior changed.
+
+#### Expected Files
+
+- `docs/plans/active/2026-07-05-add-goal-oriented-plan-authoring-preview.md`
+- Any files changed in Steps 1 and 2
+
+#### Validation
+
+- Run `harness plan lint docs/plans/active/2026-07-05-add-goal-oriented-plan-authoring-preview.md`.
+- Run focused Go tests for plan template and CLI behavior.
+- Run `git diff --check`.
+- Run targeted `rg` checks for `goal_oriented`, `recognized preview workflow
+  profile`, `checkpoint reports`, `full execution support`, and sibling issue
+  boundaries.
+- Run broader validation only if the final change touches shared behavior
+  beyond the template/profile-recognition surface; record any environment
+  blockers exactly.
+
+#### Execution Notes
+
+Completed final validation for the implementation and review-repair batch.
+Passed: `go test ./internal/plan ./internal/cli ./internal/lifecycle`, `go
+test $(go list ./... | grep -v '/tests/release$')`, `git diff --check`,
+`harness plan template --goal-oriented --size M` targeted text check, generated
+goal-oriented active-plan lint smoke test, and `harness plan lint` for this
+plan. Targeted `rg` checks confirmed the preview boundary, checkpoint-report
+terminology, and sibling issue ownership remain explicit. `go test ./...` was
+also attempted after the repair and remains blocked only in `tests/release`
+because `corepack` is not on PATH.
+
+#### Review Notes
+
+NO_STEP_REVIEW_NEEDED: Step 3 only recorded validation and closeout evidence
+after Step 2's clean repair review; the complete candidate proceeds to
+finalize review.
+
+## Validation Strategy
+
+- Lint this active plan before approval and again before archive.
+- Use focused unit tests for CLI/template/profile behavior because this slice
+  is primarily an authoring/template change.
+- Use targeted text checks to confirm the preview boundary and sibling issue
+  ownership remain explicit.
+- Run `git diff --check`.
+- If bootstrap assets change, run `scripts/sync-bootstrap-assets` and inspect
+  the materialized diff.
+- Run broader Go or repository validation if implementation affects shared
+  plan loading, lint, status, archive, or reopen behavior; otherwise keep
+  validation focused and explain why.
+
+## Risks
+
+- Risk: The template makes users think the full goal-oriented workflow has
+  shipped.
+  - Mitigation: Label the profile as a recognized preview workflow profile and
+    explicitly state that full execution support is still being completed.
+- Risk: A narrow lint or CLI change accidentally absorbs #274.
+  - Mitigation: Limit this slice to profile/template recognition and avoid
+    structural quality checks for scorecards, hypotheses, checkpoints, or
+    synthesis.
+- Risk: The new authoring path regresses standard or lightweight defaults.
+  - Mitigation: Add focused regression tests for the existing template modes.
+- Risk: The plan shape encourages one harness step per checkpoint.
+  - Mitigation: Seed checkpoint reports inside adaptive steps and repeat that
+    checkpoint reports do not automatically become separate workflow steps.
+
+## Validation Summary
+
+- `harness plan lint docs/plans/active/2026-07-05-add-goal-oriented-plan-authoring-preview.md`
+  passed after plan creation, step closeout, review repair, and archive
+  closeout.
+- `go test ./internal/plan ./internal/cli ./internal/lifecycle` passed.
+- `go test $(go list ./... | grep -v '/tests/release$')` passed.
+- `git diff --check` passed.
+- `harness plan template --goal-oriented --size M` targeted text checks passed
+  for profile, preview-boundary, adaptive-step, and checkpoint-report anchors.
+- A generated goal-oriented active-plan smoke test passed
+  `harness plan lint`.
+- Targeted `rg` checks confirmed the preview boundary, checkpoint-report
+  terminology, and sibling issue ownership remain explicit.
+- `go test ./...` was attempted and remains blocked only in `tests/release`
+  because `corepack` is not on PATH.
+
+## Review Summary
+
+- Step review `review-001-delta` requested changes for three blocking issues
+  and two non-blocking issues: archive could write lint-invalid goal-oriented
+  preview artifacts, the goal-oriented template silently chose `size: M`, docs
+  still had stale reserved-profile wording, and lint coverage did not exercise
+  the generated goal-oriented template.
+- Repaired the findings by preserving the explicit size-placeholder contract,
+  adding generated-template lint coverage, renaming stale heading text,
+  tightening preview lifecycle wording, blocking goal-oriented preview archive
+  before any archived artifact is written, and polishing the explicit-standard
+  lint diagnostic.
+- Repair review `review-002-delta` passed across correctness,
+  docs-consistency, tests, and risk-scan with no findings.
+- Finalize review `review-003-full` passed across correctness, tests, and
+  risk-scan with no findings and one non-blocking docs-consistency finding;
+  the non-blocking lint-diagnostic wording issue was fixed afterward.
+
+## Archive Summary
+
+- Archived At: 2026-07-05T19:05:17+08:00
+- Revision: 1
+- PR: NONE
+- Ready: Candidate is ready for publish/CI/sync evidence after archive.
+  Acceptance criteria are checked, tracked steps are complete, focused and
+  broad-minus-release validation passed, final full review passed, and the
+  only blocked broad check is the known missing-`corepack` release-test
+  environment gap.
+- Merge Handoff: Commit the archive move, push
+  `codex/270-goal-oriented-template`, open a PR for #270, record publish, CI,
+  and sync evidence through harness, and wait for explicit human merge
+  approval.
+
+## Outcome Summary
+
+### Delivered
+
+- Added `harness plan template --goal-oriented`, a goal-oriented authoring
+  preview variant that seeds `workflow_profile: goal_oriented`, setup,
+  adaptive exploration, synthesis, closeout, and step-local checkpoint report
+  anchors.
+- Added `WorkflowProfileGoalOriented` and shallow active-plan lint recognition
+  for the preview profile without adding full structural lint enforcement.
+- Added archive preflight rejection for goal-oriented preview plans so the CLI
+  does not write a lint-invalid archived artifact before archive/reopen support
+  lands.
+- Updated goal-oriented workflow, plan schema, state model, CLI contract, spec
+  index, and harness-plan skill guidance to describe `goal_oriented` as a
+  recognized preview workflow profile for v0.6.0 authoring.
+- Synced the bootstrap-managed harness-plan skill into `.agents/skills/`.
+- Added focused tests for CLI flag behavior, generated template shape, active
+  preview lint, archive preflight rejection, and diagnostic wording.
+
+### Not Delivered
+
+- Full goal-oriented execution support, status next actions, archive/reopen
+  profile preservation, challenge/review guidance, public docs/examples, and
+  UI checkpoint rendering remain out of scope.
+- No hypothesis state machine or separate workflow engine was added.
+- No default standard or lightweight behavior was changed.
+- No full structural lint enforcement for objective, scorecard, hypotheses,
+  checkpoint cadence, checkpoint report quality, or final synthesis was added.
+
+### Follow-Up Issues
+
+- #272: Add evidence-validity review and hypothesis-challenge guidance.
+- #273: Teach next actions for goal-oriented plans.
+- #274: Add full lint coverage for goal-oriented plans.
+- #275: Add docs and examples for goal-oriented workflow.
+- #276: Add UI support for goal-oriented checkpoint timelines.

@@ -509,6 +509,48 @@ func TestArchivePreflightFailureLeavesPlanAndPointersUntouched(t *testing.T) {
 	}
 }
 
+func TestArchiveRejectsGoalOrientedPreviewBeforeWritingArchive(t *testing.T) {
+	root := t.TempDir()
+	activeRelPath := "docs/plans/active/2026-03-18-goal-oriented.md"
+	activePath := filepath.Join(root, activeRelPath)
+	content := strings.Replace(buildActiveArchiveCandidate(t), "source_refs: []", "source_refs: []\nworkflow_profile: goal_oriented", 1)
+	writeFile(t, activePath, content)
+	if _, err := runstate.SaveCurrentPlan(root, activeRelPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if _, err := runstate.SaveState(root, "2026-03-18-goal-oriented", &runstate.State{
+		ExecutionStartedAt: "2026-03-18T01:55:00Z",
+		ActiveReviewRound: &runstate.ReviewRound{
+			RoundID:    "review-001-full",
+			Kind:       "full",
+			Revision:   1,
+			Aggregated: true,
+			Decision:   "pass",
+		},
+	}); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+
+	result := lifecycle.Service{Workdir: root}.Archive()
+	if result.OK {
+		t.Fatalf("expected archive failure, got %#v", result)
+	}
+	assertErrorPath(t, result.Errors, "frontmatter.workflow_profile")
+	if _, err := os.Stat(activePath); err != nil {
+		t.Fatalf("expected active plan to remain after failed archive, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "docs/plans/archived/2026-03-18-goal-oriented.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected no archived goal-oriented plan to be written, got %v", err)
+	}
+	current, err := runstate.LoadCurrentPlan(root)
+	if err != nil {
+		t.Fatalf("load current plan: %v", err)
+	}
+	if current == nil || current.PlanPath != activeRelPath {
+		t.Fatalf("expected current plan pointer to remain on active plan, got %#v", current)
+	}
+}
+
 func TestArchiveRollsBackWhenCurrentPlanWriteFails(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"

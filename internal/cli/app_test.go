@@ -295,6 +295,51 @@ func TestPlanTemplateLightweightRejectsNonXXSSize(t *testing.T) {
 	}
 }
 
+func TestPlanTemplateGoalOrientedFlagSeedsPreviewVariant(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"plan", "template", "--title", "Goal Plan", "--goal-oriented"})
+	if exitCode != 0 {
+		t.Fatalf("expected goal-oriented template success, got %d: %s", exitCode, stderr.String())
+	}
+	for _, want := range []string{
+		"workflow_profile: goal_oriented",
+		"size: REPLACE_WITH_PLAN_SIZE",
+		"recognized preview workflow profile",
+		"full execution support is still being completed",
+		"### Step 2: Run adaptive exploration",
+		"#### Checkpoint Reports",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("goal-oriented template missing %q\n%s", want, stdout.String())
+		}
+	}
+}
+
+func TestPlanTemplateRejectsConflictingWorkflowProfileFlags(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{
+		"plan", "template",
+		"--title", "Conflicting Plan",
+		"--lightweight",
+		"--goal-oriented",
+	})
+	if exitCode != 2 {
+		t.Fatalf("expected conflicting profile flags to fail with exit code 2, got %d: %s", exitCode, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "choose only one workflow profile template flag") {
+		t.Fatalf("expected profile conflict error, got %q", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout on error, got %q", stdout.String())
+	}
+}
+
 func TestRootHelpMentionsVersionFlag(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)

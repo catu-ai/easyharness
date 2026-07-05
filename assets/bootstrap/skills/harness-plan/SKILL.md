@@ -27,6 +27,17 @@ Use this skill to create or update the tracked plan that will drive execution.
    - even in lightweight mode, keep the active plan under the active plan root
      resolved by `harness repo config get paths.plans.active` and use the
      field plus archive behavior to distinguish the profile
+   - use `harness plan template --goal-oriented` only when the work is
+     adaptive: the objective and success scorecard are clear, but the path
+     needs hypotheses, probes, checkpoint reports, optional challenge, and
+     final synthesis
+   - treat `workflow_profile: goal_oriented` as a recognized preview workflow
+     profile defined for v0.6.0 authoring; full execution support, structural
+     lint coverage, status next actions, challenge/review guidance,
+     archive/reopen behavior, and public examples are still being completed
+   - when writing a goal-oriented plan, keep checkpoint reports inside
+     adaptive steps instead of creating one harness step per model turn, probe,
+     or checkpoint report
    - if the slice touches normative contract meaning, core runtime state,
      review/archive/evidence semantics, release safety, security-sensitive
      logic, or another non-trivial risk surface, stay on the standard
@@ -73,6 +84,9 @@ Use this skill to create or update the tracked plan that will drive execution.
 8. Run `harness plan lint <plan-path>`.
    - lightweight plans are still tracked active plans, so lint the tracked
      file before execution starts
+   - goal-oriented preview plans are lint-recognized for active-plan authoring,
+     but lint does not yet prove the full goal-oriented structure or lifecycle
+     support
 9. Present the plan for approval before execution starts.
    - the original task request does not count as approval for the newly
      written plan
@@ -97,6 +111,10 @@ The plan is ready when:
   that archive snapshots move under the local runtime root resolved by
   `harness repo config get paths.local_runtime`, and know that archive-time
   breadcrumb guidance remains required
+- when the plan is goal-oriented, a future agent could identify the objective,
+  success scorecard, hypotheses or candidate directions, checkpoint cadence,
+  evidence requirements, challenge triggers, stopping conditions, where
+  checkpoint reports belong, and what final synthesis must contain
 - when the plan is sized `XXL`, the plan or approval handoff makes clear that
   the human explicitly confirmed not splitting it further yet and that obvious
   spillover moved into `Deferred Items` or follow-up issues where appropriate
