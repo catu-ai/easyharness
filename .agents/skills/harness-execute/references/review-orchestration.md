@@ -75,6 +75,19 @@ the dimensions that fit the current change. The list is intentionally compact
 and does not include full reviewer instructions. Do not force every built-in or
 repo-defined dimension into every review.
 
+For goal-oriented step-closeout or finalize review, consider
+`evidence-validity` when the reviewed candidate depends on adaptive conclusions,
+final synthesis, evidence claims, rejected alternatives, residual uncertainty,
+or follow-up handling. It is still optional and controller-selected; do not add
+it merely because the plan uses `workflow_profile: goal_oriented`.
+
+`hypothesis-challenge` is not a review dimension. Use it as a checkpoint
+advisory action during adaptive exploration, then record useful output in the
+checkpoint report's `Challenge` field or in a new checkpoint report if it
+changes direction. Do not put it in a formal review spec unless the controller
+has deliberately written a one-off formal review slot with explicit
+instructions for a real review gate.
+
 Catalog-managed dimensions are reusable recommendations, not a closed enum. If
 the review needs a one-off focus that is not in the catalog, include a
 controller-written dimension with explicit reviewer instructions directly in the

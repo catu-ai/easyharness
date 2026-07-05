@@ -15,8 +15,8 @@ archive time, when the archived snapshot moves into command-owned local
 storage. The goal-oriented profile contract is defined separately in
 [Goal-Oriented Workflow](./goal-oriented-workflow.md); authoring template and
 active-plan preview lint recognition exist, while full structural lint,
-archive, reopen, status, challenge/review, docs/examples, and UI support
-belongs to follow-up implementation slices. Runtime lifecycle, milestone
+archive, reopen, status next actions, docs/examples, and UI support belongs to
+follow-up implementation slices. Runtime lifecycle, milestone
 timestamps, review rounds, evidence history, and resolved node state live in
 the local runtime root resolved by
 `harness repo config get paths.local_runtime`, which defaults to
@@ -88,8 +88,8 @@ The source-of-truth split is:
   lightweight, and goal-oriented authoring-preview profiles
 - [Goal-Oriented Workflow](./goal-oriented-workflow.md) defines the recognized
   preview authoring semantics for `workflow_profile: goal_oriented`, with full
-  structural lint, archive, reopen, status, challenge/review, docs/examples,
-  and UI support left to follow-up implementation slices
+  structural lint, archive, reopen, status next actions, docs/examples, and UI
+  support left to follow-up implementation slices
 - [the packaged plan template asset](../../assets/templates/plan-template.md)
   is the canonical authoring example shipped by harness
 - `harness plan template` is a convenience wrapper around the packaged asset

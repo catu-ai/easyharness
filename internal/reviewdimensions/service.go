@@ -263,6 +263,16 @@ Check whether README, AGENTS.md, managed skills, specs, schemas, examples, and p
 `),
 		},
 		{
+			Name:        "evidence-validity",
+			Source:      SourceBuiltin,
+			Description: "Use when reviewing whether conclusions, syntheses, or decisions are supported by the scorecard, probes, evidence, residuals, and follow-up handling.",
+			Instructions: strings.TrimSpace(`
+Review the change for evidence validity.
+
+Check whether accepted conclusions, syntheses, and decision artifacts are supported by the approved scorecard, tracked checkpoint reports, probes or experiments, durable evidence, and validation results. Look for weak evidence claims, missing comparisons, untested assumptions, rejected hypotheses that were not actually ruled out, residual uncertainty that is hidden or understated, and follow-up handling that leaves the decision less supported than the plan claims.
+`),
+		},
+		{
 			Name:        "risk-scan",
 			Source:      SourceBuiltin,
 			Description: "Use when reviewing unresolved blockers, leaked deferred scope, unsafe defaults, or release-sensitive workflow risks.",
