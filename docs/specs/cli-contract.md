@@ -459,8 +459,8 @@ Contract:
   ordinary standard or lightweight authoring
 - `workflow_profile: goal_oriented` is a recognized preview workflow profile
   for active-plan authoring; full execution support, archive/reopen behavior,
-  status next actions, challenge/review guidance, docs/examples, and
-  structural lint coverage remain follow-up work
+  status next actions, docs/examples, UI rendering, and structural lint
+  coverage remain follow-up work
 
 The template asset belongs to the harness version, not to the user's tracked
 plan history. Upgrading the harness may upgrade the generated template for new
@@ -825,6 +825,7 @@ The built-in dimensions are:
 - `correctness`
 - `tests`
 - `docs-consistency`
+- `evidence-validity`
 - `agent-ux`
 - `risk-scan`
 
@@ -834,12 +835,17 @@ Canonical output shape:
 {
   "ok": true,
   "command": "review dimensions list",
-  "summary": "Found 5 review dimensions.",
+  "summary": "Found 6 review dimensions.",
   "dimensions": [
     {
       "name": "correctness",
       "source": "builtin",
       "description": "Use when reviewing implementation logic, workflow state transitions, command contracts, or negative-path behavior."
+    },
+    {
+      "name": "evidence-validity",
+      "source": "builtin",
+      "description": "Use when reviewing whether conclusions, syntheses, or decisions are supported by the scorecard, probes, evidence, residuals, and follow-up handling."
     }
   ]
 }

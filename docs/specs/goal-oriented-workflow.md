@@ -22,8 +22,8 @@ the follow-up implementation slices land.
 and `harness plan lint` recognizes active tracked plans that declare
 `workflow_profile: goal_oriented` with shallow preview validation. Full
 execution support is still being completed: follow-up implementation slices own
-status next actions, challenge/review guidance, structural lint coverage,
-archive/reopen profile preservation, docs/examples, and UI rendering.
+status next actions, structural lint coverage, archive/reopen profile
+preservation, docs/examples, and UI rendering.
 
 ## When To Use It
 
@@ -65,8 +65,8 @@ execution support lands:
   prose or checkpoint markdown
 
 The current authoring preview seeds these concepts so future work can be
-planned credibly, while archive/reopen behavior, status next actions,
-challenge/review guidance, and full structural lint remain follow-up work.
+planned credibly, while archive/reopen behavior, status next actions, and full
+structural lint remain follow-up work.
 Goal-oriented execution will add a disciplined layer inside approved steps:
 the controller runs bounded checkpoint rounds, records concise tracked
 checkpoint reports when the work reaches meaningful decision points,
