@@ -546,7 +546,7 @@ func validatePathRules(ctx *lintContext) []LintIssue {
 	pathProfile := inferWorkflowProfileFromPath(ctx.path)
 	declaredProfile := strings.TrimSpace(ctx.frontmatter.WorkflowProfile)
 	if declaredProfile == WorkflowProfileStandard {
-		issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "omit workflow_profile for standard plans; only lightweight plans should declare it"})
+		issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "omit workflow_profile for standard plans; only lightweight plans or the goal_oriented authoring preview should declare it"})
 	}
 	switch pathProfile {
 	case WorkflowProfileStandard:

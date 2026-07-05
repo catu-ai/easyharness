@@ -541,6 +541,23 @@ func TestLintFileRejectsUnsupportedWorkflowProfile(t *testing.T) {
 	assertHasError(t, result, "frontmatter.workflow_profile")
 }
 
+func TestLintFileRejectsExplicitStandardWithGoalOrientedDiagnostic(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-standard-profile.md")
+	content := mustRenderTemplate(t, "Explicit Standard Plan")
+	content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: standard", 1)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected explicit standard profile lint failure, got %#v", result)
+	}
+	assertHasError(t, result, "frontmatter.workflow_profile")
+	if !strings.Contains(result.Errors[0].Message, "goal_oriented authoring preview") {
+		t.Fatalf("expected diagnostic to mention goal_oriented authoring preview, got %#v", result.Errors)
+	}
+}
+
 func TestLintFileRejectsInvalidStepHeading(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-easyharness-cli-and-plan-foundations.md")
