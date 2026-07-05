@@ -43,11 +43,15 @@ func TestInitCreatesManagedInstructionsAndSkills(t *testing.T) {
 	if !strings.Contains(agentsBody, "Harness resolves these workflow roots from repo config") {
 		t.Fatalf("expected repo-config root guidance in managed block, got:\n%s", agentsBody)
 	}
-	if strings.Contains(agentsBody, "- `docs/specs/`:") || strings.Contains(agentsBody, ".agents/skills") {
+	if strings.Contains(agentsBody, "- `docs/specs/`:") || strings.Contains(agentsBody, "- `.agents/skills") {
 		t.Fatalf("managed block should not assume non-configured repo paths, got:\n%s", agentsBody)
 	}
-	if !strings.Contains(agentsBody, "When bootstrap-installed skills are present") {
-		t.Fatalf("expected conditional bootstrap skill guidance in managed block, got:\n%s", agentsBody)
+	if !strings.Contains(agentsBody, "may live in `docs/specs/` or anywhere") ||
+		!strings.Contains(agentsBody, "else repo-owned instructions") {
+		t.Fatalf("expected optional repo contract location guidance in managed block, got:\n%s", agentsBody)
+	}
+	if !strings.Contains(agentsBody, "`.agents/skills` by default unless a different skills target was used") {
+		t.Fatalf("expected conditional default skills target guidance in managed block, got:\n%s", agentsBody)
 	}
 
 	skillData, err := os.ReadFile(filepath.Join(root, ".agents/skills/harness-discovery/SKILL.md"))

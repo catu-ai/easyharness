@@ -112,6 +112,14 @@ and bootstrap-installed skills are described conditionally. Ran
 `scripts/sync-bootstrap-assets` again so the root `AGENTS.md` managed block
 matches the repaired bootstrap source.
 
+Revision 3 addressed follow-up PR feedback that omitting the conventional
+locations entirely left agents without a discovery cue. The managed block now
+names `docs/specs/` as one possible repo-owned contract location while still
+saying not to assume it exists, and names `.agents/skills/` as the default
+Codex bootstrap skills target unless a different target was used. Updated the
+install regression test to require that conditional/default guidance while
+still rejecting the old unconditional path bullets.
+
 #### Review Notes
 
 `review-001-delta` passed with 0 blocking and 0 non-blocking findings across
@@ -185,6 +193,8 @@ review.
 
 ## Validation Summary
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 - `scripts/sync-bootstrap-assets` refreshed the materialized root `AGENTS.md`
   managed block from `assets/bootstrap/agents-managed-block.md`, including the
   revision 2 repair.
@@ -198,8 +208,12 @@ review.
   passed after the plan was written, after step notes were updated, and during
   revision 2 repair.
 - `git diff --check` passed after the revision 2 repair.
+- Revision 3 reran the same focused validation after restoring conditional
+  discovery cues for `docs/specs/` and `.agents/skills/`.
 
 ## Review Summary
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - Step closeout review `review-001-delta` passed with 0 blocking and 0
   non-blocking findings across `docs-consistency` and `agent-ux`.
@@ -212,23 +226,31 @@ review.
   non-configured repo paths. Finalize repair review `review-003-delta` passed
   with 0 blocking and 0 non-blocking findings across `docs-consistency`,
   `agent-ux`, and `tests`.
+- Revision 3 repaired follow-up PR feedback that the managed block should still
+  mention conventional/default surfaces so agents can discover them. Fresh
+  finalize review is required before archive.
 
 ## Archive Summary
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - Archived At: 2026-07-05T09:17:07+08:00
 - Revision: 2
 - Reopened At: revision 2, after PR feedback on non-configured repo path
   assumptions.
+- Reopened At: revision 3, after follow-up PR feedback that the conditional
+  guidance still needs to mention the conventional/default locations.
 - PR: https://github.com/catu-ai/easyharness/pull/281
-- Ready: Yes. Revision 2 removes non-configured repo path assumptions from the
-  managed block, syncs the materialized output, updates regression coverage,
-  validates cleanly, and passed finalize repair review with no findings.
-- Merge Handoff: After archive, commit and push the archive move, update PR
-  #281, refresh CI/sync evidence, and wait for explicit human merge approval.
+- Ready: Not yet. Revision 3 is implemented and ready for validation/review.
+- Merge Handoff: After validation, fresh finalize review, and archive, commit
+  and push the archive move, update PR #281, refresh CI/sync evidence, and wait
+  for explicit human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - Clarified the managed block source so downstream repositories do not read
   `docs/specs/` as an unconditional upstream easyharness product-contract
@@ -237,6 +259,10 @@ review.
   and other non-configured repo paths from the managed block's default split.
   The block now lists only harness roots resolved through repo config, and
   describes repo-owned contracts and bootstrap-installed skills conditionally.
+- Repaired revision 3 feedback by restoring explicit conditional discovery cues:
+  `docs/specs/` is named as one possible repo-owned contract location, and
+  `.agents/skills/` is named as the default Codex bootstrap skills target unless
+  a different target was used.
 - Narrowed the managed block language policy from all tracked docs and code to
   harness workflow artifacts unless repo-owned instructions say otherwise.
 - Fixed the raw workflow numbering and rephrased the workflow as work
@@ -249,11 +275,15 @@ review.
 
 ### Not Delivered
 
+UPDATE_REQUIRED_AFTER_REOPEN
+
 - No new repo config field or managed-instructions help topic was added.
 - No command behavior, state transition, review, archive, evidence, or
   bootstrap install mechanics changed.
 
 ### Follow-Up Issues
+
+UPDATE_REQUIRED_AFTER_REOPEN
 
 - No GitHub follow-up issue created. The deferred help-topic idea remains
   conditional: consider a future `harness help repo instructions` topic only if

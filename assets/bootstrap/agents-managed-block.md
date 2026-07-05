@@ -29,15 +29,17 @@ Harness resolves these workflow roots from repo config:
   `.local/harness/`: disposable runtime state, review artifacts, evidence
   artifacts, trajectory, and `plans/archived/` lightweight archived snapshots
 
-Other durable repository contracts live wherever repo-owned instructions,
-plans, docs, or code say they live. Do not assume a repository has
-`docs/specs/`, or that any repo-local specs are upstream easyharness product
-contracts.
+Repository-specific durable contracts may live in `docs/specs/` or anywhere
+else repo-owned instructions, plans, docs, or code say they live. Do not assume
+`docs/specs/` exists, or that any repo-local specs are upstream easyharness
+product contracts.
 
-When bootstrap-installed skills are present, easyharness-managed `harness-*`
-skills are refreshed by bootstrap. Other repo-owned skills stay outside
-easyharness ownership. If a tracked plan conflicts with a repo-local skill, the
-tracked plan wins.
+For Codex, bootstrap installs managed harness workflow skills under
+`.agents/skills/` by default unless a different skills target was used. When
+bootstrap-installed skills are present, easyharness-managed `harness-*` skills
+are refreshed by bootstrap. Other repo-owned skills stay outside easyharness
+ownership. If a tracked plan conflicts with a repo-local skill, the tracked
+plan wins.
 
 ## Harness Product Help
 
