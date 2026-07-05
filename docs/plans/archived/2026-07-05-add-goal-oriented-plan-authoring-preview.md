@@ -360,6 +360,8 @@ finalize review.
 
 ## Archive Summary
 
+- Archived At: 2026-07-05T19:05:17+08:00
+- Revision: 1
 - PR: NONE
 - Ready: Candidate is ready for publish/CI/sync evidence after archive.
   Acceptance criteria are checked, tracked steps are complete, focused and
