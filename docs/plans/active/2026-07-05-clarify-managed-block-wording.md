@@ -120,6 +120,12 @@ Codex bootstrap skills target unless a different target was used. Updated the
 install regression test to require that conditional/default guidance while
 still rejecting the old unconditional path bullets.
 
+`review-004-delta` found one blocking tests finding: the regression test kept
+the new default `.agents/skills` cue but no longer explicitly protected the
+`When bootstrap-installed skills are present` conditional. Added that assertion
+so the test covers both the default discovery cue and the conditional ownership
+guard.
+
 #### Review Notes
 
 `review-001-delta` passed with 0 blocking and 0 non-blocking findings across
@@ -210,6 +216,8 @@ UPDATE_REQUIRED_AFTER_REOPEN
 - `git diff --check` passed after the revision 2 repair.
 - Revision 3 reran the same focused validation after restoring conditional
   discovery cues for `docs/specs/` and `.agents/skills/`.
+- After the `review-004-delta` tests finding, focused validation was rerun with
+  the restored bootstrap-installed-skills conditional assertion.
 
 ## Review Summary
 
@@ -229,6 +237,9 @@ UPDATE_REQUIRED_AFTER_REOPEN
 - Revision 3 repaired follow-up PR feedback that the managed block should still
   mention conventional/default surfaces so agents can discover them. Fresh
   finalize review is required before archive.
+- `review-004-delta` requested one blocking tests fix for the install
+  regression coverage. The assertion was restored; fresh delta review is
+  required before archive.
 
 ## Archive Summary
 

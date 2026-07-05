@@ -53,6 +53,10 @@ func TestInitCreatesManagedInstructionsAndSkills(t *testing.T) {
 	if !strings.Contains(agentsBody, "`.agents/skills` by default unless a different skills target was used") {
 		t.Fatalf("expected conditional default skills target guidance in managed block, got:\n%s", agentsBody)
 	}
+	if !strings.Contains(agentsBody, "When") ||
+		!strings.Contains(agentsBody, "bootstrap-installed skills are present") {
+		t.Fatalf("expected bootstrap-installed skills conditional in managed block, got:\n%s", agentsBody)
+	}
 
 	skillData, err := os.ReadFile(filepath.Join(root, ".agents/skills/harness-discovery/SKILL.md"))
 	if err != nil {
