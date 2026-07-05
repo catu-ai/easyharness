@@ -10,9 +10,12 @@ are explicit, but the path to the result must adapt through hypotheses,
 probes, checkpoint rounds, optional challenge, and synthesis.
 
 `goal_oriented` is a profile on top of the existing harness workflow. It does
-not create a separate workflow engine. Goal-oriented plans still use explicit
-human approval, stable plan steps, formal step-closeout and finalize review,
-archive, evidence, and the canonical node state model.
+not create a separate workflow engine. The completed v0.6.0 profile is
+designed to use explicit human approval, stable plan steps, formal
+step-closeout and finalize review, archive, evidence, and the canonical node
+state model. In the current authoring preview, agents can draft and lint active
+tracked goal-oriented plans, but must not rely on full lifecycle support until
+the follow-up implementation slices land.
 
 `goal_oriented` is a recognized preview workflow profile for v0.6.0 authoring.
 `harness plan template --goal-oriented` can seed the goal-oriented plan shape,
@@ -46,9 +49,10 @@ synthesis, the ordinary standard workflow is clearer.
 ## Workflow Profile Semantics
 
 `workflow_profile: goal_oriented` means the active plan is a standard tracked
-plan with an adaptive execution contract. It is not a lightweight shortcut.
+plan with an adaptive authoring contract. It is not a lightweight shortcut.
 
-The profile preserves these core harness boundaries:
+The completed profile preserves these core harness boundaries once full
+execution support lands:
 
 - human approval still approves the tracked plan package
 - plan steps still represent stable approved phase boundaries
@@ -60,11 +64,14 @@ The profile preserves these core harness boundaries:
 - `current_node` still comes from the canonical state model, not from plan
   prose or checkpoint markdown
 
-Goal-oriented execution adds a disciplined layer inside approved steps: the
-controller runs bounded checkpoint rounds, records concise tracked checkpoint
-reports when the work reaches meaningful decision points, optionally requests
-challenge when hypotheses or evidence need stress testing, and writes a final
-synthesis before closeout.
+The current authoring preview seeds these concepts so future work can be
+planned credibly, while archive/reopen behavior, status next actions,
+challenge/review guidance, and full structural lint remain follow-up work.
+Goal-oriented execution will add a disciplined layer inside approved steps:
+the controller runs bounded checkpoint rounds, records concise tracked
+checkpoint reports when the work reaches meaningful decision points,
+optionally requests challenge when hypotheses or evidence need stress testing,
+and writes a final synthesis before closeout.
 
 ## Plan Requirements
 

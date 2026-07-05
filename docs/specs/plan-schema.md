@@ -510,7 +510,7 @@ it as durable tracked history.
 
 When there is any doubt, escalate to the standard tracked-plan workflow.
 
-## Reserved Goal-Oriented Profile
+## Goal-Oriented Authoring Preview
 
 `workflow_profile: goal_oriented` is for adaptive work where the objective and
 success scorecard are explicit, but the path must proceed through hypotheses,

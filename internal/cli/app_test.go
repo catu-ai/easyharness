@@ -306,6 +306,7 @@ func TestPlanTemplateGoalOrientedFlagSeedsPreviewVariant(t *testing.T) {
 	}
 	for _, want := range []string{
 		"workflow_profile: goal_oriented",
+		"size: REPLACE_WITH_PLAN_SIZE",
 		"recognized preview workflow profile",
 		"full execution support is still being completed",
 		"### Step 2: Run adaptive exploration",

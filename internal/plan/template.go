@@ -58,9 +58,6 @@ func RenderTemplate(opts TemplateOptions) (string, error) {
 			return "", fmt.Errorf("lightweight templates must use size %q", PlanSizeXXS)
 		}
 	}
-	if workflowProfile == WorkflowProfileGoalOriented && size == "" {
-		size = PlanSizeM
-	}
 	if size == "" {
 		size = placeholderPlanSize
 	}

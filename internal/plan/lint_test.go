@@ -442,6 +442,27 @@ func TestLintFileAcceptsTrackedActiveGoalOrientedPreviewPlan(t *testing.T) {
 	}
 }
 
+func TestLintFileAcceptsGeneratedGoalOrientedPreviewPlan(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-goal-oriented-plan.md")
+	content, err := plan.RenderTemplate(plan.TemplateOptions{
+		Title:           "Generated Goal-Oriented Preview Plan",
+		Timestamp:       time.Date(2026, 3, 17, 14, 0, 0, 0, time.FixedZone("CST", 8*60*60)),
+		SourceType:      "direct_request",
+		Size:            "M",
+		WorkflowProfile: plan.WorkflowProfileGoalOriented,
+	})
+	if err != nil {
+		t.Fatalf("render goal-oriented template: %v", err)
+	}
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if !result.OK {
+		t.Fatalf("expected generated goal-oriented preview lint success, got %#v", result)
+	}
+}
+
 func TestLintFileAcceptsArchivedLightweightLocalPlan(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".local/harness/plans/archived/2026-03-17-lightweight-plan.md")

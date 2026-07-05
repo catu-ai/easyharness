@@ -221,6 +221,18 @@ Validation so far: `go test ./internal/plan ./internal/cli`, generated
 template text check for preview/checkpoint anchors, and generated active-plan
 lint smoke test all passed.
 
+Repair after `review-001-delta`: preserved the explicit size-placeholder
+contract for goal-oriented templates unless `--size` is supplied, added a
+generated-template lint test, renamed stale reserved-profile wording, tightened
+goal-oriented docs so lifecycle support is described as target behavior rather
+than available preview behavior, and added archive preflight rejection for
+goal-oriented preview plans so archive does not write a lint-invalid artifact.
+Repair validation passed for `go test ./internal/plan ./internal/cli
+./internal/lifecycle`, generated `--goal-oriented --size M` template text and
+lint smoke checks, `harness plan lint` on this plan, `git diff --check`, and
+`go test $(go list ./... | grep -v '/tests/release$')`. `go test ./...`
+remains blocked only in `tests/release` because `corepack` is not on PATH.
+
 #### Review Notes
 
 PENDING_STEP_REVIEW
