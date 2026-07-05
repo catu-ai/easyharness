@@ -39,13 +39,14 @@ focused on the `VERSION` bump and release-readiness validation.
 
 ## Acceptance Criteria
 
-- [ ] `VERSION` contains `0.5.2`.
-- [ ] Release validation for the release PR passes or any failure is resolved
+- [x] `VERSION` contains `0.5.2`.
+- [x] Release validation for the release PR passes or any failure is resolved
       before archive.
-- [ ] The PR body explains that this patch ships the managed `AGENTS.md`
-      bootstrap wording correction from PR #282.
-- [ ] The candidate reaches `execution/finalize/await_merge` with recorded
-      publish, CI, and sync evidence.
+- [x] The archive handoff specifies that the release PR body should explain
+      this patch ships the managed `AGENTS.md` bootstrap wording correction
+      from PR #282.
+- [x] The archive handoff requires publish, CI, and sync evidence before the
+      candidate waits for merge approval.
 
 ## Deferred Items
 
@@ -107,25 +108,39 @@ documented release-ready validation profile for `VERSION` PRs.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `scripts/validate-release`
+- `harness plan lint docs/plans/active/2026-07-05-prepare-0-5-2-patch-release.md`
+- `git diff --check`
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Step closeout delta review `review-001-delta` passed with 0 findings across
+  `risk-scan` and `tests`.
+- Finalize full review `review-002-full` passed with 0 findings across
+  `risk-scan`, `tests`, and `docs-consistency`.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: Pending publish after archive.
+- Ready: The candidate is archive-ready after `VERSION` was bumped to `0.5.2`,
+  release validation passed, and both step and finalize reviews passed with 0
+  findings.
+- Merge Handoff: Publish should open a release PR describing that this patch
+  ships the managed `AGENTS.md` bootstrap wording correction from PR #282, then
+  record publish, CI, and sync evidence before waiting for merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Updated `VERSION` from `0.5.1` to `0.5.2` for a dedicated patch release PR.
+- Validated the release candidate with `scripts/validate-release`.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No release was published.
+- No release-process machinery, release policy, or unrelated product files were
+  changed.
 
 ### Follow-Up Issues
 
