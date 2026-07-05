@@ -121,6 +121,8 @@ documented release-ready validation profile for `VERSION` PRs.
 
 ## Archive Summary
 
+- Archived At: 2026-07-05T12:53:17+08:00
+- Revision: 1
 - PR: Pending publish after archive.
 - Ready: The candidate is archive-ready after `VERSION` was bumped to `0.5.2`,
   release validation passed, and both step and finalize reviews passed with 0
