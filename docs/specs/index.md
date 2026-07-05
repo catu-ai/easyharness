@@ -6,13 +6,13 @@
 - [State Transitions](./state-transitions.md): exhaustive enumeration of every
   allowed v0.2 `current_node` transition, including command-driven milestones
   and derived progression rules.
-- [Plan Schema](./plan-schema.md): shared plan contract for tracked `standard`
-  and `lightweight` plans, their markdown-led package layout, and local state
-  expectations.
+- [Plan Schema](./plan-schema.md): shared plan contract for tracked `standard`,
+  `lightweight`, and goal-oriented authoring-preview plans, their
+  markdown-led package layout, and local state expectations.
 - [Goal-Oriented Workflow](./goal-oriented-workflow.md): normative
-  reserved `workflow_profile: goal_oriented` contract for adaptive work with
-  explicit objectives, scorecards, checkpoint reports, optional challenge,
-  evidence, and final synthesis.
+  `workflow_profile: goal_oriented` authoring-preview contract for adaptive
+  work with explicit objectives, scorecards, checkpoint reports, optional
+  challenge, evidence, and final synthesis.
 - [Bootstrap Install](./bootstrap-install.md): normative bootstrap resource
   model for `harness repo init`, `harness repo skills ...`,
   `harness repo instructions ...`, and `harness repo config ...`, including

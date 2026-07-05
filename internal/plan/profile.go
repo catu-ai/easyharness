@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	WorkflowProfileStandard    = "standard"
-	WorkflowProfileLightweight = "lightweight"
-	SupplementsDirName         = "supplements"
+	WorkflowProfileStandard     = "standard"
+	WorkflowProfileLightweight  = "lightweight"
+	WorkflowProfileGoalOriented = "goal_oriented"
+	SupplementsDirName          = "supplements"
 )
 
 func normalizeWorkflowProfile(value string) string {
@@ -21,6 +22,8 @@ func normalizeWorkflowProfile(value string) string {
 		return WorkflowProfileStandard
 	case WorkflowProfileLightweight:
 		return WorkflowProfileLightweight
+	case WorkflowProfileGoalOriented:
+		return WorkflowProfileGoalOriented
 	default:
 		return strings.TrimSpace(value)
 	}

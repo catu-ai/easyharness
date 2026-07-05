@@ -108,6 +108,36 @@ func TestRenderTemplateLightweightSeedsWorkflowProfileAndSingleStep(t *testing.T
 	}
 }
 
+func TestRenderTemplateGoalOrientedSeedsPreviewAuthoringShape(t *testing.T) {
+	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
+		Title:           "Goal-Oriented Plan",
+		WorkflowProfile: plan.WorkflowProfileGoalOriented,
+	})
+	if err != nil {
+		t.Fatalf("RenderTemplate returned error: %v", err)
+	}
+	for _, want := range []string{
+		"workflow_profile: goal_oriented",
+		"recognized preview workflow profile",
+		"full execution support is still being completed",
+		"### Step 1: Frame objective and scorecard",
+		"### Step 2: Run adaptive exploration",
+		"### Step 3: Synthesize and close out",
+		"#### Checkpoint Reports",
+		"##### CP1 - Replace with checkpoint title",
+		"Scorecard Movement:",
+		"Checkpoint reports stay inside adaptive steps",
+		"Final Synthesis:",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("rendered goal-oriented template missing %q\n%s", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, "### Step 4:") {
+		t.Fatalf("expected goal-oriented template to use three stable steps\n%s", rendered)
+	}
+}
+
 func TestRenderTemplateRejectsLightweightNonXXSSize(t *testing.T) {
 	_, err := plan.RenderTemplate(plan.TemplateOptions{
 		Title:           "Bad Lightweight Plan",

@@ -883,6 +883,7 @@ func (a *App) runPlanTemplate(args []string) int {
 	title := fs.String("title", "", "Seed the H1 title.")
 	output := fs.String("output", "", "Write the rendered template to this file instead of stdout.")
 	lightweight := fs.Bool("lightweight", false, "Render the lightweight variant and seed workflow_profile: lightweight.")
+	goalOriented := fs.Bool("goal-oriented", false, "Render the goal-oriented authoring preview variant and seed workflow_profile: goal_oriented.")
 	dateValue := fs.String("date", "", "Seed timestamps using this YYYY-MM-DD date with the current local time-of-day.")
 	timestampValue := fs.String("timestamp", "", "Seed timestamps using this RFC3339 timestamp.")
 	sourceType := fs.String("source-type", "direct_request", "Seed the frontmatter source_type field.")
@@ -906,6 +907,10 @@ func (a *App) runPlanTemplate(args []string) int {
 		fmt.Fprintln(a.Stderr, "harness plan template does not accept positional arguments")
 		return 2
 	}
+	if *lightweight && *goalOriented {
+		fmt.Fprintln(a.Stderr, "choose only one workflow profile template flag")
+		return 2
+	}
 
 	ts, err := a.resolveTimestamp(*timestampValue, *dateValue)
 	if err != nil {
@@ -922,6 +927,9 @@ func (a *App) runPlanTemplate(args []string) int {
 		WorkflowProfile: func() string {
 			if *lightweight {
 				return plan.WorkflowProfileLightweight
+			}
+			if *goalOriented {
+				return plan.WorkflowProfileGoalOriented
 			}
 			return ""
 		}(),
