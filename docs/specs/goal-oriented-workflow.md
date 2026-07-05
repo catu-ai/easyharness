@@ -195,14 +195,15 @@ artifact from that report. Supplements share the same approval boundary as the
 plan package; they are not free-form scratch space.
 
 Checkpoint report structure is a shallow parseable contract, not a prose
-straitjacket. Required labels should be stable enough for future lint/status
+straitjacket. Required label names are stable enough for future lint/status
 support to find them, but the content under a label may be prose, bullets,
 tables, or short lists according to what the checkpoint needs to explain.
 Future tooling may inspect headings, IDs, and labels; it must not require
 bullet-only content or judge whether a hypothesis, probe, evidence argument, or
 next mutation is good.
 
-A tracked checkpoint report must include these labels or clear equivalents:
+A tracked checkpoint report must include these labels. The only interchangeable
+required label names are the pairs shown explicitly below:
 
 - `Trigger`
 - `Hypotheses` or `Candidate Directions`
@@ -344,12 +345,11 @@ plan package or another approved durable artifact before archive.
 
 ## Follow-Up Boundaries
 
-This contract intentionally leaves implementation details to the v0.6.0
+This contract now owns the #271 checkpoint report convention. It intentionally
+leaves the remaining goal-oriented implementation details to the v0.6.0
 follow-up issues:
 
 - #270 adds the goal-oriented plan template and workflow guidance
-- #271 defines richer checkpoint report conventions and storage details if
-  tracked plan digests are not enough
 - #272 adds evidence-validity and hypothesis-challenge guidance
 - #273 teaches status and next-action behavior for goal-oriented plans
 - #274 adds lint coverage for goal-oriented plans, including when
