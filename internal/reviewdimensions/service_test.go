@@ -19,7 +19,7 @@ func TestListReturnsBuiltinDimensions(t *testing.T) {
 			t.Fatalf("dimension %q has empty description", dimension.Name)
 		}
 	}
-	for _, name := range []string{"agent-ux", "correctness", "docs-consistency", "risk-scan", "tests"} {
+	for _, name := range []string{"agent-ux", "correctness", "docs-consistency", "evidence-validity", "risk-scan", "tests"} {
 		if got[name] != SourceBuiltin {
 			t.Fatalf("expected builtin dimension %q, got %#v", name, result.Dimensions)
 		}
@@ -39,6 +39,26 @@ func TestInstructionsReturnsBuiltinMarkdown(t *testing.T) {
 	}
 	if strings.Contains(instructions, `\"`) {
 		t.Fatalf("expected raw markdown, got escaped content:\n%s", instructions)
+	}
+}
+
+func TestEvidenceValidityInstructionsCoverGoalOrientedReview(t *testing.T) {
+	instructions, warnings, errors := Service{Workdir: t.TempDir()}.Instructions("evidence-validity")
+	if len(errors) > 0 {
+		t.Fatalf("expected evidence-validity instructions, got errors %#v", errors)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got %#v", warnings)
+	}
+	for _, want := range []string{
+		"Review the change for evidence validity.",
+		"scorecard",
+		"rejected hypotheses",
+		"residual uncertainty",
+	} {
+		if !strings.Contains(instructions, want) {
+			t.Fatalf("expected instructions to contain %q:\n%s", want, instructions)
+		}
 	}
 }
 

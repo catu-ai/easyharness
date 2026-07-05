@@ -22,8 +22,8 @@ the follow-up implementation slices land.
 and `harness plan lint` recognizes active tracked plans that declare
 `workflow_profile: goal_oriented` with shallow preview validation. Full
 execution support is still being completed: follow-up implementation slices own
-status next actions, challenge/review guidance, structural lint coverage,
-archive/reopen profile preservation, docs/examples, and UI rendering.
+status next actions, structural lint coverage, archive/reopen profile
+preservation, docs/examples, and UI rendering.
 
 ## When To Use It
 
@@ -65,8 +65,8 @@ execution support lands:
   prose or checkpoint markdown
 
 The current authoring preview seeds these concepts so future work can be
-planned credibly, while archive/reopen behavior, status next actions,
-challenge/review guidance, and full structural lint remain follow-up work.
+planned credibly, while archive/reopen behavior, status next actions, and full
+structural lint remain follow-up work.
 Goal-oriented execution will add a disciplined layer inside approved steps:
 the controller runs bounded checkpoint rounds, records concise tracked
 checkpoint reports when the work reaches meaningful decision points,
@@ -244,17 +244,20 @@ used to stress-test hypotheses, identify missing probes, notice evidence gaps,
 or broaden candidate directions before the controller commits to a synthesis
 or pivot.
 
-Challenge is not formal review unless an approved plan explicitly creates a
-formal gate. Challenge output is input to the controller, not an automatic
-state transition.
+Use `hypothesis-challenge` as the checkpoint advisory action for this posture.
+It is not a review dimension, does not start a review round, does not create a
+review aggregate, and does not change `current_node`. The controller may run
+it locally or ask a bounded challenger to look for alternative hypotheses,
+sharper probes, weak-evidence claims, premature convergence, or useful next
+mutations.
 
-Consider challenge when:
+Consider `hypothesis-challenge` at checkpoint boundaries when:
 
 - several plausible hypotheses remain and the current probes cannot distinguish
   them
 - evidence is too weak for the conclusion the controller is about to write
 - the scorecard has plateaued and the controller is considering a major pivot
-- the synthesis is high-risk enough that alternative explanations should be
+- the synthesis is high-impact enough that alternative explanations should be
   tested first
 - the human or approved plan declares a required challenge boundary
 
@@ -262,9 +265,10 @@ Do not require every goal-oriented plan to run at least one challenge round.
 When evidence is decisive and the plan did not require challenge, the
 controller may synthesize and proceed to formal review without challenge.
 
-If challenge changes the work materially, record the result in a new tracked
-checkpoint report. If it only sharpens an existing decision, a short challenge
-summary inside the relevant report is enough.
+Record challenge output in the checkpoint report's `Challenge` field when it
+sharpens the current decision. If challenge materially changes the direction,
+write a new tracked checkpoint report so the pivot, evidence, and residuals are
+visible to later review and archive.
 
 ## Evidence And Reports
 
@@ -334,9 +338,18 @@ states.
 
 Review for goal-oriented work should focus on whether the final synthesis is
 supported by the scorecard, tracked checkpoint reports, durable evidence,
-rejected hypotheses, residual uncertainty, and follow-up handling. The exact
-review dimensions and challenge guidance belong to follow-up implementation
-work.
+rejected hypotheses, residual uncertainty, and follow-up handling.
+
+Use the built-in `evidence-validity` review dimension when a step-closeout or
+finalize review needs formal scrutiny of conclusions, syntheses, decision
+artifacts, evidence claims, rejected alternatives, residuals, or follow-up
+handling. It is especially useful for goal-oriented finalize review when the
+candidate depends on adaptive conclusions rather than only implementation
+correctness or documentation consistency.
+
+Controllers still choose dimensions deliberately. Do not run
+`evidence-validity`, or any other built-in dimension, merely because it exists
+in the catalog.
 
 At archive, the tracked plan package should preserve the durable decision
 trail:
@@ -359,8 +372,10 @@ follow-up issues:
 
 - #270 adds the goal-oriented plan template and authoring-preview workflow
   guidance
-- #272 adds evidence-validity and hypothesis-challenge guidance
-- #273 teaches status and next-action behavior for goal-oriented plans
+- #272 added evidence-validity formal review guidance and
+  hypothesis-challenge checkpoint advisory guidance
+- #273 teaches status and next-action behavior for goal-oriented plans,
+  including any future hints for when to consider `hypothesis-challenge`
 - #274 adds full structural lint coverage for goal-oriented plans beyond the
   shallow active-plan preview recognition
 - #275 adds user-facing docs, help text, and examples

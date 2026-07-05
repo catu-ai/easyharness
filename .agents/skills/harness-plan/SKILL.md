@@ -36,8 +36,8 @@ Use this skill to create or update the tracked plan that will drive execution.
      final synthesis
    - treat `workflow_profile: goal_oriented` as a recognized preview workflow
      profile defined for v0.6.0 authoring; full execution support, structural
-     lint coverage, status next actions, challenge/review guidance,
-     archive/reopen behavior, and public examples are still being completed
+     lint coverage, status next actions, archive/reopen behavior, public
+     examples, and UI support are still being completed
    - when writing a goal-oriented plan, keep checkpoint reports inside
      adaptive steps instead of creating one harness step per model turn, probe,
      or checkpoint report
