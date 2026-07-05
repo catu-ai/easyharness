@@ -84,9 +84,10 @@ it merely because the plan uses `workflow_profile: goal_oriented`.
 `hypothesis-challenge` is not a review dimension. Use it as a checkpoint
 advisory action during adaptive exploration, then record useful output in the
 checkpoint report's `Challenge` field or in a new checkpoint report if it
-changes direction. Do not put it in a formal review spec unless the controller
-has deliberately written a one-off formal review slot with explicit
-instructions for a real review gate.
+changes direction. Do not put `hypothesis-challenge` in a formal review spec.
+When formal review needs evidence or hypothesis scrutiny, use
+`evidence-validity` or an explicitly named one-off review dimension that is not
+`hypothesis-challenge`.
 
 Catalog-managed dimensions are reusable recommendations, not a closed enum. If
 the review needs a one-off focus that is not in the catalog, include a
