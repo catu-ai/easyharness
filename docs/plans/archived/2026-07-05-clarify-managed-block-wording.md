@@ -247,12 +247,14 @@ review.
 - `review-005-delta` passed with 0 blocking and 0 non-blocking findings for the
   restored test assertion.
 - Revision 4 repaired follow-up PR feedback that the managed block sounded too
-  defensive. Fresh finalize review is required before archive.
+  defensive. Finalize repair review `review-006-delta` passed with 0 blocking
+  and 0 non-blocking findings across `docs-consistency`, `agent-ux`, and
+  `tests`.
 
 ## Archive Summary
 
-- Archived At: 2026-07-05T09:31:22+08:00
-- Revision: 3
+- Archived At: 2026-07-05T09:41:51+08:00
+- Revision: 4
 - Reopened At: revision 2, after PR feedback on non-configured repo path
   assumptions.
 - Reopened At: revision 3, after follow-up PR feedback that the conditional
@@ -260,11 +262,10 @@ review.
 - Reopened At: revision 4, after follow-up PR feedback that the discovery
   wording should be positive rather than defensive.
 - PR: https://github.com/catu-ai/easyharness/pull/281
-- Ready: Not yet. Revision 4 is implemented and validated, but still needs
-  fresh finalize review and archive.
-- Merge Handoff: After fresh review and archive, commit and push the archive
-  move, update PR #281, refresh CI/sync evidence, and wait for explicit human
-  merge approval.
+- Ready: Yes. Revision 4 is implemented, validated, reviewed, and ready for
+  publish/sync evidence refresh.
+- Merge Handoff: Commit and push the archive move, update PR #281, refresh
+  CI/sync evidence, and wait for explicit human merge approval.
 
 ## Outcome Summary
 
