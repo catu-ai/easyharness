@@ -296,26 +296,93 @@ finalize review.
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `harness plan lint docs/plans/active/2026-07-05-add-evidence-validity-hypothesis-challenge-guidance.md`
+  passed before approval, during repair, and before archive.
+- `go test ./internal/reviewdimensions ./internal/cli ./internal/plan`
+  passed after the catalog, CLI-contract, and template repairs.
+- `go test $(go list ./... | grep -v '/tests/release$')` passed.
+- `go test ./...` was attempted and failed only in `tests/release` because
+  `corepack` is unavailable in this environment.
+- `git diff --check` passed across the final branch.
+- CLI smoke checks confirmed `harness review dimensions list` reports six
+  dimensions and `harness review dimensions instructions evidence-validity`
+  returns the new reviewer guidance.
+- Targeted searches confirmed `evidence-validity`, `hypothesis-challenge`,
+  checkpoint advisory action wording, formal-review boundaries, sibling issue
+  handoff comments, and stale `challenge/review guidance` or `Found 5 review
+  dimensions` wording.
+- `scripts/sync-bootstrap-assets` was run after managed skill edits and the
+  materialized `.agents/skills/` output was updated.
+- Follow-up comments were left on #273, #274, and #275:
+  https://github.com/catu-ai/easyharness/issues/273#issuecomment-4886073639,
+  https://github.com/catu-ai/easyharness/issues/274#issuecomment-4886073644,
+  and https://github.com/catu-ai/easyharness/issues/275#issuecomment-4886073658.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- `review-001-full` found two blocking docs-consistency findings: the CLI
+  contract still documented five built-in dimensions, and the goal-oriented
+  spec still treated challenge/review guidance as future work. Both were fixed.
+- `review-002-delta` found one remaining blocking planning-surface finding in
+  the generated goal-oriented template and managed `harness-plan` skill. It
+  was fixed.
+- `review-003-delta` passed the planning-surface repair with no findings.
+- `review-004-full` passed with one non-blocking docs formatting finding in
+  the managed `harness-plan` skill. The formatting issue was fixed.
+- `review-005-delta` passed the formatting repair with no findings.
+- `review-006-full` found one blocking docs-consistency finding: managed review
+  orchestration still left a loophole for `hypothesis-challenge` to become a
+  formal review slot. The loophole was fixed.
+- `review-007-delta` passed the loophole repair with no findings.
+- `review-008-full` passed as the archive-gate docs-consistency review with no
+  findings.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-07-05T21:13:14+08:00
+- Revision: 1
+- PR: NONE yet. Publish evidence should record the PR URL after archive and PR
+  creation.
+- Ready: The active plan has completed all steps, validation, follow-up issue
+  handoff, repair review, and archive-gate full review.
+- Merge Handoff: After archive, push this branch, open a PR for #272, record
+  publish/CI/sync evidence, and wait at `execution/finalize/await_merge` for
+  explicit human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Added the built-in `evidence-validity` review dimension and focused tests for
+  catalog listing and instruction retrieval.
+- Updated the goal-oriented workflow spec so `hypothesis-challenge` is a
+  checkpoint advisory action, not a review dimension, review round, aggregate,
+  or state transition.
+- Updated review orchestration guidance so controllers deliberately choose
+  dimensions, use `evidence-validity` for formal evidence/hypothesis scrutiny,
+  and do not put `hypothesis-challenge` in formal review specs.
+- Updated CLI contract, plan schema, generated goal-oriented template wording,
+  and managed planning skill guidance so the preview boundary no longer treats
+  #272 guidance as future work.
+- Synced bootstrap-managed skill output under `.agents/skills/`.
+- Left concrete handoff comments for #273, #274, and #275.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No automatic dimension injection.
+- No review aggregation redesign.
+- No plan-scoped dimensions.
+- No goal-oriented status/next-action implementation.
+- No full goal-oriented structural lint coverage.
+- No public examples or user-facing docs beyond the focused contract and
+  managed guidance updates.
 
 ### Follow-Up Issues
 
-NONE
+- #273: status and next-action hints for when to consider
+  `hypothesis-challenge`.
+- #274: structural lint coverage that may inspect shape but should not judge
+  evidence quality or hypothesis strength.
+- #275: examples/docs showing challenge output in checkpoint reports and
+  formal review using `evidence-validity`.
+- #263: plan-scoped dimensions remain out of scope.
