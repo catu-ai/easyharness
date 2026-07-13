@@ -58,7 +58,7 @@ func TestLightweightWorkflowWithBuiltBinary(t *testing.T) {
 		t.Fatalf("expected current step %q, got %#v", trackedStepTitle(1, lightweightStepTitle), initialStatus)
 	}
 
-	runPassingDeltaReviewAndComplete(t, workspace, planPath, lightweightStepTitle, 1)
+	support.CompleteStep(t, planPath, 1, "Completed the lightweight tracked change.", "No optional step review was started; final review is the formal gate.")
 	support.CheckAllAcceptanceCriteria(t, planPath)
 
 	preFinalizeStatus := runStatus(t, workspace.Root)
@@ -168,7 +168,7 @@ publish handoff behavior.
 
 #### Validation
 
-- Run a clean delta review before finalize review.
+- Enter final review without routine step-review debt.
 
 #### Execution Notes
 

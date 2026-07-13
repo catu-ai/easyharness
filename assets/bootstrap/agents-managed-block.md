@@ -95,16 +95,15 @@ invalidation.
 ## Harness Subagent Use
 
 The controller owns shared repository context and the final workflow judgment.
-Subagents are a normal part of harness work, not an exceptional fallback. When
-a harness workflow skill is first used in a thread, ask once whether the human
-authorizes specific, well-scoped subagents for this harness run unless that
-authorization has already been explicit in the conversation. This authorization
-covers explorer, worker, and reviewer subagents.
+Subagents are a normal part of harness work, not an exceptional fallback.
+Applicable repository or skill instructions that call for bounded subagents
+authorize that use; do not ask for a separate per-run human authorization
+prompt. A human may still narrow or prohibit delegation explicitly.
 
-After authorization, actively look for bounded, independent work that
-subagents can handle in parallel or with useful separation. Spawn subagents
-only for concrete subproblems; do not split one shared context bundle across
-multiple subagents just to get summaries back.
+Actively look for bounded, independent work that subagents can handle in
+parallel or with useful separation. Spawn subagents only for concrete
+subproblems; do not split one shared context bundle across multiple subagents
+just to get summaries back.
 
 Discovery and execution may still stay local, use one subagent, or use
 multiple subagents in parallel according to the current question shape:
@@ -116,23 +115,23 @@ multiple subagents in parallel according to the current question shape:
 - use multiple subagents in parallel only when multiple hypotheses or
   questions are genuinely independent
 
-If subagent authorization is missing when it becomes useful, ask for that
-authorization before spawning. If authorization is denied, continue locally
-until the human changes that boundary.
-
 In Codex, spawned subagents are not fire-and-forget memory. Once a bounded
-subagent task is complete and the controller has received the result, close
-that subagent promptly by default. Reuse `resume_agent` only when a later
-narrow follow-up makes continuity materially more valuable than a fresh agent.
+subagent task is complete and the controller has received the result, treat it
+as idle. Use `followup_task` only when a later narrow follow-up makes continuity
+materially more valuable than a fresh agent; use `interrupt_agent` when an
+active turn must stop. There is no separate close operation.
 
 ## Harness Review Execution
 
 When work enters review orchestration, spawned reviewer subagents are the
 default path. The controller agent stays in `harness-execute`, reviewer work
 belongs to spawned `harness-reviewer` subagents, and the repo-local review
-skills must be followed strictly. The shared rules in `Harness Subagent Use`
-still apply here; review-specific docs add reviewer-slot orchestration,
-aggregation, and same-slot resume rules on top of that shared baseline.
+skills must be followed strictly. Finalize review normally uses one integrated
+reviewer assignment for the complete candidate. Add a specialist assignment
+only for a concrete high-risk surface; plan size alone is not a trigger. The
+shared rules in `Harness Subagent Use` still apply here; review-specific docs
+add reviewer-assignment orchestration, aggregation, and narrow follow-up rules
+on top of that shared baseline.
 
 The controller must not submit reviewer results on a reviewer's behalf. Each
 reviewer submission should be recorded through
@@ -140,11 +139,13 @@ reviewer submission should be recorded through
 from the bounded reviewer thread that owns that slot.
 
 Routine review progression is controller-owned once a tracked plan is approved.
-The controller should not stop to ask the human whether ordinary step-closeout
-or finalize review should begin.
+The controller should not stop to ask the human whether finalize review should
+begin. Step review is optional and begins only when the controller identifies a
+real intermediate risk boundary.
 
-For `delta` review, use a real git commit anchor so later agents know the
-default starting point for the reviewed change.
+For `delta` review, use a real git commit anchor. A narrow review-driven repair
+normally closes with a linked repair delta; rerun full review only when the
+repair materially changes candidate design, scope, or risk.
 
 Use `harness status` at routine checkpoints:
 

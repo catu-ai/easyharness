@@ -11,8 +11,8 @@ import (
 	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/plan"
+	"github.com/catu-ai/easyharness/internal/reviewcoverage"
 	"github.com/catu-ai/easyharness/internal/runstate"
-	"github.com/catu-ai/easyharness/internal/stepcloseout"
 	"gopkg.in/yaml.v3"
 )
 
@@ -984,6 +984,10 @@ func cloneState(state *runstate.State) *runstate.State {
 		round := *state.ActiveReviewRound
 		cloned.ActiveReviewRound = &round
 	}
+	if state.FinalizeCoverage != nil {
+		coverage := *state.FinalizeCoverage
+		cloned.FinalizeCoverage = &coverage
+	}
 	if state.Reopen != nil {
 		reopen := *state.Reopen
 		cloned.Reopen = &reopen
@@ -1117,102 +1121,52 @@ func EvaluateArchiveReadiness(workdir, planStem string, doc *plan.Document, stat
 	for _, issue := range doc.ArchiveReadinessIssues() {
 		issues = append(issues, CommandError{Path: issue.Path, Message: issue.Message})
 	}
-	issues = append(issues, archiveEarlierStepCloseoutIssues(workdir, planStem, doc)...)
-	issues = append(issues, archiveStateIssues(workdir, planStem, runstate.CurrentRevision(state), state)...)
+	issues = append(issues, archiveStateIssues(workdir, planStem, doc, runstate.CurrentRevision(state), state)...)
 	return issues
 }
 
-func archiveEarlierStepCloseoutIssues(workdir, planStem string, doc *plan.Document) []CommandError {
-	reminder := stepcloseout.LoadReminder(workdir, planStem, doc, "execution/finalize/archive", nil)
-	if len(reminder.MissingTitles) == 0 {
-		return nil
-	}
-	earliestIndex := reminder.MissingIndexes[0]
-	earliestTitle := reminder.MissingTitles[0]
-	return []CommandError{{
-		Path:    fmt.Sprintf("plan.steps[%d].review_notes", earliestIndex),
-		Message: fmt.Sprintf("%s still needs review-complete closeout before archive; start an explicit repair review for that step or record NO_STEP_REVIEW_NEEDED: <reason> in Review Notes first", earliestTitle),
-	}}
-}
-
-func archiveStateIssues(workdir, planStem string, revision int, state *runstate.State) []CommandError {
+func archiveStateIssues(workdir, planStem string, doc *plan.Document, revision int, state *runstate.State) []CommandError {
 	issues := make([]CommandError, 0)
-	if state == nil || state.ActiveReviewRound == nil {
+	if state != nil && state.ActiveReviewRound != nil && !state.ActiveReviewRound.Aggregated {
 		issues = append(issues, CommandError{
 			Path:    "state.active_review_round",
-			Message: requiredReviewMessage(revision),
+			Message: "aggregate or supersede the active review round before archive",
 		})
 		return issues
 	}
-
-	if !state.ActiveReviewRound.Aggregated {
+	if state != nil && state.ActiveReviewRound != nil && state.ActiveReviewRound.Step != nil && state.ActiveReviewRound.Decision != "pass" {
 		issues = append(issues, CommandError{
 			Path:    "state.active_review_round",
-			Message: "aggregate or clear the active review round before archive",
+			Message: fmt.Sprintf("intentional step review %s still has unresolved findings", state.ActiveReviewRound.RoundID),
+		})
+		return issues
+	}
+	if state == nil || state.FinalizeCoverage == nil || strings.TrimSpace(state.FinalizeCoverage.TipRoundID) == "" {
+		return append(issues, CommandError{
+			Path:    "state.finalize_coverage",
+			Message: "archive requires a finalize review coverage chain rooted in a full review",
 		})
 	}
-	decision, known, err := runstate.EffectiveReviewDecision(workdir, planStem, state.ActiveReviewRound)
+	chain, err := reviewcoverage.Resolve(workdir, planStem, state.FinalizeCoverage.TipRoundID, revision)
 	if err != nil {
-		issues = append(issues, CommandError{
-			Path:    "state.active_review_round",
-			Message: fmt.Sprintf("unable to read the latest aggregate artifact for %s: %v", state.ActiveReviewRound.RoundID, err),
-		})
-		return issues
-	}
-	if !known {
-		issues = append(issues, CommandError{
-			Path:    "state.active_review_round",
-			Message: "latest review decision is unknown; rerun or re-aggregate the latest review before archive",
+		return append(issues, CommandError{
+			Path:    "state.finalize_coverage",
+			Message: fmt.Sprintf("finalize review coverage is invalid: %v", err),
 		})
 	}
-	reviewRevision, reviewRevisionKnown, err := runstate.EffectiveReviewRevision(workdir, planStem, state.ActiveReviewRound)
-	if err != nil {
-		issues = append(issues, CommandError{
-			Path:    "state.active_review_round",
-			Message: fmt.Sprintf("unable to read the latest manifest artifact for %s: %v", state.ActiveReviewRound.RoundID, err),
-		})
-		return issues
-	}
-	if !reviewRevisionKnown || reviewRevision != revision {
-		issues = append(issues, CommandError{
-			Path:    "state.active_review_round",
-			Message: requiredReviewMessage(revision),
+	if chain.Decision != "pass" || chain.UnresolvedBlockingCount > 0 {
+		return append(issues, CommandError{
+			Path:    "state.finalize_coverage",
+			Message: fmt.Sprintf("coverage tip %s still has %d unresolved blocking finding(s)", chain.TipRoundID, chain.UnresolvedBlockingCount),
 		})
 	}
-	stepNumber, stepKnown, err := runstate.EffectiveReviewStep(workdir, planStem, state.ActiveReviewRound)
-	if err != nil {
-		issues = append(issues, CommandError{
-			Path:    "state.active_review_round",
-			Message: fmt.Sprintf("unable to read the latest manifest artifact for %s: %v", state.ActiveReviewRound.RoundID, err),
-		})
-		return issues
-	}
-	if stepKnown {
-		issues = append(issues, CommandError{
-			Path:    "state.active_review_round",
-			Message: fmt.Sprintf("latest review is still bound to step %d; archive requires a finalize review for revision %d", stepNumber, revision),
-		})
-	}
-	if known && decision != "pass" {
-		issues = append(issues, CommandError{
-			Path:    "state.active_review_round",
-			Message: fmt.Sprintf("latest review decision %q is not archive-ready; fix findings or rerun review", decision),
-		})
-	}
-	if revision <= 1 && state.ActiveReviewRound.Kind != "full" {
-		issues = append(issues, CommandError{
-			Path:    "state.active_review_round",
-			Message: "revision 1 requires a passing full finalize review before archive",
+	if err := reviewcoverage.ValidateArchiveWorktree(workdir, doc.Path, chain.CoveredHeadSHA); err != nil {
+		return append(issues, CommandError{
+			Path:    "review.coverage",
+			Message: err.Error(),
 		})
 	}
 	return issues
-}
-
-func requiredReviewMessage(revision int) string {
-	if revision <= 1 {
-		return "revision 1 requires a passing full finalize review before archive"
-	}
-	return "archive requires a passing aggregated finalize review before archive"
 }
 
 func (s Service) landReadinessIssues(planStem string, state *runstate.State, prURL string) []CommandError {

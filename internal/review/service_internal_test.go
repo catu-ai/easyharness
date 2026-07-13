@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -34,8 +35,8 @@ func TestStartRemovesRoundArtifactsWhenStateSaveFails(t *testing.T) {
 	}.Start(mustJSONBytes(t, Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []Dimension{
-			{Name: "correctness", Instructions: "Check rollback behavior."},
+		Assignments: []AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check rollback behavior."},
 		},
 	}))
 	if result.OK {
@@ -81,14 +82,14 @@ func TestStartRemovesRoundArtifactsWhenLedgerWriteFails(t *testing.T) {
 	}.Start(mustJSONBytes(t, Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []Dimension{
-			{Name: "correctness", Instructions: "Check rollback behavior."},
+		Assignments: []AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check rollback behavior."},
 		},
 	}))
 	if result.OK {
 		t.Fatalf("expected review start failure, got %#v", result)
 	}
-	assertCommandErrorPath(t, result.Errors, "review.slots")
+	assertCommandErrorPath(t, result.Errors, "review.assignments")
 
 	roundDir := filepath.Join(root, ".local", "harness", "plans", "2026-04-01-review-ledger-rollback", "reviews", "review-001-delta")
 	if _, err := os.Stat(roundDir); !os.IsNotExist(err) {
@@ -110,8 +111,8 @@ func TestAggregateRestoresPreviousAggregateWhenStateSaveFails(t *testing.T) {
 	start := svc.Start(mustJSONBytes(t, Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []Dimension{
-			{Name: "correctness", Instructions: "Check aggregate rollback behavior."},
+		Assignments: []AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check aggregate rollback behavior."},
 		},
 	}))
 	if !start.OK {
@@ -182,8 +183,8 @@ func TestSubmitRestoresSubmissionWhenLedgerWriteFails(t *testing.T) {
 	start := svc.Start(mustJSONBytes(t, Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []Dimension{
-			{Name: "correctness", Instructions: "Check aggregate rollback behavior."},
+		Assignments: []AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check aggregate rollback behavior."},
 		},
 	}))
 	if !start.OK {
@@ -216,9 +217,9 @@ func TestSubmitRestoresSubmissionWhenLedgerWriteFails(t *testing.T) {
 	if result.OK {
 		t.Fatalf("expected submit failure, got %#v", result)
 	}
-	assertCommandErrorPath(t, result.Errors, "review.slots")
+	assertCommandErrorPath(t, result.Errors, "review.assignments")
 
-	data, err := os.ReadFile(manifest.Dimensions[0].SubmissionPath)
+	data, err := os.ReadFile(manifest.Assignments[0].SubmissionPath)
 	if err != nil {
 		t.Fatalf("read restored submission skeleton: %v", err)
 	}
@@ -226,7 +227,7 @@ func TestSubmitRestoresSubmissionWhenLedgerWriteFails(t *testing.T) {
 	if err := json.Unmarshal(data, &submission); err != nil {
 		t.Fatalf("unmarshal restored submission skeleton: %v", err)
 	}
-	if submission.RoundID != start.Artifacts.RoundID || submission.Slot != "correctness" || submission.Dimension != "correctness" {
+	if submission.RoundID != start.Artifacts.RoundID || submission.Slot != "correctness" || submission.Role != "integrated" {
 		t.Fatalf("expected submission skeleton identity to be restored, got %#v", submission)
 	}
 	if submission.SubmittedAt != "" || submission.Summary != "" {
@@ -260,6 +261,7 @@ func writeExecutingPlanFixture(t *testing.T, root, relPath string) {
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
+	initReviewGitFixture(t, root)
 
 	planStem := strings.TrimSuffix(filepath.Base(relPath), filepath.Ext(relPath))
 	if _, err := runstate.SaveState(root, planStem, &runstate.State{
@@ -268,6 +270,26 @@ func writeExecutingPlanFixture(t *testing.T, root, relPath string) {
 	}); err != nil {
 		t.Fatalf("save execute-start state: %v", err)
 	}
+}
+
+func initReviewGitFixture(t *testing.T, root string) {
+	t.Helper()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
+		}
+	}
+	run("init", "-q")
+	run("config", "user.name", "Codex Test")
+	run("config", "user.email", "codex@example.com")
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".local/\n"), 0o644); err != nil {
+		t.Fatalf("write gitignore: %v", err)
+	}
+	run("add", ".")
+	run("commit", "-q", "-m", "test fixture")
+	run("tag", "anchor-sha")
 }
 
 func mustJSONBytes(t *testing.T, value any) []byte {

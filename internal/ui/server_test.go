@@ -678,14 +678,14 @@ func TestNewHandlerServesWorkspaceReviewJSONByKey(t *testing.T) {
 	}
 	manifestPath := filepath.Join(reviewDir, "manifest.json")
 	ledgerPath := filepath.Join(reviewDir, "ledger.json")
-	submissionPath := filepath.Join(reviewDir, "submissions", "ux.json")
-	if err := os.WriteFile(manifestPath, []byte(`{"round_id":"review-002-full","kind":"delta","anchor_sha":"abc123def","revision":2,"review_title":"Finalize review","plan_path":"`+relPlanPath+`","plan_stem":"2026-04-02-ui-review-plan","created_at":"2026-04-02T12:00:00Z","ledger_path":"`+ledgerPath+`","aggregate_path":"`+filepath.Join(reviewDir, "aggregate.json")+`","submissions_dir":"`+filepath.Join(reviewDir, "submissions")+`","dimensions":[{"name":"UX","slot":"ux","instructions":"Check the interface hierarchy.","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
+	submissionPath := filepath.Join(reviewDir, "submissions", "integrated.json")
+	if err := os.WriteFile(manifestPath, []byte(`{"round_id":"review-002-full","kind":"delta","anchor_sha":"abc123def","revision":2,"review_title":"Finalize review","plan_path":"`+relPlanPath+`","plan_stem":"2026-04-02-ui-review-plan","created_at":"2026-04-02T12:00:00Z","ledger_path":"`+ledgerPath+`","aggregate_path":"`+filepath.Join(reviewDir, "aggregate.json")+`","submissions_dir":"`+filepath.Join(reviewDir, "submissions")+`","assignments":[{"slot":"integrated","role":"integrated","dimensions":[{"name":"ux","sources":["builtin"],"description":"Review the interface.","instructions":"Check the interface hierarchy."}],"instructions":"Check the complete interface hierarchy.","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
-	if err := os.WriteFile(ledgerPath, []byte(`{"round_id":"review-002-full","kind":"full","updated_at":"2026-04-02T12:10:00Z","slots":[{"name":"UX","slot":"ux","status":"submitted","submitted_at":"2026-04-02T12:08:00Z","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
+	if err := os.WriteFile(ledgerPath, []byte(`{"round_id":"review-002-full","kind":"delta","updated_at":"2026-04-02T12:10:00Z","assignments":[{"slot":"integrated","role":"integrated","status":"submitted","submitted_at":"2026-04-02T12:08:00Z","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
 		t.Fatalf("write ledger: %v", err)
 	}
-	if err := os.WriteFile(submissionPath, []byte(`{"round_id":"review-002-full","slot":"ux","dimension":"UX","submitted_at":"2026-04-02T12:08:00Z","summary":"Hierarchy is clear.","findings":[],"worklog":{"full_plan_read":true,"checked_areas":["web/src/pages.tsx"]},"coverage":{"review_kind":"delta","anchor_sha":"abc123def"}}`), 0o644); err != nil {
+	if err := os.WriteFile(submissionPath, []byte(`{"round_id":"review-002-full","slot":"integrated","role":"integrated","submitted_at":"2026-04-02T12:08:00Z","summary":"Hierarchy is clear.","findings":[],"worklog":{"full_plan_read":true,"checked_areas":["web/src/pages.tsx"]},"coverage":{"review_kind":"delta","anchor_sha":"abc123def"}}`), 0o644); err != nil {
 		t.Fatalf("write submission: %v", err)
 	}
 
@@ -1092,14 +1092,14 @@ func TestNewHandlerServesReviewJSON(t *testing.T) {
 	}
 	manifestPath := filepath.Join(reviewDir, "manifest.json")
 	ledgerPath := filepath.Join(reviewDir, "ledger.json")
-	submissionPath := filepath.Join(reviewDir, "submissions", "ux.json")
-	if err := os.WriteFile(manifestPath, []byte(`{"round_id":"review-002-full","kind":"delta","anchor_sha":"abc123def","revision":2,"review_title":"Finalize review","plan_path":"docs/plans/active/2026-04-02-ui-review-plan.md","plan_stem":"2026-04-02-ui-review-plan","created_at":"2026-04-02T12:00:00Z","ledger_path":"`+ledgerPath+`","aggregate_path":"`+filepath.Join(reviewDir, "aggregate.json")+`","submissions_dir":"`+filepath.Join(reviewDir, "submissions")+`","dimensions":[{"name":"UX","slot":"ux","instructions":"Check the interface hierarchy.","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
+	submissionPath := filepath.Join(reviewDir, "submissions", "integrated.json")
+	if err := os.WriteFile(manifestPath, []byte(`{"round_id":"review-002-full","kind":"delta","anchor_sha":"abc123def","revision":2,"review_title":"Finalize review","plan_path":"docs/plans/active/2026-04-02-ui-review-plan.md","plan_stem":"2026-04-02-ui-review-plan","created_at":"2026-04-02T12:00:00Z","ledger_path":"`+ledgerPath+`","aggregate_path":"`+filepath.Join(reviewDir, "aggregate.json")+`","submissions_dir":"`+filepath.Join(reviewDir, "submissions")+`","assignments":[{"slot":"integrated","role":"integrated","dimensions":[{"name":"ux","sources":["builtin"],"description":"Review the interface.","instructions":"Check the interface hierarchy."}],"instructions":"Check the complete interface hierarchy.","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
-	if err := os.WriteFile(ledgerPath, []byte(`{"round_id":"review-002-full","kind":"full","updated_at":"2026-04-02T12:10:00Z","slots":[{"name":"UX","slot":"ux","status":"submitted","submitted_at":"2026-04-02T12:08:00Z","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
+	if err := os.WriteFile(ledgerPath, []byte(`{"round_id":"review-002-full","kind":"delta","updated_at":"2026-04-02T12:10:00Z","assignments":[{"slot":"integrated","role":"integrated","status":"submitted","submitted_at":"2026-04-02T12:08:00Z","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
 		t.Fatalf("write ledger: %v", err)
 	}
-	if err := os.WriteFile(submissionPath, []byte(`{"round_id":"review-002-full","slot":"ux","dimension":"UX","submitted_at":"2026-04-02T12:08:00Z","summary":"Hierarchy is clear.","findings":[],"worklog":{"full_plan_read":true,"checked_areas":["web/src/pages.tsx"],"open_questions":["Should the review summary stay compact?"],"candidate_findings":["Hierarchy polish"]},"coverage":{"review_kind":"delta","anchor_sha":"abc123def"}}`), 0o644); err != nil {
+	if err := os.WriteFile(submissionPath, []byte(`{"round_id":"review-002-full","slot":"integrated","role":"integrated","submitted_at":"2026-04-02T12:08:00Z","summary":"Hierarchy is clear.","findings":[],"worklog":{"full_plan_read":true,"checked_areas":["web/src/pages.tsx"],"open_questions":["Should the review summary stay compact?"],"candidate_findings":["Hierarchy polish"]},"coverage":{"review_kind":"delta","anchor_sha":"abc123def"}}`), 0o644); err != nil {
 		t.Fatalf("write submission: %v", err)
 	}
 
@@ -1196,14 +1196,14 @@ func TestNewHandlerServesReviewJSONWithMalformedWorklogWarnings(t *testing.T) {
 	}
 	manifestPath := filepath.Join(reviewDir, "manifest.json")
 	ledgerPath := filepath.Join(reviewDir, "ledger.json")
-	submissionPath := filepath.Join(reviewDir, "submissions", "risk.json")
-	if err := os.WriteFile(manifestPath, []byte(`{"round_id":"review-001-delta","kind":"delta","anchor_sha":"abc123def","revision":1,"review_title":"Malformed worklog review","plan_path":"`+relPlanPath+`","plan_stem":"2026-04-10-ui-review-malformed-worklog","created_at":"2026-04-10T12:00:00Z","ledger_path":"`+ledgerPath+`","aggregate_path":"`+filepath.Join(reviewDir, "aggregate.json")+`","submissions_dir":"`+filepath.Join(reviewDir, "submissions")+`","dimensions":[{"name":"Risk","slot":"risk","instructions":"Check degraded worklog handling.","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
+	submissionPath := filepath.Join(reviewDir, "submissions", "integrated.json")
+	if err := os.WriteFile(manifestPath, []byte(`{"round_id":"review-001-delta","kind":"delta","anchor_sha":"abc123def","revision":1,"review_title":"Malformed worklog review","plan_path":"`+relPlanPath+`","plan_stem":"2026-04-10-ui-review-malformed-worklog","created_at":"2026-04-10T12:00:00Z","ledger_path":"`+ledgerPath+`","aggregate_path":"`+filepath.Join(reviewDir, "aggregate.json")+`","submissions_dir":"`+filepath.Join(reviewDir, "submissions")+`","assignments":[{"slot":"integrated","role":"integrated","dimensions":[{"name":"risk-scan","sources":["builtin"],"description":"Review degraded behavior.","instructions":"Check degraded worklog handling."}],"instructions":"Check degraded worklog handling.","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
-	if err := os.WriteFile(ledgerPath, []byte(`{"round_id":"review-001-delta","kind":"delta","updated_at":"2026-04-10T12:10:00Z","slots":[{"name":"Risk","slot":"risk","status":"submitted","submitted_at":"2026-04-10T12:08:00Z","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
+	if err := os.WriteFile(ledgerPath, []byte(`{"round_id":"review-001-delta","kind":"delta","updated_at":"2026-04-10T12:10:00Z","assignments":[{"slot":"integrated","role":"integrated","status":"submitted","submitted_at":"2026-04-10T12:08:00Z","submission_path":"`+submissionPath+`"}]}`), 0o644); err != nil {
 		t.Fatalf("write ledger: %v", err)
 	}
-	if err := os.WriteFile(submissionPath, []byte(`{"round_id":"review-001-delta","slot":"risk","dimension":"Risk","submitted_at":"2026-04-10T12:08:00Z","summary":"Malformed worklog fields should not crash the review API.","findings":[],"worklog":{"full_plan_read":"yes","checked_areas":["web/src/pages.tsx"],"open_questions":"still investigating","candidate_findings":["Candidate trail"]},"coverage":{"review_kind":7,"anchor_sha":"abc123def"}}`), 0o644); err != nil {
+	if err := os.WriteFile(submissionPath, []byte(`{"round_id":"review-001-delta","slot":"integrated","role":"integrated","submitted_at":"2026-04-10T12:08:00Z","summary":"Malformed worklog fields should not crash the review API.","findings":[],"worklog":{"full_plan_read":"yes","checked_areas":["web/src/pages.tsx"],"open_questions":"still investigating","candidate_findings":["Candidate trail"]},"coverage":{"review_kind":7,"anchor_sha":"abc123def"}}`), 0o644); err != nil {
 		t.Fatalf("write submission: %v", err)
 	}
 

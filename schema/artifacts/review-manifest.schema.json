@@ -3,6 +3,42 @@
   "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/review-manifest.schema.json",
   "$ref": "#/$defs/ReviewManifest",
   "$defs": {
+    "ReviewAssignment": {
+      "properties": {
+        "slot": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "dimensions": {
+          "items": {
+            "$ref": "#/$defs/ReviewResolvedDimension"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "risk_brief": {
+          "$ref": "#/$defs/ReviewRiskBrief"
+        },
+        "submission_path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "slot",
+        "role",
+        "dimensions",
+        "instructions",
+        "submission_path"
+      ],
+      "description": "ReviewAssignment describes one surfaced reviewer assignment."
+    },
     "ReviewManifest": {
       "properties": {
         "round_id": {
@@ -17,6 +53,10 @@
           "type": "string",
           "description": "AnchorSHA is the controller-chosen git commit anchor recorded for delta review when the round uses one."
         },
+        "reviewed_head_sha": {
+          "type": "string",
+          "description": "ReviewedHeadSHA is the command-captured immutable candidate head reviewed by this round."
+        },
         "step": {
           "type": "integer",
           "description": "Step is the tracked plan step number when the round is step-scoped."
@@ -28,6 +68,10 @@
         "review_title": {
           "type": "string",
           "description": "ReviewTitle is the human-readable title for the round when one exists."
+        },
+        "repair": {
+          "$ref": "#/$defs/ReviewRepairReference",
+          "description": "Repair identifies the prior round and findings targeted by this delta."
         },
         "plan_path": {
           "type": "string",
@@ -41,20 +85,20 @@
           "type": "string",
           "description": "CreatedAt is the round creation timestamp."
         },
-        "dimensions": {
+        "assignments": {
           "oneOf": [
             {
               "items": {
-                "$ref": "#/$defs/ReviewSlot"
+                "$ref": "#/$defs/ReviewAssignment"
               },
               "type": "array",
-              "description": "Dimensions lists the materialized reviewer slots for the round."
+              "description": "Assignments lists the materialized reviewer assignments for the round."
             },
             {
               "type": "null"
             }
           ],
-          "description": "Dimensions lists the materialized reviewer slots for the round."
+          "description": "Assignments lists the materialized reviewer assignments for the round."
         },
         "ledger_path": {
           "type": "string",
@@ -74,45 +118,108 @@
       "required": [
         "round_id",
         "kind",
+        "reviewed_head_sha",
         "revision",
         "plan_path",
         "plan_stem",
         "created_at",
-        "dimensions",
+        "assignments",
         "ledger_path",
         "aggregate_path",
         "submissions_dir"
       ],
       "description": "ReviewManifest is the command-owned review manifest artifact for one review round."
     },
-    "ReviewSlot": {
+    "ReviewRepairReference": {
+      "properties": {
+        "round_id": {
+          "type": "string"
+        },
+        "finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 0
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "round_id",
+        "finding_ids"
+      ],
+      "description": "ReviewRepairReference identifies the findings targeted by a repair delta."
+    },
+    "ReviewResolvedDimension": {
       "properties": {
         "name": {
-          "type": "string",
-          "description": "Name is the review dimension name."
+          "type": "string"
         },
-        "slot": {
-          "type": "string",
-          "description": "Slot is the stable slot identifier."
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "description": {
+          "type": "string"
         },
         "instructions": {
-          "type": "string",
-          "description": "Instructions is the explicit reviewer handoff for this slot."
+          "type": "string"
         },
-        "submission_path": {
-          "type": "string",
-          "description": "SubmissionPath is the target path for this slot's submission artifact."
+        "plan_path": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
         "name",
-        "slot",
-        "instructions",
-        "submission_path"
+        "sources",
+        "description",
+        "instructions"
       ],
-      "description": "ReviewSlot describes one surfaced reviewer submission slot."
+      "description": "ReviewResolvedDimension snapshots one explicitly assigned guidance fragment."
+    },
+    "ReviewRiskBrief": {
+      "properties": {
+        "risk_surfaces": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "invariants": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "failure_modes": {
+          "oneOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "risk_surfaces",
+        "invariants"
+      ],
+      "description": "ReviewRiskBrief gives a specialist a concrete risk surface to challenge."
     }
   },
   "title": "Review manifest artifact",

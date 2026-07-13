@@ -12,10 +12,10 @@ probes, checkpoint rounds, optional challenge, and synthesis.
 `goal_oriented` is a profile on top of the existing harness workflow. It does
 not create a separate workflow engine. The completed v0.6.0 profile is
 designed to use explicit human approval, stable plan steps, formal
-step-closeout and finalize review, archive, evidence, and the canonical node
-state model. In the current authoring preview, agents can draft and lint active
-tracked goal-oriented plans, but must not rely on full lifecycle support until
-the follow-up implementation slices land.
+finalize review, optional risk-boundary step review, archive, evidence, and the
+canonical node state model. In the current authoring preview, agents can draft
+and lint active tracked goal-oriented plans, but must not rely on full lifecycle
+support until the follow-up implementation slices land.
 
 `goal_oriented` is a recognized preview workflow profile for v0.6.0 authoring.
 `harness plan template --goal-oriented` can seed the goal-oriented plan shape,
@@ -57,7 +57,9 @@ execution support lands:
 - human approval still approves the tracked plan package
 - plan steps still represent stable approved phase boundaries
 - `harness execute start` still begins execution
-- formal step-closeout and finalize reviews remain hard gates
+- finalize full review is the default formal review gate; a step review is
+  binding only when the controller intentionally starts one at a concrete
+  intermediate risk boundary
 - archive still preserves the durable outcome summary and review history
 - command-owned runtime state still lives under the local runtime root resolved
   by `harness repo config get paths.local_runtime`
@@ -130,7 +132,7 @@ adaptive step may contain several model continuations, probes, observations,
 and pivots. Durable learning from that work belongs in tracked checkpoint
 reports or final synthesis, not in a growing list of tiny plan steps.
 
-Use stable steps for boundaries that need approval, review, and archive
+Use stable steps for boundaries that need approval, validation, and archive
 visibility. Use checkpoint rounds for meaningful intermediate learning inside
 those steps.
 
@@ -332,24 +334,37 @@ lint.
 
 ## Review And Archive
 
-Formal step-closeout and finalize reviews remain hard gates. Challenge does
-not replace formal review, and checkpoint reports do not create new review
-states.
+Finalize full review remains the default formal gate. Step-closeout review is
+not mandatory, including for large goal-oriented plans; it is available when
+an intermediate conclusion, contract, irreversible probe, or other concrete
+risk boundary must be challenged before later work depends on it. Once such a
+review is started, its blocking findings must be resolved. Challenge does not
+replace a formal review that was intentionally started, and checkpoint reports
+do not create new review states.
 
 Review for goal-oriented work should focus on whether the final synthesis is
 supported by the scorecard, tracked checkpoint reports, durable evidence,
 rejected hypotheses, residual uncertainty, and follow-up handling.
 
-Use the built-in `evidence-validity` review dimension when a step-closeout or
-finalize review needs formal scrutiny of conclusions, syntheses, decision
+Use the built-in `evidence-validity` review dimension when an intentionally
+started step review or the finalize review needs formal scrutiny of conclusions, syntheses, decision
 artifacts, evidence claims, rejected alternatives, residuals, or follow-up
 handling. It is especially useful for goal-oriented finalize review when the
 candidate depends on adaptive conclusions rather than only implementation
 correctness or documentation consistency.
 
-Controllers still choose dimensions deliberately. Do not run
-`evidence-validity`, or any other built-in dimension, merely because it exists
-in the catalog.
+Controllers still choose guidance deliberately. A finalize integrated reviewer
+may receive `evidence-validity` together with correctness, tests, risk, and
+documentation guidance; a dimension does not imply a separate reviewer. Do not
+assign `evidence-validity`, or any other built-in dimension, merely because it
+exists in the catalog.
+
+Known experimental risks and evidence invariants may be recorded in the plan
+package, including additive plan-scoped review guidance. The controller chooses
+actual specialist assignments immediately before finalize from the completed
+candidate. Adaptive plan size, checkpoint count, and uncertainty alone do not
+trigger a specialist; a specialist requires a concrete high-risk surface and a
+risk brief naming the invariants and failure modes to challenge.
 
 At archive, the tracked plan package should preserve the durable decision
 trail:

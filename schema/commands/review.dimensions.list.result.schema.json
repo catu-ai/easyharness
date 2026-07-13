@@ -28,9 +28,20 @@
           "type": "string",
           "description": "Name is the stable review dimension identifier, using lowercase alphanumeric segments separated by single hyphens."
         },
-        "source": {
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Sources preserves the ordered provenance of the resolved guidance. A same-name plan fragment follows its builtin or repo base source."
+        },
+        "path": {
           "type": "string",
-          "description": "Source identifies where the dimension definition came from."
+          "description": "Path identifies the repo-relative file that supplied the resolved repo-defined or plan-scoped guidance. Built-in-only guidance omits it."
+        },
+        "plan_path": {
+          "type": "string",
+          "description": "PlanPath identifies the current plan whose package supplied additive guidance. Guidance with no plan-scoped fragment omits it."
         },
         "description": {
           "type": "string",
@@ -41,7 +52,7 @@
       "type": "object",
       "required": [
         "name",
-        "source",
+        "sources",
         "description"
       ],
       "description": "ReviewDimensionMetadata describes one dimension in the controller-facing catalog."

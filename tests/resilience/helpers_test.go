@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/tests/support"
@@ -19,12 +20,12 @@ type commandError struct {
 }
 
 type statusResult struct {
-	OK      bool           `json:"ok"`
-	Command string         `json:"command"`
-	Summary string         `json:"summary"`
-	Warnings []string      `json:"warnings"`
-	Errors  []commandError `json:"errors"`
-	State   struct {
+	OK       bool           `json:"ok"`
+	Command  string         `json:"command"`
+	Summary  string         `json:"summary"`
+	Warnings []string       `json:"warnings"`
+	Errors   []commandError `json:"errors"`
+	State    struct {
 		CurrentNode string `json:"current_node"`
 	} `json:"state"`
 	NextAction []struct {
@@ -34,10 +35,10 @@ type statusResult struct {
 }
 
 type lifecycleResult struct {
-	OK      bool           `json:"ok"`
-	Command string         `json:"command"`
-	Summary string         `json:"summary"`
-	Errors  []commandError `json:"errors"`
+	OK        bool           `json:"ok"`
+	Command   string         `json:"command"`
+	Summary   string         `json:"summary"`
+	Errors    []commandError `json:"errors"`
 	Artifacts struct {
 		FromPlanPath    string `json:"from_plan_path"`
 		ToPlanPath      string `json:"to_plan_path"`
@@ -76,6 +77,24 @@ func writeState(t *testing.T, workspace *support.Workspace, planStem string, sta
 	t.Helper()
 	if _, err := runstate.SaveState(workspace.Root, planStem, state); err != nil {
 		t.Fatalf("save state: %v", err)
+	}
+}
+
+func preparePassingFinalizeCoverage(t *testing.T, workspace *support.Workspace, planStem string, state *runstate.State) {
+	t.Helper()
+	head := workspace.CommitAll(t, "reviewed archive candidate")
+	roundID := "review-001-full"
+	revision := runstate.CurrentRevision(state)
+	writeReviewManifest(t, workspace, planStem, roundID, map[string]any{
+		"round_id": roundID, "kind": "full", "reviewed_head_sha": head, "revision": revision,
+	})
+	writeReviewAggregate(t, workspace, planStem, roundID, map[string]any{
+		"round_id": roundID, "kind": "full", "reviewed_head_sha": head, "revision": revision, "decision": "pass",
+		"blocking_findings": []contracts.ReviewAggregateFinding{}, "non_blocking_findings": []contracts.ReviewAggregateFinding{},
+		"resolved_finding_ids": []string{}, "unresolved_finding_ids": []string{}, "unresolved_blocking_findings": []contracts.ReviewAggregateFinding{},
+	})
+	state.FinalizeCoverage = &runstate.FinalizeCoverage{
+		RootRoundID: roundID, TipRoundID: roundID, CoveredHeadSHA: head, Revision: revision,
 	}
 }
 

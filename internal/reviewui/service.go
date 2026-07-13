@@ -22,13 +22,13 @@ type Service struct {
 type Result = contracts.ReviewResult
 type Artifacts = contracts.ReviewArtifacts
 type Round = contracts.ReviewRoundView
-type Reviewer = contracts.ReviewSlotView
+type Reviewer = contracts.ReviewAssignmentView
 type Artifact = contracts.ReviewArtifactView
 type ErrorDetail = contracts.ErrorDetail
 type Manifest = contracts.ReviewManifest
-type ManifestSlot = contracts.ReviewSlot
+type ManifestAssignment = contracts.ReviewAssignment
 type Ledger = contracts.ReviewLedger
-type LedgerSlot = contracts.ReviewLedgerSlot
+type LedgerAssignment = contracts.ReviewLedgerAssignment
 type Submission = contracts.ReviewSubmission
 type Aggregate = contracts.ReviewAggregate
 type ReviewFinding = contracts.ReviewFinding
@@ -297,6 +297,11 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 	if manifest != nil {
 		round.Kind = manifest.Kind
 		round.AnchorSHA = manifest.AnchorSHA
+		round.ReviewedHeadSHA = manifest.ReviewedHeadSHA
+		if manifest.Repair != nil {
+			round.RepairsRoundID = manifest.Repair.RoundID
+			round.RepairFindingIDs = append([]string(nil), manifest.Repair.FindingIDs...)
+		}
 		round.Step = manifest.Step
 		round.Revision = manifest.Revision
 		round.ReviewTitle = manifest.ReviewTitle
@@ -323,8 +328,29 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 		}
 		round.AggregatedAt = aggregate.AggregatedAt
 		round.Decision = aggregate.Decision
-		round.BlockingFindings = aggregate.BlockingFindings
+		if round.ReviewedHeadSHA == "" {
+			round.ReviewedHeadSHA = aggregate.ReviewedHeadSHA
+		}
+		if round.RepairsRoundID == "" && aggregate.Repair != nil {
+			round.RepairsRoundID = aggregate.Repair.RoundID
+			round.RepairFindingIDs = append([]string(nil), aggregate.Repair.FindingIDs...)
+		}
+		if aggregate.UnresolvedBlockingFindings != nil {
+			round.BlockingFindings = aggregate.UnresolvedBlockingFindings
+		} else {
+			round.BlockingFindings = aggregate.BlockingFindings
+		}
 		round.NonBlockingFindings = aggregate.NonBlockingFindings
+		round.ResolvedFindingIDs = append([]string(nil), aggregate.ResolvedFindingIDs...)
+		round.UnresolvedFindingIDs = append([]string(nil), aggregate.UnresolvedFindingIDs...)
+		switch {
+		case len(round.UnresolvedFindingIDs) > 0 || len(round.BlockingFindings) > 0 || aggregate.Decision == "changes_requested":
+			round.CoverageStatus = "blocked"
+		case aggregate.Decision == "pass":
+			round.CoverageStatus = "clean"
+		default:
+			round.CoverageStatus = "pending"
+		}
 	}
 
 	reviewers, submissionArtifacts, reviewerWarnings := s.readReviewers(roundDir, manifest, ledger)
@@ -332,13 +358,13 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 	round.Artifacts = append(round.Artifacts, submissionArtifacts...)
 	warnings = append(warnings, reviewerWarnings...)
 
-	round.TotalSlots = len(reviewers)
+	round.TotalAssignments = len(reviewers)
 	for _, reviewer := range reviewers {
 		switch normalizeSlotStatus(reviewer.Status) {
 		case "submitted":
-			round.SubmittedSlots++
+			round.SubmittedAssignments++
 		default:
-			round.PendingSlots++
+			round.PendingAssignments++
 		}
 	}
 
@@ -354,7 +380,7 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 	if ledgerArtifact.Status == "missing" && len(reviewers) > 0 {
 		appendWarning("Ledger is missing, so submission progress is inferred conservatively from submission artifacts.")
 	}
-	if aggregateArtifact.Status == "missing" && round.SubmittedSlots == round.TotalSlots && round.TotalSlots > 0 {
+	if aggregateArtifact.Status == "missing" && round.SubmittedAssignments == round.TotalAssignments && round.TotalAssignments > 0 {
 		appendWarning("All reviewer submissions are present, but the aggregate artifact is still missing.")
 	}
 	round.Warnings = dedupeStrings(warnings)
@@ -364,8 +390,8 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledger) ([]Reviewer, []Artifact, []string) {
 	slotOrder := make([]string, 0)
 	slotSeen := map[string]bool{}
-	manifestBySlot := map[string]ManifestSlot{}
-	ledgerBySlot := map[string]LedgerSlot{}
+	manifestBySlot := map[string]ManifestAssignment{}
+	ledgerBySlot := map[string]LedgerAssignment{}
 	submissionPathBySlot := map[string]string{}
 	addSlot := func(slot string) {
 		slot = strings.TrimSpace(slot)
@@ -377,7 +403,7 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 	}
 
 	if manifest != nil {
-		for _, item := range manifest.Dimensions {
+		for _, item := range manifest.Assignments {
 			slot := strings.TrimSpace(item.Slot)
 			if slot == "" {
 				continue
@@ -390,7 +416,7 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 		}
 	}
 	if ledger != nil {
-		for _, item := range ledger.Slots {
+		for _, item := range ledger.Assignments {
 			slot := strings.TrimSpace(item.Slot)
 			if slot == "" {
 				continue
@@ -430,13 +456,15 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 			artifactPath = path
 		}
 		if item, ok := manifestBySlot[slot]; ok {
-			reviewer.Name = item.Name
+			reviewer.Role = item.Role
+			reviewer.Dimensions = item.Dimensions
+			reviewer.RiskBrief = item.RiskBrief
 			reviewer.Instructions = item.Instructions
 		}
 		if item, ok := ledgerBySlot[slot]; ok {
 			hasLedgerEntry = true
-			if reviewer.Name == "" {
-				reviewer.Name = item.Name
+			if reviewer.Role == "" {
+				reviewer.Role = item.Role
 			}
 			reviewer.Status = item.Status
 			reviewer.SubmittedAt = item.SubmittedAt
@@ -447,8 +475,8 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 		reviewer.SubmissionPath = repoFacingReviewUIPath(s.Workdir, artifactPath)
 
 		artifactLabel := fmt.Sprintf("Submission: %s", reviewer.Slot)
-		if reviewer.Name != "" {
-			artifactLabel = fmt.Sprintf("Submission: %s", reviewer.Name)
+		if reviewer.Role != "" {
+			artifactLabel = fmt.Sprintf("Submission: %s (%s)", reviewer.Slot, reviewer.Role)
 		}
 		reviewerWarnings := make([]string, 0, 4)
 		submissionArtifact, submission, submissionWarning := readJSONArtifact[Submission](artifactLabel, artifactPath, repoFacingReviewUIPath(s.Workdir, artifactPath), validateSubmissionArtifact)
@@ -459,10 +487,11 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 			reviewer.RawSubmission = append(json.RawMessage(nil), submissionArtifact.Content...)
 		}
 		if submission != nil {
-			if reviewer.Name == "" {
-				reviewer.Name = submission.Dimension
+			if reviewer.Role == "" {
+				reviewer.Role = submission.Role
 			}
 			reviewer.Summary = submission.Summary
+			reviewer.Resolutions = submission.Resolutions
 			reviewer.Findings = submission.Findings
 			worklog, worklogWarnings := normalizeReviewerWorklog(*submission)
 			reviewer.Worklog = worklog
@@ -503,8 +532,8 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 }
 
 func reviewerDisplayName(reviewer Reviewer) string {
-	if strings.TrimSpace(reviewer.Name) != "" {
-		return reviewer.Name
+	if strings.TrimSpace(reviewer.Role) != "" {
+		return fmt.Sprintf("%s %s", reviewer.Role, reviewer.Slot)
 	}
 	return reviewer.Slot
 }
@@ -641,7 +670,7 @@ func canonicalSlotStatus(status string) (string, string) {
 	case "submitted":
 		return "submitted", ""
 	default:
-		return "pending", fmt.Sprintf("Ledger reports unknown slot status %q, so this reviewer is shown conservatively as pending.", strings.TrimSpace(status))
+		return "pending", fmt.Sprintf("Ledger reports unknown assignment status %q, so this reviewer is shown conservatively as pending.", strings.TrimSpace(status))
 	}
 }
 
@@ -652,14 +681,14 @@ func resolveRoundStatus(round Round, manifestArtifact, ledgerArtifact, aggregate
 	if manifestArtifact.Status == "missing" && ledgerArtifact.Status == "missing" {
 		return "degraded", "Core review artifacts are missing."
 	}
-	if round.TotalSlots == 0 {
+	if round.TotalAssignments == 0 {
 		if round.IsActive {
-			return "in_progress", "Review round is active, but reviewer slots could not be recovered yet."
+			return "in_progress", "Review round is active, but reviewer assignments could not be recovered yet."
 		}
 		return "incomplete", "Review round metadata is incomplete."
 	}
-	if round.PendingSlots > 0 {
-		return "waiting_for_submissions", fmt.Sprintf("Waiting for %d of %d reviewer submissions.", round.PendingSlots, round.TotalSlots)
+	if round.PendingAssignments > 0 {
+		return "waiting_for_submissions", fmt.Sprintf("Waiting for %d of %d reviewer submissions.", round.PendingAssignments, round.TotalAssignments)
 	}
 	if manifestArtifact.Status != "available" || ledgerArtifact.Status != "available" {
 		return "degraded", "Core review artifacts are incomplete, so aggregate state is shown conservatively."
@@ -667,8 +696,11 @@ func resolveRoundStatus(round Round, manifestArtifact, ledgerArtifact, aggregate
 	if aggregateArtifact.Status == "available" && strings.TrimSpace(round.Decision) != "" {
 		switch round.Decision {
 		case "pass":
-			return "pass", "Aggregate review passed cleanly."
+			return "pass", "Aggregate review coverage passed cleanly."
 		case "changes_requested":
+			if len(round.UnresolvedFindingIDs) > 0 {
+				return "changes_requested", fmt.Sprintf("Aggregate review requested changes; %d blocking finding(s) remain unresolved in the coverage chain.", len(round.UnresolvedFindingIDs))
+			}
 			return "changes_requested", "Aggregate review requested changes."
 		default:
 			return "aggregated", fmt.Sprintf("Aggregate review decision: %s.", round.Decision)
@@ -898,21 +930,48 @@ func validateManifestArtifact(manifest *Manifest) []string {
 	if strings.TrimSpace(manifest.Submissions) == "" {
 		missing = append(missing, "submissions_dir")
 	}
-	if len(manifest.Dimensions) == 0 {
-		missing = append(missing, "dimensions")
+	if len(manifest.Assignments) == 0 {
+		missing = append(missing, "assignments")
 	}
-	for index, slot := range manifest.Dimensions {
-		prefix := fmt.Sprintf("dimensions[%d]", index)
-		if strings.TrimSpace(slot.Name) == "" {
-			missing = append(missing, prefix+".name")
-		}
-		if strings.TrimSpace(slot.Slot) == "" {
+	for index, assignment := range manifest.Assignments {
+		prefix := fmt.Sprintf("assignments[%d]", index)
+		if strings.TrimSpace(assignment.Slot) == "" {
 			missing = append(missing, prefix+".slot")
 		}
-		if strings.TrimSpace(slot.Instructions) == "" {
+		if strings.TrimSpace(assignment.Role) == "" {
+			missing = append(missing, prefix+".role")
+		}
+		if len(assignment.Dimensions) == 0 {
+			missing = append(missing, prefix+".dimensions")
+		}
+		for dimensionIndex, dimension := range assignment.Dimensions {
+			dimensionPrefix := fmt.Sprintf("%s.dimensions[%d]", prefix, dimensionIndex)
+			if strings.TrimSpace(dimension.Name) == "" {
+				missing = append(missing, dimensionPrefix+".name")
+			}
+			if len(dimension.Sources) == 0 {
+				missing = append(missing, dimensionPrefix+".sources")
+			}
+			if strings.TrimSpace(dimension.Instructions) == "" {
+				missing = append(missing, dimensionPrefix+".instructions")
+			}
+		}
+		if assignment.Role == "specialist" {
+			if assignment.RiskBrief == nil {
+				missing = append(missing, prefix+".risk_brief")
+			} else {
+				if len(assignment.RiskBrief.RiskSurfaces) == 0 {
+					missing = append(missing, prefix+".risk_brief.risk_surfaces")
+				}
+				if len(assignment.RiskBrief.Invariants) == 0 {
+					missing = append(missing, prefix+".risk_brief.invariants")
+				}
+			}
+		}
+		if strings.TrimSpace(assignment.Instructions) == "" {
 			missing = append(missing, prefix+".instructions")
 		}
-		if strings.TrimSpace(slot.SubmissionPath) == "" {
+		if strings.TrimSpace(assignment.SubmissionPath) == "" {
 			missing = append(missing, prefix+".submission_path")
 		}
 	}
@@ -930,24 +989,24 @@ func validateLedgerArtifact(ledger *Ledger) []string {
 	if strings.TrimSpace(ledger.UpdatedAt) == "" {
 		missing = append(missing, "updated_at")
 	}
-	if len(ledger.Slots) == 0 {
-		missing = append(missing, "slots")
+	if len(ledger.Assignments) == 0 {
+		missing = append(missing, "assignments")
 	}
-	for index, slot := range ledger.Slots {
-		prefix := fmt.Sprintf("slots[%d]", index)
-		if strings.TrimSpace(slot.Name) == "" {
-			missing = append(missing, prefix+".name")
-		}
-		if strings.TrimSpace(slot.Slot) == "" {
+	for index, assignment := range ledger.Assignments {
+		prefix := fmt.Sprintf("assignments[%d]", index)
+		if strings.TrimSpace(assignment.Slot) == "" {
 			missing = append(missing, prefix+".slot")
 		}
-		if strings.TrimSpace(slot.Status) == "" {
+		if strings.TrimSpace(assignment.Role) == "" {
+			missing = append(missing, prefix+".role")
+		}
+		if strings.TrimSpace(assignment.Status) == "" {
 			missing = append(missing, prefix+".status")
 		}
-		if strings.TrimSpace(slot.SubmissionPath) == "" {
+		if strings.TrimSpace(assignment.SubmissionPath) == "" {
 			missing = append(missing, prefix+".submission_path")
 		}
-		if normalizedStatus, _ := canonicalSlotStatus(slot.Status); normalizedStatus == "submitted" && strings.TrimSpace(slot.SubmittedAt) == "" {
+		if normalizedStatus, _ := canonicalSlotStatus(assignment.Status); normalizedStatus == "submitted" && strings.TrimSpace(assignment.SubmittedAt) == "" {
 			missing = append(missing, prefix+".submitted_at")
 		}
 	}
@@ -962,8 +1021,35 @@ func validateSubmissionArtifact(submission *Submission) []string {
 	if strings.TrimSpace(submission.Slot) == "" {
 		missing = append(missing, "slot")
 	}
-	if strings.TrimSpace(submission.Dimension) == "" {
-		missing = append(missing, "dimension")
+	if strings.TrimSpace(submission.Role) == "" {
+		missing = append(missing, "role")
+	}
+	for index, finding := range submission.Findings {
+		prefix := fmt.Sprintf("findings[%d]", index)
+		if strings.TrimSpace(finding.Area) == "" {
+			missing = append(missing, prefix+".area")
+		}
+		if strings.TrimSpace(finding.Severity) == "" {
+			missing = append(missing, prefix+".severity")
+		}
+		if strings.TrimSpace(finding.Title) == "" {
+			missing = append(missing, prefix+".title")
+		}
+		if strings.TrimSpace(finding.Details) == "" {
+			missing = append(missing, prefix+".details")
+		}
+	}
+	for index, resolution := range submission.Resolutions {
+		prefix := fmt.Sprintf("resolutions[%d]", index)
+		if strings.TrimSpace(resolution.FindingID) == "" {
+			missing = append(missing, prefix+".finding_id")
+		}
+		if strings.TrimSpace(resolution.Status) == "" {
+			missing = append(missing, prefix+".status")
+		}
+		if strings.TrimSpace(resolution.Details) == "" {
+			missing = append(missing, prefix+".details")
+		}
 	}
 	return missing
 }
@@ -984,6 +1070,24 @@ func validateAggregateArtifact(aggregate *Aggregate) []string {
 	}
 	if strings.TrimSpace(aggregate.AggregatedAt) == "" {
 		missing = append(missing, "aggregated_at")
+	}
+	findings := append([]AggregateFinding(nil), aggregate.BlockingFindings...)
+	findings = append(findings, aggregate.NonBlockingFindings...)
+	findings = append(findings, aggregate.UnresolvedBlockingFindings...)
+	for index, finding := range findings {
+		prefix := fmt.Sprintf("findings[%d]", index)
+		if strings.TrimSpace(finding.FindingID) == "" {
+			missing = append(missing, prefix+".finding_id")
+		}
+		if strings.TrimSpace(finding.Slot) == "" {
+			missing = append(missing, prefix+".slot")
+		}
+		if strings.TrimSpace(finding.Role) == "" {
+			missing = append(missing, prefix+".role")
+		}
+		if strings.TrimSpace(finding.Area) == "" {
+			missing = append(missing, prefix+".area")
+		}
 	}
 	return missing
 }

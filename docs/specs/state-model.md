@@ -92,8 +92,9 @@ resolving the snapshot.
 
 ### Durable Plan, Disposable Runtime
 
-Tracked active plans remain the durable source of scope, step closeout, and
-archive summaries for all workflow profiles. Lightweight work uses the same
+Tracked active plans remain the durable source of scope, step closeout,
+plan-scoped review guidance, and archive summaries for all workflow profiles.
+Lightweight work uses the same
 schema and the same active-plan root resolved by
 `harness repo config get paths.plans.active`, but its archived snapshot moves
 under the local runtime root resolved by
@@ -161,9 +162,11 @@ Agents and scripts should resolve these roots with
 
 - worktree-level current-plan and last-landed context
 - execute-start milestones
-- review round metadata, submission-tracking data, reviewer submissions, and
-  persisted review decisions, including optional reviewer-provided finding
-  locations preserved in submission and decision artifacts
+- review round metadata, including the command-captured `reviewed_head_sha`,
+  submission-tracking data, reviewer submissions, persisted review decisions,
+  and continuous full-plus-repair-delta finalize coverage; optional
+  reviewer-provided finding locations remain preserved in submission and
+  decision artifacts
 - append-only timeline event indexes under the local runtime root resolved by
   `harness repo config get paths.local_runtime`, defaulting to
   `.local/harness/plans/<plan-stem>/events.jsonl`
@@ -228,8 +231,19 @@ inputs that do not already live in a more specific artifact:
 - `execution_started_at`
 - `revision`
 - `active_review_round`
+- `finalize_coverage`
 - `reopen`
 - `land`
+
+`active_review_round` is the mutable orchestration pointer for the round that
+is currently in flight or most recently aggregated. It is not, by itself, the
+archive verdict. `finalize_coverage` is a compact command-validated cache of a
+durable coverage chain: the full root round, current tip round, covered Git
+head, revision, and unresolved blocking count. The manifests and aggregates
+remain the source of truth, so archive must resolve and validate that chain
+rather than trusting the cache alone. Reopen preserves the prior coverage tip
+so a narrow later revision can extend it with a linked delta; a new full review
+may replace the root when broader work invalidates the earlier judgment.
 
 The mutation surfaces around those runtime artifacts stay split on purpose:
 
@@ -292,15 +306,18 @@ ordinary implementation work and post-review repair work at step scope.
 
 ### `execution/step-<n>/review`
 
-Step `<n>` is in a real review loop backed by review artifacts. This node
-means review is actively in flight: reviewer submissions or aggregation are
-still pending. Once the review outcome is known, resolution returns to
-`execution/step-<n>/implement`.
+Step `<n>` is in an intentionally started review loop backed by review
+artifacts. Step review is an optional risk-boundary tool, not an ordinary
+closeout requirement. This node means review is actively in flight: reviewer
+submissions or aggregation are still pending. Once the review outcome is
+known, resolution returns to `execution/step-<n>/implement`.
 
 ### `execution/finalize/review`
 
 All intended steps are durably complete, and the whole-branch candidate still
-needs a final review gate. This is distinct from the last step's review.
+needs the default formal review gate. Finalize review is distinct from the last
+step's review and is required regardless of whether any optional step review
+occurred.
 
 ### `execution/finalize/fix`
 
@@ -340,50 +357,65 @@ work remains in `land` until `harness land complete` intentionally restores
 ## Step and Review Rules
 
 - The first unfinished step determines the current execution step.
+- Plan steps are execution, validation, and durable-note boundaries. They are
+  not review boundaries by default, regardless of plan size.
+- A step should not be marked done until its implementation, validation,
+  execution notes, and review notes are complete. `Review Notes` may say that
+  no formal step review ran, but no magic no-review marker or justification is
+  required.
+- Step review is optional. A controller may start one deliberately when an
+  intermediate artifact crosses a concrete risk boundary, such as an API or
+  schema contract consumed by later steps, a migration or security boundary,
+  an external or irreversible side effect, or a long-running decision that
+  needs to be frozen before more work proceeds. Plan size, step count, and file
+  count alone do not trigger it.
 - In the ordinary loop, `execution/step-<k>/...` names the current execution
-  frontier. However, an explicit earlier-step closeout repair may intentionally
-  re-enter `execution/step-<i>/review` or `execution/step-<i>/implement` for a
-  completed earlier step that is being repaired.
-- A step should not be marked done until its implementation, execution notes,
-  review notes, and relevant review loop are complete, or the step records why
-  no review was needed.
-- A completed step is review-complete when either:
-  - the latest known step-bound review for that step is clean
-  - or `Review Notes` records `NO_STEP_REVIEW_NEEDED: <reason>` and no later
-    in-flight or non-clean step-bound review exists for that step
-- Step-closeout review should default to `delta`, but a `full` review may
-  satisfy step closeout when a narrower pass would be misleading or the slice
-  needs a broader risk scan.
+  frontier. An explicit step review may temporarily keep or re-enter the
+  reviewed step's `review` or `implement` node until that review is resolved.
 - Review nodes require real review artifacts created by `harness review`.
 - `execution/step-<n>/review` means review is still in progress.
 - Once a step review aggregate exists, the state returns to
   `execution/step-<n>/implement`.
-- If the latest step review aggregate is not clean, the step stays current and
-  must not advance to the next step or to finalize review until a later clean
-  review aggregate exists for that step.
+- If an intentionally started step review has unresolved blocking findings,
+  the step stays current and must not advance until a later review resolves
+  them. Non-blocking findings remain visible but do not create step debt.
+- While that explicit gate is in flight, another review cannot replace it. If
+  it requests changes, only a follow-up review bound to the same step may
+  supersede the active pointer until the gate passes.
 - A clean step review does not automatically mark the step done; it only
   clears the review gate so the controller can either continue the step or mark
   it durably complete.
 - Status facts and next actions must make unresolved failed step reviews
   explicit when `execution/step-<n>/implement` is being used for repair work.
-- If `harness status` later discovers that an already completed earlier step is
-  still missing review-complete closeout, it should keep the current step or
-  finalize node stable, add warning-driven repair guidance, and avoid pretending
-  that the earlier closeout is complete.
-- If an explicit earlier-step closeout repair review is started, status should
-  treat the targeted earlier step as current for that repair loop while the
-  review is in flight or after a non-clean aggregate.
-- If an explicit earlier-step closeout repair review later fails, the fix work
-  still belongs to the same overall candidate, but the repaired step remains
-  current until a later clean closeout review or explicit no-review-needed
-  note resolves that earlier-step debt.
-- Default finalize review start and archive must reject unresolved earlier-step
-  review-complete debt even though status may continue surfacing the current
-  later-step or finalize node as the stable workflow position.
-- Finalize review remains a distinct whole-branch gate even if an earlier step
-  review used a full-review recipe.
-- After `execution/finalize/fix`, the candidate must pass a later finalize
-  review before archive; finalize repair does not jump straight to archive.
+- A completed step with no review artifacts has no missing-review debt. Status,
+  finalize review start, and archive must not demand a retrospective step
+  review or a `NO_STEP_REVIEW_NEEDED` note.
+- Finalize review remains a distinct whole-candidate gate even if an earlier
+  step review used a full recipe.
+- Finalize review defaults to one `integrated` reviewer assignment covering the
+  complete candidate and all selected standard guidance. The controller may
+  add a `specialist` assignment only for a concrete high-risk surface identified
+  from the completed candidate immediately before review.
+- Plan-time risks and invariants inform the pre-finalize choice but do not
+  freeze reviewer topology. Ordinary candidates use no specialist; normally at
+  most one is used, with more than one reserved for multiple independent
+  high-risk surfaces. Plan size alone never triggers a specialist.
+- Integrated and specialist reviewers share the same severity, evidence,
+  submission, and no-edit contract. The integrated reviewer remains responsible
+  for whole-candidate correctness, tests, risk, and documentation. A specialist
+  receives explicit non-empty assignment instructions and a bounded risk brief
+  with non-empty risk surfaces and invariants plus relevant failure modes to
+  challenge; it does not replace integrated coverage.
+- After `execution/finalize/fix`, a narrow repair should be reviewed by a linked
+  repair delta that extends the existing full coverage. A new full review is
+  required only when the repair materially changes the design, scope, or risk
+  model enough to invalidate the earlier whole-candidate judgment.
+
+This plan dogfoods the target contract: its implementation steps must not start
+formal step reviews. Its finalize round uses one integrated reviewer plus the
+approved `review-state-and-coverage` specialist. Any narrow review-driven repair
+uses a repair delta unless the controller records why the candidate changed
+materially enough to require a new full review.
 
 ## Publish, CI, and Sync Evidence Rules
 
@@ -477,8 +509,8 @@ pretending implementation has already resumed.
 Git commits are workflow guidance, not state transitions.
 
 - `delta` review must anchor to a real git commit.
-- A small reviewable commit should exist before a step-closeout `delta` review
-  starts so that review has a durable starting point.
+- A small reviewable commit should exist before any intentionally started
+  step-bound `delta` review so that review has a durable starting point.
 - A meaningful review-driven repair that may need later `delta` review should
   establish another small anchor commit before the fresh review round starts.
 - Archive readiness still requires the archived tracked move to be committed

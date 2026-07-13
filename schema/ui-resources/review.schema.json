@@ -24,13 +24,18 @@
     },
     "ReviewAggregateFinding": {
       "properties": {
+        "finding_id": {
+          "type": "string"
+        },
         "slot": {
           "type": "string",
           "description": "Slot is the stable reviewer slot identifier."
         },
-        "dimension": {
-          "type": "string",
-          "description": "Dimension is the human-readable review dimension label."
+        "role": {
+          "type": "string"
+        },
+        "area": {
+          "type": "string"
         },
         "severity": {
           "type": "string",
@@ -55,13 +60,15 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "finding_id",
         "slot",
-        "dimension",
+        "role",
+        "area",
         "severity",
         "title",
         "details"
       ],
-      "description": "ReviewAggregateFinding is one aggregate finding annotated with its slot and dimension context."
+      "description": "ReviewAggregateFinding is one aggregate finding annotated with its stable identity and reviewer-assignment provenance."
     },
     "ReviewArtifactView": {
       "properties": {
@@ -111,8 +118,90 @@
       "type": "object",
       "description": "ReviewArtifacts points to the current plan review sources."
     },
+    "ReviewAssignmentView": {
+      "properties": {
+        "slot": {
+          "type": "string",
+          "description": "Slot is the stable assignment identifier."
+        },
+        "role": {
+          "type": "string",
+          "description": "Role is integrated or specialist."
+        },
+        "dimensions": {
+          "items": {
+            "$ref": "#/$defs/ReviewResolvedDimension"
+          },
+          "type": "array",
+          "description": "Dimensions are the snapshotted guidance fragments assigned to the reviewer."
+        },
+        "risk_brief": {
+          "$ref": "#/$defs/ReviewRiskBrief",
+          "description": "RiskBrief is present only for specialist assignments."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Instructions is the explicit reviewer handoff for this slot when it is available in surfaced review data."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status is the current submission status label for the slot."
+        },
+        "submission_path": {
+          "type": "string",
+          "description": "SubmissionPath is the path to the submission artifact for this slot."
+        },
+        "submitted_at": {
+          "type": "string",
+          "description": "SubmittedAt is the submission timestamp when one is known."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary is the reviewer's concise overall assessment when one was submitted."
+        },
+        "resolutions": {
+          "items": {
+            "$ref": "#/$defs/ReviewFindingResolution"
+          },
+          "type": "array",
+          "description": "Resolutions records explicit repair-finding verdicts from this reviewer."
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/ReviewFinding"
+          },
+          "type": "array",
+          "description": "Findings lists the slot-level review findings when one was submitted."
+        },
+        "worklog": {
+          "$ref": "#/$defs/ReviewWorklogView",
+          "description": "Worklog contains normalized progressive reviewer-worklog fields derived from the submission payload when available."
+        },
+        "raw_submission": {
+          "description": "RawSubmission preserves the raw reviewer submission payload for secondary UI inspection."
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Warnings lists non-fatal degraded-state notes for this slot."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "slot",
+        "role"
+      ],
+      "description": "ReviewAssignmentView is one reviewer-centric view of a materialized assignment plus any submission returned for it."
+    },
     "ReviewFinding": {
       "properties": {
+        "area": {
+          "type": "string",
+          "description": "Area is the actionable defect area within the reviewed candidate."
+        },
         "severity": {
           "type": "string",
           "description": "Severity is the finding severity label."
@@ -136,11 +225,65 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "area",
         "severity",
         "title",
         "details"
       ],
       "description": "ReviewFinding is one review finding in a submission or aggregate."
+    },
+    "ReviewFindingResolution": {
+      "properties": {
+        "finding_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "details": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "finding_id",
+        "status",
+        "details"
+      ],
+      "description": "ReviewFindingResolution records whether one referenced finding is closed."
+    },
+    "ReviewResolvedDimension": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "plan_path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "sources",
+        "description",
+        "instructions"
+      ],
+      "description": "ReviewResolvedDimension snapshots one explicitly assigned guidance fragment."
     },
     "ReviewResult": {
       "properties": {
@@ -200,6 +343,44 @@
       ],
       "description": "ReviewResult is the read-only UI resource returned by `/api/review`."
     },
+    "ReviewRiskBrief": {
+      "properties": {
+        "risk_surfaces": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "invariants": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "failure_modes": {
+          "oneOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "risk_surfaces",
+        "invariants"
+      ],
+      "description": "ReviewRiskBrief gives a specialist a concrete risk surface to challenge."
+    },
     "ReviewRoundView": {
       "properties": {
         "round_id": {
@@ -213,6 +394,21 @@
         "anchor_sha": {
           "type": "string",
           "description": "AnchorSHA is the delta-review anchor commit when one is available."
+        },
+        "reviewed_head_sha": {
+          "type": "string",
+          "description": "ReviewedHeadSHA is the immutable candidate commit captured for this round."
+        },
+        "repairs_round_id": {
+          "type": "string",
+          "description": "RepairsRoundID is the direct parent coverage round for a repair delta."
+        },
+        "repair_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "RepairFindingIDs lists the parent findings explicitly targeted by this repair delta."
         },
         "step": {
           "type": "integer",
@@ -254,31 +450,31 @@
           "type": "boolean",
           "description": "IsActive reports whether local state still points at this round as active."
         },
-        "total_slots": {
+        "total_assignments": {
           "type": "integer",
-          "description": "TotalSlots is the number of reviewer slots represented by the round."
+          "description": "TotalAssignments is the number of reviewer assignments in the round."
         },
-        "submitted_slots": {
+        "submitted_assignments": {
           "type": "integer",
-          "description": "SubmittedSlots is the number of reviewer slots with a submission."
+          "description": "SubmittedAssignments is the number of assignments with a submission."
         },
-        "pending_slots": {
+        "pending_assignments": {
           "type": "integer",
-          "description": "PendingSlots is the number of reviewer slots still waiting on a submission."
+          "description": "PendingAssignments is the number of assignments still waiting on a submission."
         },
         "reviewers": {
           "items": {
-            "$ref": "#/$defs/ReviewSlotView"
+            "$ref": "#/$defs/ReviewAssignmentView"
           },
           "type": "array",
-          "description": "Reviewers lists the reviewer-centric slot views for the round."
+          "description": "Reviewers lists the reviewer-centric assignment views for the round."
         },
         "blocking_findings": {
           "items": {
             "$ref": "#/$defs/ReviewAggregateFinding"
           },
           "type": "array",
-          "description": "BlockingFindings lists aggregate blocking findings when they exist."
+          "description": "BlockingFindings lists the cumulative unresolved blocking findings at this coverage-chain tip, not only findings newly raised by this round."
         },
         "non_blocking_findings": {
           "items": {
@@ -286,6 +482,24 @@
           },
           "type": "array",
           "description": "NonBlockingFindings lists aggregate non-blocking findings when they exist."
+        },
+        "resolved_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "ResolvedFindingIDs lists repair findings closed by this round."
+        },
+        "unresolved_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "UnresolvedFindingIDs lists all blocking findings still open at this coverage-chain tip."
+        },
+        "coverage_status": {
+          "type": "string",
+          "description": "CoverageStatus is clean, blocked, or pending according to the aggregate coverage-chain state surfaced for this round."
         },
         "artifacts": {
           "items": {
@@ -308,65 +522,6 @@
         "round_id"
       ],
       "description": "ReviewRoundView is one read-only UI representation of a review round."
-    },
-    "ReviewSlotView": {
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Name is the review dimension name."
-        },
-        "slot": {
-          "type": "string",
-          "description": "Slot is the stable reviewer slot identifier."
-        },
-        "instructions": {
-          "type": "string",
-          "description": "Instructions is the explicit reviewer handoff for this slot when it is available in surfaced review data."
-        },
-        "status": {
-          "type": "string",
-          "description": "Status is the current submission status label for the slot."
-        },
-        "submission_path": {
-          "type": "string",
-          "description": "SubmissionPath is the path to the submission artifact for this slot."
-        },
-        "submitted_at": {
-          "type": "string",
-          "description": "SubmittedAt is the submission timestamp when one is known."
-        },
-        "summary": {
-          "type": "string",
-          "description": "Summary is the reviewer's concise overall assessment when one was submitted."
-        },
-        "findings": {
-          "items": {
-            "$ref": "#/$defs/ReviewFinding"
-          },
-          "type": "array",
-          "description": "Findings lists the slot-level review findings when one was submitted."
-        },
-        "worklog": {
-          "$ref": "#/$defs/ReviewWorklogView",
-          "description": "Worklog contains normalized progressive reviewer-worklog fields derived from the submission payload when available."
-        },
-        "raw_submission": {
-          "description": "RawSubmission preserves the raw reviewer submission payload for secondary UI inspection."
-        },
-        "warnings": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "description": "Warnings lists non-fatal degraded-state notes for this slot."
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "slot"
-      ],
-      "description": "ReviewSlotView is one reviewer-centric view of a surfaced reviewer slot plus any submission that was returned for that slot."
     },
     "ReviewWorklogView": {
       "properties": {

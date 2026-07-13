@@ -263,6 +263,7 @@ EOF
 {
   "round_id": "review-001-full",
   "kind": "full",
+  "reviewed_head_sha": "abc123def456",
   "revision": 1,
   "review_title": "Archived finalize review",
   "plan_path": "$fixture_plan_rel",
@@ -271,10 +272,18 @@ EOF
   "ledger_path": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/ledger.json",
   "aggregate_path": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/aggregate.json",
   "submissions_dir": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/submissions",
-  "dimensions": [
+  "assignments": [
     {
-      "name": "correctness",
       "slot": "correctness",
+      "role": "integrated",
+      "dimensions": [
+        {
+          "name": "correctness",
+          "sources": ["builtin"],
+          "description": "Behavioral correctness",
+          "instructions": "Verify the archived review candidate is still readable."
+        }
+      ],
       "instructions": "Verify the archived review candidate is still readable.",
       "submission_path": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/submissions/correctness/submission.json"
     }
@@ -287,10 +296,10 @@ EOF
   "round_id": "review-001-full",
   "kind": "full",
   "updated_at": "2026-04-01T22:24:00+08:00",
-  "slots": [
+  "assignments": [
     {
-      "name": "correctness",
       "slot": "correctness",
+      "role": "integrated",
       "status": "submitted",
       "submitted_at": "2026-04-01T22:23:00+08:00",
       "submission_path": "$runtime_workdir/.local/harness/plans/$fixture_plan_stem/reviews/review-001-full/submissions/correctness/submission.json"
@@ -305,10 +314,14 @@ EOF
   "kind": "full",
   "revision": 1,
   "review_title": "Archived finalize review",
+  "reviewed_head_sha": "abc123def456",
   "decision": "pass",
   "aggregated_at": "2026-04-01T22:25:00+08:00",
   "blocking_findings": [],
-  "non_blocking_findings": []
+  "non_blocking_findings": [],
+  "resolved_finding_ids": [],
+  "unresolved_finding_ids": [],
+  "unresolved_blocking_findings": []
 }
 EOF
 
@@ -316,7 +329,7 @@ EOF
 {
   "round_id": "review-001-full",
   "slot": "correctness",
-  "dimension": "Correctness",
+  "role": "integrated",
   "submitted_at": "2026-04-01T22:23:00+08:00",
   "summary": "Archived review content is still available.",
   "findings": []

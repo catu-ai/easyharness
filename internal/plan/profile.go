@@ -123,6 +123,9 @@ func AlternateSupplementsDirsForPlanPath(path string) []string {
 	}
 
 	expected := filepath.Clean(SupplementsDirForPlanPath(path))
+	if absolute, err := filepath.Abs(expected); err == nil {
+		expected = filepath.Clean(absolute)
+	}
 	filtered := make([]string, 0, len(candidates)-1)
 	for _, candidate := range candidates {
 		if filepath.Clean(candidate) == expected {

@@ -52,17 +52,15 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 
 	stepTwoStatus := runStatus(t, workspace.Root)
 	assertNode(t, stepTwoStatus, "execution/step-2/implement")
+	workspace.CommitAll(t, "checkpoint explicit step review candidate")
 	anchorSHA := currentWorkspaceHead(t, workspace.Root)
 
 	failingRepair := startReviewRound(t, workspace, "tmp/explicit-step1-repair-fail.json", map[string]any{
 		"step":       1,
 		"kind":       "delta",
 		"anchor_sha": anchorSHA,
-		"dimensions": []map[string]any{
-			{
-				"name":         "correctness",
-				"instructions": "Exercise explicit earlier-step repair from the later frontier.",
-			},
+		"assignments": []map[string]any{
+			integratedAssignment("integrated", "Exercise explicit earlier-step repair from the later frontier.", "correctness"),
 		},
 	})
 	assertNode(t, runStatus(t, workspace.Root), "execution/step-1/review")
@@ -83,11 +81,8 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 		"step":       1,
 		"kind":       "delta",
 		"anchor_sha": anchorSHA,
-		"dimensions": []map[string]any{
-			{
-				"name":         "correctness",
-				"instructions": "Exercise clean explicit earlier-step repair returning to the later frontier.",
-			},
+		"assignments": []map[string]any{
+			integratedAssignment("integrated", "Exercise clean explicit earlier-step repair returning to the later frontier.", "correctness"),
 		},
 	})
 	assertNode(t, runStatus(t, workspace.Root), "execution/step-1/review")
@@ -104,7 +99,7 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 		planPath,
 		2,
 		"Verified later-frontier execution and explicit earlier-step repair transitions through the built binary.",
-		"NO_STEP_REVIEW_NEEDED: This E2E fixture uses explicit earlier-step repair rounds and finalize review directly instead of ordinary step-2 closeout review.",
+		"No optional step-2 review was started; the explicit step-1 rounds and final review cover the intended boundaries.",
 	)
 
 	finalizeReviewStatus := runStatus(t, workspace.Root)
@@ -112,11 +107,8 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 
 	finalizeFailure := startReviewRound(t, workspace, "tmp/finalize-failure.json", map[string]any{
 		"kind": "full",
-		"dimensions": []map[string]any{
-			{
-				"name":         "correctness",
-				"instructions": "Prove the ordinary finalize path is restored after explicit earlier-step repair clears the debt.",
-			},
+		"assignments": []map[string]any{
+			integratedAssignment("integrated", "Prove the ordinary finalize path is restored after explicit earlier-step repair clears the debt.", "correctness", "tests"),
 		},
 	})
 	assertNode(t, runStatus(t, workspace.Root), "execution/finalize/review")
@@ -137,11 +129,8 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 		"step":       1,
 		"kind":       "delta",
 		"anchor_sha": anchorSHA,
-		"dimensions": []map[string]any{
-			{
-				"name":         "correctness",
-				"instructions": "Exercise explicit earlier-step repair from finalize fix.",
-			},
+		"assignments": []map[string]any{
+			integratedAssignment("integrated", "Exercise explicit earlier-step repair from finalize fix.", "correctness"),
 		},
 	})
 	assertNode(t, runStatus(t, workspace.Root), "execution/step-1/review")
@@ -158,11 +147,8 @@ func TestExplicitStepRepairTransitionsWithBuiltBinary(t *testing.T) {
 	finalizeReviewRepair := startReviewRound(t, workspace, "tmp/finalize-review-explicit-step1.json", map[string]any{
 		"step": 1,
 		"kind": "full",
-		"dimensions": []map[string]any{
-			{
-				"name":         "correctness",
-				"instructions": "Exercise explicit earlier-step repair from finalize review after the ordinary finalize path has been restored.",
-			},
+		"assignments": []map[string]any{
+			integratedAssignment("integrated", "Exercise explicit earlier-step repair from finalize review after the ordinary finalize path has been restored.", "correctness"),
 		},
 	})
 	assertNode(t, runStatus(t, workspace.Root), "execution/step-1/review")

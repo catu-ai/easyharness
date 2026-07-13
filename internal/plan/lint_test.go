@@ -359,6 +359,110 @@ func TestLintFileAcceptsMatchingSupplementsDirectory(t *testing.T) {
 	}
 }
 
+func TestLintFileAcceptsValidPlanReviewGuidance(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-guidance.md")
+	writeFile(t, path, mustRenderTemplate(t, "Plan Review Guidance"))
+	writeFile(t, filepath.Join(root, "docs/plans/active/supplements/2026-03-17-guidance/review-guidance/state-risk.md"), `---
+name: state-risk
+description: Check the plan-specific state risk.
+---
+
+Verify the plan-specific state invariant.
+`)
+
+	result := plan.LintFile(path)
+	if !result.OK {
+		t.Fatalf("expected valid plan guidance to lint, got %#v", result)
+	}
+}
+
+func TestLintFileAcceptsRelativePlanPathWithMatchingSupplements(t *testing.T) {
+	root := t.TempDir()
+	relPath := "docs/plans/active/2026-03-17-relative-guidance.md"
+	path := filepath.Join(root, filepath.FromSlash(relPath))
+	writeFile(t, path, mustRenderTemplate(t, "Relative Plan Review Guidance"))
+	writeFile(t, filepath.Join(root, "docs/plans/active/supplements/2026-03-17-relative-guidance/review-guidance/state-risk.md"), `---
+name: state-risk
+description: Check the plan-specific state risk.
+---
+
+Verify the plan-specific state invariant.
+`)
+
+	previous, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(previous) })
+
+	result := plan.LintFile(relPath)
+	if !result.OK {
+		t.Fatalf("expected relative plan path with matching supplements to lint, got %#v", result)
+	}
+}
+
+func TestLintFileRejectsInvalidPlanReviewGuidance(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-guidance.md")
+	writeFile(t, path, mustRenderTemplate(t, "Invalid Plan Review Guidance"))
+	writeFile(t, filepath.Join(root, "docs/plans/active/supplements/2026-03-17-guidance/review-guidance/state-risk.md"), `---
+name: state-risk
+description: Invalid override metadata.
+mode: override
+---
+
+Override the base guidance.
+`)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected invalid plan guidance to fail lint, got %#v", result)
+	}
+	assertHasError(t, result, "supplements.review-guidance.state-risk.md")
+}
+
+func TestLintFileRejectsNestedPlanReviewGuidance(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-guidance.md")
+	writeFile(t, path, mustRenderTemplate(t, "Nested Plan Review Guidance"))
+	writeFile(t, filepath.Join(root, "docs/plans/active/supplements/2026-03-17-guidance/review-guidance/nested/state-risk.md"), `---
+name: state-risk
+description: Nested guidance.
+---
+
+This nesting is not supported.
+`)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected nested plan guidance to fail lint, got %#v", result)
+	}
+	assertHasError(t, result, "supplements.review-guidance.nested")
+}
+
+func TestLintFileRejectsPlanReviewGuidanceFilenameMismatch(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-guidance.md")
+	writeFile(t, path, mustRenderTemplate(t, "Mismatched Plan Review Guidance"))
+	writeFile(t, filepath.Join(root, "docs/plans/active/supplements/2026-03-17-guidance/review-guidance/wrong-name.md"), `---
+name: state-risk
+description: Check the plan-specific state risk.
+---
+
+Verify the plan-specific state invariant.
+`)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected mismatched guidance filename to fail lint, got %#v", result)
+	}
+	assertHasError(t, result, "supplements.review-guidance.wrong-name.md")
+}
+
 func TestLintFileRejectsConflictingSupplementsRootForSameStem(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-has-supplements.md")

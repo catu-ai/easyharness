@@ -127,9 +127,34 @@ const reviewResult: ReviewResult = {
       round_id: "review-002-delta",
       kind: "delta",
       review_title: "Second review",
-      status: "passed",
-      status_summary: "Passed.",
-      reviewers: [{ slot: "tests", name: "Tests", status: "submitted", summary: "Looks good." }],
+      status: "changes_requested",
+      status_summary: "One historical blocker remains unresolved.",
+      decision: "changes_requested",
+      reviewed_head_sha: "repair789head",
+      repairs_round_id: "review-001-full",
+      repair_finding_ids: ["review-001-full:tests:1"],
+      resolved_finding_ids: [],
+      unresolved_finding_ids: ["review-001-full:tests:1"],
+      coverage_status: "blocked",
+      total_assignments: 1,
+      submitted_assignments: 1,
+      pending_assignments: 0,
+      reviewers: [{
+        slot: "integrated",
+        role: "integrated",
+        dimensions: [{ name: "tests", sources: ["builtin"], description: "Test guidance.", instructions: "Check tests." }],
+        status: "submitted",
+        summary: "Looks good.",
+      }],
+      blocking_findings: [{
+        finding_id: "review-001-full:tests:1",
+        slot: "integrated",
+        role: "integrated",
+        area: "coverage-chain",
+        severity: "important",
+        title: "Historical blocker",
+        details: "This blocker originated in the parent full review.",
+      }],
       artifacts: [{ label: "submission", path: ".local/review/submission.json", content_type: "json", content: { ok: true } }],
     },
     {
@@ -138,7 +163,32 @@ const reviewResult: ReviewResult = {
       review_title: "First review",
       status: "passed",
       status_summary: "Passed.",
-      reviewers: [{ slot: "ui", name: "UI", status: "submitted", summary: "Looks good." }],
+      reviewed_head_sha: "abc123def456",
+      resolved_finding_ids: ["review-000-full:ui:1"],
+      unresolved_finding_ids: [],
+      coverage_status: "clean",
+      total_assignments: 1,
+      submitted_assignments: 1,
+      pending_assignments: 0,
+      reviewers: [{
+        slot: "ui",
+        role: "specialist",
+        dimensions: [{ name: "ui", sources: ["builtin"], description: "UI guidance.", instructions: "Check UI." }],
+        risk_brief: { risk_surfaces: ["review presentation"], invariants: ["assignment provenance stays visible"] },
+        status: "submitted",
+        summary: "Looks good.",
+        resolutions: [{ finding_id: "review-000-full:ui:1", status: "resolved", details: "The stale label was removed." }],
+        findings: [{ area: "review-presentation", severity: "minor", title: "Optional polish", details: "The assignment remains understandable." }],
+      }],
+      non_blocking_findings: [{
+        finding_id: "review-001-full:ui:1",
+        slot: "ui",
+        role: "specialist",
+        area: "review-presentation",
+        severity: "minor",
+        title: "Optional polish",
+        details: "The assignment remains understandable.",
+      }],
       artifacts: [
         { label: "notes", path: ".local/review/notes.md", content_type: "text", content: "notes" },
         { label: "trace", path: ".local/review/trace.md", content_type: "text", content: "trace payload" },
@@ -364,6 +414,47 @@ describe("workbench page state continuity", () => {
     mockApi();
   });
 
+  test("renders assignment guidance, specialist risk, resolutions, and finding provenance", async () => {
+    window.history.pushState({}, "", "/workspace/wk_alpha/review");
+    render(
+      <App
+        initialReviewWorkspaceState={{
+          selectedRoundId: "review-001-full",
+          selectedDetailTab: "summary",
+          selectedArtifactKey: null,
+          showArtifacts: false,
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(activeExplorerTitleText()).toBe("First review"));
+    expect(screen.getByText("review-001-full:ui:1")).toBeTruthy();
+    expect(screen.getByText("Specialist")).toBeTruthy();
+    expect(screen.getByText("slot Ui")).toBeTruthy();
+    expect(screen.getByText(/Review presentation/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Ui · Specialist" }));
+    expect(screen.getByText("Specialist risk brief")).toBeTruthy();
+    expect(screen.getByText("review presentation")).toBeTruthy();
+    expect(screen.getByText("assignment provenance stays visible")).toBeTruthy();
+    expect(screen.getByText("Finding resolutions")).toBeTruthy();
+    expect(screen.getByText("review-000-full:ui:1")).toBeTruthy();
+    expect(screen.getByText("abc123def456")).toBeTruthy();
+  });
+
+  test("renders cumulative repair coverage instead of only delta-local findings", async () => {
+    window.history.pushState({}, "", "/workspace/wk_alpha/review");
+    render(<App />);
+
+    await waitFor(() => expect(activeExplorerTitleText()).toBe("Second review"));
+    expect(screen.getByText("repair789head")).toBeTruthy();
+    expect(screen.getByText("review-001-full")).toBeTruthy();
+    expect(screen.getByText("Targets: review-001-full:tests:1")).toBeTruthy();
+    expect(screen.getByText("Historical blocker")).toBeTruthy();
+    expect(screen.getByText("review-001-full:tests:1")).toBeTruthy();
+    expect(screen.getByText("Still unresolved").nextElementSibling?.textContent).toBe("1");
+  });
+
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
@@ -582,7 +673,7 @@ describe("workbench page state continuity", () => {
 
     await waitFor(() => expect(explorerHasTitle("First review")).toBe(true));
     await waitFor(() => expect(activeExplorerTitleText()).toBe("First review"));
-    expect(activeInspectorTabText()).toBe("UI");
+    expect(activeInspectorTabText()).toBe("Ui · Specialist");
     expect(screen.getAllByText("notes").length).toBeGreaterThan(0);
   });
 
@@ -640,8 +731,8 @@ describe("workbench page state continuity", () => {
     await waitFor(() => expect(explorerHasTitle("First review")).toBe(true));
     clickExplorerItem("First review");
     await waitFor(() => expect(activeExplorerTitleText()).toBe("First review"));
-    fireEvent.click(screen.getByRole("tab", { name: "UI" }));
-    await waitFor(() => expect(activeInspectorTabText()).toBe("UI"));
+    fireEvent.click(screen.getByRole("tab", { name: "Ui · Specialist" }));
+    await waitFor(() => expect(activeInspectorTabText()).toBe("Ui · Specialist"));
     fireEvent.click(screen.getByRole("button", { name: "Artifacts" }));
     await waitFor(() => expect(screen.getAllByText("notes").length).toBeGreaterThan(0));
     fireEvent.click(screen.getByRole("tab", { name: "trace" }));
@@ -653,7 +744,7 @@ describe("workbench page state continuity", () => {
     fireEvent.click(screen.getByRole("button", { name: "Toggle Review" }));
 
     await waitFor(() => expect(activeExplorerTitleText()).toBe("First review"));
-    expect(activeInspectorTabText()).toBe("UI");
+    expect(activeInspectorTabText()).toBe("Ui · Specialist");
     expect(activeArtifactTabText()).toBe("trace");
     expect(activeArtifactBodyText()).toBe("trace payload");
   });
@@ -704,7 +795,7 @@ describe("workbench page state continuity", () => {
 
     await waitFor(() => expect(explorerHasTitle("Second review")).toBe(true));
     await waitFor(() => expect(activeExplorerTitleText()).toBe("Second review"));
-    await waitFor(() => expect(activeInspectorTabText()).toBe("Tests"));
+    await waitFor(() => expect(activeInspectorTabText()).toBe("Integrated"));
   });
 
   test("falls back cleanly when a remembered review artifact id is no longer present", async () => {

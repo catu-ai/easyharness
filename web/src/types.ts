@@ -203,6 +203,8 @@ export type ReviewArtifact = {
 };
 
 export type ReviewFinding = {
+  finding_id?: string;
+  area: string;
   severity: string;
   title: string;
   details: string;
@@ -210,8 +212,29 @@ export type ReviewFinding = {
 };
 
 export type ReviewAggregateFinding = ReviewFinding & {
-  slot?: string;
-  dimension?: string;
+  finding_id: string;
+  slot: string;
+  role: string;
+};
+
+export type ReviewFindingResolution = {
+  finding_id: string;
+  status: string;
+  details: string;
+};
+
+export type ReviewResolvedDimension = {
+  name: string;
+  sources: string[];
+  description: string;
+  instructions: string;
+  plan_path?: string;
+};
+
+export type ReviewRiskBrief = {
+  risk_surfaces: string[];
+  invariants: string[];
+  failure_modes?: string[] | null;
 };
 
 export type ReviewWorklog = {
@@ -224,13 +247,16 @@ export type ReviewWorklog = {
 };
 
 export type ReviewReviewer = {
-  name?: string;
   slot: string;
+  role: string;
+  dimensions?: ReviewResolvedDimension[] | null;
+  risk_brief?: ReviewRiskBrief | null;
   instructions?: string;
   status?: string;
   submission_path?: string;
   submitted_at?: string;
   summary?: string;
+  resolutions?: ReviewFindingResolution[] | null;
   findings?: ReviewFinding[] | null;
   worklog?: ReviewWorklog | null;
   raw_submission?: unknown;
@@ -241,6 +267,9 @@ export type ReviewRound = {
   round_id: string;
   kind?: string;
   anchor_sha?: string;
+  reviewed_head_sha?: string;
+  repairs_round_id?: string;
+  repair_finding_ids?: string[] | null;
   step?: number;
   revision?: number;
   review_title?: string;
@@ -251,12 +280,15 @@ export type ReviewRound = {
   updated_at?: string;
   aggregated_at?: string;
   is_active?: boolean;
-  total_slots?: number;
-  submitted_slots?: number;
-  pending_slots?: number;
+  total_assignments?: number;
+  submitted_assignments?: number;
+  pending_assignments?: number;
   reviewers?: ReviewReviewer[] | null;
   blocking_findings?: ReviewAggregateFinding[] | null;
   non_blocking_findings?: ReviewAggregateFinding[] | null;
+  resolved_finding_ids?: string[] | null;
+  unresolved_finding_ids?: string[] | null;
+  coverage_status?: string;
   artifacts?: ReviewArtifact[] | null;
   warnings?: string[] | null;
 };

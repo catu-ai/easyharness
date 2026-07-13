@@ -10,7 +10,8 @@ current step and eventually into archived-candidate handoff.
 3. open or update the PR
 4. wait for required CI
 5. fix failures
-6. decide whether the repair needs delta review or full review
+6. use a linked repair delta for narrow changes; establish a new full review
+   only when design, scope, or risk changed materially
 
 For archived candidates, use the same sequence as post-archive handoff work,
 but record the observed external facts through harness-owned evidence:
@@ -109,7 +110,8 @@ Use these cases as the controller decision guide:
   - Do not mark CI successful from a still-running live observation.
 - Failed or cancelled remote checks
   - Inspect the failing checks, fix the branch, rerun focused validation, and
-    decide whether the repair needs delta or full review.
+    use a linked delta unless the repair materially changes design, scope, or
+    risk enough to require a new full root.
   - After the PR checks recover, use `harness evidence refresh` or manual CI
     evidence to update the local handoff facts.
 - Passing remote checks or fresh merge state with missing or stale local
@@ -151,6 +153,7 @@ If remote changes introduce real conflict work:
 
 - resolve the conflicts
 - rerun focused validation
-- run delta or full review depending on how broad the repair was
+- run a linked delta for a narrow repair, or a new full review only when the
+  conflict work materially changed design, scope, or risk
 
 Do not create a new review round while an earlier one is still active.

@@ -80,12 +80,12 @@ func TestReviewInputSchemasMatchValidatorBoundaries(t *testing.T) {
 	specDefs := reviewSpec["$defs"].(map[string]any)
 	specRoot := specDefs["ReviewSpec"].(map[string]any)
 	specProps := specRoot["properties"].(map[string]any)
-	dimensionsSchema := specProps["dimensions"].(map[string]any)
-	if schemaAllowsNull(dimensionsSchema) {
-		t.Fatalf("expected review spec dimensions to reject null, got %#v", dimensionsSchema)
+	assignmentsSchema := specProps["assignments"].(map[string]any)
+	if schemaAllowsNull(assignmentsSchema) {
+		t.Fatalf("expected review spec assignments to reject null, got %#v", assignmentsSchema)
 	}
-	if got := dimensionsSchema["minItems"]; got != float64(1) {
-		t.Fatalf("expected review spec dimensions minItems=1, got %#v", got)
+	if got := assignmentsSchema["minItems"]; got != float64(1) {
+		t.Fatalf("expected review spec assignments minItems=1, got %#v", got)
 	}
 
 	var submission map[string]any

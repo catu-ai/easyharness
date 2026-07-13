@@ -460,7 +460,7 @@ export function reviewRoundExplorerMetaLabel(round: ReviewRound): string {
   } else {
     parts.push(reviewRoundSequenceLabel(round));
   }
-  parts.push(`${reviewCountLabel(round.submitted_slots)}/${reviewCountLabel(round.total_slots)}`);
+  parts.push(`${reviewCountLabel(round.submitted_assignments)}/${reviewCountLabel(round.total_assignments)}`);
   return parts.join(" · ");
 }
 
@@ -480,7 +480,7 @@ export function reviewRoundAriaLabel(round: ReviewRound): string {
   if (timestamp) {
     parts.push(formatTimestamp(timestamp));
   }
-  parts.push(`${reviewCountLabel(round.submitted_slots)}/${reviewCountLabel(round.total_slots)} submitted`);
+  parts.push(`${reviewCountLabel(round.submitted_assignments)}/${reviewCountLabel(round.total_assignments)} submitted`);
   return parts.join(" ");
 }
 
@@ -529,7 +529,10 @@ export function reviewRoundStatusTone(round: ReviewRound): "good" | "danger" | "
 }
 
 export function reviewReviewerLabel(reviewer: ReviewReviewer): string {
-  return reviewer.name?.trim() || reviewer.slot;
+  const role = reviewer.role?.trim() ? humanizeLabel(reviewer.role) : "Reviewer";
+  const slot = reviewer.slot?.trim() ? humanizeLabel(reviewer.slot) : "Unassigned";
+  if (role.toLowerCase() === slot.toLowerCase()) return role;
+  return `${slot} · ${role}`;
 }
 
 export function reviewReviewerStatusLabel(reviewer: ReviewReviewer): string {
@@ -556,28 +559,26 @@ export function reviewFindingBadgeTone(severity: string): "danger" | "warning" {
 
 export function reviewFindingKey(finding: ReviewFinding, index: number): string {
   const aggregateFinding = finding as ReviewAggregateFinding;
-  return [aggregateFinding.slot, aggregateFinding.dimension, finding.title, finding.details, String(index)].filter(Boolean).join("::");
+  return [aggregateFinding.finding_id, aggregateFinding.slot, aggregateFinding.role, finding.area, finding.title, finding.details, String(index)]
+    .filter(Boolean)
+    .join("::");
 }
 
 export function reviewAggregateFindingSource(finding: ReviewAggregateFinding): string | null {
-  const dimension = finding.dimension?.trim() ? humanizeLabel(finding.dimension) : "";
-  const slot = finding.slot?.trim() ? humanizeLabel(finding.slot) : "";
-  if (dimension && slot && dimension.toLowerCase() !== slot.toLowerCase()) {
-    return `${dimension} · slot ${slot}`;
-  }
-  if (dimension) return dimension;
-  if (slot) return `slot ${slot}`;
-  return null;
+  const labels = reviewAggregateFindingLabels(finding);
+  return labels.length > 0 ? labels.join(" · ") : null;
 }
 
 export function reviewAggregateFindingLabels(finding: ReviewAggregateFinding): string[] {
   const labels: string[] = [];
-  const dimension = finding.dimension?.trim() ? humanizeLabel(finding.dimension) : "";
+  const findingID = finding.finding_id?.trim() ?? "";
+  const role = finding.role?.trim() ? humanizeLabel(finding.role) : "";
   const slot = finding.slot?.trim() ? humanizeLabel(finding.slot) : "";
-  if (dimension) labels.push(dimension);
-  if (slot && slot.toLowerCase() !== dimension.toLowerCase()) {
-    labels.push(`slot ${slot}`);
-  }
+  const area = finding.area?.trim() ? humanizeLabel(finding.area) : "";
+  if (findingID) labels.push(findingID);
+  if (role) labels.push(role);
+  if (slot) labels.push(`slot ${slot}`);
+  if (area) labels.push(area);
   return labels;
 }
 

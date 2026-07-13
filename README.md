@@ -142,6 +142,12 @@ The current v0.2 harness surface centers on a few core ideas:
 - command-owned runtime state, reviews, and evidence live under the local
   runtime root resolved with `harness repo config get paths.local_runtime`
 - the CLI reports one canonical `state.current_node`
+- tracked steps are implementation and validation boundaries, not mandatory
+  review gates; finalize full review is the ordinary formal gate
+- finalize review uses one whole-candidate integrated reviewer by default and
+  adds a specialist only for a concrete high-risk surface
+- a narrow review repair extends the captured full-review Git coverage with a
+  linked delta instead of forcing another full reread
 - agents can use `harness help <topic>` for on-demand product guidance that
   does not belong in always-loaded repo instructions or skills
 - `harness dashboard` is the built-in machine-local home for watched workspaces

@@ -136,6 +136,43 @@ review_root = root / ".local" / "harness" / "plans" / plan_stem / "reviews"
 (review_root / "review-007-delta" / "submissions").mkdir(parents=True, exist_ok=True)
 (review_root / "review-008-full" / "submissions").mkdir(parents=True, exist_ok=True)
 (review_root / "review-009-delta" / "submissions").mkdir(parents=True, exist_ok=True)
+
+def dimension(name, instructions):
+    return {
+        "name": name,
+        "sources": ["builtin"],
+        "description": f"{name.replace('-', ' ').title()} review guidance",
+        "instructions": instructions,
+    }
+
+
+def assignment(slot, role, dimension_name, instructions, submission_path):
+    result = {
+        "slot": slot,
+        "role": role,
+        "dimensions": [dimension(dimension_name, instructions)],
+        "instructions": instructions,
+        "submission_path": str(submission_path),
+    }
+    if role == "specialist":
+        result["risk_brief"] = {
+            "risk_surfaces": [f"{dimension_name} behavior"],
+            "invariants": ["review evidence remains readable and attributable"],
+            "failure_modes": ["the surfaced review state hides a relevant defect"],
+        }
+    return result
+
+
+def ledger_assignment(slot, role, status, submission_path, submitted_at=None):
+    result = {
+        "slot": slot,
+        "role": role,
+        "status": status,
+        "submission_path": str(submission_path),
+    }
+    if submitted_at:
+        result["submitted_at"] = submitted_at
+    return result
 (root / ".local" / "harness").mkdir(parents=True, exist_ok=True)
 
 (root / ".local" / "harness" / "current-plan.json").write_text(
@@ -169,6 +206,7 @@ sub_one.parent.mkdir(parents=True, exist_ok=True)
         {
             "round_id": "review-001-delta",
             "kind": "delta",
+            "reviewed_head_sha": "fixture-head-001",
             "step": 1,
             "revision": 1,
             "review_title": "Step 1 closeout",
@@ -178,13 +216,8 @@ sub_one.parent.mkdir(parents=True, exist_ok=True)
             "ledger_path": str(review_one / "ledger.json"),
             "aggregate_path": str(review_one / "aggregate.json"),
             "submissions_dir": str(review_one / "submissions"),
-            "dimensions": [
-                {
-                    "name": "Correctness",
-                    "slot": "correctness",
-                    "instructions": "Check correctness and regressions.",
-                    "submission_path": str(sub_one),
-                }
+            "assignments": [
+                assignment("correctness", "integrated", "correctness", "Check correctness and regressions.", sub_one)
             ],
         }
     ),
@@ -196,14 +229,8 @@ sub_one.parent.mkdir(parents=True, exist_ok=True)
             "round_id": "review-001-delta",
             "kind": "delta",
             "updated_at": "2026-04-02T10:06:00Z",
-            "slots": [
-                {
-                    "name": "Correctness",
-                    "slot": "correctness",
-                    "status": "submitted",
-                    "submitted_at": "2026-04-02T10:05:00Z",
-                    "submission_path": str(sub_one),
-                }
+            "assignments": [
+                ledger_assignment("correctness", "integrated", "submitted", sub_one, "2026-04-02T10:05:00Z")
             ],
         }
     ),
@@ -217,9 +244,13 @@ sub_one.parent.mkdir(parents=True, exist_ok=True)
             "step": 1,
             "revision": 1,
             "review_title": "Step 1 closeout",
+            "reviewed_head_sha": "fixture-head-001",
             "decision": "pass",
             "blocking_findings": [],
             "non_blocking_findings": [],
+            "resolved_finding_ids": [],
+            "unresolved_finding_ids": [],
+            "unresolved_blocking_findings": [],
             "aggregated_at": "2026-04-02T10:07:00Z",
         }
     ),
@@ -230,7 +261,7 @@ sub_one.write_text(
         {
             "round_id": "review-001-delta",
             "slot": "correctness",
-            "dimension": "Correctness",
+            "role": "integrated",
             "submitted_at": "2026-04-02T10:05:00Z",
             "summary": "Looks clean.",
             "findings": [],
@@ -249,6 +280,7 @@ sub_two_b.parent.mkdir(parents=True, exist_ok=True)
         {
             "round_id": "review-002-delta",
             "kind": "delta",
+            "reviewed_head_sha": "fixture-head-002",
             "step": 2,
             "revision": 2,
             "review_title": "Step 2 closeout",
@@ -258,19 +290,9 @@ sub_two_b.parent.mkdir(parents=True, exist_ok=True)
             "ledger_path": str(review_two / "ledger.json"),
             "aggregate_path": str(review_two / "aggregate.json"),
             "submissions_dir": str(review_two / "submissions"),
-            "dimensions": [
-                {
-                    "name": "Correctness",
-                    "slot": "correctness",
-                    "instructions": "Check correctness before the step closes.",
-                    "submission_path": str(sub_two_a),
-                },
-                {
-                    "name": "Risk",
-                    "slot": "risk",
-                    "instructions": "Check for hidden workflow or data risks.",
-                    "submission_path": str(sub_two_b),
-                },
+            "assignments": [
+                assignment("correctness", "integrated", "correctness", "Check correctness before the step closes.", sub_two_a),
+                assignment("risk", "specialist", "risk-scan", "Check for hidden workflow or data risks.", sub_two_b),
             ],
         }
     ),
@@ -281,7 +303,7 @@ sub_two_a.write_text(
         {
             "round_id": "review-002-delta",
             "slot": "correctness",
-            "dimension": "Correctness",
+            "role": "integrated",
             "submitted_at": "2026-04-02T11:07:00Z",
             "summary": "Recovered while the ledger is malformed.",
             "findings": [],
@@ -294,7 +316,7 @@ sub_two_b.write_text(
         {
             "round_id": "review-002-delta",
             "slot": "risk",
-            "dimension": "Risk",
+            "role": "specialist",
             "submitted_at": "2026-04-02T11:08:00Z",
             "summary": "Recovered while the ledger is malformed.",
             "findings": [],
@@ -311,10 +333,14 @@ sub_two_b.write_text(
             "step": 2,
             "revision": 2,
             "review_title": "Step 2 closeout",
+            "reviewed_head_sha": "fixture-head-002",
             "decision": "pass",
             "aggregated_at": "2026-04-02T11:12:00Z",
             "blocking_findings": [],
             "non_blocking_findings": [],
+            "resolved_finding_ids": [],
+            "unresolved_finding_ids": [],
+            "unresolved_blocking_findings": [],
         }
     ),
     encoding="utf-8",
@@ -330,6 +356,7 @@ sub_three_b.parent.mkdir(parents=True, exist_ok=True)
         {
             "round_id": "review-003-full",
             "kind": "full",
+            "reviewed_head_sha": "fixture-head-003",
             "revision": 2,
             "review_title": "Finalize review",
             "plan_path": plan_rel,
@@ -338,19 +365,9 @@ sub_three_b.parent.mkdir(parents=True, exist_ok=True)
             "ledger_path": str(review_three / "ledger.json"),
             "aggregate_path": str(review_three / "aggregate.json"),
             "submissions_dir": str(review_three / "submissions"),
-            "dimensions": [
-                {
-                    "name": "Correctness",
-                    "slot": "correctness",
-                    "instructions": "Check correctness and regressions in the final pass.",
-                    "submission_path": str(sub_three_a),
-                },
-                {
-                    "name": "UX",
-                    "slot": "ux",
-                    "instructions": "Check hierarchy, density, and visual polish.",
-                    "submission_path": str(sub_three_b),
-                },
+            "assignments": [
+                assignment("correctness", "integrated", "correctness", "Check correctness and regressions in the final pass.", sub_three_a),
+                assignment("ux", "specialist", "agent-ux", "Check hierarchy, density, and visual polish.", sub_three_b),
             ],
         }
     ),
@@ -362,20 +379,9 @@ sub_three_b.parent.mkdir(parents=True, exist_ok=True)
             "round_id": "review-003-full",
             "kind": "full",
             "updated_at": "2026-04-02T12:10:00Z",
-            "slots": [
-                {
-                    "name": "Correctness",
-                    "slot": "correctness",
-                    "status": "submitted",
-                    "submitted_at": "2026-04-02T12:07:00Z",
-                    "submission_path": str(sub_three_a),
-                },
-                {
-                    "name": "UX",
-                    "slot": "ux",
-                    "status": "pending",
-                    "submission_path": str(sub_three_b),
-                },
+            "assignments": [
+                ledger_assignment("correctness", "integrated", "submitted", sub_three_a, "2026-04-02T12:07:00Z"),
+                ledger_assignment("ux", "specialist", "pending", sub_three_b),
             ],
         }
     ),
@@ -386,11 +392,12 @@ sub_three_a.write_text(
         {
             "round_id": "review-003-full",
             "slot": "correctness",
-            "dimension": "Correctness",
+            "role": "integrated",
             "submitted_at": "2026-04-02T12:07:00Z",
             "summary": "Core behavior is stable.",
             "findings": [
                 {
+                    "area": "status-copy",
                     "severity": "minor",
                     "title": "Message clarity",
                     "details": "One status string could be clearer.",
@@ -406,7 +413,7 @@ sub_three_b.write_text(
         {
             "round_id": "review-003-full",
             "slot": "ux",
-            "dimension": "UX",
+            "role": "specialist",
             "summary": "",
             "findings": [],
             "worklog": {
@@ -431,6 +438,7 @@ sub_four.parent.mkdir(parents=True, exist_ok=True)
         {
             "round_id": "review-004-full",
             "kind": "full",
+            "reviewed_head_sha": "fixture-head-004",
             "revision": 2,
             "review_title": "Aggregation wait",
             "plan_path": plan_rel,
@@ -439,13 +447,8 @@ sub_four.parent.mkdir(parents=True, exist_ok=True)
             "ledger_path": str(review_four / "ledger.json"),
             "aggregate_path": str(review_four / "aggregate.json"),
             "submissions_dir": str(review_four / "submissions"),
-            "dimensions": [
-                {
-                    "name": "Correctness",
-                    "slot": "correctness",
-                    "instructions": "Check the final aggregate handoff.",
-                    "submission_path": str(sub_four),
-                }
+            "assignments": [
+                assignment("correctness", "integrated", "correctness", "Check the final aggregate handoff.", sub_four)
             ],
         }
     ),
@@ -457,14 +460,8 @@ sub_four.parent.mkdir(parents=True, exist_ok=True)
             "round_id": "review-004-full",
             "kind": "full",
             "updated_at": "2026-04-02T12:35:00Z",
-            "slots": [
-                {
-                    "name": "Correctness",
-                    "slot": "correctness",
-                    "status": "submitted",
-                    "submitted_at": "2026-04-02T12:34:00Z",
-                    "submission_path": str(sub_four),
-                }
+            "assignments": [
+                ledger_assignment("correctness", "integrated", "submitted", sub_four, "2026-04-02T12:34:00Z")
             ],
         }
     ),
@@ -475,7 +472,7 @@ sub_four.write_text(
         {
             "round_id": "review-004-full",
             "slot": "correctness",
-            "dimension": "Correctness",
+            "role": "integrated",
             "submitted_at": "2026-04-02T12:34:00Z",
             "summary": "All submissions are present while aggregation is pending.",
             "findings": [],
@@ -494,14 +491,8 @@ sub_six.parent.mkdir(parents=True, exist_ok=True)
             "round_id": "review-006-delta",
             "kind": "delta",
             "updated_at": "2026-04-02T12:42:00Z",
-            "slots": [
-                {
-                    "name": "Correctness",
-                    "slot": "correctness",
-                    "status": "submitted",
-                    "submitted_at": "2026-04-02T12:41:00Z",
-                    "submission_path": str(sub_six),
-                }
+            "assignments": [
+                ledger_assignment("correctness", "integrated", "submitted", sub_six, "2026-04-02T12:41:00Z")
             ],
         }
     ),
@@ -512,7 +503,7 @@ sub_six.write_text(
         {
             "round_id": "review-006-delta",
             "slot": "correctness",
-            "dimension": "Correctness",
+            "role": "integrated",
             "submitted_at": "2026-04-02T12:41:00Z",
             "summary": "Recovered while the manifest is malformed.",
             "findings": [],
@@ -529,6 +520,7 @@ sub_seven.parent.mkdir(parents=True, exist_ok=True)
         {
             "round_id": "review-007-delta",
             "kind": "delta",
+            "reviewed_head_sha": "fixture-head-007",
             "step": 4,
             "revision": 2,
             "review_title": "Step 4 closeout",
@@ -538,13 +530,8 @@ sub_seven.parent.mkdir(parents=True, exist_ok=True)
             "ledger_path": str(review_seven / "ledger.json"),
             "aggregate_path": str(review_seven / "aggregate.json"),
             "submissions_dir": str(review_seven / "submissions"),
-            "dimensions": [
-                {
-                    "name": "Correctness",
-                    "slot": "correctness",
-                    "instructions": "Check the aggregate degradation path.",
-                    "submission_path": str(sub_seven),
-                }
+            "assignments": [
+                assignment("correctness", "integrated", "correctness", "Check the aggregate degradation path.", sub_seven)
             ],
         }
     ),
@@ -556,14 +543,8 @@ sub_seven.parent.mkdir(parents=True, exist_ok=True)
             "round_id": "review-007-delta",
             "kind": "delta",
             "updated_at": "2026-04-02T12:51:00Z",
-            "slots": [
-                {
-                    "name": "Correctness",
-                    "slot": "correctness",
-                    "status": "submitted",
-                    "submitted_at": "2026-04-02T12:50:30Z",
-                    "submission_path": str(sub_seven),
-                }
+            "assignments": [
+                ledger_assignment("correctness", "integrated", "submitted", sub_seven, "2026-04-02T12:50:30Z")
             ],
         }
     ),
@@ -574,7 +555,7 @@ sub_seven.write_text(
         {
             "round_id": "review-007-delta",
             "slot": "correctness",
-            "dimension": "Correctness",
+            "role": "integrated",
             "submitted_at": "2026-04-02T12:50:30Z",
             "summary": "Recovered while the aggregate is malformed.",
             "findings": [],
@@ -594,6 +575,7 @@ sub_eight_risk.parent.mkdir(parents=True, exist_ok=True)
         {
             "round_id": "review-008-full",
             "kind": "full",
+            "reviewed_head_sha": "fixture-head-008",
             "revision": 2,
             "review_title": "Positive findings round",
             "plan_path": plan_rel,
@@ -602,19 +584,9 @@ sub_eight_risk.parent.mkdir(parents=True, exist_ok=True)
             "ledger_path": str(review_eight / "ledger.json"),
             "aggregate_path": str(review_eight / "aggregate.json"),
             "submissions_dir": str(review_eight / "submissions"),
-            "dimensions": [
-                {
-                    "name": "Correctness",
-                    "slot": "correctness",
-                    "instructions": "Check the positive aggregate path.",
-                    "submission_path": str(sub_eight_correctness),
-                },
-                {
-                    "name": "Risk",
-                    "slot": "risk_slot",
-                    "instructions": "Check residual workflow risk.",
-                    "submission_path": str(sub_eight_risk),
-                },
+            "assignments": [
+                assignment("correctness", "integrated", "correctness", "Check the positive aggregate path.", sub_eight_correctness),
+                assignment("risk_slot", "specialist", "risk-scan", "Check residual workflow risk.", sub_eight_risk),
             ],
         }
     ),
@@ -626,21 +598,9 @@ sub_eight_risk.parent.mkdir(parents=True, exist_ok=True)
             "round_id": "review-008-full",
             "kind": "full",
             "updated_at": "2026-04-02T13:05:00Z",
-            "slots": [
-                {
-                    "name": "Correctness",
-                    "slot": "correctness",
-                    "status": "submitted",
-                    "submitted_at": "2026-04-02T13:03:00Z",
-                    "submission_path": str(sub_eight_correctness),
-                },
-                {
-                    "name": "Risk",
-                    "slot": "risk_slot",
-                    "status": "submitted",
-                    "submitted_at": "2026-04-02T13:04:00Z",
-                    "submission_path": str(sub_eight_risk),
-                },
+            "assignments": [
+                ledger_assignment("correctness", "integrated", "submitted", sub_eight_correctness, "2026-04-02T13:03:00Z"),
+                ledger_assignment("risk_slot", "specialist", "submitted", sub_eight_risk, "2026-04-02T13:04:00Z"),
             ],
         }
     ),
@@ -651,7 +611,7 @@ sub_eight_correctness.write_text(
         {
             "round_id": "review-008-full",
             "slot": "correctness",
-            "dimension": "Correctness",
+            "role": "integrated",
             "submitted_at": "2026-04-02T13:03:00Z",
             "summary": "The positive findings path is exercised.",
             "findings": [],
@@ -664,7 +624,7 @@ sub_eight_risk.write_text(
         {
             "round_id": "review-008-full",
             "slot": "risk_slot",
-            "dimension": "Risk",
+            "role": "specialist",
             "submitted_at": "2026-04-02T13:04:00Z",
             "summary": "No additional risk.",
             "findings": [],
@@ -679,12 +639,15 @@ sub_eight_risk.write_text(
             "kind": "full",
             "revision": 2,
             "review_title": "Positive findings round",
+            "reviewed_head_sha": "fixture-head-008",
             "decision": "changes_requested",
             "aggregated_at": "2026-04-02T13:06:00Z",
             "blocking_findings": [
                 {
+                    "finding_id": "review-008-full/correctness/001",
                     "slot": "correctness",
-                    "dimension": "Correctness",
+                    "role": "integrated",
+                    "area": "finding-provenance",
                     "severity": "important",
                     "title": "Blocking provenance",
                     "details": "This finding should render in the positive aggregate path.",
@@ -693,11 +656,27 @@ sub_eight_risk.write_text(
             ],
             "non_blocking_findings": [
                 {
+                    "finding_id": "review-008-full/risk_slot/001",
                     "slot": "risk_slot",
-                    "dimension": "Risk",
+                    "role": "specialist",
+                    "area": "residual-risk",
                     "severity": "minor",
                     "title": "Minor follow-up",
                     "details": "This finding should render alongside the blocking one.",
+                }
+            ],
+            "resolved_finding_ids": [],
+            "unresolved_finding_ids": ["review-008-full/correctness/001"],
+            "unresolved_blocking_findings": [
+                {
+                    "finding_id": "review-008-full/correctness/001",
+                    "slot": "correctness",
+                    "role": "integrated",
+                    "area": "finding-provenance",
+                    "severity": "important",
+                    "title": "Blocking provenance",
+                    "details": "This finding should render in the positive aggregate path.",
+                    "locations": ["web/src/main.tsx#L1450-L1487"],
                 }
             ],
         }
@@ -713,6 +692,7 @@ sub_nine.parent.mkdir(parents=True, exist_ok=True)
         {
             "round_id": "review-009-delta",
             "kind": "delta",
+            "reviewed_head_sha": "fixture-head-009",
             "step": 5,
             "revision": 2,
             "review_title": "Submission validation gap",
@@ -722,13 +702,8 @@ sub_nine.parent.mkdir(parents=True, exist_ok=True)
             "ledger_path": str(review_nine / "ledger.json"),
             "aggregate_path": str(review_nine / "aggregate.json"),
             "submissions_dir": str(review_nine / "submissions"),
-            "dimensions": [
-                {
-                    "name": "Risk",
-                    "slot": "risk",
-                    "instructions": "Check the invalid submission degradation path.",
-                    "submission_path": str(sub_nine),
-                }
+            "assignments": [
+                assignment("risk", "specialist", "risk-scan", "Check the invalid submission degradation path.", sub_nine)
             ],
         }
     ),
@@ -740,14 +715,8 @@ sub_nine.parent.mkdir(parents=True, exist_ok=True)
             "round_id": "review-009-delta",
             "kind": "delta",
             "updated_at": "2026-04-02T13:22:00Z",
-            "slots": [
-                {
-                    "name": "Risk",
-                    "slot": "risk",
-                    "status": "submitted",
-                    "submitted_at": "2026-04-02T13:21:30Z",
-                    "submission_path": str(sub_nine),
-                }
+            "assignments": [
+                ledger_assignment("risk", "specialist", "submitted", sub_nine, "2026-04-02T13:21:30Z")
             ],
         }
     ),
@@ -758,7 +727,7 @@ sub_nine.write_text(
         {
             "round_id": "review-009-delta",
             "slot": "risk",
-            "dimension": "Risk",
+            "role": "specialist",
             "submitted_at": "2026-04-02T13:21:30Z",
             "findings": [],
         }
@@ -1167,7 +1136,7 @@ async (page) => await page.evaluate(() => {
 })
 ' >/dev/null
 
-ux_ref="$(tab_ref_from_snapshot "UX" "${output_dir}/review-pending-round.yml")"
+ux_ref="$(tab_ref_from_snapshot "Ux · Specialist" "${output_dir}/review-pending-round.yml")"
 if [[ -z "$ux_ref" ]]; then
   echo "Could not find UX reviewer tab." >&2
   cat "${output_dir}/review-pending-round.yml" >&2
@@ -1269,8 +1238,8 @@ async (page) => await page.evaluate(() => {
     throw new Error("missing Minor follow-up finding card");
   }
   const pills = [...target.querySelectorAll(".provenance-pill")].map((item) => (item.textContent || "").trim());
-  if (!pills.includes("Risk")) {
-    throw new Error(`expected provenance pill for Risk, got ${JSON.stringify(pills)}`);
+  if (!pills.includes("Specialist")) {
+    throw new Error(`expected specialist provenance pill, got ${JSON.stringify(pills)}`);
   }
   if (!pills.includes("slot Risk slot")) {
     throw new Error(`expected slot provenance pill, got ${JSON.stringify(pills)}`);
@@ -1303,9 +1272,9 @@ fi
 "$PWCLI" --session "$session_name" click "$invalid_artifacts_ref" >/dev/null
 "$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-invalid-submission-artifacts.yml"
 assert_has_text "${output_dir}/review-invalid-submission-artifacts.yml" "Round artifacts and supporting metadata"
-assert_has_text "${output_dir}/review-invalid-submission-artifacts.yml" "Submission: Risk"
+assert_has_text "${output_dir}/review-invalid-submission-artifacts.yml" "Submission: risk (specialist)"
 
-invalid_submission_ref="$(tab_ref_from_snapshot "Submission: Risk" "${output_dir}/review-invalid-submission-artifacts.yml")"
+invalid_submission_ref="$(tab_ref_from_snapshot "Submission: risk (specialist)" "${output_dir}/review-invalid-submission-artifacts.yml")"
 if [[ -z "$invalid_submission_ref" ]]; then
   echo "Could not find invalid submission artifact tab." >&2
   cat "${output_dir}/review-invalid-submission-artifacts.yml" >&2
@@ -1368,7 +1337,7 @@ if [[ -z "$damaged_artifacts_close_ref" ]]; then
 fi
 "$PWCLI" --session "$session_name" click "$damaged_artifacts_close_ref" >/dev/null
 
-risk_ref="$(tab_ref_from_snapshot "Risk" "${output_dir}/review-damaged-round.yml")"
+risk_ref="$(tab_ref_from_snapshot "Risk · Specialist" "${output_dir}/review-damaged-round.yml")"
 if [[ -z "$risk_ref" ]]; then
   echo "Could not find damaged-round Risk reviewer tab." >&2
   cat "${output_dir}/review-damaged-round.yml" >&2

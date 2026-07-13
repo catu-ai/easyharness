@@ -12,6 +12,14 @@ import (
 
 var ErrNoCurrentPlan = errors.New("no current plan found")
 
+const ReviewGuidanceDirName = "review-guidance"
+
+// ReviewGuidanceDirForPlanPath returns the conventional additive reviewer-
+// guidance directory owned by one plan package.
+func ReviewGuidanceDirForPlanPath(planPath string) string {
+	return filepath.Join(SupplementsDirForPlanPath(planPath), ReviewGuidanceDirName)
+}
+
 func DetectCurrentPath(workdir string) (string, error) {
 	activeMatches, err := activeCandidatePaths(workdir)
 	if err != nil {
