@@ -183,12 +183,12 @@ func timelineEventFromReviewStart(result reviewStartResult) timeline.Event {
 			pathRef("plan_path", result.Artifacts.PlanPath),
 			valueRef("round_id", result.Artifacts.RoundID),
 		)
-		for _, slot := range result.Artifacts.Slots {
-			event.ArtifactRefs = append(event.ArtifactRefs, pathRef(slotSubmissionPathLabel(slot.Slot), slot.SubmissionPath))
+		for _, assignment := range result.Artifacts.Assignments {
+			event.ArtifactRefs = append(event.ArtifactRefs, pathRef(slotSubmissionPathLabel(assignment.Slot), assignment.SubmissionPath))
 		}
 		event.Details = append(event.Details, timeline.Detail{
-			Key:   "slot_count",
-			Value: strconv.Itoa(len(result.Artifacts.Slots)),
+			Key:   "assignment_count",
+			Value: strconv.Itoa(len(result.Artifacts.Assignments)),
 		})
 	}
 	return pruneTimelineEvent(event)

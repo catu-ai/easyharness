@@ -31,8 +31,17 @@ type ReviewDimensionMetadata struct {
 	// alphanumeric segments separated by single hyphens.
 	Name string `json:"name"`
 
-	// Source identifies where the dimension definition came from.
-	Source string `json:"source"`
+	// Sources preserves the ordered provenance of the resolved guidance. A
+	// same-name plan fragment follows its builtin or repo base source.
+	Sources []string `json:"sources" easyharness:"no_null"`
+
+	// Path identifies the repo-relative file that supplied the resolved
+	// repo-defined or plan-scoped guidance. Built-in-only guidance omits it.
+	Path string `json:"path,omitempty"`
+
+	// PlanPath identifies the current plan whose package supplied additive
+	// guidance. Guidance with no plan-scoped fragment omits it.
+	PlanPath string `json:"plan_path,omitempty"`
 
 	// Description is the concise selection guidance for controller agents.
 	Description string `json:"description"`

@@ -238,7 +238,7 @@ pre-cutover harness runtime advance.
 
 ### Step 2: Cut review specs and plan-scoped guidance over to assignments
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -284,11 +284,33 @@ but controllers still choose assignments explicitly.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Cut the review contract over from one dimension-owned slot per reviewer to
+explicit `integrated` and `specialist` assignments. One assignment now owns one
+submission while snapshotting several resolved guidance fragments. Specialist
+assignments require concrete risk surfaces and invariants; findings carry an
+actionable area and harness-assigned stable ID; repair inputs and submissions
+carry explicit finding references and resolution verdicts. Manifest, ledger,
+submission, aggregate, status, review UI, web UI, timeline, input validation,
+and generated schemas use the new shape with no legacy compatibility adapter.
+
+Added strict additive plan-scoped guidance under
+`supplements/<plan-stem>/review-guidance/`, including exact-plan resolution,
+ordered source provenance, archive/reopen discovery, linting, and this plan's
+`review-state-and-coverage` specialist guidance. Same-name plan guidance
+appends after the built-in/repo result; new names remain plan-local; no guidance
+creates an assignment automatically. While dogfooding the package, fixed a
+relative-path lint defect that incorrectly treated a matching supplements
+directory as an alternate-root conflict.
+
+Focused review, guidance, plan, CLI, input-schema, contract-sync, status,
+review-UI, and UI-server tests passed. All 34 web tests and TypeScript checking
+passed, along with plan lint and `git diff --check`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+NO_STEP_REVIEW_NEEDED: This approved Review v2 dogfood plan intentionally
+defers formal review to the final candidate; this marker exists only to let the
+pre-cutover harness runtime advance.
 
 ### Step 3: Implement git-bound composable finalize coverage
 

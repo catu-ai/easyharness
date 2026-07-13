@@ -3,8 +3,11 @@ package reviewdimensions
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/catu-ai/easyharness/internal/runstate"
 )
 
 func TestListReturnsBuiltinDimensions(t *testing.T) {
@@ -12,15 +15,15 @@ func TestListReturnsBuiltinDimensions(t *testing.T) {
 	if !result.OK {
 		t.Fatalf("expected builtin list success, got %#v", result)
 	}
-	got := map[string]string{}
+	got := map[string][]string{}
 	for _, dimension := range result.Dimensions {
-		got[dimension.Name] = dimension.Source
+		got[dimension.Name] = dimension.Sources
 		if strings.TrimSpace(dimension.Description) == "" {
 			t.Fatalf("dimension %q has empty description", dimension.Name)
 		}
 	}
 	for _, name := range []string{"agent-ux", "correctness", "docs-consistency", "evidence-validity", "risk-scan", "tests"} {
-		if got[name] != SourceBuiltin {
+		if !reflect.DeepEqual(got[name], []string{SourceBuiltin}) {
 			t.Fatalf("expected builtin dimension %q, got %#v", name, result.Dimensions)
 		}
 	}
@@ -78,7 +81,7 @@ Repo-specific test instruction.
 	}
 	for _, dimension := range result.Dimensions {
 		if dimension.Name == "tests" {
-			if dimension.Source != SourceRepo || dimension.Description != "Use the repo-specific test policy." {
+			if !reflect.DeepEqual(dimension.Sources, []string{SourceRepo}) || dimension.Description != "Use the repo-specific test policy." {
 				t.Fatalf("expected repo override for tests, got %#v", dimension)
 			}
 			instructions, _, errors := Service{Workdir: root}.Instructions("tests")
@@ -114,7 +117,7 @@ Check the public contract.
 		t.Fatalf("expected list success, got %#v", result)
 	}
 	for _, dimension := range result.Dimensions {
-		if dimension.Name == "api-contract" && dimension.Source == SourceRepo {
+		if dimension.Name == "api-contract" && reflect.DeepEqual(dimension.Sources, []string{SourceRepo}) {
 			return
 		}
 	}
@@ -238,6 +241,165 @@ func TestInstructionsRejectsUnknownDimension(t *testing.T) {
 	_, _, errors := Service{Workdir: t.TempDir()}.Instructions("missing-dimension")
 	if len(errors) != 1 || !strings.Contains(errors[0].Message, "unknown review dimension") {
 		t.Fatalf("unexpected errors: %#v", errors)
+	}
+}
+
+func TestCurrentPlanGuidanceAppendsToResolvedBaseAndAddsPlanLocalGuidance(t *testing.T) {
+	root := t.TempDir()
+	planPath := "docs/plans/active/2026-07-13-guidance.md"
+	writeFile(t, root, planPath, "# plan\n")
+	writeDimension(t, root, "docs/plans/active/supplements/2026-07-13-guidance/review-guidance/correctness.md", `---
+name: correctness
+description: Check the approved state invariant.
+---
+
+The candidate must preserve the approved state invariant.
+`)
+	writeDimension(t, root, "docs/plans/active/supplements/2026-07-13-guidance/review-guidance/review-state.md", `---
+name: review-state
+description: Use for the plan-specific review-state contract.
+---
+
+Check the plan-specific review-state contract.
+`)
+
+	service := Service{Workdir: root}
+	result := service.List()
+	if !result.OK {
+		t.Fatalf("expected plan-scoped list success, got %#v", result)
+	}
+	byName := map[string]struct {
+		sources  []string
+		planPath string
+		path     string
+	}{}
+	for _, dimension := range result.Dimensions {
+		byName[dimension.Name] = struct {
+			sources  []string
+			planPath string
+			path     string
+		}{dimension.Sources, dimension.PlanPath, dimension.Path}
+	}
+	if got := byName["correctness"]; !reflect.DeepEqual(got.sources, []string{SourceBuiltin, SourcePlan}) || got.planPath != planPath || !strings.HasSuffix(got.path, "/correctness.md") {
+		t.Fatalf("unexpected appended correctness provenance: %#v", got)
+	}
+	if got := byName["review-state"]; !reflect.DeepEqual(got.sources, []string{SourcePlan}) || got.planPath != planPath {
+		t.Fatalf("unexpected plan-local provenance: %#v", got)
+	}
+	instructions, _, errs := service.Instructions("correctness")
+	if len(errs) > 0 {
+		t.Fatalf("expected appended instructions, got %#v", errs)
+	}
+	baseIndex := strings.Index(instructions, "Review the change for correctness.")
+	planIndex := strings.Index(instructions, "The candidate must preserve the approved state invariant.")
+	if baseIndex < 0 || planIndex <= baseIndex || !strings.Contains(instructions, "## Plan-scoped guidance") {
+		t.Fatalf("expected base instructions followed by plan guidance:\n%s", instructions)
+	}
+}
+
+func TestPlanGuidanceAppendsAfterRepoOverride(t *testing.T) {
+	root := t.TempDir()
+	planPath := "docs/plans/active/2026-07-13-repo-plan.md"
+	writeFile(t, root, planPath, "# plan\n")
+	writeDimension(t, root, ".harness/review/dimensions/tests.md", `---
+name: tests
+description: Repo tests.
+---
+
+Follow the repo test policy.
+`)
+	writeDimension(t, root, "docs/plans/active/supplements/2026-07-13-repo-plan/review-guidance/tests.md", `---
+name: tests
+description: Plan tests.
+---
+
+Also test the plan invariant.
+`)
+
+	dimension, _, errs := (Service{Workdir: root}).ResolveForPlan(planPath, "tests")
+	if len(errs) > 0 {
+		t.Fatalf("expected exact-plan resolution, got %#v", errs)
+	}
+	if !reflect.DeepEqual(dimension.Sources, []string{SourceRepo, SourcePlan}) {
+		t.Fatalf("sources = %#v", dimension.Sources)
+	}
+	if strings.Contains(dimension.Instructions, "unit, integration") || !strings.Contains(dimension.Instructions, "Follow the repo test policy.") || !strings.Contains(dimension.Instructions, "Also test the plan invariant.") {
+		t.Fatalf("expected plan guidance appended to repo override:\n%s", dimension.Instructions)
+	}
+}
+
+func TestResolveForPlanUsesExactPlanInsteadOfCurrentPlan(t *testing.T) {
+	root := t.TempDir()
+	currentPlan := "docs/plans/active/2026-07-13-current.md"
+	exactPlan := "docs/plans/archived/2026-07-12-exact.md"
+	writeFile(t, root, currentPlan, "# current\n")
+	writeFile(t, root, exactPlan, "# exact\n")
+	writeDimension(t, root, "docs/plans/active/supplements/2026-07-13-current/review-guidance/risk-scan.md", `---
+name: risk-scan
+description: Current plan risks.
+---
+
+CURRENT PLAN GUIDANCE
+`)
+	writeDimension(t, root, "docs/plans/archived/supplements/2026-07-12-exact/review-guidance/risk-scan.md", `---
+name: risk-scan
+description: Exact plan risks.
+---
+
+EXACT PLAN GUIDANCE
+`)
+
+	dimension, _, errs := (Service{Workdir: root}).ResolveForPlan(exactPlan, "risk-scan")
+	if len(errs) > 0 {
+		t.Fatalf("expected exact-plan resolution, got %#v", errs)
+	}
+	if dimension.PlanPath != exactPlan || !strings.Contains(dimension.Instructions, "EXACT PLAN GUIDANCE") || strings.Contains(dimension.Instructions, "CURRENT PLAN GUIDANCE") {
+		t.Fatalf("resolved the wrong plan: %#v\n%s", dimension, dimension.Instructions)
+	}
+}
+
+func TestArchivedCurrentPlanGuidanceRemainsDiscoverable(t *testing.T) {
+	root := t.TempDir()
+	planPath := "docs/plans/archived/2026-07-13-archived.md"
+	writeFile(t, root, planPath, "# archived\n")
+	writeDimension(t, root, "docs/plans/archived/supplements/2026-07-13-archived/review-guidance/archive-risk.md", `---
+name: archive-risk
+description: Archived plan risk.
+---
+
+Check the archived plan risk.
+`)
+	if _, err := runstate.SaveCurrentPlan(root, planPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+
+	result := (Service{Workdir: root}).List()
+	if !result.OK {
+		t.Fatalf("expected archived catalog success, got %#v", result)
+	}
+	for _, dimension := range result.Dimensions {
+		if dimension.Name == "archive-risk" && dimension.PlanPath == planPath && reflect.DeepEqual(dimension.Sources, []string{SourcePlan}) {
+			return
+		}
+	}
+	t.Fatalf("missing archived plan guidance in %#v", result.Dimensions)
+}
+
+func TestInvalidCurrentPlanGuidanceFailsCatalog(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "docs/plans/active/2026-07-13-invalid.md", "# plan\n")
+	writeDimension(t, root, "docs/plans/active/supplements/2026-07-13-invalid/review-guidance/bad.md", `---
+name: bad
+description: Invalid extra field.
+mode: override
+---
+
+No override is allowed.
+`)
+
+	result := (Service{Workdir: root}).List()
+	if result.OK || len(result.Errors) != 1 || !strings.Contains(result.Errors[0].Message, `unsupported frontmatter field "mode"`) {
+		t.Fatalf("expected invalid plan guidance error, got %#v", result)
 	}
 }
 

@@ -198,9 +198,9 @@ type StatusArtifacts struct {
 	// flight.
 	ReviewRoundID string `json:"review_round_id,omitempty"`
 
-	// ReviewSlots lists the active round's reviewer-owned slot handles when
-	// review is in flight.
-	ReviewSlots []ReviewSlot `json:"review_slots,omitempty"`
+	// ReviewAssignments lists the active round's reviewer-owned assignment
+	// handles when review is in flight.
+	ReviewAssignments []ReviewAssignment `json:"review_assignments,omitempty"`
 
 	// LastLandedAt is the timestamp of the most recent landed plan.
 	LastLandedAt string `json:"last_landed_at,omitempty"`

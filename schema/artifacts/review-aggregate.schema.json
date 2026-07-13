@@ -25,6 +25,9 @@
           "type": "string",
           "description": "ReviewTitle is the human-readable title for the round when one exists."
         },
+        "repair": {
+          "$ref": "#/$defs/ReviewRepairReference"
+        },
         "decision": {
           "type": "string",
           "description": "Decision is the aggregate review decision for the round."
@@ -59,6 +62,18 @@
           ],
           "description": "NonBlockingFindings lists the findings that were recorded without blocking progression."
         },
+        "resolved_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "unresolved_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "aggregated_at": {
           "type": "string",
           "description": "AggregatedAt is the aggregate timestamp."
@@ -73,19 +88,26 @@
         "decision",
         "blocking_findings",
         "non_blocking_findings",
+        "resolved_finding_ids",
+        "unresolved_finding_ids",
         "aggregated_at"
       ],
       "description": "ReviewAggregate is the command-owned aggregate artifact for a completed review round."
     },
     "ReviewAggregateFinding": {
       "properties": {
+        "finding_id": {
+          "type": "string"
+        },
         "slot": {
           "type": "string",
           "description": "Slot is the stable reviewer slot identifier."
         },
-        "dimension": {
-          "type": "string",
-          "description": "Dimension is the human-readable review dimension label."
+        "role": {
+          "type": "string"
+        },
+        "area": {
+          "type": "string"
         },
         "severity": {
           "type": "string",
@@ -110,13 +132,36 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "finding_id",
         "slot",
-        "dimension",
+        "role",
+        "area",
         "severity",
         "title",
         "details"
       ],
       "description": "ReviewAggregateFinding is one aggregate finding annotated with its slot and dimension context."
+    },
+    "ReviewRepairReference": {
+      "properties": {
+        "round_id": {
+          "type": "string"
+        },
+        "finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "round_id",
+        "finding_ids"
+      ],
+      "description": "ReviewRepairReference identifies the findings targeted by a repair delta."
     }
   },
   "title": "Review aggregate artifact",

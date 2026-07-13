@@ -312,10 +312,11 @@ func TestStatusExecutionStepReviewNode(t *testing.T) {
 		"review_title": stepOneTitle,
 		"step":         1,
 		"revision":     1,
-		"dimensions": []map[string]any{
+		"assignments": []map[string]any{
 			{
-				"name":            "correctness",
 				"slot":            "correctness",
+				"role":            "integrated",
+				"dimensions":      []map[string]any{{"name": "correctness", "sources": []string{"builtin"}, "description": "Correctness.", "instructions": "Check correctness."}},
 				"instructions":    "Check correctness.",
 				"submission_path": filepath.Join(root, ".local", "harness", "plans", "2026-03-18-status-plan", "reviews", "review-001-delta", "submissions", "correctness", "submission.json"),
 			},
@@ -332,7 +333,7 @@ func TestStatusExecutionStepReviewNode(t *testing.T) {
 	if result.Artifacts == nil || result.Artifacts.ReviewRoundID != "review-001-delta" {
 		t.Fatalf("unexpected artifacts: %#v", result.Artifacts)
 	}
-	if len(result.Artifacts.ReviewSlots) != 1 || result.Artifacts.ReviewSlots[0].SubmissionPath != ".local/harness/plans/2026-03-18-status-plan/reviews/review-001-delta/submissions/correctness/submission.json" {
+	if len(result.Artifacts.ReviewAssignments) != 1 || result.Artifacts.ReviewAssignments[0].SubmissionPath != ".local/harness/plans/2026-03-18-status-plan/reviews/review-001-delta/submissions/correctness/submission.json" {
 		t.Fatalf("expected active review slot handles, got %#v", result.Artifacts)
 	}
 }
@@ -3188,8 +3189,8 @@ func TestStatusReentersReviewedStepAfterFailedExplicitEarlierStepRepair(t *testi
 	start := svc.Start(mustJSONBytes(t, review.Spec{
 		Step: reviewIntPtr(1),
 		Kind: "full",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Repair the earlier step closeout from the later frontier."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Repair the earlier step closeout from the later frontier."},
 		},
 	}))
 	if !start.OK {
@@ -3203,6 +3204,7 @@ func TestStatusReentersReviewedStepAfterFailedExplicitEarlierStepRepair(t *testi
 		Summary: "The repair still needs work.",
 		Findings: []review.Finding{
 			{
+				Area:     "step-review",
 				Severity: "important",
 				Title:    "Earlier-step contract drift",
 				Details:  "The explicit repair still misses one frontier-stability assertion.",
@@ -3265,8 +3267,8 @@ func TestStatusReturnsToLaterFrontierAfterCleanExplicitEarlierStepRepair(t *test
 	start := svc.Start(mustJSONBytes(t, review.Spec{
 		Step: reviewIntPtr(1),
 		Kind: "full",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Repair the earlier step closeout from the later frontier."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Repair the earlier step closeout from the later frontier."},
 		},
 	}))
 	if !start.OK {
@@ -3335,8 +3337,8 @@ func TestStatusReturnsToFinalizeReviewAfterCleanExplicitEarlierStepRepair(t *tes
 	start := svc.Start(mustJSONBytes(t, review.Spec{
 		Step: reviewIntPtr(1),
 		Kind: "full",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Repair the earlier step closeout from finalize review."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Repair the earlier step closeout from finalize review."},
 		},
 	}))
 	if !start.OK {

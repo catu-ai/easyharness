@@ -17,14 +17,15 @@ import (
 	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/inputschema"
 	"github.com/catu-ai/easyharness/internal/plan"
+	"github.com/catu-ai/easyharness/internal/reviewdimensions"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/stepcloseout"
 )
 
-var slotNamePattern = regexp.MustCompile(`[^a-z0-9]+`)
 var compactRoundIDPattern = regexp.MustCompile(`^review-([0-9]+)-([a-z0-9-]+)$`)
 var saveState = runstate.SaveState
 var writeJSON = writeJSONFile
+var resolveDimensions = resolveReviewDimensions
 
 type Service struct {
 	Workdir               string
@@ -38,14 +39,18 @@ type Service struct {
 }
 
 type Spec = contracts.ReviewSpec
-type Dimension = contracts.ReviewDimension
+type AssignmentSpec = contracts.ReviewAssignmentSpec
+type RepairReference = contracts.ReviewRepairReference
+type RiskBrief = contracts.ReviewRiskBrief
+type ResolvedDimension = contracts.ReviewResolvedDimension
 type Manifest = contracts.ReviewManifest
-type ManifestSlot = contracts.ReviewSlot
+type ManifestAssignment = contracts.ReviewAssignment
 type Ledger = contracts.ReviewLedger
-type LedgerSlot = contracts.ReviewLedgerSlot
+type LedgerAssignment = contracts.ReviewLedgerAssignment
 type SubmissionInput = contracts.ReviewSubmissionInput
 type Submission = contracts.ReviewSubmission
 type Finding = contracts.ReviewFinding
+type FindingResolution = contracts.ReviewFindingResolution
 type Aggregate = contracts.ReviewAggregate
 type AggregateFinding = contracts.ReviewAggregateFinding
 type CommandError = contracts.ErrorDetail
@@ -80,7 +85,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 	defer locks.release()
 
 	now := s.now()
-	_, doc, planStem, relPlanPath, state, statePath, errResult := s.loadCurrentExecutingPlan(locks.PlanPath)
+	planPath, doc, planStem, relPlanPath, state, statePath, errResult := s.loadCurrentExecutingPlan(locks.PlanPath)
 	if errResult != nil {
 		return *errResult
 	}
@@ -119,6 +124,23 @@ func (s Service) Start(specBytes []byte) StartResult {
 			Errors:  []CommandError{{Path: "spec", Message: err.Error()}},
 		}
 	}
+	if issues := validateAssignmentTopology(spec, inferredStep); len(issues) > 0 {
+		return StartResult{
+			OK:      false,
+			Command: "review start",
+			Summary: "Review spec is invalid.",
+			Errors:  issues,
+		}
+	}
+	materializedAssignments, issues := materializeAssignments(s.Workdir, planPath, spec.Assignments)
+	if len(issues) > 0 {
+		return StartResult{
+			OK:      false,
+			Command: "review start",
+			Summary: "Review assignment guidance could not be resolved.",
+			Errors:  issues,
+		}
+	}
 
 	roundID, err := nextRoundID(s.Workdir, planStem, spec.Kind)
 	if err != nil {
@@ -143,31 +165,26 @@ func (s Service) Start(specBytes []byte) StartResult {
 		}
 	}
 
-	slots := make([]ManifestSlot, 0, len(spec.Dimensions))
+	assignments := make([]ManifestAssignment, 0, len(materializedAssignments))
 	ledger := Ledger{
-		RoundID:   roundID,
-		Kind:      spec.Kind,
-		UpdatedAt: now.Format(time.RFC3339),
-		Slots:     make([]LedgerSlot, 0, len(spec.Dimensions)),
+		RoundID:     roundID,
+		Kind:        spec.Kind,
+		UpdatedAt:   now.Format(time.RFC3339),
+		Assignments: make([]LedgerAssignment, 0, len(materializedAssignments)),
 	}
-	for _, dimension := range spec.Dimensions {
-		slot := normalizeSlot(dimension.Name)
-		submissionPath := filepath.Join(submissionsDir, slot, "submission.json")
-		slots = append(slots, ManifestSlot{
-			Name:           dimension.Name,
-			Slot:           slot,
-			Instructions:   dimension.Instructions,
-			SubmissionPath: submissionPath,
-		})
-		ledger.Slots = append(ledger.Slots, LedgerSlot{
-			Name:           dimension.Name,
-			Slot:           slot,
+	for _, assignment := range materializedAssignments {
+		submissionPath := filepath.Join(submissionsDir, assignment.Slot, "submission.json")
+		assignment.SubmissionPath = submissionPath
+		assignments = append(assignments, assignment)
+		ledger.Assignments = append(ledger.Assignments, LedgerAssignment{
+			Slot:           assignment.Slot,
+			Role:           assignment.Role,
 			Status:         "pending",
 			SubmissionPath: submissionPath,
 		})
 	}
-	for _, slot := range slots {
-		if err := writeJSON(slot.SubmissionPath, newSubmissionSkeleton(roundID, slot)); err != nil {
+	for _, assignment := range assignments {
+		if err := writeJSON(assignment.SubmissionPath, newSubmissionSkeleton(roundID, assignment)); err != nil {
 			_ = os.RemoveAll(roundDir)
 			return StartResult{
 				OK:      false,
@@ -185,10 +202,11 @@ func (s Service) Start(specBytes []byte) StartResult {
 		Step:        inferredStep,
 		Revision:    revision,
 		ReviewTitle: reviewTitle,
+		Repair:      cloneRepairReference(spec.Repair),
 		PlanPath:    relPlanPath,
 		PlanStem:    planStem,
 		CreatedAt:   now.Format(time.RFC3339),
-		Dimensions:  slots,
+		Assignments: assignments,
 		LedgerPath:  ledgerPath,
 		Aggregate:   aggregatePath,
 		Submissions: submissionsDir,
@@ -207,8 +225,8 @@ func (s Service) Start(specBytes []byte) StartResult {
 		return StartResult{
 			OK:      false,
 			Command: "review start",
-			Summary: "Unable to persist reviewer slot state.",
-			Errors:  []CommandError{{Path: "review.slots", Message: sanitizedWriteMessage("reviewer slot state", err)}},
+			Summary: "Unable to persist reviewer assignment state.",
+			Errors:  []CommandError{{Path: "review.assignments", Message: sanitizedWriteMessage("reviewer assignment state", err)}},
 		}
 	}
 
@@ -249,12 +267,12 @@ func (s Service) Start(specBytes []byte) StartResult {
 			ProjectRoot: s.Workdir,
 			PlanPath:    relPlanPath,
 			RoundID:     roundID,
-			Slots:       surfacedReviewSlots(s.Workdir, slots),
+			Assignments: surfacedReviewAssignments(s.Workdir, assignments),
 		},
 		NextAction: []NextAction{
 			{
 				Command:     nil,
-				Description: "Launch reviewer subagents for the returned slots and have each reviewer submit structured results for its assigned slot.",
+				Description: "Launch reviewer subagents for the returned assignments and have each reviewer submit structured results for its assigned slot.",
 			},
 			{
 				Command:     strPtr(fmt.Sprintf("harness review aggregate --round %s", roundID)),
@@ -302,8 +320,8 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 			Errors:  []CommandError{{Path: "review.round", Message: sanitizedReadMessage("review round metadata", err)}},
 		}
 	}
-	slotDef := findSlot(manifest, slot)
-	if slotDef == nil {
+	assignmentDef := findAssignment(manifest, slot)
+	if assignmentDef == nil {
 		return SubmitResult{
 			OK:      false,
 			Command: "review submit",
@@ -337,19 +355,28 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 			Errors:  issues,
 		}
 	}
+	if issues := validateSubmissionForManifest(input, manifest); len(issues) > 0 {
+		return SubmitResult{
+			OK:      false,
+			Command: "review submit",
+			Summary: "Reviewer submission does not match the review repair contract.",
+			Errors:  issues,
+		}
+	}
 
 	now := s.now().Format(time.RFC3339)
 	submission := Submission{
 		RoundID:     roundID,
-		Slot:        slotDef.Slot,
-		Dimension:   slotDef.Name,
+		Slot:        assignmentDef.Slot,
+		Role:        assignmentDef.Role,
 		By:          strings.TrimSpace(reviewerName),
 		SubmittedAt: now,
 		Summary:     strings.TrimSpace(input.Summary),
+		Resolutions: cloneResolutions(input.Resolutions),
 		Findings:    input.Findings,
 		ExtraFields: cloneRawFields(input.ExtraFields),
 	}
-	previousSubmission, previousSubmissionExists, err := readFileIfExists(slotDef.SubmissionPath)
+	previousSubmission, previousSubmissionExists, err := readFileIfExists(assignmentDef.SubmissionPath)
 	if err != nil {
 		return SubmitResult{
 			OK:      false,
@@ -363,8 +390,8 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 		return SubmitResult{
 			OK:      false,
 			Command: "review submit",
-			Summary: "Unable to load reviewer slot state.",
-			Errors:  []CommandError{{Path: "review.slots", Message: sanitizedReadMessage("reviewer slot state", err)}},
+			Summary: "Unable to load reviewer assignment state.",
+			Errors:  []CommandError{{Path: "review.assignments", Message: sanitizedReadMessage("reviewer assignment state", err)}},
 		}
 	}
 	previousLedger, previousLedgerExists, err := readFileIfExists(manifest.LedgerPath)
@@ -373,10 +400,10 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 			OK:      false,
 			Command: "review submit",
 			Summary: "Unable to snapshot the review ledger before writing the submission.",
-			Errors:  []CommandError{{Path: "review.slots", Message: sanitizedReadMessage("reviewer slot state", err)}},
+			Errors:  []CommandError{{Path: "review.assignments", Message: sanitizedReadMessage("reviewer assignment state", err)}},
 		}
 	}
-	if err := writeJSON(slotDef.SubmissionPath, submission); err != nil {
+	if err := writeJSON(assignmentDef.SubmissionPath, submission); err != nil {
 		return SubmitResult{
 			OK:      false,
 			Command: "review submit",
@@ -384,21 +411,21 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 			Errors:  []CommandError{{Path: "review.submission", Message: sanitizedWriteMessage("the reviewer submission", err)}},
 		}
 	}
-	for i := range ledger.Slots {
-		if ledger.Slots[i].Slot == slotDef.Slot {
-			ledger.Slots[i].Status = "submitted"
-			ledger.Slots[i].SubmittedAt = now
+	for i := range ledger.Assignments {
+		if ledger.Assignments[i].Slot == assignmentDef.Slot {
+			ledger.Assignments[i].Status = "submitted"
+			ledger.Assignments[i].SubmittedAt = now
 		}
 	}
 	ledger.UpdatedAt = now
 	if err := writeJSON(manifest.LedgerPath, ledger); err != nil {
-		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "review.slots")
-		issues = append(issues, restoreJSONFileSnapshot(slotDef.SubmissionPath, previousSubmission, previousSubmissionExists, "review.submission")...)
-		issues = append([]CommandError{{Path: "review.slots", Message: sanitizedWriteMessage("reviewer slot state", err)}}, issues...)
+		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "review.assignments")
+		issues = append(issues, restoreJSONFileSnapshot(assignmentDef.SubmissionPath, previousSubmission, previousSubmissionExists, "review.submission")...)
+		issues = append([]CommandError{{Path: "review.assignments", Message: sanitizedWriteMessage("reviewer assignment state", err)}}, issues...)
 		return SubmitResult{
 			OK:      false,
 			Command: "review submit",
-			Summary: "Unable to persist reviewer slot state.",
+			Summary: "Unable to persist reviewer assignment state.",
 			Errors:  issues,
 		}
 	}
@@ -406,12 +433,12 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 	return s.finalizeSubmit(SubmitResult{
 		OK:      true,
 		Command: "review submit",
-		Summary: fmt.Sprintf("Recorded submission for slot %q in review round %q.", slotDef.Slot, roundID),
+		Summary: fmt.Sprintf("Recorded submission for slot %q in review round %q.", assignmentDef.Slot, roundID),
 		Artifacts: &SubmitArtifacts{
 			ProjectRoot:    s.Workdir,
 			RoundID:        roundID,
-			Slot:           slotDef.Slot,
-			SubmissionPath: repoFacingReviewPath(s.Workdir, slotDef.SubmissionPath),
+			Slot:           assignmentDef.Slot,
+			SubmissionPath: repoFacingReviewPath(s.Workdir, assignmentDef.SubmissionPath),
 		},
 		NextAction: []NextAction{
 			{
@@ -421,7 +448,7 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 		},
 	}, func() []CommandError {
 		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "ledger")
-		issues = append(issues, restoreJSONFileSnapshot(slotDef.SubmissionPath, previousSubmission, previousSubmissionExists, "submission")...)
+		issues = append(issues, restoreJSONFileSnapshot(assignmentDef.SubmissionPath, previousSubmission, previousSubmissionExists, "submission")...)
 		return issues
 	})
 }
@@ -467,28 +494,29 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		return AggregateResult{
 			OK:      false,
 			Command: "review aggregate",
-			Summary: "Unable to load reviewer slot state.",
-			Errors:  []CommandError{{Path: "review.slots", Message: sanitizedReadMessage("reviewer slot state", err)}},
+			Summary: "Unable to load reviewer assignment state.",
+			Errors:  []CommandError{{Path: "review.assignments", Message: sanitizedReadMessage("reviewer assignment state", err)}},
 		}
 	}
-	ledgerBySlot := map[string]LedgerSlot{}
-	for _, slot := range ledger.Slots {
-		ledgerBySlot[slot.Slot] = slot
+	ledgerBySlot := map[string]LedgerAssignment{}
+	for _, assignment := range ledger.Assignments {
+		ledgerBySlot[assignment.Slot] = assignment
 	}
 
 	blocking := make([]AggregateFinding, 0)
 	nonBlocking := make([]AggregateFinding, 0)
 	missing := make([]string, 0)
-	for _, slotDef := range manifest.Dimensions {
-		ledgerSlot, ok := ledgerBySlot[slotDef.Slot]
+	resolutionStatus := initialResolutionStatus(manifest.Repair)
+	for _, assignmentDef := range manifest.Assignments {
+		ledgerSlot, ok := ledgerBySlot[assignmentDef.Slot]
 		if !ok || ledgerSlot.Status != "submitted" {
-			missing = append(missing, slotDef.Slot)
+			missing = append(missing, assignmentDef.Slot)
 			continue
 		}
-		submission, err := loadSubmission(slotDef.SubmissionPath)
+		submission, err := loadSubmission(assignmentDef.SubmissionPath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				missing = append(missing, slotDef.Slot)
+				missing = append(missing, assignmentDef.Slot)
 				continue
 			}
 			return AggregateResult{
@@ -506,10 +534,21 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 				Errors:  issues,
 			}
 		}
-		for _, finding := range submission.Findings {
+		if issues := validateStoredSubmissionForAssignment(*submission, manifest, assignmentDef); len(issues) > 0 {
+			return AggregateResult{
+				OK:      false,
+				Command: "review aggregate",
+				Summary: "Reviewer submission artifact does not match its assignment or repair contract.",
+				Errors:  issues,
+			}
+		}
+		applyResolutions(resolutionStatus, submission.Resolutions)
+		for findingIndex, finding := range submission.Findings {
 			aggregateFinding := AggregateFinding{
+				FindingID:    findingID(roundID, submission.Slot, findingIndex),
 				Slot:         submission.Slot,
-				Dimension:    submission.Dimension,
+				Role:         submission.Role,
+				Area:         finding.Area,
 				Severity:     finding.Severity,
 				Title:        finding.Title,
 				Details:      finding.Details,
@@ -533,20 +572,24 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 	}
 
 	decision := "pass"
-	if len(blocking) > 0 {
+	resolvedFindingIDs, unresolvedFindingIDs := partitionResolutionStatus(manifest.Repair, resolutionStatus)
+	if len(blocking) > 0 || len(unresolvedFindingIDs) > 0 {
 		decision = "changes_requested"
 	}
 
 	aggregate := Aggregate{
-		RoundID:             roundID,
-		Kind:                manifest.Kind,
-		Step:                manifest.Step,
-		Revision:            manifest.Revision,
-		ReviewTitle:         manifest.ReviewTitle,
-		Decision:            decision,
-		BlockingFindings:    blocking,
-		NonBlockingFindings: nonBlocking,
-		AggregatedAt:        s.now().Format(time.RFC3339),
+		RoundID:              roundID,
+		Kind:                 manifest.Kind,
+		Step:                 manifest.Step,
+		Revision:             manifest.Revision,
+		ReviewTitle:          manifest.ReviewTitle,
+		Repair:               cloneRepairReference(manifest.Repair),
+		Decision:             decision,
+		BlockingFindings:     blocking,
+		NonBlockingFindings:  nonBlocking,
+		ResolvedFindingIDs:   resolvedFindingIDs,
+		UnresolvedFindingIDs: unresolvedFindingIDs,
+		AggregatedAt:         s.now().Format(time.RFC3339),
 	}
 	state, _, err = runstate.LoadState(s.Workdir, planStem)
 	if err != nil {
@@ -757,14 +800,14 @@ func (s Service) loadCurrentExecutingPlan(lockedPlanPath string) (string, *plan.
 	return planPath, doc, planStem, relPlanPath, state, statePath, nil
 }
 
-func surfacedReviewSlots(workdir string, slots []ManifestSlot) []ManifestSlot {
-	if len(slots) == 0 {
+func surfacedReviewAssignments(workdir string, assignments []ManifestAssignment) []ManifestAssignment {
+	if len(assignments) == 0 {
 		return nil
 	}
-	surfaced := make([]ManifestSlot, 0, len(slots))
-	for _, slot := range slots {
-		next := slot
-		next.SubmissionPath = repoFacingReviewPath(workdir, slot.SubmissionPath)
+	surfaced := make([]ManifestAssignment, 0, len(assignments))
+	for _, assignment := range assignments {
+		next := assignment
+		next.SubmissionPath = repoFacingReviewPath(workdir, assignment.SubmissionPath)
 		surfaced = append(surfaced, next)
 	}
 	return surfaced
@@ -802,27 +845,103 @@ func validateSpec(spec Spec) []CommandError {
 	if spec.Step != nil && *spec.Step <= 0 {
 		issues = append(issues, CommandError{Path: "spec.step", Message: "must be a positive 1-based step number"})
 	}
-	if len(spec.Dimensions) == 0 {
-		issues = append(issues, CommandError{Path: "spec.dimensions", Message: "must contain at least one dimension"})
+	if spec.Repair != nil {
+		if spec.Kind != "delta" {
+			issues = append(issues, CommandError{Path: "spec.repair", Message: "is only valid for delta review"})
+		}
+		if strings.TrimSpace(spec.Repair.RoundID) == "" {
+			issues = append(issues, CommandError{Path: "spec.repair.round_id", Message: "must not be empty"})
+		}
+		if len(spec.Repair.FindingIDs) == 0 {
+			issues = append(issues, CommandError{Path: "spec.repair.finding_ids", Message: "must contain at least one finding id"})
+		}
+		seenFindingIDs := map[string]bool{}
+		for i, findingID := range spec.Repair.FindingIDs {
+			findingID = strings.TrimSpace(findingID)
+			if findingID == "" {
+				issues = append(issues, CommandError{Path: fmt.Sprintf("spec.repair.finding_ids[%d]", i), Message: "must not be empty"})
+			} else if seenFindingIDs[findingID] {
+				issues = append(issues, CommandError{Path: fmt.Sprintf("spec.repair.finding_ids[%d]", i), Message: fmt.Sprintf("duplicates finding id %q", findingID)})
+			}
+			seenFindingIDs[findingID] = true
+		}
+	}
+	if len(spec.Assignments) == 0 {
+		issues = append(issues, CommandError{Path: "spec.assignments", Message: "must contain at least one reviewer assignment"})
 	}
 	seenSlots := map[string]bool{}
-	for i, dimension := range spec.Dimensions {
-		pathPrefix := fmt.Sprintf("spec.dimensions[%d]", i)
-		if strings.TrimSpace(dimension.Name) == "" {
-			issues = append(issues, CommandError{Path: pathPrefix + ".name", Message: "must not be empty"})
+	for i, assignment := range spec.Assignments {
+		pathPrefix := fmt.Sprintf("spec.assignments[%d]", i)
+		slot := strings.TrimSpace(assignment.Slot)
+		if !reviewdimensions.ValidName(slot) {
+			issues = append(issues, CommandError{Path: pathPrefix + ".slot", Message: "must use lowercase alphanumeric segments separated by single hyphens"})
 		}
-		if strings.TrimSpace(dimension.Instructions) == "" {
+		if !slices.Contains([]string{"integrated", "specialist"}, assignment.Role) {
+			issues = append(issues, CommandError{Path: pathPrefix + ".role", Message: "must be integrated or specialist"})
+		}
+		if strings.TrimSpace(assignment.Instructions) == "" {
 			issues = append(issues, CommandError{Path: pathPrefix + ".instructions", Message: "must not be empty"})
 		}
-		slot := normalizeSlot(dimension.Name)
-		if slot == "" {
-			issues = append(issues, CommandError{Path: pathPrefix + ".name", Message: "must normalize to a non-empty slot identifier"})
-			continue
+		if len(assignment.Dimensions) == 0 {
+			issues = append(issues, CommandError{Path: pathPrefix + ".dimensions", Message: "must contain at least one guidance dimension"})
 		}
 		if seenSlots[slot] {
-			issues = append(issues, CommandError{Path: pathPrefix + ".name", Message: fmt.Sprintf("duplicates slot %q after normalization", slot)})
+			issues = append(issues, CommandError{Path: pathPrefix + ".slot", Message: fmt.Sprintf("duplicates slot %q", slot)})
 		}
 		seenSlots[slot] = true
+		seenDimensions := map[string]bool{}
+		for j, dimension := range assignment.Dimensions {
+			dimension = strings.TrimSpace(dimension)
+			if !reviewdimensions.ValidName(dimension) {
+				issues = append(issues, CommandError{Path: fmt.Sprintf("%s.dimensions[%d]", pathPrefix, j), Message: "must use lowercase alphanumeric segments separated by single hyphens"})
+			} else if seenDimensions[dimension] {
+				issues = append(issues, CommandError{Path: fmt.Sprintf("%s.dimensions[%d]", pathPrefix, j), Message: fmt.Sprintf("duplicates dimension %q", dimension)})
+			}
+			seenDimensions[dimension] = true
+		}
+		if assignment.Role == "specialist" {
+			if assignment.RiskBrief == nil {
+				issues = append(issues, CommandError{Path: pathPrefix + ".risk_brief", Message: "is required for specialist assignments"})
+			} else {
+				issues = append(issues, validateRiskBrief(pathPrefix+".risk_brief", assignment.RiskBrief)...)
+			}
+		} else if assignment.RiskBrief != nil {
+			issues = append(issues, CommandError{Path: pathPrefix + ".risk_brief", Message: "must be omitted for integrated assignments"})
+		}
+	}
+	return issues
+}
+
+func validateAssignmentTopology(spec Spec, inferredStep *int) []CommandError {
+	if spec.Kind != "full" || inferredStep != nil {
+		return nil
+	}
+	count := 0
+	for _, assignment := range spec.Assignments {
+		if assignment.Role == "integrated" {
+			count++
+		}
+	}
+	if count != 1 {
+		return []CommandError{{Path: "spec.assignments", Message: "a full finalize review requires exactly one integrated assignment"}}
+	}
+	return nil
+}
+
+func validateRiskBrief(path string, brief *RiskBrief) []CommandError {
+	issues := make([]CommandError, 0)
+	if len(brief.RiskSurfaces) == 0 {
+		issues = append(issues, CommandError{Path: path + ".risk_surfaces", Message: "must contain at least one concrete risk surface"})
+	}
+	if len(brief.Invariants) == 0 {
+		issues = append(issues, CommandError{Path: path + ".invariants", Message: "must contain at least one invariant"})
+	}
+	for field, values := range map[string][]string{"risk_surfaces": brief.RiskSurfaces, "invariants": brief.Invariants, "failure_modes": brief.FailureModes} {
+		for i, value := range values {
+			if strings.TrimSpace(value) == "" {
+				issues = append(issues, CommandError{Path: fmt.Sprintf("%s.%s[%d]", path, field, i), Message: "must not be empty"})
+			}
+		}
 	}
 	return issues
 }
@@ -865,11 +984,34 @@ func validateDeltaAnchor(workdir string, spec Spec) []CommandError {
 
 func validateSubmission(input SubmissionInput) []CommandError {
 	issues := make([]CommandError, 0)
+	if _, obsolete := input.ExtraFields["dimension"]; obsolete {
+		issues = append(issues, CommandError{Path: "submission.dimension", Message: "is obsolete; findings now carry area and submissions are owned by reviewer assignments"})
+	}
 	if strings.TrimSpace(input.Summary) == "" {
 		issues = append(issues, CommandError{Path: "submission.summary", Message: "must not be empty"})
 	}
+	seenResolutions := map[string]bool{}
+	for i, resolution := range input.Resolutions {
+		pathPrefix := fmt.Sprintf("submission.resolutions[%d]", i)
+		findingID := strings.TrimSpace(resolution.FindingID)
+		if findingID == "" {
+			issues = append(issues, CommandError{Path: pathPrefix + ".finding_id", Message: "must not be empty"})
+		} else if seenResolutions[findingID] {
+			issues = append(issues, CommandError{Path: pathPrefix + ".finding_id", Message: fmt.Sprintf("duplicates finding id %q", findingID)})
+		}
+		seenResolutions[findingID] = true
+		if !slices.Contains([]string{"resolved", "unresolved"}, resolution.Status) {
+			issues = append(issues, CommandError{Path: pathPrefix + ".status", Message: "must be resolved or unresolved"})
+		}
+		if strings.TrimSpace(resolution.Details) == "" {
+			issues = append(issues, CommandError{Path: pathPrefix + ".details", Message: "must not be empty"})
+		}
+	}
 	for i, finding := range input.Findings {
 		pathPrefix := fmt.Sprintf("submission.findings[%d]", i)
+		if !reviewdimensions.ValidName(finding.Area) {
+			issues = append(issues, CommandError{Path: pathPrefix + ".area", Message: "must use lowercase alphanumeric segments separated by single hyphens"})
+		}
 		if !slices.Contains([]string{"blocker", "important", "minor"}, finding.Severity) {
 			issues = append(issues, CommandError{Path: pathPrefix + ".severity", Message: "must be blocker, important, or minor"})
 		}
@@ -898,6 +1040,142 @@ func validateSubmission(input SubmissionInput) []CommandError {
 	return issues
 }
 
+func validateSubmissionForManifest(input SubmissionInput, manifest *Manifest) []CommandError {
+	if manifest.Repair == nil {
+		if len(input.Resolutions) > 0 {
+			return []CommandError{{Path: "submission.resolutions", Message: "must be omitted when the review round does not reference prior findings"}}
+		}
+		return nil
+	}
+	allowed := map[string]bool{}
+	for _, findingID := range manifest.Repair.FindingIDs {
+		allowed[strings.TrimSpace(findingID)] = true
+	}
+	issues := make([]CommandError, 0)
+	for i, resolution := range input.Resolutions {
+		if !allowed[strings.TrimSpace(resolution.FindingID)] {
+			issues = append(issues, CommandError{Path: fmt.Sprintf("submission.resolutions[%d].finding_id", i), Message: "must reference a finding targeted by this repair round"})
+		}
+	}
+	return issues
+}
+
+func materializeAssignments(workdir, planPath string, specs []AssignmentSpec) ([]ManifestAssignment, []CommandError) {
+	assignments := make([]ManifestAssignment, 0, len(specs))
+	for i, spec := range specs {
+		dimensions, err := resolveDimensions(workdir, planPath, spec.Dimensions)
+		if err != nil {
+			return nil, []CommandError{{Path: fmt.Sprintf("spec.assignments[%d].dimensions", i), Message: err.Error()}}
+		}
+		assignments = append(assignments, ManifestAssignment{
+			Slot:         strings.TrimSpace(spec.Slot),
+			Role:         strings.TrimSpace(spec.Role),
+			Dimensions:   dimensions,
+			Instructions: strings.TrimSpace(spec.Instructions),
+			RiskBrief:    cloneRiskBrief(spec.RiskBrief),
+		})
+	}
+	return assignments, nil
+}
+
+func resolveReviewDimensions(workdir, planPath string, names []string) ([]ResolvedDimension, error) {
+	service := reviewdimensions.Service{Workdir: workdir}
+	resolved := make([]ResolvedDimension, 0, len(names))
+	for _, name := range names {
+		dimension, warnings, issues := service.ResolveForPlan(planPath, strings.TrimSpace(name))
+		if len(issues) > 0 {
+			return nil, fmt.Errorf("unable to resolve dimension %q: %s", name, issues[0].Message)
+		}
+		if len(warnings) > 0 {
+			return nil, fmt.Errorf("unable to resolve dimension %q cleanly: %s", name, warnings[0])
+		}
+		resolved = append(resolved, ResolvedDimension{
+			Name:         dimension.Name,
+			Sources:      append([]string(nil), dimension.Sources...),
+			Description:  dimension.Description,
+			Instructions: dimension.Instructions,
+			PlanPath:     dimension.PlanPath,
+		})
+	}
+	return resolved, nil
+}
+
+func cloneRiskBrief(brief *RiskBrief) *RiskBrief {
+	if brief == nil {
+		return nil
+	}
+	return &RiskBrief{
+		RiskSurfaces: append([]string(nil), brief.RiskSurfaces...),
+		Invariants:   append([]string(nil), brief.Invariants...),
+		FailureModes: append([]string(nil), brief.FailureModes...),
+	}
+}
+
+func cloneRepairReference(reference *RepairReference) *RepairReference {
+	if reference == nil {
+		return nil
+	}
+	return &RepairReference{
+		RoundID:    strings.TrimSpace(reference.RoundID),
+		FindingIDs: append([]string(nil), reference.FindingIDs...),
+	}
+}
+
+func cloneResolutions(resolutions []FindingResolution) []FindingResolution {
+	if len(resolutions) == 0 {
+		return nil
+	}
+	return append([]FindingResolution(nil), resolutions...)
+}
+
+func findingID(roundID, slot string, findingIndex int) string {
+	return fmt.Sprintf("%s/%s/%03d", roundID, slot, findingIndex+1)
+}
+
+func initialResolutionStatus(reference *RepairReference) map[string]string {
+	status := map[string]string{}
+	if reference == nil {
+		return status
+	}
+	for _, findingID := range reference.FindingIDs {
+		status[strings.TrimSpace(findingID)] = "unresolved"
+	}
+	return status
+}
+
+func applyResolutions(status map[string]string, resolutions []FindingResolution) {
+	for _, resolution := range resolutions {
+		findingID := strings.TrimSpace(resolution.FindingID)
+		if _, ok := status[findingID]; !ok {
+			continue
+		}
+		if resolution.Status == "unresolved" {
+			status[findingID] = "unresolved-confirmed"
+			continue
+		}
+		if status[findingID] == "unresolved" {
+			status[findingID] = "resolved"
+		}
+	}
+}
+
+func partitionResolutionStatus(reference *RepairReference, status map[string]string) ([]string, []string) {
+	if reference == nil {
+		return []string{}, []string{}
+	}
+	resolved := make([]string, 0, len(reference.FindingIDs))
+	unresolved := make([]string, 0, len(reference.FindingIDs))
+	for _, findingID := range reference.FindingIDs {
+		findingID = strings.TrimSpace(findingID)
+		if status[findingID] == "resolved" {
+			resolved = append(resolved, findingID)
+		} else {
+			unresolved = append(unresolved, findingID)
+		}
+	}
+	return resolved, unresolved
+}
+
 func validateStoredSubmission(submission Submission) []CommandError {
 	issues := make([]CommandError, 0)
 	if strings.TrimSpace(submission.RoundID) == "" {
@@ -906,24 +1184,36 @@ func validateStoredSubmission(submission Submission) []CommandError {
 	if strings.TrimSpace(submission.Slot) == "" {
 		issues = append(issues, CommandError{Path: "submission.slot", Message: "must not be empty"})
 	}
-	if strings.TrimSpace(submission.Dimension) == "" {
-		issues = append(issues, CommandError{Path: "submission.dimension", Message: "must not be empty"})
+	if !slices.Contains([]string{"integrated", "specialist"}, submission.Role) {
+		issues = append(issues, CommandError{Path: "submission.role", Message: "must be integrated or specialist"})
 	}
 	if strings.TrimSpace(submission.SubmittedAt) == "" {
 		issues = append(issues, CommandError{Path: "submission.submitted_at", Message: "must not be empty"})
 	}
 	issues = append(issues, validateSubmission(SubmissionInput{
-		Summary:  submission.Summary,
-		Findings: submission.Findings,
+		Summary:     submission.Summary,
+		Resolutions: submission.Resolutions,
+		Findings:    submission.Findings,
+		ExtraFields: submission.ExtraFields,
 	})...)
 	return issues
 }
 
-func normalizeSlot(name string) string {
-	slot := strings.ToLower(strings.TrimSpace(name))
-	slot = slotNamePattern.ReplaceAllString(slot, "-")
-	slot = strings.Trim(slot, "-")
-	return slot
+func validateStoredSubmissionForAssignment(submission Submission, manifest *Manifest, assignment ManifestAssignment) []CommandError {
+	issues := make([]CommandError, 0)
+	if submission.RoundID != manifest.RoundID {
+		issues = append(issues, CommandError{Path: "submission.round_id", Message: "must match the review round manifest"})
+	}
+	if submission.Slot != assignment.Slot {
+		issues = append(issues, CommandError{Path: "submission.slot", Message: "must match the reviewer assignment"})
+	}
+	if submission.Role != assignment.Role {
+		issues = append(issues, CommandError{Path: "submission.role", Message: "must match the reviewer assignment"})
+	}
+	issues = append(issues, validateSubmissionForManifest(SubmissionInput{
+		Resolutions: submission.Resolutions,
+	}, manifest)...)
+	return issues
 }
 
 func cloneLocations(locations []string, present bool) []string {
@@ -947,13 +1237,14 @@ func cloneRawFields(fields map[string]json.RawMessage) map[string]json.RawMessag
 	return cloned
 }
 
-func newSubmissionSkeleton(roundID string, slot ManifestSlot) map[string]any {
+func newSubmissionSkeleton(roundID string, assignment ManifestAssignment) map[string]any {
 	return map[string]any{
-		"round_id":  roundID,
-		"slot":      slot.Slot,
-		"dimension": slot.Name,
-		"summary":   "",
-		"findings":  []Finding{},
+		"round_id":    roundID,
+		"slot":        assignment.Slot,
+		"role":        assignment.Role,
+		"summary":     "",
+		"resolutions": []FindingResolution{},
+		"findings":    []Finding{},
 		"worklog": map[string]any{
 			"full_plan_read":     false,
 			"checked_areas":      []string{},
@@ -1128,10 +1419,10 @@ func writeJSONFile(path string, value any) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-func findSlot(manifest *Manifest, slot string) *ManifestSlot {
-	for i := range manifest.Dimensions {
-		if manifest.Dimensions[i].Slot == slot {
-			return &manifest.Dimensions[i]
+func findAssignment(manifest *Manifest, slot string) *ManifestAssignment {
+	for i := range manifest.Assignments {
+		if manifest.Assignments[i].Slot == slot {
+			return &manifest.Assignments[i]
 		}
 	}
 	return nil

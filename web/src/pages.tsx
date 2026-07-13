@@ -77,15 +77,16 @@ addTaskListSupport(markdownRenderer);
 
 function ReviewFindingCard(props: { finding: ReviewFinding; provenance?: string | null; provenanceLabels?: string[] }) {
   const { finding, provenance, provenanceLabels = [] } = props;
+  const labels = provenanceLabels.length > 0 ? provenanceLabels : finding.area?.trim() ? [humanizeLabel(finding.area)] : [];
   return (
     <article class="review-finding">
       <div class="review-finding-head">
         <strong>{finding.title}</strong>
         <StatusBadge tone={reviewFindingBadgeTone(finding.severity)}>{humanizeLabel(finding.severity)}</StatusBadge>
       </div>
-      {provenanceLabels.length > 0 ? (
+      {labels.length > 0 ? (
         <div class="review-finding-provenance">
-          {provenanceLabels.map((label) => (
+          {labels.map((label) => (
             <span key={label} class="provenance-pill">
               {label}
             </span>
@@ -1266,7 +1267,7 @@ export function ReviewWorkspace(props: {
                   </div>
                   <div class="summary-metric">
                     <span class="label">Progress</span>
-                    <strong>{reviewCountLabel(selectedRound.submitted_slots)}/{reviewCountLabel(selectedRound.total_slots)} submitted</strong>
+                    <strong>{reviewCountLabel(selectedRound.submitted_assignments)}/{reviewCountLabel(selectedRound.total_assignments)} submitted</strong>
                   </div>
                   <div class="summary-metric">
                     <span class="label">Revision</span>
@@ -1343,7 +1344,7 @@ export function ReviewWorkspace(props: {
               warningCount={selectedRoundWarnings.length}
             />
           ) : (
-            <EmptyState>No reviewer slots are available for this round.</EmptyState>
+            <EmptyState>No reviewer assignments are available for this round.</EmptyState>
           )}
 
         </div>
@@ -1595,6 +1596,11 @@ function ReviewerInspector(props: {
   const anchorSHA = selectedRound.anchor_sha?.trim() || worklog?.anchor_sha?.trim() || "";
   const hasRawSubmission = reviewer.raw_submission !== undefined;
   const findings = Array.isArray(reviewer.findings) ? reviewer.findings ?? [] : [];
+  const dimensions = Array.isArray(reviewer.dimensions) ? reviewer.dimensions ?? [] : [];
+  const resolutions = Array.isArray(reviewer.resolutions) ? reviewer.resolutions ?? [] : [];
+  const riskSurfaces = Array.isArray(reviewer.risk_brief?.risk_surfaces) ? reviewer.risk_brief?.risk_surfaces ?? [] : [];
+  const invariants = Array.isArray(reviewer.risk_brief?.invariants) ? reviewer.risk_brief?.invariants ?? [] : [];
+  const failureModes = Array.isArray(reviewer.risk_brief?.failure_modes) ? reviewer.risk_brief?.failure_modes ?? [] : [];
   const fullPlanReadLabel =
     worklog?.full_plan_read === true ? "Confirmed" : worklog?.full_plan_read === false ? "Not yet confirmed" : "Unknown";
 
@@ -1618,8 +1624,8 @@ function ReviewerInspector(props: {
             <strong>{selectedRound.round_id}</strong>
           </div>
           <div class="summary-metric">
-            <span class="label">Decision</span>
-            <strong>{selectedRound.decision ? humanizeLabel(selectedRound.decision) : reviewRoundStatusLabel(selectedRound)}</strong>
+            <span class="label">Role</span>
+            <strong>{humanizeLabel(reviewer.role)}</strong>
           </div>
           <div class="summary-metric">
             <span class="label">Blocking</span>
@@ -1636,8 +1642,59 @@ function ReviewerInspector(props: {
         <div class="section-head">
           <h2>Assigned task</h2>
         </div>
-        {reviewer.instructions?.trim() ? <p class="detail-copy">{reviewer.instructions}</p> : <EmptyState>Instructions are unavailable for this reviewer slot.</EmptyState>}
+        {reviewer.instructions?.trim() ? <p class="detail-copy">{reviewer.instructions}</p> : <EmptyState>Instructions are unavailable for this reviewer assignment.</EmptyState>}
+        <ReviewCollapsibleSection title="Guidance" defaultOpen={true} meta={`${dimensions.length} dimension(s)`}>
+          {dimensions.length > 0 ? (
+            <div class="warning-stack">
+              {dimensions.map((dimension) => (
+                <div key={`${dimension.name}:${dimension.sources.join(":")}`} class="warning-item">
+                  <strong>{humanizeLabel(dimension.name)}</strong>
+                  {dimension.description?.trim() ? <p class="detail-copy">{dimension.description}</p> : null}
+                  <p class="detail-copy">{dimension.instructions}</p>
+                  <span class="muted">{dimension.sources.join(" + ")}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState>No guidance dimensions were recorded for this assignment.</EmptyState>
+          )}
+        </ReviewCollapsibleSection>
+        {reviewer.risk_brief ? (
+          <ReviewCollapsibleSection title="Specialist risk brief" defaultOpen={true} meta={`${riskSurfaces.length} risk surface(s)`}>
+            <dl class="kv-list">
+              <div>
+                <dt>Risk surfaces</dt>
+                <dd>{riskSurfaces.join("; ") || "None recorded"}</dd>
+              </div>
+              <div>
+                <dt>Invariants</dt>
+                <dd>{invariants.join("; ") || "None recorded"}</dd>
+              </div>
+              <div>
+                <dt>Failure modes</dt>
+                <dd>{failureModes.join("; ") || "None recorded"}</dd>
+              </div>
+            </dl>
+          </ReviewCollapsibleSection>
+        ) : null}
       </section>
+
+      {resolutions.length > 0 ? (
+        <section class="content-section">
+          <div class="section-head">
+            <h2>Finding resolutions</h2>
+            <span class="muted">{resolutions.length}</span>
+          </div>
+          <dl class="kv-list">
+            {resolutions.map((resolution) => (
+              <div key={resolution.finding_id}>
+                <dt>{resolution.finding_id}</dt>
+                <dd>{humanizeLabel(resolution.status)} · {resolution.details}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ) : null}
 
       <section class="content-section">
         <div class="section-head">
@@ -1676,6 +1733,14 @@ function ReviewerInspector(props: {
             <div>
               <dt>Anchor</dt>
               <dd>{anchorSHA || "Not recorded"}</dd>
+            </div>
+            <div>
+              <dt>Reviewed head</dt>
+              <dd>{selectedRound.reviewed_head_sha || "Not recorded"}</dd>
+            </div>
+            <div>
+              <dt>Repairs round</dt>
+              <dd>{selectedRound.repairs_round_id || "Not a repair round"}</dd>
             </div>
             <div>
               <dt>Full plan read</dt>

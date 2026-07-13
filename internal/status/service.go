@@ -133,10 +133,10 @@ func (s Service) Snapshot() Result {
 	if reviewCtx != nil && isStructuralReviewTrigger(reviewCtx.Trigger) && strings.TrimSpace(reviewCtx.RoundID) != "" {
 		result.Artifacts.ReviewRoundID = reviewCtx.RoundID
 		if reviewCtx.InFlight {
-			reviewSlots, slotWarnings := loadReviewSlots(s.Workdir, planStem, reviewCtx.RoundID)
-			result.Warnings = append(result.Warnings, slotWarnings...)
-			if len(reviewSlots) > 0 {
-				result.Artifacts.ReviewSlots = reviewSlots
+			reviewAssignments, assignmentWarnings := loadReviewAssignments(s.Workdir, planStem, reviewCtx.RoundID)
+			result.Warnings = append(result.Warnings, assignmentWarnings...)
+			if len(reviewAssignments) > 0 {
+				result.Artifacts.ReviewAssignments = reviewAssignments
 			}
 		}
 	}
@@ -238,7 +238,7 @@ func (s Service) Snapshot() Result {
 
 	if result.Artifacts != nil && result.Artifacts.ProjectRoot == "" &&
 		result.Artifacts.PlanPath == "" && result.Artifacts.SupplementsPath == "" &&
-		result.Artifacts.ReviewRoundID == "" && len(result.Artifacts.ReviewSlots) == 0 &&
+		result.Artifacts.ReviewRoundID == "" && len(result.Artifacts.ReviewAssignments) == 0 &&
 		result.Artifacts.LastLandedAt == "" {
 		result.Artifacts = nil
 	}
@@ -255,7 +255,7 @@ func clearStepCloseoutReviewMetadata(facts *Facts, artifacts *Artifacts) {
 	}
 	if artifacts != nil {
 		artifacts.ReviewRoundID = ""
-		artifacts.ReviewSlots = nil
+		artifacts.ReviewAssignments = nil
 	}
 }
 
@@ -402,7 +402,7 @@ func loadReviewContext(workdir, planStem string, doc *plan.Document, state *runs
 	return ctx, warnings
 }
 
-func loadReviewSlots(workdir, planStem, roundID string) ([]contracts.ReviewSlot, []string) {
+func loadReviewAssignments(workdir, planStem, roundID string) ([]contracts.ReviewAssignment, []string) {
 	if strings.TrimSpace(roundID) == "" {
 		return nil, nil
 	}
@@ -419,17 +419,17 @@ func loadReviewSlots(workdir, planStem, roundID string) ([]contracts.ReviewSlot,
 	if err := json.Unmarshal(data, &manifest); err != nil {
 		return nil, []string{fmt.Sprintf("Unable to parse reviewer slot handles for %s: %v", roundID, err)}
 	}
-	if len(manifest.Dimensions) == 0 {
+	if len(manifest.Assignments) == 0 {
 		return nil, nil
 	}
 
-	slots := make([]contracts.ReviewSlot, 0, len(manifest.Dimensions))
-	for _, slot := range manifest.Dimensions {
-		next := slot
-		next.SubmissionPath = repoFacingPath(workdir, slot.SubmissionPath)
-		slots = append(slots, next)
+	assignments := make([]contracts.ReviewAssignment, 0, len(manifest.Assignments))
+	for _, assignment := range manifest.Assignments {
+		next := assignment
+		next.SubmissionPath = repoFacingPath(workdir, assignment.SubmissionPath)
+		assignments = append(assignments, next)
 	}
-	return slots, nil
+	return assignments, nil
 }
 
 func loadEvidenceContext(workdir, planStem string, revision int) (*evidenceContext, []string) {

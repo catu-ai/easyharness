@@ -17,20 +17,20 @@
           "type": "string",
           "description": "UpdatedAt is the timestamp of the most recent ledger update."
         },
-        "slots": {
+        "assignments": {
           "oneOf": [
             {
               "items": {
-                "$ref": "#/$defs/ReviewLedgerSlot"
+                "$ref": "#/$defs/ReviewLedgerAssignment"
               },
               "type": "array",
-              "description": "Slots lists the current state of every reviewer slot."
+              "description": "Assignments lists the current state of every reviewer assignment."
             },
             {
               "type": "null"
             }
           ],
-          "description": "Slots lists the current state of every reviewer slot."
+          "description": "Assignments lists the current state of every reviewer assignment."
         }
       },
       "additionalProperties": false,
@@ -39,19 +39,17 @@
         "round_id",
         "kind",
         "updated_at",
-        "slots"
+        "assignments"
       ],
       "description": "ReviewLedger is the command-owned ledger artifact tracking submission status for a review round."
     },
-    "ReviewLedgerSlot": {
+    "ReviewLedgerAssignment": {
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "Name is the review dimension name."
-        },
         "slot": {
-          "type": "string",
-          "description": "Slot is the stable slot identifier."
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
         },
         "status": {
           "type": "string",
@@ -69,12 +67,12 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "name",
         "slot",
+        "role",
         "status",
         "submission_path"
       ],
-      "description": "ReviewLedgerSlot records the current state for one reviewer slot in the ledger."
+      "description": "ReviewLedgerAssignment records one reviewer assignment in the ledger."
     }
   },
   "title": "Review ledger artifact",

@@ -30,15 +30,15 @@ func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
 	result := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check the state and artifact contract."},
-			{Name: "agent_ux", Instructions: "Check that outputs are agent-friendly."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check the state and artifact contract."},
+			{Slot: "agent-ux", Role: "integrated", Dimensions: []string{"agent-ux"}, Instructions: "Check that outputs are agent-friendly."},
 		},
 	}))
 	if !result.OK {
 		t.Fatalf("expected start success, got %#v", result)
 	}
-	if result.Artifacts == nil || len(result.Artifacts.Slots) != 2 {
+	if result.Artifacts == nil || len(result.Artifacts.Assignments) != 2 {
 		t.Fatalf("unexpected artifacts: %#v", result.Artifacts)
 	}
 	if result.Artifacts.RoundID != "review-001-delta" {
@@ -47,7 +47,7 @@ func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
 	if _, err := os.Stat(reviewRoundFile(root, "2026-03-18-review-contract", result.Artifacts.RoundID, "manifest.json")); err != nil {
 		t.Fatalf("manifest missing: %v", err)
 	}
-	skeletonBytes, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(result.Artifacts.Slots[0].SubmissionPath)))
+	skeletonBytes, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(result.Artifacts.Assignments[0].SubmissionPath)))
 	if err != nil {
 		t.Fatalf("read starter submission skeleton: %v", err)
 	}
@@ -76,6 +76,91 @@ func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
 	}
 }
 
+func TestStartMaterializesSeveralDimensionsIntoOneIntegratedAssignment(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+
+	result := (review.Service{Workdir: root}).Start(mustJSON(t, review.Spec{
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
+		Assignments: []review.AssignmentSpec{{
+			Slot:         "integrated",
+			Role:         "integrated",
+			Dimensions:   []string{"correctness", "tests", "risk-scan", "docs-consistency"},
+			Instructions: "Review the complete candidate.",
+		}},
+	}))
+	if !result.OK {
+		t.Fatalf("expected start success, got %#v", result)
+	}
+	if result.Artifacts == nil || len(result.Artifacts.Assignments) != 1 {
+		t.Fatalf("expected one reviewer-owned assignment, got %#v", result.Artifacts)
+	}
+	assignment := result.Artifacts.Assignments[0]
+	if assignment.Slot != "integrated" || assignment.Role != "integrated" || len(assignment.Dimensions) != 4 {
+		t.Fatalf("unexpected materialized assignment: %#v", assignment)
+	}
+	for _, dimension := range assignment.Dimensions {
+		if len(dimension.Sources) == 0 || strings.TrimSpace(dimension.Instructions) == "" {
+			t.Fatalf("expected snapshotted guidance provenance and instructions, got %#v", dimension)
+		}
+	}
+}
+
+func TestStartRequiresConcreteRiskBriefForSpecialist(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+
+	base := review.Spec{
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
+		Assignments: []review.AssignmentSpec{{
+			Slot:         "process-lifecycle",
+			Role:         "specialist",
+			Dimensions:   []string{"risk-scan"},
+			Instructions: "Challenge process lifecycle behavior.",
+		}},
+	}
+	result := (review.Service{Workdir: root}).Start(mustJSON(t, base))
+	if result.OK {
+		t.Fatalf("expected specialist without a risk brief to fail, got %#v", result)
+	}
+	assertStartError(t, result, "spec.assignments[0].risk_brief")
+
+	base.Assignments[0].RiskBrief = &review.RiskBrief{
+		RiskSurfaces: []string{"new helper process"},
+		Invariants:   []string{"helper failure propagates"},
+	}
+	result = (review.Service{Workdir: root}).Start(mustJSON(t, base))
+	if !result.OK {
+		t.Fatalf("expected specialist with a concrete risk brief to start, got %#v", result)
+	}
+}
+
+func TestStartRejectsRiskBriefOnIntegratedAssignment(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+
+	result := (review.Service{Workdir: root}).Start(mustJSON(t, review.Spec{
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
+		Assignments: []review.AssignmentSpec{{
+			Slot:         "integrated",
+			Role:         "integrated",
+			Dimensions:   []string{"correctness"},
+			Instructions: "Review the complete candidate.",
+			RiskBrief: &review.RiskBrief{
+				RiskSurfaces: []string{"unexpected"},
+				Invariants:   []string{"unexpected"},
+			},
+		}},
+	}))
+	if result.OK {
+		t.Fatalf("expected integrated risk brief to fail, got %#v", result)
+	}
+	assertStartError(t, result, "spec.assignments[0].risk_brief")
+}
+
 func TestStartAcceptsExplicitEarlierStepFromLaterExecutionFrontier(t *testing.T) {
 	root := t.TempDir()
 	path := writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
@@ -92,8 +177,8 @@ func TestStartAcceptsExplicitEarlierStepFromLaterExecutionFrontier(t *testing.T)
 		Step:      intPtr(1),
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Repair the earlier step closeout."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Repair the earlier step closeout."},
 		},
 	}))
 	if !result.OK {
@@ -156,8 +241,8 @@ func TestStartAcceptsExplicitEarlierStepFromFinalizeContext(t *testing.T) {
 	result := svc.Start(mustJSON(t, review.Spec{
 		Step: intPtr(1),
 		Kind: "full",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Repair the earlier closeout from finalize scope."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Repair the earlier closeout from finalize scope."},
 		},
 	}))
 	if !result.OK {
@@ -201,8 +286,8 @@ func TestStartRejectsDefaultFinalizeReviewWhenEarlierCloseoutDebtExists(t *testi
 
 	result := svc.Start(mustJSON(t, review.Spec{
 		Kind: "full",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check the finalize candidate."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check the finalize candidate."},
 		},
 	}))
 	if result.OK {
@@ -228,8 +313,8 @@ func TestStartAllowsDefaultFinalizeReviewWhenEarlierCloseoutDebtIsSatisfied(t *t
 
 	result := svc.Start(mustJSON(t, review.Spec{
 		Kind: "full",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check the finalize candidate."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check the finalize candidate."},
 		},
 	}))
 	if !result.OK {
@@ -271,8 +356,8 @@ func TestStartAcceptsExecutionStartMilestoneWithoutLegacyExecutingLifecycle(t *t
 	result := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !result.OK {
@@ -299,8 +384,8 @@ func TestStartIgnoresLegacyTimestampReviewDirectoriesForCompactSequence(t *testi
 
 	result := svc.Start(mustJSON(t, review.Spec{
 		Kind: "full",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !result.OK {
@@ -337,8 +422,8 @@ func TestStartUsesMaxExistingCompactReviewSequence(t *testing.T) {
 	result := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !result.OK {
@@ -355,13 +440,13 @@ func TestStartRejectsInvalidSpec(t *testing.T) {
 
 	svc := review.Service{Workdir: root}
 	result := svc.Start(mustJSON(t, map[string]any{
-		"kind":       "delta",
-		"dimensions": []any{},
+		"kind":        "delta",
+		"assignments": []any{},
 	}))
 	if result.OK {
 		t.Fatalf("expected failure, got %#v", result)
 	}
-	assertStartError(t, result, "spec.dimensions")
+	assertStartError(t, result, "spec.assignments")
 }
 
 func TestStartPersistsDeltaAnchorSHAInManifest(t *testing.T) {
@@ -377,8 +462,8 @@ func TestStartPersistsDeltaAnchorSHAInManifest(t *testing.T) {
 	result := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "abc123def456",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !result.OK {
@@ -407,8 +492,8 @@ func TestStartRejectsDeltaAnchorThatIsNotARealGitCommit(t *testing.T) {
 	result := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "not-a-real-commit",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if result.OK {
@@ -424,8 +509,8 @@ func TestStartRejectsUnknownSchemaProperty(t *testing.T) {
 	result := review.Service{Workdir: root}.Start([]byte(`{
 		"kind": "delta",
 		"anchor_sha": "anchor-sha",
-		"dimensions": [
-			{"name": "correctness", "instructions": "Check behavior."}
+		"assignments": [
+			{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check behavior."}
 		],
 		"unexpected": true
 	}`))
@@ -442,7 +527,7 @@ func TestStartRejectsUnknownTopLevelSpecField(t *testing.T) {
 	svc := review.Service{Workdir: root}
 	result := svc.Start([]byte(`{
 		"kind":"delta","anchor_sha":"anchor-sha",
-		"dimensions":[{"name":"correctness","instructions":"Check correctness."}],
+		"assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check correctness."}],
 		"unexpected":true
 	}`))
 	if result.OK {
@@ -458,7 +543,7 @@ func TestStartRejectsWrongTypeBeforeSemanticValidation(t *testing.T) {
 	svc := review.Service{Workdir: root}
 	result := svc.Start([]byte(`{
 		"kind":1,
-		"dimensions":[{"name":"correctness","instructions":"Check correctness."}]
+		"assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check correctness."}]
 	}`))
 	if result.OK {
 		t.Fatalf("expected failure, got %#v", result)
@@ -471,7 +556,7 @@ func TestStartRejectsMissingRequiredKind(t *testing.T) {
 	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 
 	result := review.Service{Workdir: root}.Start([]byte(`{
-		"dimensions":[{"name":"correctness","instructions":"Check correctness."}]
+		"assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check correctness."}]
 	}`))
 	if result.OK {
 		t.Fatalf("expected failure, got %#v", result)
@@ -492,8 +577,8 @@ func TestSubmitStoresSubmissionAndUpdatesLedger(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -507,6 +592,7 @@ func TestSubmitStoresSubmissionAndUpdatesLedger(t *testing.T) {
 		Summary: "Found a targeted issue.",
 		Findings: []review.Finding{
 			{
+				Area:      "review-contract",
 				Severity:  "important",
 				Title:     "Missing location preservation",
 				Details:   "The submission should preserve reviewer-provided locations.",
@@ -553,8 +639,8 @@ func TestSubmitDoesNotRequireStateMutationLock(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -588,8 +674,8 @@ func TestSubmitRejectsUnknownFindingProperty(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -600,6 +686,7 @@ func TestSubmitRejectsUnknownFindingProperty(t *testing.T) {
 		"summary": "Looks good.",
 		"findings": [
 			{
+				"area": "review-contract",
 				"severity": "minor",
 				"title": "Unexpected nested field",
 				"details": "Nested finding payloads should still reject undeclared properties.",
@@ -626,8 +713,8 @@ func TestSubmitRejectsUnknownSlot(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -656,8 +743,8 @@ func TestSubmitRejectsEmptyLocationString(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -668,6 +755,7 @@ func TestSubmitRejectsEmptyLocationString(t *testing.T) {
 		Summary: "Found one issue.",
 		Findings: []review.Finding{
 			{
+				Area:      "review-contract",
 				Severity:  "important",
 				Title:     "Blank location",
 				Details:   "Locations should not include blank strings.",
@@ -679,6 +767,36 @@ func TestSubmitRejectsEmptyLocationString(t *testing.T) {
 		t.Fatalf("expected submit failure, got %#v", result)
 	}
 	assertSubmitError(t, result, "submission.findings[0].locations[0]")
+}
+
+func TestSubmitRequiresActionableFindingArea(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+
+	svc := review.Service{Workdir: root}
+	start := svc.Start(mustJSON(t, review.Spec{
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
+		Assignments: []review.AssignmentSpec{{
+			Slot: "integrated", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Review the candidate.",
+		}},
+	}))
+	if !start.OK {
+		t.Fatalf("start failed: %#v", start)
+	}
+
+	result := svc.Submit(start.Artifacts.RoundID, "integrated", "reviewer-integrated", mustJSON(t, review.SubmissionInput{
+		Summary: "Found one issue.",
+		Findings: []review.Finding{{
+			Severity: "important",
+			Title:    "Missing area",
+			Details:  "The finding must identify its actionable area.",
+		}},
+	}))
+	if result.OK {
+		t.Fatalf("expected missing finding area to fail, got %#v", result)
+	}
+	assertSubmitError(t, result, "submission.findings[0].area")
 }
 
 func TestSubmitRejectsNullLocations(t *testing.T) {
@@ -694,8 +812,8 @@ func TestSubmitRejectsNullLocations(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -706,6 +824,7 @@ func TestSubmitRejectsNullLocations(t *testing.T) {
 		"summary": "Found one issue.",
 		"findings": []any{
 			map[string]any{
+				"area":      "review-contract",
 				"severity":  "important",
 				"title":     "Null locations are invalid",
 				"details":   "The contract only allows omission or an array of strings.",
@@ -732,8 +851,8 @@ func TestSubmitAcceptsAndPreservesExtraTopLevelFields(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -743,7 +862,7 @@ func TestSubmitAcceptsAndPreservesExtraTopLevelFields(t *testing.T) {
 	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", []byte(`{
 		"round_id":"stale-round",
 		"slot":"stale-slot",
-		"dimension":"stale-dimension",
+		"role":"stale-role",
 		"submitted_at":"2000-01-01T00:00:00Z",
 		"summary":"Found one issue.",
 		"findings":[],
@@ -768,7 +887,7 @@ func TestSubmitAcceptsAndPreservesExtraTopLevelFields(t *testing.T) {
 	if err := json.Unmarshal(data, &submission); err != nil {
 		t.Fatalf("unmarshal submission artifact: %v", err)
 	}
-	if submission.RoundID != start.Artifacts.RoundID || submission.Slot != "correctness" || submission.Dimension != "correctness" {
+	if submission.RoundID != start.Artifacts.RoundID || submission.Slot != "correctness" || submission.Role != "integrated" {
 		t.Fatalf("expected controller-owned identity fields to win, got %#v", submission)
 	}
 	if submission.Summary != "Found one issue." || len(submission.Findings) != 0 {
@@ -800,8 +919,8 @@ func TestSubmitRejectsWrongFindingSeverityType(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -810,7 +929,7 @@ func TestSubmitRejectsWrongFindingSeverityType(t *testing.T) {
 
 	result := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", []byte(`{
 		"summary":"Found one issue.",
-		"findings":[{"severity":1,"title":"Wrong type","details":"Severity must be a string."}]
+		"findings":[{"area":"review-contract","severity":1,"title":"Wrong type","details":"Severity must be a string."}]
 	}`))
 	if result.OK {
 		t.Fatalf("expected failure, got %#v", result)
@@ -831,8 +950,8 @@ func TestSubmitRejectsMissingRequiredSummary(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -859,8 +978,8 @@ func TestSubmitPreservesExplicitEmptyLocationsArray(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -871,6 +990,7 @@ func TestSubmitPreservesExplicitEmptyLocationsArray(t *testing.T) {
 		"summary": "Found one issue.",
 		"findings": []any{
 			map[string]any{
+				"area":      "review-contract",
 				"severity":  "important",
 				"title":     "Empty locations still matter",
 				"details":   "An explicit empty array should round-trip.",
@@ -911,8 +1031,8 @@ func TestSubmitAcceptsFindingWithoutLocations(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -923,6 +1043,7 @@ func TestSubmitAcceptsFindingWithoutLocations(t *testing.T) {
 		Summary: "Found one issue.",
 		Findings: []review.Finding{
 			{
+				Area:     "review-contract",
 				Severity: "important",
 				Title:    "Locations remain optional",
 				Details:  "The old payload shape still works.",
@@ -961,8 +1082,8 @@ func TestAggregateRejectsMissingSubmission(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -989,8 +1110,8 @@ func TestAggregateDeltaPassUpdatesState(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -1022,6 +1143,81 @@ func TestAggregateDeltaPassUpdatesState(t *testing.T) {
 	}
 }
 
+func TestAggregateRepairRequiresExplicitResolutionForEveryReferencedFinding(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+
+	const findingID = "review-001-full/integrated/001"
+	svc := review.Service{Workdir: root}
+	start := svc.Start(mustJSON(t, review.Spec{
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
+		Repair: &review.RepairReference{
+			RoundID:    "review-001-full",
+			FindingIDs: []string{findingID},
+		},
+		Assignments: []review.AssignmentSpec{{
+			Slot: "integrated", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Verify the repair.",
+		}},
+	}))
+	if !start.OK {
+		t.Fatalf("start failed: %#v", start)
+	}
+	if submit := svc.Submit(start.Artifacts.RoundID, "integrated", "reviewer-integrated", mustJSON(t, review.SubmissionInput{
+		Summary: "The referenced finding is resolved.",
+		Resolutions: []review.FindingResolution{{
+			FindingID: findingID,
+			Status:    "resolved",
+			Details:   "The original reproduction now fails safely.",
+		}},
+	})); !submit.OK {
+		t.Fatalf("submit failed: %#v", submit)
+	}
+
+	result := svc.Aggregate(start.Artifacts.RoundID)
+	if !result.OK || result.Review == nil || result.Review.Decision != "pass" {
+		t.Fatalf("expected resolved repair aggregate to pass, got %#v", result)
+	}
+	if len(result.Review.ResolvedFindingIDs) != 1 || result.Review.ResolvedFindingIDs[0] != findingID || len(result.Review.UnresolvedFindingIDs) != 0 {
+		t.Fatalf("unexpected repair resolution summary: %#v", result.Review)
+	}
+}
+
+func TestAggregateRepairStaysNonCleanWhenReferencedFindingIsNotResolved(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+
+	const findingID = "review-001-full/integrated/001"
+	svc := review.Service{Workdir: root}
+	start := svc.Start(mustJSON(t, review.Spec{
+		Kind:      "delta",
+		AnchorSHA: "anchor-sha",
+		Repair: &review.RepairReference{
+			RoundID:    "review-001-full",
+			FindingIDs: []string{findingID},
+		},
+		Assignments: []review.AssignmentSpec{{
+			Slot: "integrated", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Verify the repair.",
+		}},
+	}))
+	if !start.OK {
+		t.Fatalf("start failed: %#v", start)
+	}
+	if submit := svc.Submit(start.Artifacts.RoundID, "integrated", "reviewer-integrated", mustJSON(t, review.SubmissionInput{
+		Summary: "The repair is not proven.",
+	})); !submit.OK {
+		t.Fatalf("submit failed: %#v", submit)
+	}
+
+	result := svc.Aggregate(start.Artifacts.RoundID)
+	if !result.OK || result.Review == nil || result.Review.Decision != "changes_requested" {
+		t.Fatalf("expected unresolved repair aggregate to request changes, got %#v", result)
+	}
+	if len(result.Review.UnresolvedFindingIDs) != 1 || result.Review.UnresolvedFindingIDs[0] != findingID {
+		t.Fatalf("expected referenced finding to remain unresolved, got %#v", result.Review)
+	}
+}
+
 func TestAggregateAcceptsLegacySubmissionWithoutBy(t *testing.T) {
 	root := t.TempDir()
 	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
@@ -1035,8 +1231,8 @@ func TestAggregateAcceptsLegacySubmissionWithoutBy(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check aggregate compatibility."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check aggregate compatibility."},
 		},
 	}))
 	if !start.OK {
@@ -1076,8 +1272,8 @@ func TestAggregateRejectsNonActiveRound(t *testing.T) {
 	}
 	stale := svc.Start(mustJSON(t, review.Spec{
 		Kind: "full",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !stale.OK {
@@ -1095,8 +1291,8 @@ func TestAggregateRejectsNonActiveRound(t *testing.T) {
 	}
 	active := svc.Start(mustJSON(t, review.Spec{
 		Kind: "full",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !active.OK {
@@ -1143,8 +1339,8 @@ func TestStartRejectsWhenReviewMutationLockIsHeld(t *testing.T) {
 	result := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if result.OK {
@@ -1172,8 +1368,8 @@ func TestStartRejectsWhenStateMutationLockIsHeld(t *testing.T) {
 	result := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if result.OK {
@@ -1202,8 +1398,8 @@ func TestStartPrefersReviewMutationLockWhenBothLocksAreHeld(t *testing.T) {
 	result := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if result.OK {
@@ -1226,8 +1422,8 @@ func TestAggregateRejectsWhenReviewMutationLockIsHeld(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -1266,8 +1462,8 @@ func TestAggregateRejectsWhenStateMutationLockIsHeld(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -1310,8 +1506,8 @@ func TestAggregatePrefersReviewMutationLockWhenBothLocksAreHeld(t *testing.T) {
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
 		AnchorSHA: "anchor-sha",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -1350,8 +1546,8 @@ func TestAggregateFullWithBlockingFindings(t *testing.T) {
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind: "full",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -1361,6 +1557,7 @@ func TestAggregateFullWithBlockingFindings(t *testing.T) {
 		Summary: "Found a blocker.",
 		Findings: []review.Finding{
 			{
+				Area:      "review-contract",
 				Severity:  "important",
 				Title:     "Missing validation",
 				Details:   "The archive path is missing one required validation.",
@@ -1381,6 +1578,9 @@ func TestAggregateFullWithBlockingFindings(t *testing.T) {
 	}
 	if len(result.Review.BlockingFindings) != 1 {
 		t.Fatalf("expected one blocking finding, got %#v", result.Review)
+	}
+	if finding := result.Review.BlockingFindings[0]; finding.FindingID != start.Artifacts.RoundID+"/correctness/001" || finding.Role != "integrated" || finding.Area != "review-contract" {
+		t.Fatalf("expected stable finding identity and assignment provenance, got %#v", finding)
 	}
 	if got := result.Review.BlockingFindings[0].Locations; len(got) != 1 || got[0] != "internal/lifecycle/service.go#L10-L18" {
 		t.Fatalf("expected aggregate to preserve locations, got %#v", result.Review.BlockingFindings[0])
@@ -1409,8 +1609,8 @@ func TestAggregatePreservesExplicitEmptyLocationsArray(t *testing.T) {
 	}
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind: "full",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check correctness."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
 	}))
 	if !start.OK {
@@ -1420,6 +1620,7 @@ func TestAggregatePreservesExplicitEmptyLocationsArray(t *testing.T) {
 		"summary": "Found one issue.",
 		"findings": []any{
 			map[string]any{
+				"area":      "review-contract",
 				"severity":  "important",
 				"title":     "Empty locations still matter",
 				"details":   "An explicit empty array should round-trip.",
@@ -1647,8 +1848,8 @@ func TestStartUsesReviewStartCommandIdentifierOnPlanDetectionFailure(t *testing.
 
 	result := review.Service{Workdir: root}.Start(mustJSON(t, review.Spec{
 		Kind: "full",
-		Dimensions: []review.Dimension{
-			{Name: "correctness", Instructions: "Check setup failures."},
+		Assignments: []review.AssignmentSpec{
+			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check setup failures."},
 		},
 	}))
 	if result.OK {

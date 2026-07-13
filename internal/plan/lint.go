@@ -12,6 +12,7 @@ import (
 	"time"
 
 	templateassets "github.com/catu-ai/easyharness/assets/templates"
+	"github.com/catu-ai/easyharness/internal/reviewguidance"
 	"gopkg.in/yaml.v3"
 )
 
@@ -579,6 +580,7 @@ func isSupportedWorkflowProfile(value string) bool {
 }
 
 func validateSupplementsRules(ctx *lintContext) []LintIssue {
+	issues := make([]LintIssue, 0)
 	supplementsPath := SupplementsDirForPlanPath(ctx.path)
 	for _, root := range candidateSupplementsRoots(ctx.path) {
 		info, err := os.Stat(root)
@@ -610,6 +612,7 @@ func validateSupplementsRules(ctx *lintContext) []LintIssue {
 			return []LintIssue{{Path: "supplements", Message: "supplements directory name must match the markdown plan stem"}}
 		}
 	}
+	issues = append(issues, validatePlanReviewGuidance(supplementsPath)...)
 	for _, alternate := range AlternateSupplementsDirsForPlanPath(ctx.path) {
 		if _, err := os.Stat(alternate); err == nil {
 			return []LintIssue{{
@@ -621,7 +624,43 @@ func validateSupplementsRules(ctx *lintContext) []LintIssue {
 		}
 	}
 
-	return nil
+	return issues
+}
+
+func validatePlanReviewGuidance(supplementsPath string) []LintIssue {
+	root := filepath.Join(supplementsPath, ReviewGuidanceDirName)
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return []LintIssue{{Path: "supplements.review-guidance", Message: err.Error()}}
+	}
+	seen := map[string]string{}
+	issues := make([]LintIssue, 0)
+	for _, entry := range entries {
+		path := filepath.Join(root, entry.Name())
+		lintPath := "supplements.review-guidance." + entry.Name()
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+			issues = append(issues, LintIssue{Path: lintPath, Message: "accepts only Markdown files directly under review-guidance"})
+			continue
+		}
+		definition, err := reviewguidance.ParseFile(path)
+		if err != nil {
+			issues = append(issues, LintIssue{Path: lintPath, Message: err.Error()})
+			continue
+		}
+		if strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name())) != definition.Name {
+			issues = append(issues, LintIssue{Path: lintPath, Message: fmt.Sprintf("filename must match review guidance name %q", definition.Name)})
+			continue
+		}
+		if previous, ok := seen[definition.Name]; ok {
+			issues = append(issues, LintIssue{Path: lintPath, Message: fmt.Sprintf("duplicates review guidance name %q already defined in %s", definition.Name, previous)})
+			continue
+		}
+		seen[definition.Name] = entry.Name()
+	}
+	return issues
 }
 
 func candidateSupplementsRoots(path string) []string {

@@ -253,34 +253,109 @@
       ],
       "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
     },
-    "ReviewSlot": {
+    "ReviewAssignment": {
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "Name is the review dimension name."
-        },
         "slot": {
-          "type": "string",
-          "description": "Slot is the stable slot identifier."
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "dimensions": {
+          "items": {
+            "$ref": "#/$defs/ReviewResolvedDimension"
+          },
+          "type": "array"
         },
         "instructions": {
-          "type": "string",
-          "description": "Instructions is the explicit reviewer handoff for this slot."
+          "type": "string"
+        },
+        "risk_brief": {
+          "$ref": "#/$defs/ReviewRiskBrief"
         },
         "submission_path": {
-          "type": "string",
-          "description": "SubmissionPath is the target path for this slot's submission artifact."
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "slot",
+        "role",
+        "dimensions",
+        "instructions",
+        "submission_path"
+      ],
+      "description": "ReviewAssignment describes one surfaced reviewer assignment."
+    },
+    "ReviewResolvedDimension": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "description": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "plan_path": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
         "name",
-        "slot",
-        "instructions",
-        "submission_path"
+        "sources",
+        "description",
+        "instructions"
       ],
-      "description": "ReviewSlot describes one surfaced reviewer submission slot."
+      "description": "ReviewResolvedDimension snapshots one explicitly assigned guidance fragment."
+    },
+    "ReviewRiskBrief": {
+      "properties": {
+        "risk_surfaces": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "invariants": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "failure_modes": {
+          "oneOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "risk_surfaces",
+        "invariants"
+      ],
+      "description": "ReviewRiskBrief gives a specialist a concrete risk surface to challenge."
     },
     "StatusArtifacts": {
       "properties": {
@@ -306,12 +381,12 @@
           "type": "string",
           "description": "ReviewRoundID is the active review round identifier when review is in flight."
         },
-        "review_slots": {
+        "review_assignments": {
           "items": {
-            "$ref": "#/$defs/ReviewSlot"
+            "$ref": "#/$defs/ReviewAssignment"
           },
           "type": "array",
-          "description": "ReviewSlots lists the active round's reviewer-owned slot handles when review is in flight."
+          "description": "ReviewAssignments lists the active round's reviewer-owned assignment handles when review is in flight."
         },
         "last_landed_at": {
           "type": "string",

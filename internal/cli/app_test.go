@@ -2331,7 +2331,7 @@ func TestReviewStartCommandAppendsTimelineEvent(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","assignments":[{"slot":"integrated","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	exitCode := app.Run([]string{"review", "start"})
 	if exitCode != 0 {
 		t.Fatalf("review start command failed with %d: %s", exitCode, stderr.String())
@@ -2380,7 +2380,7 @@ func TestReviewCommandsTouchWatchlist(t *testing.T) {
 		t.Fatalf("remove watchlist after execute start: %v", err)
 	}
 
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -2426,10 +2426,10 @@ Check the public contract.
 		OK         bool   `json:"ok"`
 		Command    string `json:"command"`
 		Dimensions []struct {
-			Name         string `json:"name"`
-			Source       string `json:"source"`
-			Description  string `json:"description"`
-			Instructions string `json:"instructions"`
+			Name         string   `json:"name"`
+			Sources      []string `json:"sources"`
+			Description  string   `json:"description"`
+			Instructions string   `json:"instructions"`
 		} `json:"dimensions"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
@@ -2438,9 +2438,9 @@ Check the public contract.
 	if !payload.OK || payload.Command != "review dimensions list" {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
-	seen := map[string]string{}
+	seen := map[string][]string{}
 	for _, dimension := range payload.Dimensions {
-		seen[dimension.Name] = dimension.Source
+		seen[dimension.Name] = dimension.Sources
 		if dimension.Instructions != "" {
 			t.Fatalf("list should not include instructions, got %#v", dimension)
 		}
@@ -2448,7 +2448,7 @@ Check the public contract.
 			t.Fatalf("dimension has empty description: %#v", dimension)
 		}
 	}
-	if seen["correctness"] != "builtin" || seen["api-contract"] != "repo" {
+	if strings.Join(seen["correctness"], ",") != "builtin" || strings.Join(seen["api-contract"], ",") != "repo" {
 		t.Fatalf("expected builtin and repo dimensions, got %#v", payload.Dimensions)
 	}
 }
@@ -2520,7 +2520,7 @@ func TestReviewAggregateIgnoresWatchlistWriteFailure(t *testing.T) {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
 
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -2563,7 +2563,7 @@ func TestReviewStartCommandReturnsSchemaValidationErrors(t *testing.T) {
 	stderr.Reset()
 	app.Stdin = bytes.NewBufferString(`{
 		"kind":"delta","anchor_sha":"anchor-sha",
-		"dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}],
+		"assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}],
 		"unexpected":true
 	}`)
 	exitCode := app.Run([]string{"review", "start"})
@@ -2608,7 +2608,7 @@ func TestReviewSubmitCommandAppendsTimelineEvent(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -2644,7 +2644,7 @@ func TestReviewSubmitCommandDoesNotFailWhenStateMutationLockIsHeld(t *testing.T)
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -2684,7 +2684,7 @@ func TestReviewSubmitCommandReturnsSchemaValidationErrors(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -2734,7 +2734,7 @@ func TestReviewAggregateCommandAppendsTimelineEvent(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -2776,7 +2776,7 @@ func TestReviewSubmitRollsBackWhenTimelineAppendFails(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","dimensions":[{"name":"correctness","instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -2804,7 +2804,7 @@ func TestReviewSubmitRollsBackWhenTimelineAppendFails(t *testing.T) {
 	var submission struct {
 		RoundID     string          `json:"round_id"`
 		Slot        string          `json:"slot"`
-		Dimension   string          `json:"dimension"`
+		Role        string          `json:"role"`
 		SubmittedAt string          `json:"submitted_at"`
 		Summary     string          `json:"summary"`
 		Findings    []any           `json:"findings"`
@@ -2813,7 +2813,7 @@ func TestReviewSubmitRollsBackWhenTimelineAppendFails(t *testing.T) {
 	if err := json.Unmarshal(data, &submission); err != nil {
 		t.Fatalf("unmarshal restored submission skeleton: %v", err)
 	}
-	if submission.RoundID != "review-001-delta" || submission.Slot != "correctness" || submission.Dimension != "correctness" {
+	if submission.RoundID != "review-001-delta" || submission.Slot != "correctness" || submission.Role != "integrated" {
 		t.Fatalf("expected submission skeleton identity to be restored, got %#v", submission)
 	}
 	if submission.SubmittedAt != "" || submission.Summary != "" || len(submission.Findings) != 0 || len(submission.Worklog) == 0 {
@@ -2821,10 +2821,10 @@ func TestReviewSubmitRollsBackWhenTimelineAppendFails(t *testing.T) {
 	}
 	ledgerPath := filepath.Join(root, ".local/harness/plans/2026-03-18-test-plan/reviews/review-001-delta/ledger.json")
 	var ledger struct {
-		Slots []struct {
+		Assignments []struct {
 			Slot   string `json:"slot"`
 			Status string `json:"status"`
-		} `json:"slots"`
+		} `json:"assignments"`
 	}
 	ledgerBytes, err := os.ReadFile(ledgerPath)
 	if err != nil {
@@ -2833,8 +2833,8 @@ func TestReviewSubmitRollsBackWhenTimelineAppendFails(t *testing.T) {
 	if err := json.Unmarshal(ledgerBytes, &ledger); err != nil {
 		t.Fatalf("unmarshal ledger after rollback: %v", err)
 	}
-	if len(ledger.Slots) != 1 || ledger.Slots[0].Status != "pending" {
-		t.Fatalf("expected pending ledger after rollback, got %#v", ledger.Slots)
+	if len(ledger.Assignments) != 1 || ledger.Assignments[0].Status != "pending" {
+		t.Fatalf("expected pending ledger after rollback, got %#v", ledger.Assignments)
 	}
 }
 

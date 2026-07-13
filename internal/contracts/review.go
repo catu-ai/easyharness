@@ -18,22 +18,43 @@ type ReviewSpec struct {
 	// rounds.
 	ReviewTitle string `json:"review_title,omitempty"`
 
-	// Dimensions lists the review dimensions and reviewer instruction handoffs
-	// assigned to reviewers.
-	Dimensions []ReviewDimension `json:"dimensions" jsonschema:"minItems=1" easyharness:"no_null"`
+	// Repair identifies an earlier round and findings that this delta review
+	// intends to resolve.
+	Repair *ReviewRepairReference `json:"repair,omitempty"`
+
+	// Assignments lists the explicit reviewer-owned submission assignments.
+	Assignments []ReviewAssignmentSpec `json:"assignments" jsonschema:"minItems=1" easyharness:"no_null"`
 }
 
-// ReviewDimension defines one named review dimension and its reviewer
-// instruction handoff.
-type ReviewDimension struct {
-	// Name is the review dimension name. Catalog-managed dimensions use stable
-	// lowercase alphanumeric segments separated by single hyphens.
-	Name string `json:"name"`
+// ReviewRepairReference identifies the findings targeted by a repair delta.
+type ReviewRepairReference struct {
+	RoundID    string   `json:"round_id"`
+	FindingIDs []string `json:"finding_ids" jsonschema:"minItems=1" easyharness:"no_null"`
+}
 
-	// Instructions is the explicit reviewer handoff for this dimension. For
-	// catalog-managed dimensions this is usually a command to fetch the full
-	// instruction; one-off dimensions may provide direct reviewer guidance.
-	Instructions string `json:"instructions"`
+// ReviewAssignmentSpec is one controller-selected reviewer assignment.
+type ReviewAssignmentSpec struct {
+	Slot         string           `json:"slot"`
+	Role         string           `json:"role"`
+	Dimensions   []string         `json:"dimensions" jsonschema:"minItems=1" easyharness:"no_null"`
+	Instructions string           `json:"instructions"`
+	RiskBrief    *ReviewRiskBrief `json:"risk_brief,omitempty"`
+}
+
+// ReviewRiskBrief gives a specialist a concrete risk surface to challenge.
+type ReviewRiskBrief struct {
+	RiskSurfaces []string `json:"risk_surfaces" jsonschema:"minItems=1" easyharness:"no_null"`
+	Invariants   []string `json:"invariants" jsonschema:"minItems=1" easyharness:"no_null"`
+	FailureModes []string `json:"failure_modes,omitempty" easyharness:"allow_null"`
+}
+
+// ReviewResolvedDimension snapshots one explicitly assigned guidance fragment.
+type ReviewResolvedDimension struct {
+	Name         string   `json:"name"`
+	Sources      []string `json:"sources" jsonschema:"minItems=1" easyharness:"no_null"`
+	Description  string   `json:"description"`
+	Instructions string   `json:"instructions"`
+	PlanPath     string   `json:"plan_path,omitempty"`
 }
 
 // ReviewManifest is the command-owned review manifest artifact for one review
@@ -58,6 +79,9 @@ type ReviewManifest struct {
 	// ReviewTitle is the human-readable title for the round when one exists.
 	ReviewTitle string `json:"review_title,omitempty"`
 
+	// Repair identifies the prior round and findings targeted by this delta.
+	Repair *ReviewRepairReference `json:"repair,omitempty"`
+
 	// PlanPath is the tracked or archived plan path associated with the round.
 	PlanPath string `json:"plan_path"`
 
@@ -67,8 +91,8 @@ type ReviewManifest struct {
 	// CreatedAt is the round creation timestamp.
 	CreatedAt string `json:"created_at"`
 
-	// Dimensions lists the materialized reviewer slots for the round.
-	Dimensions []ReviewSlot `json:"dimensions"`
+	// Assignments lists the materialized reviewer assignments for the round.
+	Assignments []ReviewAssignment `json:"assignments"`
 
 	// LedgerPath is the path to the round ledger artifact.
 	LedgerPath string `json:"ledger_path"`
@@ -80,19 +104,14 @@ type ReviewManifest struct {
 	Submissions string `json:"submissions_dir"`
 }
 
-// ReviewSlot describes one surfaced reviewer submission slot.
-type ReviewSlot struct {
-	// Name is the review dimension name.
-	Name string `json:"name"`
-
-	// Slot is the stable slot identifier.
-	Slot string `json:"slot"`
-
-	// Instructions is the explicit reviewer handoff for this slot.
-	Instructions string `json:"instructions"`
-
-	// SubmissionPath is the target path for this slot's submission artifact.
-	SubmissionPath string `json:"submission_path"`
+// ReviewAssignment describes one surfaced reviewer assignment.
+type ReviewAssignment struct {
+	Slot           string                    `json:"slot"`
+	Role           string                    `json:"role"`
+	Dimensions     []ReviewResolvedDimension `json:"dimensions" jsonschema:"minItems=1" easyharness:"no_null"`
+	Instructions   string                    `json:"instructions"`
+	RiskBrief      *ReviewRiskBrief          `json:"risk_brief,omitempty"`
+	SubmissionPath string                    `json:"submission_path"`
 }
 
 // ReviewLedger is the command-owned ledger artifact tracking submission status
@@ -107,18 +126,14 @@ type ReviewLedger struct {
 	// UpdatedAt is the timestamp of the most recent ledger update.
 	UpdatedAt string `json:"updated_at"`
 
-	// Slots lists the current state of every reviewer slot.
-	Slots []ReviewLedgerSlot `json:"slots"`
+	// Assignments lists the current state of every reviewer assignment.
+	Assignments []ReviewLedgerAssignment `json:"assignments"`
 }
 
-// ReviewLedgerSlot records the current state for one reviewer slot in the
-// ledger.
-type ReviewLedgerSlot struct {
-	// Name is the review dimension name.
-	Name string `json:"name"`
-
-	// Slot is the stable slot identifier.
+// ReviewLedgerAssignment records one reviewer assignment in the ledger.
+type ReviewLedgerAssignment struct {
 	Slot string `json:"slot"`
+	Role string `json:"role"`
 
 	// Status is the current submission status for the slot.
 	Status string `json:"status"`
@@ -134,6 +149,10 @@ type ReviewLedgerSlot struct {
 type ReviewSubmissionInput struct {
 	// Summary is the reviewer's concise overall assessment.
 	Summary string `json:"summary"`
+
+	// Resolutions records explicit reviewer verdicts for referenced repair
+	// findings.
+	Resolutions []ReviewFindingResolution `json:"resolutions,omitempty" easyharness:"allow_null"`
 
 	// Findings lists the review findings for the slot.
 	Findings []ReviewFinding `json:"findings,omitempty" easyharness:"allow_null"`
@@ -152,8 +171,8 @@ type ReviewSubmission struct {
 	// Slot is the stable slot identifier.
 	Slot string `json:"slot"`
 
-	// Dimension is the human-readable review dimension label.
-	Dimension string `json:"dimension"`
+	// Role is the assignment role copied from the round manifest.
+	Role string `json:"role"`
 
 	// By is the reviewer-provided identity label for the submitted slot.
 	By string `json:"by,omitempty"`
@@ -163,6 +182,8 @@ type ReviewSubmission struct {
 
 	// Summary is the reviewer's concise overall assessment.
 	Summary string `json:"summary,omitempty"`
+
+	Resolutions []ReviewFindingResolution `json:"resolutions,omitempty"`
 
 	// Findings lists the review findings for the slot.
 	Findings []ReviewFinding `json:"findings,omitempty"`
@@ -174,6 +195,9 @@ type ReviewSubmission struct {
 
 // ReviewFinding is one review finding in a submission or aggregate.
 type ReviewFinding struct {
+	// Area is the actionable defect area within the reviewed candidate.
+	Area string `json:"area"`
+
 	// Severity is the finding severity label.
 	Severity string `json:"severity"`
 
@@ -194,6 +218,13 @@ type ReviewFinding struct {
 	HasLocations bool `json:"-"`
 }
 
+// ReviewFindingResolution records whether one referenced finding is closed.
+type ReviewFindingResolution struct {
+	FindingID string `json:"finding_id"`
+	Status    string `json:"status"`
+	Details   string `json:"details"`
+}
+
 // ReviewAggregate is the command-owned aggregate artifact for a completed
 // review round.
 type ReviewAggregate struct {
@@ -212,6 +243,8 @@ type ReviewAggregate struct {
 	// ReviewTitle is the human-readable title for the round when one exists.
 	ReviewTitle string `json:"review_title,omitempty"`
 
+	Repair *ReviewRepairReference `json:"repair,omitempty"`
+
 	// Decision is the aggregate review decision for the round.
 	Decision string `json:"decision"`
 
@@ -222,18 +255,25 @@ type ReviewAggregate struct {
 	// progression.
 	NonBlockingFindings []ReviewAggregateFinding `json:"non_blocking_findings"`
 
+	ResolvedFindingIDs []string `json:"resolved_finding_ids" easyharness:"no_null"`
+
+	UnresolvedFindingIDs []string `json:"unresolved_finding_ids" easyharness:"no_null"`
+
 	// AggregatedAt is the aggregate timestamp.
 	AggregatedAt string `json:"aggregated_at"`
 }
 
-// ReviewAggregateFinding is one aggregate finding annotated with its slot and
-// dimension context.
+// ReviewAggregateFinding is one aggregate finding annotated with its stable
+// identity and reviewer-assignment provenance.
 type ReviewAggregateFinding struct {
+	FindingID string `json:"finding_id"`
+
 	// Slot is the stable reviewer slot identifier.
 	Slot string `json:"slot"`
 
-	// Dimension is the human-readable review dimension label.
-	Dimension string `json:"dimension"`
+	Role string `json:"role"`
+
+	Area string `json:"area"`
 
 	// Severity is the finding severity label.
 	Severity string `json:"severity"`
@@ -257,6 +297,7 @@ type ReviewAggregateFinding struct {
 
 func (f ReviewFinding) MarshalJSON() ([]byte, error) {
 	type payload struct {
+		Area      string   `json:"area"`
 		Severity  string   `json:"severity"`
 		Title     string   `json:"title"`
 		Details   string   `json:"details"`
@@ -264,12 +305,14 @@ func (f ReviewFinding) MarshalJSON() ([]byte, error) {
 	}
 	if f.HasLocations {
 		type payloadWithLocations struct {
+			Area      string   `json:"area"`
 			Severity  string   `json:"severity"`
 			Title     string   `json:"title"`
 			Details   string   `json:"details"`
 			Locations []string `json:"locations"`
 		}
 		return json.Marshal(payloadWithLocations{
+			Area:      f.Area,
 			Severity:  f.Severity,
 			Title:     f.Title,
 			Details:   f.Details,
@@ -277,6 +320,7 @@ func (f ReviewFinding) MarshalJSON() ([]byte, error) {
 		})
 	}
 	return json.Marshal(payload{
+		Area:      f.Area,
 		Severity:  f.Severity,
 		Title:     f.Title,
 		Details:   f.Details,
@@ -286,6 +330,7 @@ func (f ReviewFinding) MarshalJSON() ([]byte, error) {
 
 func (f *ReviewFinding) UnmarshalJSON(data []byte) error {
 	type payload struct {
+		Area      string   `json:"area"`
 		Severity  string   `json:"severity"`
 		Title     string   `json:"title"`
 		Details   string   `json:"details"`
@@ -300,6 +345,7 @@ func (f *ReviewFinding) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	f.Severity = decoded.Severity
+	f.Area = decoded.Area
 	f.Title = decoded.Title
 	f.Details = decoded.Details
 	f.Locations = decoded.Locations
@@ -309,8 +355,10 @@ func (f *ReviewFinding) UnmarshalJSON(data []byte) error {
 
 func (f ReviewAggregateFinding) MarshalJSON() ([]byte, error) {
 	type payload struct {
+		FindingID string   `json:"finding_id"`
 		Slot      string   `json:"slot"`
-		Dimension string   `json:"dimension"`
+		Role      string   `json:"role"`
+		Area      string   `json:"area"`
 		Severity  string   `json:"severity"`
 		Title     string   `json:"title"`
 		Details   string   `json:"details"`
@@ -318,16 +366,20 @@ func (f ReviewAggregateFinding) MarshalJSON() ([]byte, error) {
 	}
 	if f.HasLocations {
 		type payloadWithLocations struct {
+			FindingID string   `json:"finding_id"`
 			Slot      string   `json:"slot"`
-			Dimension string   `json:"dimension"`
+			Role      string   `json:"role"`
+			Area      string   `json:"area"`
 			Severity  string   `json:"severity"`
 			Title     string   `json:"title"`
 			Details   string   `json:"details"`
 			Locations []string `json:"locations"`
 		}
 		return json.Marshal(payloadWithLocations{
+			FindingID: f.FindingID,
 			Slot:      f.Slot,
-			Dimension: f.Dimension,
+			Role:      f.Role,
+			Area:      f.Area,
 			Severity:  f.Severity,
 			Title:     f.Title,
 			Details:   f.Details,
@@ -335,8 +387,10 @@ func (f ReviewAggregateFinding) MarshalJSON() ([]byte, error) {
 		})
 	}
 	return json.Marshal(payload{
+		FindingID: f.FindingID,
 		Slot:      f.Slot,
-		Dimension: f.Dimension,
+		Role:      f.Role,
+		Area:      f.Area,
 		Severity:  f.Severity,
 		Title:     f.Title,
 		Details:   f.Details,
@@ -346,8 +400,10 @@ func (f ReviewAggregateFinding) MarshalJSON() ([]byte, error) {
 
 func (f *ReviewAggregateFinding) UnmarshalJSON(data []byte) error {
 	type payload struct {
+		FindingID string   `json:"finding_id"`
 		Slot      string   `json:"slot"`
-		Dimension string   `json:"dimension"`
+		Role      string   `json:"role"`
+		Area      string   `json:"area"`
 		Severity  string   `json:"severity"`
 		Title     string   `json:"title"`
 		Details   string   `json:"details"`
@@ -361,8 +417,10 @@ func (f *ReviewAggregateFinding) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	f.FindingID = decoded.FindingID
 	f.Slot = decoded.Slot
-	f.Dimension = decoded.Dimension
+	f.Role = decoded.Role
+	f.Area = decoded.Area
 	f.Severity = decoded.Severity
 	f.Title = decoded.Title
 	f.Details = decoded.Details
@@ -373,8 +431,9 @@ func (f *ReviewAggregateFinding) UnmarshalJSON(data []byte) error {
 
 func (s ReviewSubmissionInput) MarshalJSON() ([]byte, error) {
 	payload := reviewSubmissionInputPayload{
-		Summary:  s.Summary,
-		Findings: s.Findings,
+		Summary:     s.Summary,
+		Resolutions: s.Resolutions,
+		Findings:    s.Findings,
 	}
 	return marshalWithExtraFields(payload, s.ExtraFields)
 }
@@ -386,6 +445,7 @@ func (s *ReviewSubmissionInput) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	s.Summary = payload.Summary
+	s.Resolutions = payload.Resolutions
 	s.Findings = payload.Findings
 	for key := range reviewSubmissionInputIgnoredExtraFields {
 		delete(extraFields, key)
@@ -401,10 +461,11 @@ func (s ReviewSubmission) MarshalJSON() ([]byte, error) {
 	payload := reviewSubmissionPayload{
 		RoundID:     s.RoundID,
 		Slot:        s.Slot,
-		Dimension:   s.Dimension,
+		Role:        s.Role,
 		By:          s.By,
 		SubmittedAt: s.SubmittedAt,
 		Summary:     s.Summary,
+		Resolutions: s.Resolutions,
 		Findings:    s.Findings,
 	}
 	return marshalWithExtraFields(payload, s.ExtraFields)
@@ -418,10 +479,11 @@ func (s *ReviewSubmission) UnmarshalJSON(data []byte) error {
 	}
 	s.RoundID = payload.RoundID
 	s.Slot = payload.Slot
-	s.Dimension = payload.Dimension
+	s.Role = payload.Role
 	s.By = payload.By
 	s.SubmittedAt = payload.SubmittedAt
 	s.Summary = payload.Summary
+	s.Resolutions = payload.Resolutions
 	s.Findings = payload.Findings
 	s.ExtraFields = extraFields
 	return nil
@@ -461,8 +523,8 @@ type ReviewStartArtifacts struct {
 	// RoundID is the stable identifier for the review round.
 	RoundID string `json:"round_id"`
 
-	// Slots lists the materialized review slots created for the round.
-	Slots []ReviewSlot `json:"slots"`
+	// Assignments lists the materialized reviewer assignments created for the round.
+	Assignments []ReviewAssignment `json:"assignments"`
 }
 
 // ReviewSubmitResult is the JSON result returned by `harness review submit`.
@@ -539,29 +601,32 @@ type ReviewAggregateArtifacts struct {
 }
 
 type reviewSubmissionInputPayload struct {
-	Summary  string          `json:"summary"`
-	Findings []ReviewFinding `json:"findings,omitempty"`
+	Summary     string                    `json:"summary"`
+	Resolutions []ReviewFindingResolution `json:"resolutions,omitempty"`
+	Findings    []ReviewFinding           `json:"findings,omitempty"`
 }
 
 type reviewSubmissionPayload struct {
-	RoundID     string          `json:"round_id"`
-	Slot        string          `json:"slot"`
-	Dimension   string          `json:"dimension"`
-	By          string          `json:"by,omitempty"`
-	SubmittedAt string          `json:"submitted_at,omitempty"`
-	Summary     string          `json:"summary,omitempty"`
-	Findings    []ReviewFinding `json:"findings,omitempty"`
+	RoundID     string                    `json:"round_id"`
+	Slot        string                    `json:"slot"`
+	Role        string                    `json:"role"`
+	By          string                    `json:"by,omitempty"`
+	SubmittedAt string                    `json:"submitted_at,omitempty"`
+	Summary     string                    `json:"summary,omitempty"`
+	Resolutions []ReviewFindingResolution `json:"resolutions,omitempty"`
+	Findings    []ReviewFinding           `json:"findings,omitempty"`
 }
 
 var reviewSubmissionInputKnownFields = map[string]bool{
-	"summary":  true,
-	"findings": true,
+	"summary":     true,
+	"resolutions": true,
+	"findings":    true,
 }
 
 var reviewSubmissionInputIgnoredExtraFields = map[string]bool{
 	"round_id":     true,
 	"slot":         true,
-	"dimension":    true,
+	"role":         true,
 	"by":           true,
 	"submitted_at": true,
 }
@@ -569,10 +634,11 @@ var reviewSubmissionInputIgnoredExtraFields = map[string]bool{
 var reviewSubmissionKnownFields = map[string]bool{
 	"round_id":     true,
 	"slot":         true,
-	"dimension":    true,
+	"role":         true,
 	"by":           true,
 	"submitted_at": true,
 	"summary":      true,
+	"resolutions":  true,
 	"findings":     true,
 }
 

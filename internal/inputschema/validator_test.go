@@ -11,7 +11,7 @@ import (
 func TestValidateAcceptsValidReviewSpec(t *testing.T) {
 	issues := inputschema.Validate("inputs.review.spec", "spec", []byte(`{
 		"kind":"delta",
-		"dimensions":[{"name":"correctness","instructions":"Check correctness."}]
+		"assignments":[{"slot":"integrated","role":"integrated","dimensions":["correctness"],"instructions":"Check correctness."}]
 	}`))
 	if len(issues) != 0 {
 		t.Fatalf("expected no validation issues, got %#v", issues)
@@ -21,7 +21,7 @@ func TestValidateAcceptsValidReviewSpec(t *testing.T) {
 func TestValidateReportsUnknownFieldPath(t *testing.T) {
 	issues := inputschema.Validate("inputs.review.spec", "spec", []byte(`{
 		"kind":"delta",
-		"dimensions":[{"name":"correctness","instructions":"Check correctness."}],
+		"assignments":[{"slot":"integrated","role":"integrated","dimensions":["correctness"],"instructions":"Check correctness."}],
 		"unexpected":true
 	}`))
 	if len(issues) != 1 {
@@ -35,7 +35,7 @@ func TestValidateReportsUnknownFieldPath(t *testing.T) {
 func TestValidateReportsNestedTypePath(t *testing.T) {
 	issues := inputschema.Validate("inputs.review.submission", "submission", []byte(`{
 		"summary":"Found one issue.",
-		"findings":[{"severity":1,"title":"Wrong type","details":"Severity must be a string."}]
+		"findings":[{"area":"review-contract","severity":1,"title":"Wrong type","details":"Severity must be a string."}]
 	}`))
 	if len(issues) != 1 {
 		t.Fatalf("expected one validation issue, got %#v", issues)
@@ -72,7 +72,7 @@ func TestValidateDoesNotDependOnRepositoryWorkingDirectory(t *testing.T) {
 
 	issues := inputschema.Validate("inputs.review.spec", "spec", []byte(`{
 		"kind":"delta",
-		"dimensions":[{"name":"correctness","instructions":"Check correctness."}]
+		"assignments":[{"slot":"integrated","role":"integrated","dimensions":["correctness"],"instructions":"Check correctness."}]
 	}`))
 	if len(issues) != 0 {
 		t.Fatalf("expected no validation issues away from repo root, got %#v (cwd=%s)", issues, filepath.Clean(temp))
@@ -84,13 +84,20 @@ func TestValidateSplitsMultipleMissingRequiredFields(t *testing.T) {
 		"summary":"Missing fields.",
 		"findings":[{"title":"Missing metadata"}]
 	}`))
-	if len(issues) != 2 {
-		t.Fatalf("expected two validation issues, got %#v", issues)
+	if len(issues) != 3 {
+		t.Fatalf("expected three validation issues, got %#v", issues)
 	}
-	if issues[0].Path != "submission.findings[0].severity" && issues[1].Path != "submission.findings[0].severity" {
-		t.Fatalf("expected a severity issue path, got %#v", issues)
+	paths := map[string]bool{}
+	for _, issue := range issues {
+		paths[issue.Path] = true
 	}
-	if issues[0].Path != "submission.findings[0].details" && issues[1].Path != "submission.findings[0].details" {
-		t.Fatalf("expected a details issue path, got %#v", issues)
+	for _, want := range []string{
+		"submission.findings[0].area",
+		"submission.findings[0].severity",
+		"submission.findings[0].details",
+	} {
+		if !paths[want] {
+			t.Fatalf("expected issue path %s, got %#v", want, issues)
+		}
 	}
 }

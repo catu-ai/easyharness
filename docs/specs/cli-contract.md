@@ -879,19 +879,21 @@ Canonical output shape:
   "dimensions": [
     {
       "name": "correctness",
-      "source": "builtin",
+      "sources": ["builtin"],
       "description": "Use when reviewing implementation logic, workflow state transitions, command contracts, or negative-path behavior."
     },
     {
       "name": "evidence-validity",
-      "source": "builtin",
+      "sources": ["builtin", "plan"],
+      "path": "docs/plans/active/supplements/example/review-guidance/evidence-validity.md",
+      "plan_path": "docs/plans/active/example.md",
       "description": "Use when reviewing whether conclusions, syntheses, or decisions are supported by the scorecard, probes, evidence, residuals, and follow-up handling."
     }
   ]
 }
 ```
 
-`source` is limited to:
+Ordered `sources` entries are limited to:
 
 - `builtin`: packaged easyharness dimension
 - `repo`: dimension defined by the current repository

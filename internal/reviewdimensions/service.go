@@ -1,31 +1,32 @@
 package reviewdimensions
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/catu-ai/easyharness/internal/contracts"
+	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/repoconfig"
-	"gopkg.in/yaml.v3"
+	"github.com/catu-ai/easyharness/internal/reviewguidance"
 )
 
 const (
 	SourceBuiltin = "builtin"
 	SourceRepo    = "repo"
+	SourcePlan    = "plan"
 )
-
-var namePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 type Dimension struct {
 	Name         string
-	Source       string
+	Sources      []string
 	Description  string
 	Instructions string
 	Path         string
+	PlanPath     string
 }
 
 type Catalog struct {
@@ -39,7 +40,7 @@ type Service struct {
 }
 
 func (s Service) List() contracts.ReviewDimensionsListResult {
-	catalog := s.load()
+	catalog := s.loadCurrent()
 	if len(catalog.Errors) > 0 {
 		return contracts.ReviewDimensionsListResult{
 			OK:         false,
@@ -60,7 +61,9 @@ func (s Service) List() contracts.ReviewDimensionsListResult {
 			for _, dimension := range catalog.Dimensions {
 				items = append(items, contracts.ReviewDimensionMetadata{
 					Name:        dimension.Name,
-					Source:      dimension.Source,
+					Sources:     append([]string(nil), dimension.Sources...),
+					Path:        dimension.Path,
+					PlanPath:    dimension.PlanPath,
 					Description: dimension.Description,
 				})
 			}
@@ -74,7 +77,7 @@ func (s Service) Instructions(name string) (string, []string, []contracts.ErrorD
 	if !ValidName(name) {
 		return "", nil, []contracts.ErrorDetail{{Path: "name", Message: "must use lowercase alphanumeric segments separated by single hyphens"}}
 	}
-	catalog := s.load()
+	catalog := s.loadCurrent()
 	if len(catalog.Errors) > 0 {
 		return "", catalog.Warnings, catalog.Errors
 	}
@@ -87,10 +90,32 @@ func (s Service) Instructions(name string) (string, []string, []contracts.ErrorD
 }
 
 func ValidName(name string) bool {
-	return namePattern.MatchString(strings.TrimSpace(name))
+	return reviewguidance.ValidName(name)
 }
 
-func (s Service) load() Catalog {
+// ResolveForPlan resolves one guidance dimension against an exact plan path.
+// Review start uses this API so plan selection cannot change between catalog
+// discovery and round creation.
+func (s Service) ResolveForPlan(planPath, name string) (Dimension, []string, []contracts.ErrorDetail) {
+	name = strings.TrimSpace(name)
+	if !ValidName(name) {
+		return Dimension{}, nil, []contracts.ErrorDetail{{Path: "name", Message: "must use lowercase alphanumeric segments separated by single hyphens"}}
+	}
+	catalog := s.CatalogForPlan(planPath)
+	if len(catalog.Errors) > 0 {
+		return Dimension{}, catalog.Warnings, catalog.Errors
+	}
+	for _, dimension := range catalog.Dimensions {
+		if dimension.Name == name {
+			return dimension, catalog.Warnings, nil
+		}
+	}
+	return Dimension{}, catalog.Warnings, []contracts.ErrorDetail{{Path: "name", Message: fmt.Sprintf("unknown review dimension %q", name)}}
+}
+
+// CatalogForPlan returns the resolved catalog for one exact active, archived,
+// or reopened plan. An empty plan path returns the repository catalog alone.
+func (s Service) CatalogForPlan(planPath string) Catalog {
 	result := repoconfig.Load(s.Workdir)
 	catalog := Catalog{
 		Dimensions: builtinDimensions(),
@@ -103,7 +128,61 @@ func (s Service) load() Catalog {
 		return catalog
 	}
 	catalog.Dimensions = mergeDimensions(catalog.Dimensions, repoDimensions)
+	if strings.TrimSpace(planPath) == "" {
+		return catalog
+	}
+	absPlanPath, relPlanPath, err := s.resolvePlanPath(planPath)
+	if err != nil {
+		catalog.Errors = []contracts.ErrorDetail{{Path: "plan_path", Message: err.Error()}}
+		return catalog
+	}
+	planDimensions, errors := loadPlanDimensions(plan.ReviewGuidanceDirForPlanPath(absPlanPath), relPlanPath, s.Workdir)
+	if len(errors) > 0 {
+		catalog.Errors = errors
+		return catalog
+	}
+	catalog.Dimensions = appendPlanDimensions(catalog.Dimensions, planDimensions)
 	return catalog
+}
+
+func (s Service) loadCurrent() Catalog {
+	currentPath, err := plan.DetectCurrentPath(s.Workdir)
+	if errors.Is(err, plan.ErrNoCurrentPlan) {
+		return s.CatalogForPlan("")
+	}
+	if err != nil {
+		catalog := s.CatalogForPlan("")
+		catalog.Errors = append(catalog.Errors, contracts.ErrorDetail{Path: "current_plan", Message: err.Error()})
+		return catalog
+	}
+	return s.CatalogForPlan(currentPath)
+}
+
+func (s Service) resolvePlanPath(planPath string) (string, string, error) {
+	workdir, err := filepath.Abs(s.Workdir)
+	if err != nil {
+		return "", "", fmt.Errorf("unable to resolve workdir: %v", err)
+	}
+	absPath := filepath.Clean(planPath)
+	if !filepath.IsAbs(absPath) {
+		absPath = filepath.Join(workdir, filepath.FromSlash(planPath))
+	}
+	absPath, err = filepath.Abs(absPath)
+	if err != nil {
+		return "", "", fmt.Errorf("unable to resolve plan path: %v", err)
+	}
+	relPath, err := filepath.Rel(workdir, absPath)
+	if err != nil || relPath == ".." || strings.HasPrefix(relPath, ".."+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("must resolve inside the repository workdir")
+	}
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return "", "", fmt.Errorf("unable to read exact plan: %v", err)
+	}
+	if info.IsDir() {
+		return "", "", fmt.Errorf("exact plan path must be a Markdown file")
+	}
+	return absPath, filepath.ToSlash(relPath), nil
 }
 
 func loadRepoDimensions(root, repoRoot string) ([]Dimension, []contracts.ErrorDetail) {
@@ -123,20 +202,23 @@ func loadRepoDimensions(root, repoRoot string) ([]Dimension, []contracts.ErrorDe
 		}
 		absPath := filepath.Join(root, entry.Name())
 		repoPath := filepath.ToSlash(filepath.Join(repoRoot, entry.Name()))
-		dimension, err := parseDimensionFile(absPath, repoPath)
+		definition, err := reviewguidance.ParseFile(absPath)
 		if err != nil {
 			errors = append(errors, contracts.ErrorDetail{Path: repoPath, Message: err.Error()})
 			continue
 		}
-		if previous, ok := seen[dimension.Name]; ok {
+		if previous, ok := seen[definition.Name]; ok {
 			errors = append(errors, contracts.ErrorDetail{
 				Path:    repoPath,
-				Message: fmt.Sprintf("duplicates review dimension name %q already defined in %s", dimension.Name, previous),
+				Message: fmt.Sprintf("duplicates review dimension name %q already defined in %s", definition.Name, previous),
 			})
 			continue
 		}
-		seen[dimension.Name] = repoPath
-		dimensions = append(dimensions, dimension)
+		seen[definition.Name] = repoPath
+		dimensions = append(dimensions, Dimension{
+			Name: definition.Name, Sources: []string{SourceRepo}, Description: definition.Description,
+			Instructions: definition.Instructions, Path: repoPath,
+		})
 	}
 	sort.Slice(dimensions, func(i, j int) bool {
 		return dimensions[i].Name < dimensions[j].Name
@@ -144,70 +226,70 @@ func loadRepoDimensions(root, repoRoot string) ([]Dimension, []contracts.ErrorDe
 	return dimensions, errors
 }
 
-func parseDimensionFile(absPath, repoPath string) (Dimension, error) {
-	data, err := os.ReadFile(absPath)
+func loadPlanDimensions(root, planPath, workdir string) ([]Dimension, []contracts.ErrorDetail) {
+	relRoot, err := filepath.Rel(workdir, root)
 	if err != nil {
-		return Dimension{}, fmt.Errorf("unable to read dimension file: %v", err)
+		relRoot = root
 	}
-	frontmatter, body, err := splitFrontmatter(string(data))
+	relRoot = filepath.ToSlash(relRoot)
+	entries, err := os.ReadDir(root)
 	if err != nil {
-		return Dimension{}, err
-	}
-	var metadata struct {
-		Name        string `yaml:"name"`
-		Description string `yaml:"description"`
-	}
-	var node yaml.Node
-	if err := yaml.Unmarshal([]byte(frontmatter), &node); err != nil {
-		return Dimension{}, fmt.Errorf("malformed YAML frontmatter: %v", err)
-	}
-	if len(node.Content) != 1 || node.Content[0].Kind != yaml.MappingNode {
-		return Dimension{}, fmt.Errorf("frontmatter must be a YAML object")
-	}
-	for i := 0; i+1 < len(node.Content[0].Content); i += 2 {
-		key := strings.TrimSpace(node.Content[0].Content[i].Value)
-		if key != "name" && key != "description" {
-			return Dimension{}, fmt.Errorf("unsupported frontmatter field %q", key)
+		if os.IsNotExist(err) {
+			return nil, nil
 		}
+		return nil, []contracts.ErrorDetail{{Path: relRoot, Message: fmt.Sprintf("unable to read plan review guidance root: %v", err)}}
 	}
-	if err := yaml.Unmarshal([]byte(frontmatter), &metadata); err != nil {
-		return Dimension{}, fmt.Errorf("malformed YAML frontmatter: %v", err)
+	var dimensions []Dimension
+	var resultErrors []contracts.ErrorDetail
+	seen := map[string]string{}
+	for _, entry := range entries {
+		repoPath := filepath.ToSlash(filepath.Join(relRoot, entry.Name()))
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+			resultErrors = append(resultErrors, contracts.ErrorDetail{Path: repoPath, Message: "plan review guidance root accepts only Markdown files directly under it"})
+			continue
+		}
+		definition, err := reviewguidance.ParseFile(filepath.Join(root, entry.Name()))
+		if err != nil {
+			resultErrors = append(resultErrors, contracts.ErrorDetail{Path: repoPath, Message: err.Error()})
+			continue
+		}
+		if previous, ok := seen[definition.Name]; ok {
+			resultErrors = append(resultErrors, contracts.ErrorDetail{Path: repoPath, Message: fmt.Sprintf("duplicates plan review guidance name %q already defined in %s", definition.Name, previous)})
+			continue
+		}
+		seen[definition.Name] = repoPath
+		dimensions = append(dimensions, Dimension{
+			Name: definition.Name, Sources: []string{SourcePlan}, Description: definition.Description,
+			Instructions: definition.Instructions, Path: repoPath, PlanPath: planPath,
+		})
 	}
-	metadata.Name = strings.TrimSpace(metadata.Name)
-	metadata.Description = strings.TrimSpace(metadata.Description)
-	body = strings.TrimSpace(body)
-	if !ValidName(metadata.Name) {
-		return Dimension{}, fmt.Errorf("field name must use lowercase alphanumeric segments separated by single hyphens")
-	}
-	if metadata.Description == "" {
-		return Dimension{}, fmt.Errorf("field description must not be empty")
-	}
-	if body == "" {
-		return Dimension{}, fmt.Errorf("instruction body must not be empty")
-	}
-	return Dimension{
-		Name:         metadata.Name,
-		Source:       SourceRepo,
-		Description:  metadata.Description,
-		Instructions: body,
-		Path:         repoPath,
-	}, nil
+	sort.Slice(dimensions, func(i, j int) bool { return dimensions[i].Name < dimensions[j].Name })
+	return dimensions, resultErrors
 }
 
-func splitFrontmatter(content string) (string, string, error) {
-	content = strings.ReplaceAll(content, "\r\n", "\n")
-	if !strings.HasPrefix(content, "---\n") {
-		return "", "", fmt.Errorf("must start with YAML frontmatter")
+func appendPlanDimensions(base, planDimensions []Dimension) []Dimension {
+	byName := make(map[string]Dimension, len(base)+len(planDimensions))
+	for _, dimension := range base {
+		byName[dimension.Name] = dimension
 	}
-	rest := strings.TrimPrefix(content, "---\n")
-	index := strings.Index(rest, "\n---")
-	if index < 0 {
-		return "", "", fmt.Errorf("missing closing YAML frontmatter marker")
+	for _, fragment := range planDimensions {
+		if existing, ok := byName[fragment.Name]; ok {
+			fragment.Description = strings.TrimSpace(existing.Description + " Plan guidance: " + fragment.Description)
+			fragment.Instructions = strings.TrimSpace(existing.Instructions + "\n\n## Plan-scoped guidance\n\n" + fragment.Instructions)
+			fragment.Sources = append(append([]string(nil), existing.Sources...), SourcePlan)
+		}
+		byName[fragment.Name] = fragment
 	}
-	frontmatter := rest[:index]
-	body := rest[index+len("\n---"):]
-	body = strings.TrimPrefix(body, "\n")
-	return frontmatter, body, nil
+	names := make([]string, 0, len(byName))
+	for name := range byName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	merged := make([]Dimension, 0, len(names))
+	for _, name := range names {
+		merged = append(merged, byName[name])
+	}
+	return merged
 }
 
 func mergeDimensions(builtin, repo []Dimension) []Dimension {
@@ -234,7 +316,7 @@ func builtinDimensions() []Dimension {
 	return []Dimension{
 		{
 			Name:        "agent-ux",
-			Source:      SourceBuiltin,
+			Sources:     []string{SourceBuiltin},
 			Description: "Use when reviewing whether another agent can understand, resume, and safely act on the workflow state and command output.",
 			Instructions: strings.TrimSpace(`
 Review the change from the perspective of the next controller or reviewer agent.
@@ -244,7 +326,7 @@ Check whether command output, plan notes, review prompts, and handoff guidance a
 		},
 		{
 			Name:        "correctness",
-			Source:      SourceBuiltin,
+			Sources:     []string{SourceBuiltin},
 			Description: "Use when reviewing implementation logic, workflow state transitions, command contracts, or negative-path behavior.",
 			Instructions: strings.TrimSpace(`
 Review the change for correctness.
@@ -254,7 +336,7 @@ Check implementation logic, command contracts, state transitions, validation beh
 		},
 		{
 			Name:        "docs-consistency",
-			Source:      SourceBuiltin,
+			Sources:     []string{SourceBuiltin},
 			Description: "Use when changes touch README, AGENTS, specs, skills, schemas, examples, or other durable workflow guidance.",
 			Instructions: strings.TrimSpace(`
 Review the change for documentation and contract consistency.
@@ -264,7 +346,7 @@ Check whether README, AGENTS.md, managed skills, specs, schemas, examples, and p
 		},
 		{
 			Name:        "evidence-validity",
-			Source:      SourceBuiltin,
+			Sources:     []string{SourceBuiltin},
 			Description: "Use when reviewing whether conclusions, syntheses, or decisions are supported by the scorecard, probes, evidence, residuals, and follow-up handling.",
 			Instructions: strings.TrimSpace(`
 Review the change for evidence validity.
@@ -274,7 +356,7 @@ Check whether accepted conclusions, syntheses, and decision artifacts are suppor
 		},
 		{
 			Name:        "risk-scan",
-			Source:      SourceBuiltin,
+			Sources:     []string{SourceBuiltin},
 			Description: "Use when reviewing unresolved blockers, leaked deferred scope, unsafe defaults, or release-sensitive workflow risks.",
 			Instructions: strings.TrimSpace(`
 Review the change for risk and unresolved scope.
@@ -284,7 +366,7 @@ Look for blockers that should stop closeout, deferred items that accidentally le
 		},
 		{
 			Name:        "tests",
-			Source:      SourceBuiltin,
+			Sources:     []string{SourceBuiltin},
 			Description: "Use when reviewing whether coverage, fixtures, smoke tests, or validation claims prove the changed behavior.",
 			Instructions: strings.TrimSpace(`
 Review the change's test and validation coverage.

@@ -5,6 +5,10 @@
   "$defs": {
     "ReviewFinding": {
       "properties": {
+        "area": {
+          "type": "string",
+          "description": "Area is the actionable defect area within the reviewed candidate."
+        },
         "severity": {
           "type": "string",
           "description": "Severity is the finding severity label."
@@ -28,11 +32,33 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "area",
         "severity",
         "title",
         "details"
       ],
       "description": "ReviewFinding is one review finding in a submission or aggregate."
+    },
+    "ReviewFindingResolution": {
+      "properties": {
+        "finding_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "details": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "finding_id",
+        "status",
+        "details"
+      ],
+      "description": "ReviewFindingResolution records whether one referenced finding is closed."
     },
     "ReviewSubmission": {
       "properties": {
@@ -44,9 +70,9 @@
           "type": "string",
           "description": "Slot is the stable slot identifier."
         },
-        "dimension": {
+        "role": {
           "type": "string",
-          "description": "Dimension is the human-readable review dimension label."
+          "description": "Role is the assignment role copied from the round manifest."
         },
         "by": {
           "type": "string",
@@ -60,6 +86,12 @@
           "type": "string",
           "description": "Summary is the reviewer's concise overall assessment."
         },
+        "resolutions": {
+          "items": {
+            "$ref": "#/$defs/ReviewFindingResolution"
+          },
+          "type": "array"
+        },
         "findings": {
           "items": {
             "$ref": "#/$defs/ReviewFinding"
@@ -72,7 +104,7 @@
       "required": [
         "round_id",
         "slot",
-        "dimension"
+        "role"
       ],
       "description": "ReviewSubmission is the command-owned submission artifact for one reviewer slot."
     }
