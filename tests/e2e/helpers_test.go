@@ -71,10 +71,11 @@ type reviewStartResult struct {
 	OK        bool   `json:"ok"`
 	Command   string `json:"command"`
 	Artifacts struct {
-		ProjectRoot string       `json:"project_root"`
-		PlanPath    string       `json:"plan_path"`
-		RoundID     string       `json:"round_id"`
-		Slots       []reviewSlot `json:"assignments"`
+		ProjectRoot     string       `json:"project_root"`
+		PlanPath        string       `json:"plan_path"`
+		RoundID         string       `json:"round_id"`
+		ReviewedHeadSHA string       `json:"reviewed_head_sha"`
+		Slots           []reviewSlot `json:"assignments"`
 	} `json:"artifacts"`
 	NextAction []struct {
 		Command     *string `json:"command"`
@@ -453,6 +454,9 @@ func startReviewRound(t *testing.T, workspace *support.Workspace, specRelPath st
 	payload := support.RequireJSONResult[reviewStartResult](t, start)
 	if !payload.OK || payload.Command != "review start" {
 		t.Fatalf("unexpected review-start payload: %#v", payload)
+	}
+	if payload.Artifacts.ReviewedHeadSHA == "" {
+		t.Fatalf("expected built review-start command to surface the captured candidate HEAD, got %#v", payload.Artifacts)
 	}
 	return payload
 }

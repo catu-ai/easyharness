@@ -379,6 +379,9 @@ work remains in `land` until `harness land complete` intentionally restores
 - If an intentionally started step review has unresolved blocking findings,
   the step stays current and must not advance until a later review resolves
   them. Non-blocking findings remain visible but do not create step debt.
+- While that explicit gate is in flight, another review cannot replace it. If
+  it requests changes, only a follow-up review bound to the same step may
+  supersede the active pointer until the gate passes.
 - A clean step review does not automatically mark the step done; it only
   clears the review gate so the controller can either continue the step or mark
   it durably complete.

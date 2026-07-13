@@ -109,7 +109,24 @@ func maskCloseoutBodies(content []byte) []byte {
 	lines := strings.Split(string(content), "\n")
 	out := make([]string, 0, len(lines))
 	masking := false
+	var fence markdownFence
 	for _, line := range lines {
+		if fence.active() {
+			if !masking {
+				out = append(out, line)
+			}
+			if fence.closes(line) {
+				fence = markdownFence{}
+			}
+			continue
+		}
+		if opened, ok := openingMarkdownFence(line); ok {
+			fence = opened
+			if !masking {
+				out = append(out, line)
+			}
+			continue
+		}
 		if strings.HasPrefix(line, "## ") {
 			name := strings.TrimSpace(strings.TrimPrefix(line, "## "))
 			masking = allowedCloseoutSections[name]
@@ -124,6 +141,64 @@ func maskCloseoutBodies(content []byte) []byte {
 		}
 	}
 	return []byte(strings.Join(out, "\n"))
+}
+
+// markdownFence tracks CommonMark-style fenced code blocks closely enough to
+// keep heading-shaped code from changing the plan section currently being
+// masked. Only a real level-two heading outside a fence can start or stop a
+// closeout body.
+type markdownFence struct {
+	marker byte
+	length int
+}
+
+func (f markdownFence) active() bool {
+	return f.length > 0
+}
+
+func (f markdownFence) closes(line string) bool {
+	trimmed := trimMarkdownFenceIndent(line)
+	if trimmed == "" || trimmed[0] != f.marker {
+		return false
+	}
+	markerLength := countLeadingByte(trimmed, f.marker)
+	return markerLength >= f.length && strings.TrimSpace(trimmed[markerLength:]) == ""
+}
+
+func openingMarkdownFence(line string) (markdownFence, bool) {
+	trimmed := trimMarkdownFenceIndent(line)
+	if len(trimmed) < 3 || (trimmed[0] != '`' && trimmed[0] != '~') {
+		return markdownFence{}, false
+	}
+	marker := trimmed[0]
+	markerLength := countLeadingByte(trimmed, marker)
+	if markerLength < 3 {
+		return markdownFence{}, false
+	}
+	// A backtick fence's info string cannot itself contain a backtick.
+	if marker == '`' && strings.Contains(trimmed[markerLength:], "`") {
+		return markdownFence{}, false
+	}
+	return markdownFence{marker: marker, length: markerLength}, true
+}
+
+func trimMarkdownFenceIndent(line string) string {
+	indent := 0
+	for indent < len(line) && indent < 4 && line[indent] == ' ' {
+		indent++
+	}
+	if indent > 3 {
+		return ""
+	}
+	return line[indent:]
+}
+
+func countLeadingByte(value string, marker byte) int {
+	count := 0
+	for count < len(value) && value[count] == marker {
+		count++
+	}
+	return count
 }
 
 func contains(values []string, want string) bool {

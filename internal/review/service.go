@@ -124,6 +124,14 @@ func (s Service) Start(specBytes []byte) StartResult {
 			Errors:  []CommandError{{Path: "spec", Message: err.Error()}},
 		}
 	}
+	if err := validateStartedStepReviewOwnership(state, inferredStep); err != nil {
+		return StartResult{
+			OK:      false,
+			Command: "review start",
+			Summary: "Review spec does not match the active intentional step review.",
+			Errors:  []CommandError{{Path: "spec.step", Message: err.Error()}},
+		}
+	}
 	if issues := validateAssignmentTopology(spec, inferredStep); len(issues) > 0 {
 		return StartResult{
 			OK:      false,
@@ -310,10 +318,11 @@ func (s Service) Start(specBytes []byte) StartResult {
 		Command: "review start",
 		Summary: fmt.Sprintf("Created %s review round %q.", spec.Kind, roundID),
 		Artifacts: &StartArtifacts{
-			ProjectRoot: s.Workdir,
-			PlanPath:    relPlanPath,
-			RoundID:     roundID,
-			Assignments: surfacedReviewAssignments(s.Workdir, assignments),
+			ProjectRoot:     s.Workdir,
+			PlanPath:        relPlanPath,
+			RoundID:         roundID,
+			ReviewedHeadSHA: candidate.HeadSHA,
+			Assignments:     surfacedReviewAssignments(s.Workdir, assignments),
 		},
 		NextAction: []NextAction{
 			{
@@ -792,13 +801,13 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 	return s.finalizeAggregate(AggregateResult{
 		OK:      true,
 		Command: "review aggregate",
-		Summary: buildAggregateSummary(manifest.Kind, decision, len(blocking), len(nonBlocking)),
+		Summary: buildAggregateSummary(manifest, decision, len(unresolvedBlocking), len(nonBlocking)),
 		Artifacts: &AggregateArtifacts{
 			ProjectRoot: s.Workdir,
 			RoundID:     roundID,
 		},
 		Review:     &aggregate,
-		NextAction: buildAggregateNextActions(manifest.Kind, decision),
+		NextAction: buildAggregateNextActions(manifest, decision),
 	}, func() []CommandError {
 		issues := restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
 		issues = append(issues, restoreJSONFileSnapshot(manifest.Aggregate, previousAggregate, previousAggregateExists, "aggregate")...)
@@ -1495,6 +1504,27 @@ func inferReviewBinding(_ string, _ string, doc *plan.Document, state *runstate.
 	return nil, revision, reviewTitle, nil
 }
 
+// Once an intentional step review starts, it owns that step's review boundary
+// until aggregation completes. A failed aggregate may be superseded only by a
+// repair or rerun bound to the same step; otherwise a different step could
+// silently erase the explicit review debt from local state.
+func validateStartedStepReviewOwnership(state *runstate.State, inferredStep *int) error {
+	if state == nil || state.ActiveReviewRound == nil || state.ActiveReviewRound.Step == nil {
+		return nil
+	}
+	active := state.ActiveReviewRound
+	if !active.Aggregated {
+		return fmt.Errorf("intentional step review %s for step %d must be aggregated before another review starts", active.RoundID, *active.Step)
+	}
+	if active.Decision == "pass" {
+		return nil
+	}
+	if inferredStep == nil || *inferredStep != *active.Step {
+		return fmt.Errorf("intentional step review %s for step %d is unresolved; only a same-step repair or rerun may supersede it", active.RoundID, *active.Step)
+	}
+	return nil
+}
+
 func inferReviewStepIndex(doc *plan.Document, state *runstate.State, spec Spec) (int, bool, error) {
 	if doc == nil {
 		return 0, false, fmt.Errorf("current plan is unavailable")
@@ -1594,16 +1624,17 @@ func isBlockingSeverity(severity string) bool {
 	return severity == "blocker" || severity == "important"
 }
 
-func buildAggregateSummary(kind, decision string, blocking, nonBlocking int) string {
+func buildAggregateSummary(manifest *Manifest, decision string, unresolvedBlocking, nonBlocking int) string {
+	scope := aggregateWorkflowScope(manifest)
 	if decision == "pass" {
-		return fmt.Sprintf("%s review passed with %d non-blocking finding(s).", kind, nonBlocking)
+		return fmt.Sprintf("%s review passed with %d non-blocking finding(s).", scope, nonBlocking)
 	}
-	return fmt.Sprintf("%s review found %d blocking and %d non-blocking finding(s).", kind, blocking, nonBlocking)
+	return fmt.Sprintf("%s review has %d unresolved blocking and %d non-blocking finding(s).", scope, unresolvedBlocking, nonBlocking)
 }
 
-func buildAggregateNextActions(kind, decision string) []NextAction {
+func buildAggregateNextActions(manifest *Manifest, decision string) []NextAction {
 	if decision == "pass" {
-		if kind == "delta" {
+		if manifest.Step != nil {
 			return []NextAction{{
 				Command:     nil,
 				Description: "Continue the current step or mark it complete, then update the step's Execution Notes and Review Notes.",
@@ -1614,16 +1645,26 @@ func buildAggregateNextActions(kind, decision string) []NextAction {
 			Description: "Move toward final CI and archive readiness for the current candidate.",
 		}}
 	}
-	if kind == "delta" {
+	if manifest.Step != nil {
 		return []NextAction{{
 			Command:     nil,
-			Description: "Fix the current slice and rerun a delta review once the blocking findings are addressed.",
+			Description: "Fix the unresolved step findings and start a same-step repair or rerun before ordinary progression resumes.",
 		}}
 	}
 	return []NextAction{{
 		Command:     nil,
-		Description: "Fix the blocking findings before archive and rerun full review if the candidate scope changed materially.",
+		Description: "Fix the unresolved finalize findings and run a linked repair delta; rerun full review only if the candidate design, scope, or risk changed materially.",
 	}}
+}
+
+func aggregateWorkflowScope(manifest *Manifest) string {
+	if manifest.Step != nil {
+		return fmt.Sprintf("Step %d", *manifest.Step)
+	}
+	if manifest.Repair != nil {
+		return "Finalize repair"
+	}
+	return "Finalize"
 }
 
 func (s Service) finalizeStart(result StartResult, rollback func() []CommandError) StartResult {

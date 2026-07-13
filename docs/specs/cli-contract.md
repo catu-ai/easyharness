@@ -655,7 +655,8 @@ Contract:
   mutation lock before the state mutation lock instead of inventing a separate
   acquisition order for this command
 - update local `state.json` so `harness status` can surface the active round
-- return round metadata plus next actions for the controller agent
+- return round metadata, including the command-captured `reviewed_head_sha`,
+  plus next actions for the controller agent
 
 The controller agent should only need to know the round ID, repo-facing
 `plan_path`, review kind, reviewer assignments, any reviewer-owned
@@ -800,6 +801,12 @@ and starts a review for `step-i`, status may report
 `execution/step-<i>/review` while the round is in flight and
 `execution/step-<i>/implement` after a non-pass aggregate. No passive debt
 exists for steps that never started a review.
+
+An intentionally started step review owns that binding until it is clean. An
+in-flight round cannot be replaced, and a step review with unresolved blocking
+findings may be superseded only by another review bound to the same step. A
+review for a different step must not overwrite the active pointer and erase the
+earlier explicit debt.
 
 Round identifiers should be short and plan-local:
 
@@ -1013,8 +1020,10 @@ Contract:
   round passed or requested changes
 - allow later commands to recover that decision from the persisted review
   decision data when older local state predates the stored `decision` field
-- return next actions that depend on the review kind without surfacing
-  internal review-control artifact paths or local state files
+- build summary counts from the cumulative unresolved blocking set and return
+  next actions that depend on workflow scope (step-bound versus finalize,
+  including finalize repair), not merely on `full` versus `delta`
+- do not surface internal review-control artifact paths or local state files
 
 Recommended next action:
 
@@ -1171,7 +1180,8 @@ Contract:
   `Review Summary`, `Archive Summary`, and `Outcome Summary` bodies; reject
   plan structure changes, supplements, product code, specifications, tests,
   unrelated documentation, and non-ignored untracked files after the covered
-  head
+  head; only actual top-level Markdown sections qualify, never heading-like
+  text inside fenced examples
 - require the pre-archive `Archive Summary` to include structured `PR`,
   `Ready`, and `Merge Handoff` lines
 - move the plan from its active path to its archived path:

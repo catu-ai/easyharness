@@ -91,6 +91,34 @@ func TestValidateArchiveWorktreeRejectsPlanStructureAndSupplements(t *testing.T)
 	}
 }
 
+func TestValidateArchiveWorktreeRejectsChangeAfterFencedCloseoutHeading(t *testing.T) {
+	root := t.TempDir()
+	initGit(t, root)
+	planWithHeadingExample := strings.Replace(reviewedPlan, "Ship the candidate.", `Ship the candidate.
+
+## Design Notes
+
+The review contract includes this non-closeout example:
+
+~~~markdown
+## Validation Summary
+
+Example content only.
+~~~
+
+This text is still part of Design Notes.`, 1)
+	planPath := writeFile(t, root, "docs/plans/active/2026-07-13-test.md", planWithHeadingExample)
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "reviewed")
+	covered := git(t, root, "rev-parse", "HEAD")
+
+	changed := strings.Replace(planWithHeadingExample, "This text is still part of Design Notes.", "This unreviewed design text changed.", 1)
+	writeFile(t, root, "docs/plans/active/2026-07-13-test.md", changed)
+	if err := ValidateArchiveWorktree(root, planPath, covered); err == nil || !strings.Contains(err.Error(), "outside") {
+		t.Fatalf("expected change after fenced closeout heading to be rejected, got %v", err)
+	}
+}
+
 func TestValidateArchiveWorktreeAllowsCommittedCloseoutOnlyDescendant(t *testing.T) {
 	root := t.TempDir()
 	initGit(t, root)

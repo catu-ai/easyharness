@@ -2338,12 +2338,20 @@ func TestReviewStartCommandAppendsTimelineEvent(t *testing.T) {
 		t.Fatalf("review start command failed with %d: %s", exitCode, stderr.String())
 	}
 
-	var payload map[string]any
+	var payload struct {
+		Command   string `json:"command"`
+		Artifacts struct {
+			ReviewedHeadSHA string `json:"reviewed_head_sha"`
+		} `json:"artifacts"`
+	}
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("expected JSON review start output: %v\n%s", err, stdout.String())
 	}
-	if payload["command"] != "review start" {
+	if payload.Command != "review start" {
 		t.Fatalf("unexpected payload: %#v", payload)
+	}
+	if payload.Artifacts.ReviewedHeadSHA != anchor {
+		t.Fatalf("expected CLI review start response to surface captured HEAD %s, got %#v", anchor, payload.Artifacts)
 	}
 
 	timelineResult := timeline.Service{Workdir: root}.Read()

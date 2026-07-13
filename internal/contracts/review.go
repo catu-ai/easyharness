@@ -535,6 +535,10 @@ type ReviewStartArtifacts struct {
 	// RoundID is the stable identifier for the review round.
 	RoundID string `json:"round_id"`
 
+	// ReviewedHeadSHA is the clean committed candidate boundary captured by the
+	// command and recorded in the review manifest.
+	ReviewedHeadSHA string `json:"reviewed_head_sha"`
+
 	// Assignments lists the materialized reviewer assignments created for the round.
 	Assignments []ReviewAssignment `json:"assignments"`
 }

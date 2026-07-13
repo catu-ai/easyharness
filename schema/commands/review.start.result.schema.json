@@ -169,6 +169,10 @@
           "type": "string",
           "description": "RoundID is the stable identifier for the review round."
         },
+        "reviewed_head_sha": {
+          "type": "string",
+          "description": "ReviewedHeadSHA is the clean committed candidate boundary captured by the command and recorded in the review manifest."
+        },
         "assignments": {
           "oneOf": [
             {
@@ -191,6 +195,7 @@
         "project_root",
         "plan_path",
         "round_id",
+        "reviewed_head_sha",
         "assignments"
       ],
       "description": "ReviewStartArtifacts lists the review artifacts created by `harness review start`."

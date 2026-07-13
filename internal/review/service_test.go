@@ -44,6 +44,20 @@ func TestStartCreatesRoundAndUpdatesState(t *testing.T) {
 	if result.Artifacts.RoundID != "review-001-delta" {
 		t.Fatalf("expected compact first round id, got %#v", result.Artifacts)
 	}
+	if result.Artifacts.ReviewedHeadSHA == "" {
+		t.Fatalf("expected start output to surface the command-captured candidate HEAD, got %#v", result.Artifacts)
+	}
+	var manifest review.Manifest
+	manifestBytes, err := os.ReadFile(reviewRoundFile(root, "2026-03-18-review-contract", result.Artifacts.RoundID, "manifest.json"))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatalf("parse manifest: %v", err)
+	}
+	if result.Artifacts.ReviewedHeadSHA != manifest.ReviewedHeadSHA {
+		t.Fatalf("expected start output and manifest to expose the same reviewed HEAD, artifacts=%#v manifest=%#v", result.Artifacts, manifest)
+	}
 	if _, err := os.Stat(reviewRoundFile(root, "2026-03-18-review-contract", result.Artifacts.RoundID, "manifest.json")); err != nil {
 		t.Fatalf("manifest missing: %v", err)
 	}
@@ -292,6 +306,90 @@ func TestStartDefaultFinalizeReviewDoesNotInventHistoricalStepReviewDebt(t *test
 	}))
 	if !result.OK || result.Artifacts == nil {
 		t.Fatalf("expected finalize review to start without historical step-review debt, got %#v", result)
+	}
+}
+
+func TestStartPreservesInFlightIntentionalStepReviewOwnership(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	svc := review.Service{Workdir: root}
+
+	active := svc.Start(mustJSON(t, review.Spec{
+		Kind: "full",
+		Assignments: []review.AssignmentSpec{{
+			Slot: "integrated", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Review step one.",
+		}},
+	}))
+	if !active.OK {
+		t.Fatalf("start active step review: %#v", active)
+	}
+
+	replacement := svc.Start(mustJSON(t, review.Spec{
+		Step: intPtr(2),
+		Kind: "full",
+		Assignments: []review.AssignmentSpec{{
+			Slot: "integrated", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Review step two.",
+		}},
+	}))
+	if replacement.OK {
+		t.Fatalf("expected a different step review to be rejected while %s is in flight, got %#v", active.Artifacts.RoundID, replacement)
+	}
+	assertStartError(t, replacement, "spec.step")
+
+	state, _, err := runstate.LoadState(root, "2026-03-18-review-contract")
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if state == nil || state.ActiveReviewRound == nil || state.ActiveReviewRound.RoundID != active.Artifacts.RoundID {
+		t.Fatalf("expected in-flight round to retain aggregation ownership, got %#v", state)
+	}
+}
+
+func TestStartFailedIntentionalStepReviewAllowsOnlySameStepRepairOrRerun(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	svc := review.Service{Workdir: root}
+
+	failed := svc.Start(mustJSON(t, review.Spec{
+		Kind: "full",
+		Assignments: []review.AssignmentSpec{{
+			Slot: "integrated", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Review step one.",
+		}},
+	}))
+	if !failed.OK {
+		t.Fatalf("start failed step review fixture: %#v", failed)
+	}
+	if submit := svc.Submit(failed.Artifacts.RoundID, "integrated", "reviewer-integrated", mustJSON(t, review.SubmissionInput{
+		Summary:  "Step one has a blocker.",
+		Findings: []review.Finding{{Area: "correctness", Severity: "important", Title: "Repair step one", Details: "Step one remains unsafe."}},
+	})); !submit.OK {
+		t.Fatalf("submit failed step review fixture: %#v", submit)
+	}
+	if aggregate := svc.Aggregate(failed.Artifacts.RoundID); !aggregate.OK || aggregate.Review.Decision != "changes_requested" {
+		t.Fatalf("aggregate failed step review fixture: %#v", aggregate)
+	}
+
+	differentStep := svc.Start(mustJSON(t, review.Spec{
+		Step: intPtr(2),
+		Kind: "full",
+		Assignments: []review.AssignmentSpec{{
+			Slot: "integrated", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Review step two.",
+		}},
+	}))
+	if differentStep.OK {
+		t.Fatalf("expected unresolved step one review to reject step two, got %#v", differentStep)
+	}
+	assertStartError(t, differentStep, "spec.step")
+
+	sameStep := svc.Start(mustJSON(t, review.Spec{
+		Step: intPtr(1),
+		Kind: "full",
+		Assignments: []review.AssignmentSpec{{
+			Slot: "integrated", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Rerun the repaired step one review.",
+		}},
+	}))
+	if !sameStep.OK {
+		t.Fatalf("expected same-step repair or rerun to supersede failed debt, got %#v", sameStep)
 	}
 }
 
@@ -1180,6 +1278,12 @@ func TestAggregateRepairRequiresExplicitResolutionForEveryReferencedFinding(t *t
 	if len(result.Review.ResolvedFindingIDs) != 1 || result.Review.ResolvedFindingIDs[0] != findingID || len(result.Review.UnresolvedFindingIDs) != 0 {
 		t.Fatalf("unexpected repair resolution summary: %#v", result.Review)
 	}
+	if !strings.HasPrefix(result.Summary, "Finalize repair review passed") {
+		t.Fatalf("expected passing finalize delta to use finalize-repair scope, got %q", result.Summary)
+	}
+	if len(result.NextAction) == 0 || !strings.Contains(result.NextAction[0].Description, "final CI and archive readiness") {
+		t.Fatalf("expected passing finalize delta to continue toward archive, got %#v", result.NextAction)
+	}
 }
 
 func TestAggregateRepairStaysNonCleanWhenReferencedFindingIsNotResolved(t *testing.T) {
@@ -1216,6 +1320,12 @@ func TestAggregateRepairStaysNonCleanWhenReferencedFindingIsNotResolved(t *testi
 	}
 	if len(result.Review.UnresolvedFindingIDs) != 1 || result.Review.UnresolvedFindingIDs[0] != findingID {
 		t.Fatalf("expected referenced finding to remain unresolved, got %#v", result.Review)
+	}
+	if !strings.Contains(result.Summary, "1 unresolved blocking") {
+		t.Fatalf("expected aggregate summary to count inherited unresolved blockers, got %q", result.Summary)
+	}
+	if len(result.NextAction) == 0 || !strings.Contains(result.NextAction[0].Description, "linked repair delta") {
+		t.Fatalf("expected unresolved finalize repair to remain finalize-scoped, got %#v", result.NextAction)
 	}
 }
 
@@ -1593,8 +1703,36 @@ func TestAggregateFullWithBlockingFindings(t *testing.T) {
 	if state == nil || state.ActiveReviewRound == nil || state.ActiveReviewRound.Decision != "changes_requested" {
 		t.Fatalf("expected failing decision in state, got %#v", state)
 	}
-	if len(result.NextAction) == 0 || !strings.Contains(result.NextAction[0].Description, "Fix the blocking findings before archive") {
+	if len(result.NextAction) == 0 || !strings.Contains(result.NextAction[0].Description, "linked repair delta") {
 		t.Fatalf("unexpected next actions: %#v", result.NextAction)
+	}
+}
+
+func TestAggregateStepBoundFullUsesStepWorkflowScope(t *testing.T) {
+	root := t.TempDir()
+	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	svc := review.Service{Workdir: root}
+	start := svc.Start(mustJSON(t, review.Spec{
+		Kind: "full",
+		Assignments: []review.AssignmentSpec{{
+			Slot: "integrated", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Review the intentional step boundary.",
+		}},
+	}))
+	if !start.OK {
+		t.Fatalf("start step review: %#v", start)
+	}
+	if submit := svc.Submit(start.Artifacts.RoundID, "integrated", "reviewer-integrated", mustJSON(t, review.SubmissionInput{Summary: "Step boundary is clean."})); !submit.OK {
+		t.Fatalf("submit step review: %#v", submit)
+	}
+	result := svc.Aggregate(start.Artifacts.RoundID)
+	if !result.OK || result.Review == nil || result.Review.Decision != "pass" {
+		t.Fatalf("aggregate step review: %#v", result)
+	}
+	if !strings.HasPrefix(result.Summary, "Step 1 review passed") {
+		t.Fatalf("expected full step review to use step scope, got %q", result.Summary)
+	}
+	if len(result.NextAction) == 0 || !strings.Contains(result.NextAction[0].Description, "Continue the current step") {
+		t.Fatalf("expected full step review to continue the step workflow, got %#v", result.NextAction)
 	}
 }
 
