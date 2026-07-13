@@ -637,6 +637,10 @@ Contract:
 - accept the review spec via a structured input such as `--spec <path>` or
   stdin
 - validate and persist the supplied review spec as CLI-owned round metadata
+- require a Git-backed candidate with a committed `HEAD` and a clean worktree,
+  then capture that immutable commit as `reviewed_head_sha`; ignored
+  command-owned runtime artifacts do not make the candidate dirty, while any
+  tracked or non-ignored candidate change does
 - normalize explicit reviewer assignments into deterministic reviewer slots;
   one assignment may carry several guidance dimensions
 - reserve reviewer output paths
@@ -753,6 +757,15 @@ Review-spec semantics:
   - required for `delta`
   - for `delta`, carries the controller-chosen git commit anchor so the
     persisted round metadata records the review starting point durably
+- `repair`
+  - omitted for a `full` round and for a step-bound review
+  - required for a finalize `delta`
+  - identifies the current finalize coverage tip in `round_id`
+  - carries the parent finding IDs that this delta is responsible for resolving
+    in `finding_ids`; the list may be empty only when the controller elects to
+    verify a narrow non-blocking repair after an otherwise passing parent
+  - for a repair delta, `anchor_sha` must resolve to the parent's captured
+    `reviewed_head_sha`, and the new reviewed head must descend from it
 - `review_title`
   - optional
   - human-readable review title shown back to the controller and reviewers
@@ -979,12 +992,20 @@ Contract:
   for the executing plan; in the v0.1 single-active-round model, `review
   aggregate` is not a historical backfill or repair command for older rounds
 - collect reviewer artifacts
+- recapture the clean committed candidate before aggregation and reject the
+  round if current `HEAD` differs from the manifest's `reviewed_head_sha`
 - compute blocking and non-blocking findings
 - stop with an error when expected reviewer slots are missing or invalid
 - ignore preserved extra top-level reviewer worklog fields when computing the
   decision surface
 - write persisted review decision data that captures the review decision surface and
   preserves any finding `locations` verbatim
+- for a repair delta, carry the parent's unresolved blocking findings forward,
+  apply explicit reviewer-owned resolutions, add new blocking findings from the
+  delta, and persist the cumulative unresolved set; a finding cannot disappear
+  merely because the latest reviewer did not repeat it
+- after a finalize aggregate, resolve the full-plus-delta chain and update the
+  compact `finalize_coverage` state only from validated artifacts
 - when mutating both review artifacts and local state, acquire the review
   mutation lock before the state mutation lock instead of inventing a separate
   acquisition order for this command
@@ -1140,11 +1161,17 @@ Contract:
 - if the plan still contains `## Deferred Items`, require
   `## Outcome Summary > Follow-Up Issues` to be something other than `NONE`
   before allowing archive to succeed
-- reject archive when plan-local state still shows unresolved finalize review
-  or archive-closeout blockers for the current candidate
-- require plan-local review state to retain the latest review decision, or
-  recover it from the latest persisted review decision data for older local
-  state, so archive can distinguish a failed aggregated review from a passing one
+- reject archive unless finalize coverage resolves to a continuous chain rooted
+  in a full round, followed only by directly linked repair deltas whose anchors,
+  reviewed heads, revisions, findings, and ancestry are consistent
+- reject archive when the coverage tip has unresolved blocking findings, does
+  not cover the current revision, or does not cover every candidate-affecting
+  change
+- allow post-review edits only inside the current plan's `Validation Summary`,
+  `Review Summary`, `Archive Summary`, and `Outcome Summary` bodies; reject
+  plan structure changes, supplements, product code, specifications, tests,
+  unrelated documentation, and non-ignored untracked files after the covered
+  head
 - require the pre-archive `Archive Summary` to include structured `PR`,
   `Ready`, and `Merge Handoff` lines
 - move the plan from its active path to its archived path:
@@ -1349,16 +1376,13 @@ means using `spawn_agent` rather than trying to do reviewer work in the main
 agent thread. The reviewer skill or reviewer prompt should own the details of
 calling `harness review submit`.
 
-Codex should still default to closing reviewer agents after each verified
-submission. If a later narrow follow-up round keeps the same slot and
-materially the same instructions for the same tracked step or the same
-finalize review scope in the same revision, the controller may reopen that
-previously closed reviewer with `resume_agent` instead of spawning fresh.
-Moving to a different tracked step, moving from step review to finalize
-review, changing the review scope because of reopen or a new revision, broad
-follow-up, changed slot ownership, invalid earlier submissions, or any
-situation where a clean reread is safer should stay on fresh `spawn_agent`
-reviewer threads.
+In current Codex collaboration, a completed reviewer remains available but
+needs no close operation. A later narrow repair with materially the same slot,
+role, risk brief, and instructions may trigger that idle reviewer with
+`followup_task`; broader or changed scope should use a fresh `spawn_agent`.
+Controllers wait for mailbox updates with `wait_agent` and inspect agent state
+with `list_agents`; neither review artifacts nor this CLI contract invent a
+runtime-specific resume/close protocol.
 
 The CLI only owns deterministic local contracts:
 

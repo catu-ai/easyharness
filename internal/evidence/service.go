@@ -728,6 +728,10 @@ func cloneState(state *runstate.State) *runstate.State {
 		round := *state.ActiveReviewRound
 		cloned.ActiveReviewRound = &round
 	}
+	if state.FinalizeCoverage != nil {
+		coverage := *state.FinalizeCoverage
+		cloned.FinalizeCoverage = &coverage
+	}
 	if state.Reopen != nil {
 		reopen := *state.Reopen
 		cloned.Reopen = &reopen

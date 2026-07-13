@@ -31,8 +31,23 @@ type LocalStateFile struct {
 	// flight.
 	ActiveReviewRound *ReviewRoundState `json:"active_review_round,omitempty"`
 
+	// FinalizeCoverage records the latest command-validated finalize review
+	// coverage tip. Unlike ActiveReviewRound, it survives reopen so a narrow
+	// later revision can extend the archived candidate with a linked delta.
+	FinalizeCoverage *FinalizeCoverageState `json:"finalize_coverage,omitempty"`
+
 	// Land records the current land state when merge cleanup is in flight.
 	Land *LandState `json:"land,omitempty"`
+}
+
+// FinalizeCoverageState is a compact cache of the durable review coverage
+// chain stored in review manifests and aggregates.
+type FinalizeCoverageState struct {
+	RootRoundID             string `json:"root_round_id"`
+	TipRoundID              string `json:"tip_round_id"`
+	CoveredHeadSHA          string `json:"covered_head_sha"`
+	Revision                int    `json:"revision"`
+	UnresolvedBlockingCount int    `json:"unresolved_blocking_count"`
 }
 
 // ReopenState records the active reopen repair state.

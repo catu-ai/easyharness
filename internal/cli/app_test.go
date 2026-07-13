@@ -2328,10 +2328,11 @@ func TestReviewStartCommandAppendsTimelineEvent(t *testing.T) {
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
+	anchor := commitCLICandidate(t, root, "review candidate")
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","assignments":[{"slot":"integrated","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","assignments":[{"slot":"integrated","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	exitCode := app.Run([]string{"review", "start"})
 	if exitCode != 0 {
 		t.Fatalf("review start command failed with %d: %s", exitCode, stderr.String())
@@ -2376,6 +2377,7 @@ func TestReviewCommandsTouchWatchlist(t *testing.T) {
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
+	anchor = commitCLICandidate(t, root, "review candidate")
 	if err := os.Remove(watchlistPathForHome(home)); err != nil && !os.IsNotExist(err) {
 		t.Fatalf("remove watchlist after execute start: %v", err)
 	}
@@ -2519,6 +2521,7 @@ func TestReviewAggregateIgnoresWatchlistWriteFailure(t *testing.T) {
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
+	anchor = commitCLICandidate(t, root, "review candidate")
 
 	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
@@ -2605,10 +2608,11 @@ func TestReviewSubmitCommandAppendsTimelineEvent(t *testing.T) {
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
+	anchor := commitCLICandidate(t, root, "review candidate")
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -2641,10 +2645,11 @@ func TestReviewSubmitCommandDoesNotFailWhenStateMutationLockIsHeld(t *testing.T)
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
+	anchor := commitCLICandidate(t, root, "review candidate")
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -2681,10 +2686,11 @@ func TestReviewSubmitCommandReturnsSchemaValidationErrors(t *testing.T) {
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
+	anchor := commitCLICandidate(t, root, "review candidate")
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -2731,10 +2737,11 @@ func TestReviewAggregateCommandAppendsTimelineEvent(t *testing.T) {
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
+	anchor := commitCLICandidate(t, root, "review candidate")
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -2773,10 +2780,11 @@ func TestReviewSubmitRollsBackWhenTimelineAppendFails(t *testing.T) {
 	if exitCode := app.Run([]string{"execute", "start"}); exitCode != 0 {
 		t.Fatalf("execute start failed with %d: %s", exitCode, stderr.String())
 	}
+	anchor := commitCLICandidate(t, root, "review candidate")
 
 	stdout.Reset()
 	stderr.Reset()
-	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"anchor-sha","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
+	app.Stdin = bytes.NewBufferString(`{"kind":"delta","anchor_sha":"` + anchor + `","assignments":[{"slot":"correctness","role":"integrated","dimensions":["correctness"],"instructions":"Check the status and contracts."}]}`)
 	if exitCode := app.Run([]string{"review", "start"}); exitCode != 0 {
 		t.Fatalf("review start failed with %d: %s", exitCode, stderr.String())
 	}
@@ -2853,6 +2861,7 @@ func TestArchiveCommandAppendsTimelineEvent(t *testing.T) {
 
 	relPlanPath := "docs/plans/active/2026-03-18-archive-ready.md"
 	writeArchiveReadyPlanForCLI(t, root, relPlanPath)
+	reviewedHead := commitCLICandidate(t, root, "archive candidate")
 	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
 		t.Fatalf("save current plan: %v", err)
 	}
@@ -2866,10 +2875,17 @@ func TestArchiveCommandAppendsTimelineEvent(t *testing.T) {
 			Aggregated: true,
 			Decision:   "pass",
 		},
+		FinalizeCoverage: &runstate.FinalizeCoverage{
+			RootRoundID:             "review-001-full",
+			TipRoundID:              "review-001-full",
+			CoveredHeadSHA:          reviewedHead,
+			Revision:                1,
+			UnresolvedBlockingCount: 0,
+		},
 	}); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
-	seedPassingFinalizeReviewForCLI(t, root, "2026-03-18-archive-ready", relPlanPath, "review-001-full")
+	seedPassingFinalizeReviewForCLI(t, root, "2026-03-18-archive-ready", relPlanPath, "review-001-full", reviewedHead)
 
 	if exitCode := app.Run([]string{"archive"}); exitCode != 0 {
 		t.Fatalf("archive failed with %d: %s", exitCode, stderr.String())
@@ -3420,7 +3436,7 @@ func writeArchiveReadyPlanForCLI(t *testing.T, root, relPath string) string {
 	return path
 }
 
-func seedPassingFinalizeReviewForCLI(t *testing.T, root, planStem, relPlanPath, roundID string) {
+func seedPassingFinalizeReviewForCLI(t *testing.T, root, planStem, relPlanPath, roundID, reviewedHead string) {
 	t.Helper()
 	reviewDir := filepath.Join(root, ".local/harness/plans", planStem, "reviews", roundID)
 	if err := os.MkdirAll(reviewDir, 0o755); err != nil {
@@ -3429,6 +3445,7 @@ func seedPassingFinalizeReviewForCLI(t *testing.T, root, planStem, relPlanPath, 
 	manifest := `{
   "round_id": "` + roundID + `",
   "kind": "full",
+  "reviewed_head_sha": "` + reviewedHead + `",
   "revision": 1,
   "review_title": "Full branch candidate before archive",
   "plan_path": "` + relPlanPath + `",
@@ -3440,11 +3457,15 @@ func seedPassingFinalizeReviewForCLI(t *testing.T, root, planStem, relPlanPath, 
 	aggregate := `{
   "round_id": "` + roundID + `",
   "kind": "full",
+  "reviewed_head_sha": "` + reviewedHead + `",
   "revision": 1,
   "review_title": "Full branch candidate before archive",
   "decision": "pass",
   "blocking_findings": [],
   "non_blocking_findings": [],
+  "resolved_finding_ids": [],
+  "unresolved_finding_ids": [],
+  "unresolved_blocking_findings": [],
   "aggregated_at": "2026-03-18T15:30:00Z"
 }`
 	if err := os.WriteFile(filepath.Join(reviewDir, "aggregate.json"), []byte(aggregate), 0o644); err != nil {
@@ -3659,6 +3680,21 @@ func initGitRepoWithCommit(t *testing.T, root string) string {
 	}
 	runGit(t, root, "add", ".")
 	runGit(t, root, "commit", "-m", "test fixture")
+	return runGit(t, root, "rev-parse", "HEAD")
+}
+
+func commitCLICandidate(t *testing.T, root, message string) string {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(root, ".git")); os.IsNotExist(err) {
+		seedGitWorkspace(t, root)
+	} else if err != nil {
+		t.Fatalf("stat git fixture: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".local/\n"), 0o644); err != nil {
+		t.Fatalf("write gitignore: %v", err)
+	}
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "--allow-empty", "-m", message)
 	return runGit(t, root, "rev-parse", "HEAD")
 }
 

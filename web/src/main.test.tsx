@@ -127,8 +127,15 @@ const reviewResult: ReviewResult = {
       round_id: "review-002-delta",
       kind: "delta",
       review_title: "Second review",
-      status: "passed",
-      status_summary: "Passed.",
+      status: "changes_requested",
+      status_summary: "One historical blocker remains unresolved.",
+      decision: "changes_requested",
+      reviewed_head_sha: "repair789head",
+      repairs_round_id: "review-001-full",
+      repair_finding_ids: ["review-001-full:tests:1"],
+      resolved_finding_ids: [],
+      unresolved_finding_ids: ["review-001-full:tests:1"],
+      coverage_status: "blocked",
       total_assignments: 1,
       submitted_assignments: 1,
       pending_assignments: 0,
@@ -139,6 +146,15 @@ const reviewResult: ReviewResult = {
         status: "submitted",
         summary: "Looks good.",
       }],
+      blocking_findings: [{
+        finding_id: "review-001-full:tests:1",
+        slot: "integrated",
+        role: "integrated",
+        area: "coverage-chain",
+        severity: "important",
+        title: "Historical blocker",
+        details: "This blocker originated in the parent full review.",
+      }],
       artifacts: [{ label: "submission", path: ".local/review/submission.json", content_type: "json", content: { ok: true } }],
     },
     {
@@ -148,6 +164,9 @@ const reviewResult: ReviewResult = {
       status: "passed",
       status_summary: "Passed.",
       reviewed_head_sha: "abc123def456",
+      resolved_finding_ids: ["review-000-full:ui:1"],
+      unresolved_finding_ids: [],
+      coverage_status: "clean",
       total_assignments: 1,
       submitted_assignments: 1,
       pending_assignments: 0,
@@ -421,6 +440,19 @@ describe("workbench page state continuity", () => {
     expect(screen.getByText("Finding resolutions")).toBeTruthy();
     expect(screen.getByText("review-000-full:ui:1")).toBeTruthy();
     expect(screen.getByText("abc123def456")).toBeTruthy();
+  });
+
+  test("renders cumulative repair coverage instead of only delta-local findings", async () => {
+    window.history.pushState({}, "", "/workspace/wk_alpha/review");
+    render(<App />);
+
+    await waitFor(() => expect(activeExplorerTitleText()).toBe("Second review"));
+    expect(screen.getByText("repair789head")).toBeTruthy();
+    expect(screen.getByText("review-001-full")).toBeTruthy();
+    expect(screen.getByText("Targets: review-001-full:tests:1")).toBeTruthy();
+    expect(screen.getByText("Historical blocker")).toBeTruthy();
+    expect(screen.getByText("review-001-full:tests:1")).toBeTruthy();
+    expect(screen.getByText("Still unresolved").nextElementSibling?.textContent).toBe("1");
   });
 
   afterEach(() => {

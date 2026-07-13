@@ -143,7 +143,7 @@ NONE
 
 #### Validation
 
-- Run a clean delta review before advancing.
+- Advance without starting an optional step review.
 
 #### Execution Notes
 
@@ -172,7 +172,7 @@ evidence phase without extra tracked-plan editing.
 
 #### Validation
 
-- Run a clean delta review before finalize review.
+- Enter final review without routine step-review debt.
 
 #### Execution Notes
 

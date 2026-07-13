@@ -108,55 +108,56 @@ the plan-only closeout updates required after review.
 
 ## Acceptance Criteria
 
-- [ ] A tracked step can become complete and execution can advance without a
+- [x] A tracked step can become complete and execution can advance without a
       step review round or `NO_STEP_REVIEW_NEEDED`; no earlier-step review debt
       blocks finalize or archive when no step review was intentionally started.
-- [ ] An intentionally started step review remains binding until aggregated;
+- [x] An intentionally started step review remains binding until aggregated;
       its blocking findings must be resolved before that step advances.
-- [ ] Finalize review defaults to one integrated reviewer assignment that may
+- [x] Finalize review defaults to one integrated reviewer assignment that may
       carry several review dimensions, and a specialist assignment requires a
       recorded concrete risk surface and invariants rather than plan size alone.
-- [ ] Integrated and specialist reviewers share the common submission,
+- [x] Integrated and specialist reviewers share the common submission,
       severity, evidence, and no-edit contract while receiving distinct role
       instructions; integrated review remains whole-candidate and specialist
       review remains a bounded adversarial challenge.
-- [ ] A plan package may carry additive plan-scoped review guidance that is
+- [x] A plan package may carry additive plan-scoped review guidance that is
       discoverable when the plan is active, archived, or reopened and can be
       assigned to either an integrated reviewer or a specialist.
-- [ ] Plan-scoped guidance does not override the base reviewer contract or
+- [x] Plan-scoped guidance does not override the base reviewer contract or
       automatically create reviewer assignments.
-- [ ] `review start` captures the current candidate head in the round manifest,
+- [x] `review start` captures the current candidate head in the round manifest,
       rejects a dirty candidate worktree, and a later aggregate rejects a round
       whose candidate HEAD moved after start.
-- [ ] A finalize repair delta records which prior finalize round it repairs,
+- [x] A finalize repair delta records which prior finalize round it repairs,
       requires its git base to equal the prior covered head, captures its new
       reviewed head, and reports whether referenced blocking findings were
       resolved.
-- [ ] Archive accepts a continuous chain rooted in a full finalize review and
+- [x] Archive accepts a continuous chain rooted in a full finalize review and
       extended by clean repair deltas, including a full round that originally
       requested changes whose findings were later resolved by delta.
-- [ ] Archive rejects missing full roots, broken or ambiguous delta links,
+- [x] Archive rejects missing full roots, broken or ambiguous delta links,
       unresolved blocking findings, failed or unaggregated rounds, and product
       changes after the latest covered head.
-- [ ] Plan-only closeout summaries and the command-owned active-to-archived plan
+- [x] Plan-only closeout summaries and the command-owned active-to-archived plan
       move can occur after review without requiring a metadata-only review;
       the exemption is narrow and has regression coverage.
-- [ ] Non-blocking findings remain visible in aggregate, status, UI, and archive
+- [x] Non-blocking findings remain visible in aggregate, status, UI, and archive
       summaries but do not force repair or another review round.
-- [ ] Reopened narrow revisions can extend prior archived coverage with delta,
+- [x] Reopened narrow revisions can extend prior archived coverage with delta,
       while a controller can establish a new full root for materially broader
       changes.
-- [ ] Review specs, manifests, submissions, aggregates, status payloads, UI
+- [x] Review specs, manifests, submissions, aggregates, status payloads, UI
       resources, schemas, CLI help, and normative docs consistently describe
       reviewer assignments and composable coverage rather than one agent per
       dimension or latest-round-only archive readiness.
-- [ ] Managed Codex instructions use only the current collaboration concepts and
+- [x] Managed Codex instructions use only the current collaboration concepts and
       tool names/parameters described in scope, and no longer require a separate
       harness-run subagent authorization prompt.
-- [ ] Bootstrap assets are synchronized into `.agents/skills` and the managed
+- [x] Bootstrap assets are synchronized into `.agents/skills` and the managed
       root `AGENTS.md` block.
-- [ ] Focused package tests, lifecycle/review E2E coverage, schema and docs
-      validation, UI tests/build, `git diff --check`, and `tools/check` pass.
+- [x] Focused package tests, lifecycle/review E2E coverage, schema and docs
+      validation, UI tests/build, `git diff --check`, and `scripts/validate`
+      pass.
 
 ## Deferred Items
 
@@ -232,9 +233,8 @@ runtime behavior update in Step 3.
 
 #### Review Notes
 
-NO_STEP_REVIEW_NEEDED: This approved Review v2 dogfood plan intentionally
-defers formal review to the final candidate; this marker exists only to let the
-pre-cutover harness runtime advance.
+No formal step review ran. This approved Review v2 dogfood plan defers formal
+review to the final candidate.
 
 ### Step 2: Cut review specs and plan-scoped guidance over to assignments
 
@@ -308,13 +308,12 @@ passed, along with plan lint and `git diff --check`.
 
 #### Review Notes
 
-NO_STEP_REVIEW_NEEDED: This approved Review v2 dogfood plan intentionally
-defers formal review to the final candidate; this marker exists only to let the
-pre-cutover harness runtime advance.
+No formal step review ran. This approved Review v2 dogfood plan defers formal
+review to the final candidate.
 
 ### Step 3: Implement git-bound composable finalize coverage
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -362,15 +361,39 @@ may start a new full root.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Added command-captured `reviewed_head_sha`, clean committed-candidate checks at
+review start and immediately before aggregate persistence, explicit finalize
+repair links, cumulative blocking-finding resolution, and a durable
+full-plus-delta coverage resolver. Local state caches the validated finalize
+root/tip/head without replacing the manifest and aggregate source of truth.
+Archive now accepts a continuous passing repair chain, preserves coverage
+across narrow reopen revisions, rejects unreviewed product or supplement
+changes, and permits only the four current-plan closeout bodies after review.
+
+Removed routine step-closeout debt from review start, status, and archive.
+Steps advance without review artifacts or magic markers; an intentionally
+started step review remains binding until its blocking findings are resolved.
+Removed the now-unused `internal/stepcloseout` implementation. Added stable
+finding IDs, explicit repair resolutions, cumulative blocker display, coverage
+status in the review UI, Git-aware unit fixtures, and adversarial resolver
+checks for malformed anchors, targets, duplicate repair IDs, inherited-ID
+collisions, and altered finding data.
+
+Focused review, coverage, lifecycle, status, CLI, review UI, UI server, and
+resilience suites pass. The full E2E suite passed with dirty start/aggregate,
+moved HEAD, full-to-delta archive, optional minor repair, closeout exemption,
+and narrow reopen coverage.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+No formal step review ran. Independent controller audit found and prompted
+repairs for unknown or duplicate repair targets and a parent-finding ID
+collision that could rewrite inherited finding data; regressions now reject
+each malformed durable chain. Formal review remains deferred to finalize.
 
 ### Step 4: Update managed agent workflow for integrated review and current Codex
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -418,15 +441,28 @@ runtime-neutral.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Updated bootstrap-source managed instructions for finalize-first orchestration,
+one integrated reviewer by default, concrete-risk specialists, shared base plus
+role overlays, and linked repair delta closeout. The Codex adapter now describes
+`spawn_agent` with `fork_turns`, `followup_task`, non-triggering
+`send_message`, mailbox-oriented `wait_agent`, `list_agents`, and
+`interrupt_agent`; it removes per-run authorization prompts and nonexistent
+resume/close calls when applicable repository or skill guidance already
+authorizes bounded delegation.
+
+Ran `scripts/sync-bootstrap-assets` to refresh root `AGENTS.md` and the
+materialized `.agents/skills` pack. Sync/check, install, bootstrap smoke,
+stale-tool scans, prompt assertions, and focused review package tests pass.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+No formal step review ran. Managed-source/materialized drift and current-tool
+assertions are covered mechanically; formal integrated and specialist review
+remains deferred to the complete candidate.
 
 ### Step 5: Complete cross-surface validation and dogfood final-only review
 
-- Done: [ ]
+- Done: [x]
 
 #### Objective
 
@@ -462,7 +498,7 @@ changes. The integrated reviewer remains responsible for the entire candidate.
 
 - The repository's focused Go, E2E, schema, documentation, bootstrap, UI, and
   build checks pass.
-- `tools/check` and `git diff --check` pass from a clean worktree.
+- `scripts/validate` and `git diff --check` pass from a clean worktree.
 - No formal step review round exists for this plan.
 - Finalize review uses exactly one integrated reviewer and one
   `review-state-and-coverage` specialist unless the approved scope materially
@@ -473,11 +509,26 @@ changes. The integrated reviewer remains responsible for the entire candidate.
 
 #### Execution Notes
 
-PENDING_STEP_EXECUTION
+Completed the breaking cross-surface cutover across CLI inputs/results,
+lifecycle and status resolution, review UI resources, generated schemas,
+managed assets, smoke fixtures, and real E2E execution. Removed legacy
+dimension-per-slot fixtures and mandatory step-review-debt expectations instead
+of adding compatibility adapters. Review UI and Playwright fixtures now expose
+assignment roles, reviewed heads, repair parents, targeted/resolved/unresolved
+finding IDs, and cumulative coverage state.
+
+Validation passed with `scripts/validate` (embedded UI build plus all Go,
+release, E2E, resilience, smoke, and support tests), 35 web tests, TypeScript
+checking, bootstrap and contract drift checks, plan lint, Bash syntax checks for
+the Playwright smoke fixtures, and `git diff --check`. The E2E suite also passed
+uncached in 59 seconds. The repository has no `tools/check`; the plan was
+corrected to name its actual full validation entrypoint, `scripts/validate`.
 
 #### Review Notes
 
-PENDING_STEP_REVIEW
+No formal step review ran. The complete committed candidate will now receive
+the approved finalize topology: one integrated reviewer and one
+`review-state-and-coverage` specialist.
 
 ## Validation Strategy
 
@@ -498,7 +549,7 @@ PENDING_STEP_REVIEW
 - For narrow findings, repair, validate, commit, and run a linked repair delta
   with only the reviewer assignments needed to close the affected risk. Do not
   rerun full merely because a delta became the latest round.
-- Run `tools/check` before finalize review and again after any behavior-changing
+- Run `scripts/validate` before finalize review and again after any behavior-changing
   repair.
 
 ## Risks

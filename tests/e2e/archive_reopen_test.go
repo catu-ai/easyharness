@@ -66,6 +66,31 @@ func TestArchiveReopenFinalizeFixWithBuiltBinary(t *testing.T) {
 	if current.PlanPath != planRelPath {
 		t.Fatalf("expected current plan pointer %q after finalize-fix reopen, got %#v", planRelPath, current)
 	}
+
+	statePath := workspace.Path(".local/harness/plans/2026-03-23-archive-reopen-finalize-fix/state.json")
+	state := support.ReadJSONFile[runState](t, statePath)
+	if state.FinalizeCoverage.TipRoundID == "" || state.FinalizeCoverage.CoveredHeadSHA == "" || state.FinalizeCoverage.Revision != 1 {
+		t.Fatalf("expected reopen to preserve prior finalize coverage, got %#v", state.FinalizeCoverage)
+	}
+
+	workspace.WriteFile(t, "candidate/reopened-narrow-fix.txt", []byte("narrow revision-two repair\n"))
+	start := startReviewRound(t, workspace, "tmp/reopened-narrow-delta.json", map[string]any{
+		"kind":       "delta",
+		"anchor_sha": state.FinalizeCoverage.CoveredHeadSHA,
+		"repair": map[string]any{
+			"round_id":    state.FinalizeCoverage.TipRoundID,
+			"finding_ids": []string{},
+		},
+		"assignments": []map[string]any{
+			integratedAssignment("integrated", "Review only the narrow revision-two repair.", "correctness", "tests"),
+		},
+	})
+	submitReviewSlot(t, workspace, start.Artifacts.RoundID, start.Artifacts.Slots[0], "The reopened narrow delta is clean.", nil)
+	aggregate := aggregateReviewRound(t, workspace, start.Artifacts.RoundID)
+	if aggregate.Review.Decision != "pass" {
+		t.Fatalf("expected reopened narrow delta to extend prior full coverage, got %#v", aggregate)
+	}
+	assertNode(t, runStatus(t, workspace.Root), "execution/finalize/archive")
 }
 
 func archiveReopenPlanBody() string {
@@ -118,7 +143,7 @@ NONE
 
 #### Validation
 
-- Run a clean delta review before advancing.
+- Advance without starting an optional step review.
 
 #### Execution Notes
 
@@ -146,7 +171,7 @@ Archive-ready top-level summaries are prefilled so the scenario can reach archiv
 
 #### Validation
 
-- Run a clean delta review before finalize review.
+- Enter final review without routine step-review debt.
 
 #### Execution Notes
 

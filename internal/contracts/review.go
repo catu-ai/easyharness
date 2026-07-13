@@ -29,7 +29,7 @@ type ReviewSpec struct {
 // ReviewRepairReference identifies the findings targeted by a repair delta.
 type ReviewRepairReference struct {
 	RoundID    string   `json:"round_id"`
-	FindingIDs []string `json:"finding_ids" jsonschema:"minItems=1" easyharness:"no_null"`
+	FindingIDs []string `json:"finding_ids" jsonschema:"minItems=0" easyharness:"no_null"`
 }
 
 // ReviewAssignmentSpec is one controller-selected reviewer assignment.
@@ -69,6 +69,10 @@ type ReviewManifest struct {
 	// AnchorSHA is the controller-chosen git commit anchor recorded for delta
 	// review when the round uses one.
 	AnchorSHA string `json:"anchor_sha,omitempty"`
+
+	// ReviewedHeadSHA is the command-captured immutable candidate head reviewed
+	// by this round.
+	ReviewedHeadSHA string `json:"reviewed_head_sha"`
 
 	// Step is the tracked plan step number when the round is step-scoped.
 	Step *int `json:"step,omitempty"`
@@ -243,6 +247,10 @@ type ReviewAggregate struct {
 	// ReviewTitle is the human-readable title for the round when one exists.
 	ReviewTitle string `json:"review_title,omitempty"`
 
+	// ReviewedHeadSHA repeats the manifest candidate boundary accepted at
+	// aggregation time.
+	ReviewedHeadSHA string `json:"reviewed_head_sha"`
+
 	Repair *ReviewRepairReference `json:"repair,omitempty"`
 
 	// Decision is the aggregate review decision for the round.
@@ -258,6 +266,10 @@ type ReviewAggregate struct {
 	ResolvedFindingIDs []string `json:"resolved_finding_ids" easyharness:"no_null"`
 
 	UnresolvedFindingIDs []string `json:"unresolved_finding_ids" easyharness:"no_null"`
+
+	// UnresolvedBlockingFindings is the cumulative blocking set at this chain
+	// tip, including inherited findings not resolved by this round.
+	UnresolvedBlockingFindings []ReviewAggregateFinding `json:"unresolved_blocking_findings" easyharness:"no_null"`
 
 	// AggregatedAt is the aggregate timestamp.
 	AggregatedAt string `json:"aggregated_at"`

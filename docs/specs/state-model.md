@@ -162,9 +162,11 @@ Agents and scripts should resolve these roots with
 
 - worktree-level current-plan and last-landed context
 - execute-start milestones
-- review round metadata, submission-tracking data, reviewer submissions, and
-  persisted review decisions, including optional reviewer-provided finding
-  locations preserved in submission and decision artifacts
+- review round metadata, including the command-captured `reviewed_head_sha`,
+  submission-tracking data, reviewer submissions, persisted review decisions,
+  and continuous full-plus-repair-delta finalize coverage; optional
+  reviewer-provided finding locations remain preserved in submission and
+  decision artifacts
 - append-only timeline event indexes under the local runtime root resolved by
   `harness repo config get paths.local_runtime`, defaulting to
   `.local/harness/plans/<plan-stem>/events.jsonl`
@@ -229,8 +231,19 @@ inputs that do not already live in a more specific artifact:
 - `execution_started_at`
 - `revision`
 - `active_review_round`
+- `finalize_coverage`
 - `reopen`
 - `land`
+
+`active_review_round` is the mutable orchestration pointer for the round that
+is currently in flight or most recently aggregated. It is not, by itself, the
+archive verdict. `finalize_coverage` is a compact command-validated cache of a
+durable coverage chain: the full root round, current tip round, covered Git
+head, revision, and unresolved blocking count. The manifests and aggregates
+remain the source of truth, so archive must resolve and validate that chain
+rather than trusting the cache alone. Reopen preserves the prior coverage tip
+so a narrow later revision can extend it with a linked delta; a new full review
+may replace the root when broader work invalidates the earlier judgment.
 
 The mutation surfaces around those runtime artifacts stay split on purpose:
 

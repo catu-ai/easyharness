@@ -297,8 +297,10 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 	if manifest != nil {
 		round.Kind = manifest.Kind
 		round.AnchorSHA = manifest.AnchorSHA
+		round.ReviewedHeadSHA = manifest.ReviewedHeadSHA
 		if manifest.Repair != nil {
 			round.RepairsRoundID = manifest.Repair.RoundID
+			round.RepairFindingIDs = append([]string(nil), manifest.Repair.FindingIDs...)
 		}
 		round.Step = manifest.Step
 		round.Revision = manifest.Revision
@@ -326,8 +328,29 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 		}
 		round.AggregatedAt = aggregate.AggregatedAt
 		round.Decision = aggregate.Decision
-		round.BlockingFindings = aggregate.BlockingFindings
+		if round.ReviewedHeadSHA == "" {
+			round.ReviewedHeadSHA = aggregate.ReviewedHeadSHA
+		}
+		if round.RepairsRoundID == "" && aggregate.Repair != nil {
+			round.RepairsRoundID = aggregate.Repair.RoundID
+			round.RepairFindingIDs = append([]string(nil), aggregate.Repair.FindingIDs...)
+		}
+		if aggregate.UnresolvedBlockingFindings != nil {
+			round.BlockingFindings = aggregate.UnresolvedBlockingFindings
+		} else {
+			round.BlockingFindings = aggregate.BlockingFindings
+		}
 		round.NonBlockingFindings = aggregate.NonBlockingFindings
+		round.ResolvedFindingIDs = append([]string(nil), aggregate.ResolvedFindingIDs...)
+		round.UnresolvedFindingIDs = append([]string(nil), aggregate.UnresolvedFindingIDs...)
+		switch {
+		case len(round.UnresolvedFindingIDs) > 0 || len(round.BlockingFindings) > 0 || aggregate.Decision == "changes_requested":
+			round.CoverageStatus = "blocked"
+		case aggregate.Decision == "pass":
+			round.CoverageStatus = "clean"
+		default:
+			round.CoverageStatus = "pending"
+		}
 	}
 
 	reviewers, submissionArtifacts, reviewerWarnings := s.readReviewers(roundDir, manifest, ledger)
@@ -673,8 +696,11 @@ func resolveRoundStatus(round Round, manifestArtifact, ledgerArtifact, aggregate
 	if aggregateArtifact.Status == "available" && strings.TrimSpace(round.Decision) != "" {
 		switch round.Decision {
 		case "pass":
-			return "pass", "Aggregate review passed cleanly."
+			return "pass", "Aggregate review coverage passed cleanly."
 		case "changes_requested":
+			if len(round.UnresolvedFindingIDs) > 0 {
+				return "changes_requested", fmt.Sprintf("Aggregate review requested changes; %d blocking finding(s) remain unresolved in the coverage chain.", len(round.UnresolvedFindingIDs))
+			}
 			return "changes_requested", "Aggregate review requested changes."
 		default:
 			return "aggregated", fmt.Sprintf("Aggregate review decision: %s.", round.Decision)
@@ -1047,6 +1073,7 @@ func validateAggregateArtifact(aggregate *Aggregate) []string {
 	}
 	findings := append([]AggregateFinding(nil), aggregate.BlockingFindings...)
 	findings = append(findings, aggregate.NonBlockingFindings...)
+	findings = append(findings, aggregate.UnresolvedBlockingFindings...)
 	for index, finding := range findings {
 		prefix := fmt.Sprintf("findings[%d]", index)
 		if strings.TrimSpace(finding.FindingID) == "" {

@@ -44,9 +44,9 @@ func TestReopenNewStepWithBuiltBinary(t *testing.T) {
 	support.RequireSuccess(t, execute)
 	support.RequireNoStderr(t, execute)
 
-	runPassingDeltaReviewAndComplete(t, workspace, planPath, reopenStepOneTitle, 1)
-	runPassingDeltaReviewAndComplete(t, workspace, planPath, reopenStepTwoTitle, 2)
-	runPassingDeltaReviewAndComplete(t, workspace, planPath, reopenStepThreeTitle, 3)
+	for index, title := range []string{reopenStepOneTitle, reopenStepTwoTitle, reopenStepThreeTitle} {
+		support.CompleteStep(t, planPath, index+1, "Completed "+title+".", "No optional step review was started; final review covers the integrated candidate.")
+	}
 
 	support.CheckAllAcceptanceCriteria(t, planPath)
 
@@ -180,7 +180,7 @@ Keep the first three steps simple so the reopen behavior is the focus.
 
 #### Validation
 
-- Run a clean delta review before advancing.
+- Advance without starting an optional step review.
 
 #### Execution Notes
 
@@ -208,7 +208,7 @@ NONE
 
 #### Validation
 
-- Run a clean delta review before advancing.
+- Advance without starting an optional step review.
 
 #### Execution Notes
 
@@ -236,7 +236,7 @@ The initial candidate should archive cleanly before the reopen step begins.
 
 #### Validation
 
-- Run a clean delta review before entering finalize review.
+- Enter final review without routine step-review debt.
 
 #### Execution Notes
 

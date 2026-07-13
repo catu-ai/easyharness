@@ -61,7 +61,8 @@
           "items": {
             "$ref": "#/$defs/ReviewResolvedDimension"
           },
-          "type": "array"
+          "type": "array",
+          "minItems": 1
         },
         "instructions": {
           "type": "string"
@@ -93,7 +94,8 @@
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "minItems": 1
         },
         "description": {
           "type": "string"

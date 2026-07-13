@@ -32,14 +32,15 @@ func TestServiceReadSurfacesReviewerAssignments(t *testing.T) {
 
 	round := reviewRoundFixture{
 		Manifest: contracts.ReviewManifest{
-			RoundID:     "review-001-full",
-			Kind:        "full",
-			Revision:    1,
-			ReviewTitle: "Finalize candidate",
-			PlanPath:    relPlanPath,
-			PlanStem:    planStem,
-			CreatedAt:   "2026-07-13T10:00:00Z",
-			Assignments: []contracts.ReviewAssignment{integrated, specialist},
+			RoundID:         "review-001-full",
+			Kind:            "full",
+			ReviewedHeadSHA: "full-head-123",
+			Revision:        1,
+			ReviewTitle:     "Finalize candidate",
+			PlanPath:        relPlanPath,
+			PlanStem:        planStem,
+			CreatedAt:       "2026-07-13T10:00:00Z",
+			Assignments:     []contracts.ReviewAssignment{integrated, specialist},
 		},
 		Ledger: contracts.ReviewLedger{
 			RoundID:   "review-001-full",
@@ -73,6 +74,9 @@ func TestServiceReadSurfacesReviewerAssignments(t *testing.T) {
 	if got.Status != "waiting_for_submissions" || got.TotalAssignments != 2 || got.SubmittedAssignments != 1 || got.PendingAssignments != 1 {
 		t.Fatalf("expected assignment progress, got %#v", got)
 	}
+	if got.ReviewedHeadSHA != "full-head-123" {
+		t.Fatalf("expected manifest reviewed head, got %#v", got)
+	}
 	if len(got.Reviewers) != 2 {
 		t.Fatalf("expected two reviewer assignments, got %#v", got.Reviewers)
 	}
@@ -99,19 +103,20 @@ func TestServiceReadSurfacesFindingProvenanceAndRepairResolutions(t *testing.T) 
 	assignment := reviewAssignment(workdir, planStem, "review-002-delta", "integrated", "integrated", []contracts.ReviewResolvedDimension{
 		resolvedDimension("correctness", "builtin+plan", "Verify the targeted repair."),
 	})
-	repair := &contracts.ReviewRepairReference{RoundID: "review-001-full", FindingIDs: []string{"review-001-full:integrated:1"}}
+	repair := &contracts.ReviewRepairReference{RoundID: "review-001-full", FindingIDs: []string{"review-001-full:integrated:1", "review-001-full:specialist:1"}}
 	round := reviewRoundFixture{
 		Manifest: contracts.ReviewManifest{
-			RoundID:     "review-002-delta",
-			Kind:        "delta",
-			AnchorSHA:   "abc123",
-			Revision:    2,
-			ReviewTitle: "Repair review",
-			Repair:      repair,
-			PlanPath:    relPlanPath,
-			PlanStem:    planStem,
-			CreatedAt:   "2026-07-13T11:00:00Z",
-			Assignments: []contracts.ReviewAssignment{assignment},
+			RoundID:         "review-002-delta",
+			Kind:            "delta",
+			AnchorSHA:       "abc123",
+			ReviewedHeadSHA: "repair-head-456",
+			Revision:        2,
+			ReviewTitle:     "Repair review",
+			Repair:          repair,
+			PlanPath:        relPlanPath,
+			PlanStem:        planStem,
+			CreatedAt:       "2026-07-13T11:00:00Z",
+			Assignments:     []contracts.ReviewAssignment{assignment},
 		},
 		Ledger: contracts.ReviewLedger{
 			RoundID:   "review-002-delta",
@@ -122,25 +127,27 @@ func TestServiceReadSurfacesFindingProvenanceAndRepairResolutions(t *testing.T) 
 			},
 		},
 		Aggregate: &contracts.ReviewAggregate{
-			RoundID:      "review-002-delta",
-			Kind:         "delta",
-			Revision:     2,
-			ReviewTitle:  "Repair review",
-			Repair:       repair,
-			Decision:     "changes_requested",
-			AggregatedAt: "2026-07-13T11:06:00Z",
-			BlockingFindings: []contracts.ReviewAggregateFinding{{
-				FindingID: "review-002-delta:integrated:1",
-				Slot:      "integrated",
-				Role:      "integrated",
+			RoundID:          "review-002-delta",
+			Kind:             "delta",
+			ReviewedHeadSHA:  "repair-head-456",
+			Revision:         2,
+			ReviewTitle:      "Repair review",
+			Repair:           repair,
+			Decision:         "changes_requested",
+			AggregatedAt:     "2026-07-13T11:06:00Z",
+			BlockingFindings: []contracts.ReviewAggregateFinding{},
+			UnresolvedBlockingFindings: []contracts.ReviewAggregateFinding{{
+				FindingID: "review-001-full:specialist:1",
+				Slot:      "review-state",
+				Role:      "specialist",
 				Area:      "coverage-chain",
 				Severity:  "important",
-				Title:     "Repair chain is incomplete",
-				Details:   "The repair does not close all referenced findings.",
+				Title:     "Historical blocker remains",
+				Details:   "The repair leaves one parent finding unresolved.",
 			}},
 			NonBlockingFindings:  []contracts.ReviewAggregateFinding{},
 			ResolvedFindingIDs:   []string{"review-001-full:integrated:1"},
-			UnresolvedFindingIDs: []string{"review-002-delta:integrated:1"},
+			UnresolvedFindingIDs: []string{"review-001-full:specialist:1"},
 		},
 		Submissions: []contracts.ReviewSubmission{{
 			RoundID:     "review-002-delta",
@@ -153,29 +160,27 @@ func TestServiceReadSurfacesFindingProvenanceAndRepairResolutions(t *testing.T) 
 				Status:    "resolved",
 				Details:   "The targeted behavior now passes.",
 			}},
-			Findings: []contracts.ReviewFinding{{
-				Area:     "coverage-chain",
-				Severity: "important",
-				Title:    "Repair chain is incomplete",
-				Details:  "The repair does not close all referenced findings.",
-			}},
+			Findings: []contracts.ReviewFinding{},
 		}},
 	}
 	writeReviewRound(t, workdir, planStem, round)
 
 	result := Service{Workdir: workdir}.Read()
 	got := result.Rounds[0]
-	if got.RepairsRoundID != "review-001-full" || got.AnchorSHA != "abc123" {
+	if got.RepairsRoundID != "review-001-full" || got.AnchorSHA != "abc123" || got.ReviewedHeadSHA != "repair-head-456" || len(got.RepairFindingIDs) != 2 {
 		t.Fatalf("expected repair linkage, got %#v", got)
 	}
 	if len(got.Reviewers) != 1 || len(got.Reviewers[0].Resolutions) != 1 {
 		t.Fatalf("expected reviewer resolution, got %#v", got.Reviewers)
 	}
-	if len(got.BlockingFindings) != 1 {
-		t.Fatalf("expected blocking finding, got %#v", got.BlockingFindings)
+	if got.CoverageStatus != "blocked" || len(got.UnresolvedFindingIDs) != 1 || len(got.ResolvedFindingIDs) != 1 || len(got.BlockingFindings) != 1 {
+		t.Fatalf("expected cumulative blocked coverage, got %#v", got)
+	}
+	if !strings.Contains(got.StatusSummary, "1 blocking finding(s) remain unresolved") {
+		t.Fatalf("expected cumulative coverage status summary, got %q", got.StatusSummary)
 	}
 	finding := got.BlockingFindings[0]
-	if finding.FindingID != "review-002-delta:integrated:1" || finding.Slot != "integrated" || finding.Role != "integrated" || finding.Area != "coverage-chain" {
+	if finding.FindingID != "review-001-full:specialist:1" || finding.Slot != "review-state" || finding.Role != "specialist" || finding.Area != "coverage-chain" {
 		t.Fatalf("expected stable finding provenance, got %#v", finding)
 	}
 }
@@ -472,6 +477,31 @@ func TestServiceReadReturnsEmptyWithoutReviewRounds(t *testing.T) {
 	result := Service{Workdir: workdir}.Read()
 	if !result.OK || len(result.Rounds) != 0 || !strings.Contains(result.Summary, "No review rounds") {
 		t.Fatalf("expected an empty readable review resource, got %#v", result)
+	}
+}
+
+func TestServiceReadFallsBackToAggregateCoverageMetadata(t *testing.T) {
+	workdir := t.TempDir()
+	relPlanPath, planStem := seedActivePlan(t, workdir, "2026-07-13-review-aggregate-fallback.md", "Aggregate fallback")
+	saveReviewState(t, workdir, planStem, 2, "review-002-delta")
+	assignment := reviewAssignment(workdir, planStem, "review-002-delta", "integrated", "integrated", []contracts.ReviewResolvedDimension{
+		resolvedDimension("correctness", "builtin", "Check behavior."),
+	})
+	repair := &contracts.ReviewRepairReference{RoundID: "review-001-full", FindingIDs: []string{"finding-1"}}
+	writeReviewRound(t, workdir, planStem, reviewRoundFixture{
+		Manifest:    contracts.ReviewManifest{RoundID: "review-002-delta", Kind: "delta", Revision: 2, PlanPath: relPlanPath, PlanStem: planStem, CreatedAt: "2026-07-13T20:00:00Z", Assignments: []contracts.ReviewAssignment{assignment}},
+		Ledger:      contracts.ReviewLedger{RoundID: "review-002-delta", Kind: "delta", UpdatedAt: "2026-07-13T20:01:00Z", Assignments: []contracts.ReviewLedgerAssignment{ledgerAssignment(assignment, "submitted", "2026-07-13T20:01:00Z")}},
+		Aggregate:   &contracts.ReviewAggregate{RoundID: "review-002-delta", Kind: "delta", ReviewedHeadSHA: "aggregate-head-789", Revision: 2, Repair: repair, Decision: "pass", AggregatedAt: "2026-07-13T20:02:00Z", BlockingFindings: []contracts.ReviewAggregateFinding{}, NonBlockingFindings: []contracts.ReviewAggregateFinding{}, ResolvedFindingIDs: []string{"finding-1"}, UnresolvedFindingIDs: []string{}, UnresolvedBlockingFindings: []contracts.ReviewAggregateFinding{}},
+		Submissions: []contracts.ReviewSubmission{{RoundID: "review-002-delta", Slot: "integrated", Role: "integrated", SubmittedAt: "2026-07-13T20:01:00Z", Summary: "Passed."}},
+	})
+	manifestPath := filepath.Join(runstate.ReviewRoundDir(workdir, planStem, "review-002-delta"), "manifest.json")
+	if err := os.WriteFile(manifestPath, []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("damage manifest: %v", err)
+	}
+
+	got := Service{Workdir: workdir}.Read().Rounds[0]
+	if got.ReviewedHeadSHA != "aggregate-head-789" || got.RepairsRoundID != "review-001-full" || len(got.RepairFindingIDs) != 1 || got.CoverageStatus != "clean" {
+		t.Fatalf("expected aggregate coverage metadata fallback, got %#v", got)
 	}
 }
 

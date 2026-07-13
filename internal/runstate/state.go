@@ -20,6 +20,7 @@ type CurrentPlan = contracts.CurrentPlanFile
 type State = contracts.LocalStateFile
 type ReopenState = contracts.ReopenState
 type ReviewRound = contracts.ReviewRoundState
+type FinalizeCoverage = contracts.FinalizeCoverageState
 type LandState = contracts.LandState
 
 type reviewAggregate struct {

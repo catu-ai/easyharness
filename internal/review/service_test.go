@@ -273,7 +273,7 @@ func TestStartAcceptsExplicitEarlierStepFromFinalizeContext(t *testing.T) {
 	}
 }
 
-func TestStartRejectsDefaultFinalizeReviewWhenEarlierCloseoutDebtExists(t *testing.T) {
+func TestStartDefaultFinalizeReviewDoesNotInventHistoricalStepReviewDebt(t *testing.T) {
 	root := t.TempDir()
 	writeExecutingFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 
@@ -290,12 +290,8 @@ func TestStartRejectsDefaultFinalizeReviewWhenEarlierCloseoutDebtExists(t *testi
 			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check the finalize candidate."},
 		},
 	}))
-	if result.OK {
-		t.Fatalf("expected default finalize review start to reject unresolved earlier-step closeout debt, got %#v", result)
-	}
-	assertStartError(t, result, "spec")
-	if len(result.Errors) == 0 || !strings.Contains(result.Errors[0].Message, "Step 1: Replace with first step title") || !strings.Contains(result.Errors[0].Message, "spec.step") {
-		t.Fatalf("expected explicit earlier-step repair guidance in the start error, got %#v", result.Errors)
+	if !result.OK || result.Artifacts == nil {
+		t.Fatalf("expected finalize review to start without historical step-review debt, got %#v", result)
 	}
 }
 
@@ -452,6 +448,7 @@ func TestStartRejectsInvalidSpec(t *testing.T) {
 func TestStartPersistsDeltaAnchorSHAInManifest(t *testing.T) {
 	root := t.TempDir()
 	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	head := initGitRepoWithCommit(t, root)
 
 	svc := review.Service{
 		Workdir: root,
@@ -461,7 +458,7 @@ func TestStartPersistsDeltaAnchorSHAInManifest(t *testing.T) {
 	}
 	result := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
-		AnchorSHA: "abc123def456",
+		AnchorSHA: "anchor-sha",
 		Assignments: []review.AssignmentSpec{
 			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Check correctness."},
 		},
@@ -478,7 +475,7 @@ func TestStartPersistsDeltaAnchorSHAInManifest(t *testing.T) {
 	if err := json.Unmarshal(data, &manifest); err != nil {
 		t.Fatalf("unmarshal manifest: %v", err)
 	}
-	if manifest.AnchorSHA != "abc123def456" {
+	if manifest.AnchorSHA != head {
 		t.Fatalf("expected manifest anchor sha to persist, got %#v", manifest)
 	}
 }
@@ -1145,13 +1142,15 @@ func TestAggregateDeltaPassUpdatesState(t *testing.T) {
 
 func TestAggregateRepairRequiresExplicitResolutionForEveryReferencedFinding(t *testing.T) {
 	root := t.TempDir()
-	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	writeArchiveReadyFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 
 	const findingID = "review-001-full/integrated/001"
 	svc := review.Service{Workdir: root}
+	anchor := seedBlockedFinalizeReview(t, svc)
+	appendReviewCandidateCommit(t, root, "repair")
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
-		AnchorSHA: "anchor-sha",
+		AnchorSHA: anchor,
 		Repair: &review.RepairReference{
 			RoundID:    "review-001-full",
 			FindingIDs: []string{findingID},
@@ -1185,13 +1184,15 @@ func TestAggregateRepairRequiresExplicitResolutionForEveryReferencedFinding(t *t
 
 func TestAggregateRepairStaysNonCleanWhenReferencedFindingIsNotResolved(t *testing.T) {
 	root := t.TempDir()
-	writeExecutingPlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
+	writeArchiveReadyFinalizePlan(t, root, "docs/plans/active/2026-03-18-review-contract.md")
 
 	const findingID = "review-001-full/integrated/001"
 	svc := review.Service{Workdir: root}
+	anchor := seedBlockedFinalizeReview(t, svc)
+	appendReviewCandidateCommit(t, root, "repair")
 	start := svc.Start(mustJSON(t, review.Spec{
 		Kind:      "delta",
-		AnchorSHA: "anchor-sha",
+		AnchorSHA: anchor,
 		Repair: &review.RepairReference{
 			RoundID:    "review-001-full",
 			FindingIDs: []string{findingID},
@@ -1680,6 +1681,7 @@ func writeExecutingFinalizePlan(t *testing.T, root, relPath string) string {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write finalized plan: %v", err)
 	}
+	commitReviewFixture(t, root)
 	if _, err := runstate.SaveState(root, strings.TrimSuffix(filepath.Base(relPath), filepath.Ext(relPath)), &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:00:00Z",
 		Revision:           1,
@@ -1715,6 +1717,7 @@ func writePlainReviewPlan(t *testing.T, root, relPath string) string {
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
+	initGitRepoWithCommit(t, root)
 	return path
 }
 
@@ -1738,6 +1741,7 @@ func markFirstPlanStepDone(t *testing.T, path string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write updated plan: %v", err)
 	}
+	commitReviewFixture(t, filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(path)))))
 }
 
 func markAllPlanStepsNoReviewNeeded(t *testing.T, path string) {
@@ -1754,6 +1758,7 @@ func markAllPlanStepsNoReviewNeeded(t *testing.T, path string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write updated plan: %v", err)
 	}
+	commitReviewFixture(t, filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(path)))))
 }
 
 func intPtr(value int) *int {
@@ -1773,15 +1778,82 @@ func initGitRepoWithCommit(t *testing.T, root string) string {
 		return strings.TrimSpace(string(output))
 	}
 
-	runGit("init")
+	if _, err := os.Stat(filepath.Join(root, ".git")); os.IsNotExist(err) {
+		runGit("init", "-q")
+	}
 	runGit("config", "user.name", "Codex Test")
 	runGit("config", "user.email", "codex@example.com")
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("test repo\n"), 0o644); err != nil {
 		t.Fatalf("write git fixture file: %v", err)
 	}
-	runGit("add", ".")
-	runGit("commit", "-m", "test fixture")
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".local/\n"), 0o644); err != nil {
+		t.Fatalf("write gitignore fixture: %v", err)
+	}
+	commitReviewFixture(t, root)
+	runGit("tag", "-f", "anchor-sha", "HEAD")
 	return runGit("rev-parse", "HEAD")
+}
+
+func commitReviewFixture(t *testing.T, root string) {
+	t.Helper()
+	cmd := exec.Command("git", "-C", root, "add", ".")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git add fixture: %v\n%s", err, output)
+	}
+	cmd = exec.Command("git", "-C", root, "diff", "--cached", "--quiet")
+	if err := cmd.Run(); err == nil {
+		return
+	} else if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+		t.Fatalf("git inspect fixture: %v", err)
+	}
+	cmd = exec.Command("git", "-C", root, "commit", "-q", "-m", "test fixture")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git commit fixture: %v\n%s", err, output)
+	}
+}
+
+func seedBlockedFinalizeReview(t *testing.T, svc review.Service) string {
+	t.Helper()
+	start := svc.Start(mustJSON(t, review.Spec{
+		Kind: "full",
+		Assignments: []review.AssignmentSpec{{
+			Slot: "integrated", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Review the full candidate.",
+		}},
+	}))
+	if !start.OK {
+		t.Fatalf("seed finalize start: %#v", start)
+	}
+	submit := svc.Submit(start.Artifacts.RoundID, "integrated", "reviewer-integrated", mustJSON(t, review.SubmissionInput{
+		Summary: "Found a blocker.",
+		Findings: []review.Finding{{
+			Area: "correctness", Severity: "important", Title: "Repair required", Details: "The candidate needs a repair.",
+		}},
+	}))
+	if !submit.OK {
+		t.Fatalf("seed finalize submit: %#v", submit)
+	}
+	aggregate := svc.Aggregate(start.Artifacts.RoundID)
+	if !aggregate.OK || aggregate.Review == nil || aggregate.Review.Decision != "changes_requested" {
+		t.Fatalf("seed finalize aggregate: %#v", aggregate)
+	}
+	return aggregate.Review.ReviewedHeadSHA
+}
+
+func appendReviewCandidateCommit(t *testing.T, root, message string) {
+	t.Helper()
+	path := filepath.Join(root, "README.md")
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatalf("open candidate fixture: %v", err)
+	}
+	if _, err := file.WriteString(message + "\n"); err != nil {
+		_ = file.Close()
+		t.Fatalf("write candidate fixture: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close candidate fixture: %v", err)
+	}
+	commitReviewFixture(t, root)
 }
 
 func mustJSON(t *testing.T, value any) []byte {

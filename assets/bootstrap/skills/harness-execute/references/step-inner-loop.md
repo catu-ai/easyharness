@@ -14,22 +14,20 @@ The inner loop is how you finish one plan step cleanly.
 4. Run focused validation for the slice.
 5. Update the step's `Execution Notes` with a concise summary.
 6. If the slice is green and meaningfully reviewable, make a small commit so a
-   later `delta` review has a real git anchor.
+   later review has a durable git boundary.
 7. Run `harness status` before step closeout so the next action reflects the
    current step, any active review, and any warning-driven follow-up.
-8. If the slice is ready for review, first run the `Pre-Review` scan in
-   [controller-truth-surfaces.md](controller-truth-surfaces.md), then start
-   step-closeout review. Use `delta` by default from the latest anchor commit,
-   but use `full` when a narrower review would be misleading or the slice
-   needs a broader pass.
-9. If no step-closeout review is needed, record
-   `NO_STEP_REVIEW_NEEDED: <reason>` in `Review Notes` before marking the step
-   done.
-10. Fix findings, rerun focused validation, and update `Review Notes`.
-11. When a review-driven fix passes and establishes a new stable baseline that
-    later `delta` review may build on, make another small anchor commit.
-12. Mark the step complete only when the step objective, validation, and review
-    closeout are genuinely satisfied.
+8. Mark the step complete when its objective, validation, and durable notes are
+   genuinely satisfied. Routine step completion creates no review debt and
+   needs no no-review marker.
+9. Start a step-bound review only when an intermediate artifact crosses a
+   concrete risk boundary that should be independently frozen before later
+   work, such as a schema/API contract, security boundary, migration, or
+   irreversible side effect. First run the `Pre-Review` scan in
+   [controller-truth-surfaces.md](controller-truth-surfaces.md).
+10. If an intentional step review finds blocking issues, fix them, rerun
+    focused validation, complete a linked repair review, and update `Review
+    Notes` before advancing. Once started, that review remains binding.
 
 ## Step Notes
 
@@ -38,9 +36,10 @@ Keep step-local notes useful to the next agent:
 - `Execution Notes`
   - what changed, what was validated, what remains
 - `Review Notes`
-  - latest delta/full review outcome, major findings, and what was fixed
-  - or `NO_STEP_REVIEW_NEEDED: <reason>` when the step was too small or low
-    risk to justify a separate closeout review
+  - record the latest review outcome, major findings, and repair only when an
+    optional step review actually ran
+  - otherwise a concise statement that formal review is deferred to finalize
+    is enough; no magic marker or justification is required
 
 Keep these notes high-signal and brief. Summarize the core change and outcome;
 do not turn them into transcripts.

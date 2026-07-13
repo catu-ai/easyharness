@@ -269,6 +269,7 @@ export type ReviewRound = {
   anchor_sha?: string;
   reviewed_head_sha?: string;
   repairs_round_id?: string;
+  repair_finding_ids?: string[] | null;
   step?: number;
   revision?: number;
   review_title?: string;
@@ -285,6 +286,9 @@ export type ReviewRound = {
   reviewers?: ReviewReviewer[] | null;
   blocking_findings?: ReviewAggregateFinding[] | null;
   non_blocking_findings?: ReviewAggregateFinding[] | null;
+  resolved_finding_ids?: string[] | null;
+  unresolved_finding_ids?: string[] | null;
+  coverage_status?: string;
   artifacts?: ReviewArtifact[] | null;
   warnings?: string[] | null;
 };

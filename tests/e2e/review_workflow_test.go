@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -73,18 +74,12 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 		t.Fatalf("expected current step %q after execute start, got %#v", trackedStepTitle(1, stepOneTitle), initialStatus)
 	}
 
-	stepOneRound := runPassingDeltaReview(t, workspace, stepOneTitle, 1)
-	postStepOneReview := runStatus(t, workspace.Root)
-	assertNode(t, postStepOneReview, "execution/step-1/implement")
-	if postStepOneReview.Facts.ReviewStatus != "pass" || postStepOneReview.Facts.ReviewTitle != trackedStepTitle(1, stepOneTitle) {
-		t.Fatalf("expected clean step-one review facts after aggregate, got %#v", postStepOneReview)
-	}
 	support.CompleteStep(
 		t,
 		planPath,
 		1,
 		"Built the repo-level binary/workspace/assertion helpers used by smoke and E2E coverage.",
-		fmt.Sprintf("Clean delta review %s passed for %q before advancing to step 2.", stepOneRound, stepOneTitle),
+		"No optional step review was started; final review will cover the integrated candidate.",
 	)
 
 	secondStepStatus := runStatus(t, workspace.Root)
@@ -93,20 +88,13 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 		t.Fatalf("expected current step %q after step-one closeout, got %#v", trackedStepTitle(2, stepTwoTitle), secondStepStatus)
 	}
 
-	stepTwoRound := runPassingDeltaReview(t, workspace, stepTwoTitle, 2)
-	postStepTwoReview := runStatus(t, workspace.Root)
-	assertNode(t, postStepTwoReview, "execution/step-2/implement")
-	if postStepTwoReview.Facts.ReviewStatus != "pass" || postStepTwoReview.Facts.ReviewTitle != trackedStepTitle(2, stepTwoTitle) {
-		t.Fatalf("expected clean step-two review facts after aggregate, got %#v", postStepTwoReview)
-	}
-
 	support.CheckAllAcceptanceCriteria(t, planPath)
 	support.CompleteStep(
 		t,
 		planPath,
 		2,
 		"Exercised finalize review orchestration, submission persistence, and aggregate gating across multiple slots.",
-		fmt.Sprintf("Clean delta review %s passed for %q before entering finalize review.", stepTwoRound, stepTwoTitle),
+		"No optional step review was started; final review is the formal review gate.",
 	)
 
 	preReviewStatus := runStatus(t, workspace.Root)
@@ -124,12 +112,10 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 		t.Fatalf("expected finalize-review next action guidance, got %#v", preReviewStatus)
 	}
 
+	workspace.CommitAll(t, "checkpoint finalize review candidate")
 	invalidSpecPath := workspace.WriteJSON(t, "tmp/review-invalid-spec.json", map[string]any{
-		"dimensions": []map[string]any{
-			{
-				"name":         "correctness",
-				"instructions": "Check that schema validation runs from the built binary.",
-			},
+		"assignments": []map[string]any{
+			integratedAssignment("integrated", "Check that schema validation runs from the built binary.", "correctness"),
 		},
 	})
 	invalidStart := support.Run(t, workspace.Root, "review", "start", "--spec", invalidSpecPath)
@@ -153,15 +139,15 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 
 	specPath := workspace.WriteJSON(t, "tmp/review-spec.json", map[string]any{
 		"kind": "full",
-		"dimensions": []map[string]any{
-			{
-				"name":         "correctness",
-				"instructions": "Check that the repo-level binary workflow is wired correctly.",
-			},
-			{
-				"name":         "tests",
-				"instructions": "Check that aggregate waits for every expected reviewer submission.",
-			},
+		"assignments": []map[string]any{
+			integratedAssignment("integrated", "Check that the repo-level binary workflow is wired correctly.", "correctness", "tests", "docs-consistency"),
+			specialistAssignment(
+				"review-state",
+				"Challenge review-state persistence and aggregate gating.",
+				[]string{"risk-scan", "tests"},
+				[]string{"review manifest, ledger, and aggregate state"},
+				[]string{"aggregate waits for every expected reviewer assignment"},
+			),
 		},
 	})
 
@@ -211,24 +197,24 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	}
 
 	slots := slotMap(startPayload.Artifacts.Slots)
-	correctnessSlot, ok := slots["correctness"]
+	correctnessSlot, ok := slots["integrated"]
 	if !ok {
-		t.Fatalf("missing correctness slot in %#v", startPayload.Artifacts.Slots)
+		t.Fatalf("missing integrated assignment in %#v", startPayload.Artifacts.Slots)
 	}
 	if correctnessSlot.Instructions != "Check that the repo-level binary workflow is wired correctly." {
-		t.Fatalf("expected correctness instructions in review-start receipt, got %#v", correctnessSlot)
+		t.Fatalf("expected integrated instructions in review-start receipt, got %#v", correctnessSlot)
 	}
-	testsSlot, ok := slots["tests"]
+	testsSlot, ok := slots["review-state"]
 	if !ok {
-		t.Fatalf("missing tests slot in %#v", startPayload.Artifacts.Slots)
+		t.Fatalf("missing specialist assignment in %#v", startPayload.Artifacts.Slots)
 	}
-	if testsSlot.Instructions != "Check that aggregate waits for every expected reviewer submission." {
-		t.Fatalf("expected tests instructions in review-start receipt, got %#v", testsSlot)
+	if testsSlot.Role != "specialist" || testsSlot.Instructions != "Challenge review-state persistence and aggregate gating." {
+		t.Fatalf("expected specialist instructions in review-start receipt, got %#v", testsSlot)
 	}
 	for _, slot := range startPayload.Artifacts.Slots {
 		support.RequireFileExists(t, resolveRepoPath(workspace.Root, slot.SubmissionPath))
 		skeleton := support.ReadJSONFile[reviewSubmission](t, resolveRepoPath(workspace.Root, slot.SubmissionPath))
-		if skeleton.RoundID != startPayload.Artifacts.RoundID || skeleton.Slot != slot.Slot || skeleton.Dimension != slot.Name {
+		if skeleton.RoundID != startPayload.Artifacts.RoundID || skeleton.Slot != slot.Slot || skeleton.Role != slot.Role {
 			t.Fatalf("expected review-start skeleton identity for slot %#v, got %#v", slot, skeleton)
 		}
 		if skeleton.SubmittedAt != "" || skeleton.Summary != "" || len(skeleton.Findings) != 0 || len(skeleton.Worklog) == 0 {
@@ -282,6 +268,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 
 	submitReviewSlot(t, workspace, startPayload.Artifacts.RoundID, testsSlot, "Aggregate gating waited for every reviewer slot.", []map[string]any{
 		{
+			"area":     "review-aggregate-gating",
 			"severity": "minor",
 			"title":    "Review path exercised across multiple slots",
 			"details":  "This E2E intentionally records one non-blocking finding so the full aggregate preserves reviewer output while still passing.",
@@ -324,20 +311,19 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	if manifest.RoundID != startPayload.Artifacts.RoundID || manifest.PlanPath != planRelPath {
 		t.Fatalf("unexpected manifest: %#v", manifest)
 	}
-	if len(manifest.Dimensions) != 2 {
-		t.Fatalf("expected two persisted dimensions, got %#v", manifest)
+	if manifest.ReviewedHeadSHA != currentWorkspaceHead(t, workspace.Root) {
+		t.Fatalf("expected manifest to bind the reviewed candidate HEAD, got %#v", manifest)
 	}
-	manifestInstructions := map[string]string{}
-	for _, dimension := range manifest.Dimensions {
-		manifestInstructions[dimension.Name] = dimension.Instructions
+	if len(manifest.Assignments) != 2 {
+		t.Fatalf("expected two persisted assignments, got %#v", manifest)
 	}
-	if manifestInstructions["correctness"] != "Check that the repo-level binary workflow is wired correctly." ||
-		manifestInstructions["tests"] != "Check that aggregate waits for every expected reviewer submission." {
-		t.Fatalf("expected persisted manifest instructions, got %#v", manifest)
+	manifestAssignments := slotMap(manifest.Assignments)
+	if manifestAssignments["integrated"].Role != "integrated" || manifestAssignments["review-state"].Role != "specialist" {
+		t.Fatalf("expected persisted integrated and specialist assignments, got %#v", manifest)
 	}
 
 	correctnessSubmission := support.ReadJSONFile[reviewSubmission](t, resolveRepoPath(workspace.Root, correctnessSlot.SubmissionPath))
-	if correctnessSubmission.RoundID != startPayload.Artifacts.RoundID || correctnessSubmission.Slot != correctnessSlot.Slot || correctnessSubmission.Dimension != correctnessSlot.Name {
+	if correctnessSubmission.RoundID != startPayload.Artifacts.RoundID || correctnessSubmission.Slot != correctnessSlot.Slot || correctnessSubmission.Role != correctnessSlot.Role {
 		t.Fatalf("unexpected correctness submission: %#v", correctnessSubmission)
 	}
 	if correctnessSubmission.Summary != "Core workflow artifacts look correct." {
@@ -348,7 +334,7 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	}
 
 	testsSubmission := support.ReadJSONFile[reviewSubmission](t, resolveRepoPath(workspace.Root, testsSlot.SubmissionPath))
-	if testsSubmission.RoundID != startPayload.Artifacts.RoundID || testsSubmission.Slot != testsSlot.Slot || testsSubmission.Dimension != testsSlot.Name {
+	if testsSubmission.RoundID != startPayload.Artifacts.RoundID || testsSubmission.Slot != testsSlot.Slot || testsSubmission.Role != testsSlot.Role {
 		t.Fatalf("unexpected tests submission: %#v", testsSubmission)
 	}
 	if testsSubmission.Summary != "Aggregate gating waited for every reviewer slot." {
@@ -397,6 +383,59 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	}
 }
 
+func TestReviewRejectsDirtyStartAndChangedCandidateAggregateWithBuiltBinary(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	planRelPath := "docs/plans/active/2026-03-22-review-candidate-boundary.md"
+	planPath := workspace.Path(planRelPath)
+	template := support.Run(t, workspace.Root, "plan", "template", "--title", reviewWorkflowTitle, "--timestamp", "2026-03-22T01:00:00Z", "--output", planRelPath)
+	support.RequireSuccess(t, template)
+	support.RewritePlanPreservingFrontmatter(t, planPath, reviewWorkflowTitle, reviewWorkflowPlanBody())
+	support.ApprovePlan(t, planPath, "2026-03-22T01:05:00Z")
+	support.RequireSuccess(t, support.Run(t, workspace.Root, "execute", "start"))
+	for index, title := range []string{stepOneTitle, stepTwoTitle} {
+		support.CompleteStep(t, planPath, index+1, "Completed "+title+".", "No optional step review was started.")
+	}
+	support.CheckAllAcceptanceCriteria(t, planPath)
+	workspace.CommitAll(t, "checkpoint strict review candidate")
+
+	spec := map[string]any{
+		"kind": "full",
+		"assignments": []map[string]any{
+			integratedAssignment("integrated", "Review the strict Git candidate boundary.", "correctness", "tests"),
+		},
+	}
+	specPath := workspace.WriteJSON(t, "tmp/strict-review.json", spec)
+	dirtyPath := workspace.WriteFile(t, "candidate/uncommitted.txt", []byte("dirty\n"))
+	dirtyStart := support.Run(t, workspace.Root, "review", "start", "--spec", specPath)
+	support.RequireExitCode(t, dirtyStart, 1)
+	if !strings.Contains(dirtyStart.Stdout, "Review candidate is not a clean committed Git boundary") {
+		t.Fatalf("expected dirty review-start rejection, got %s", dirtyStart.Stdout)
+	}
+	if err := os.Remove(dirtyPath); err != nil {
+		t.Fatalf("remove dirty fixture: %v", err)
+	}
+
+	start := startReviewRound(t, workspace, "tmp/strict-review.json", spec)
+	submitReviewSlot(t, workspace, start.Artifacts.RoundID, start.Artifacts.Slots[0], "Candidate is clean at the captured boundary.", nil)
+	dirtyDuringRound := workspace.WriteFile(t, "candidate/during-review.txt", []byte("dirty\n"))
+	dirtyAggregate := support.Run(t, workspace.Root, "review", "aggregate", "--round", start.Artifacts.RoundID)
+	support.RequireExitCode(t, dirtyAggregate, 1)
+	if !strings.Contains(dirtyAggregate.Stdout, "Review candidate changed while the round was in progress") {
+		t.Fatalf("expected dirty aggregate rejection, got %s", dirtyAggregate.Stdout)
+	}
+	if err := os.Remove(dirtyDuringRound); err != nil {
+		t.Fatalf("remove during-review fixture: %v", err)
+	}
+
+	workspace.WriteFile(t, "candidate/moved-head.txt", []byte("committed after review start\n"))
+	workspace.CommitAll(t, "move candidate head")
+	movedAggregate := support.Run(t, workspace.Root, "review", "aggregate", "--round", start.Artifacts.RoundID)
+	support.RequireExitCode(t, movedAggregate, 1)
+	if !strings.Contains(movedAggregate.Stdout, "Review candidate HEAD moved while the round was in progress") {
+		t.Fatalf("expected moved-HEAD aggregate rejection, got %s", movedAggregate.Stdout)
+	}
+}
+
 func reviewWorkflowPlanBody() string {
 	return strings.TrimSpace(fmt.Sprintf(`
 ## Goal
@@ -409,8 +448,9 @@ the packaged template copy.
 
 ### In Scope
 
-- Drive the built harness binary through step review and finalize review.
-- Assert durable review artifacts, state transitions, and aggregate gating.
+- Advance tracked steps without mandatory step reviews.
+- Drive one integrated reviewer plus one risk specialist through finalize review.
+- Assert durable review assignments, state transitions, and aggregate gating.
 
 ### Out of Scope
 
@@ -418,8 +458,8 @@ the packaged template copy.
 
 ## Acceptance Criteria
 
-- [ ] Step review passes before the tracked plan advances to the next step.
-- [ ] Finalize review waits for every expected reviewer submission before it can pass.
+- [ ] Unreviewed completed steps advance to the final review boundary.
+- [ ] Finalize review waits for every expected reviewer assignment before it can pass.
 
 ## Deferred Items
 
@@ -446,7 +486,7 @@ Keep the fixture deterministic and scoped to repo-level test support.
 
 #### Validation
 
-- Run a delta review before advancing beyond step 1.
+- Advance without starting an optional step review.
 
 #### Execution Notes
 
@@ -462,8 +502,8 @@ PENDING_STEP_REVIEW
 
 #### Objective
 
-Exercise a multi-slot finalize review that proves aggregate gating and durable
-artifacts.
+Exercise an integrated-plus-specialist finalize review that proves aggregate
+gating and durable artifacts.
 
 #### Details
 
@@ -476,8 +516,8 @@ template-string rewrites.
 
 #### Validation
 
-- Run a delta review before entering finalize review.
-- Prove a full review refuses to aggregate while a slot is still missing.
+- Enter finalize review without routine step-review debt.
+- Prove a full review refuses to aggregate while an assignment is still missing.
 
 #### Execution Notes
 

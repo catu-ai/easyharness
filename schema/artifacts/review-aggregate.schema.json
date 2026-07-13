@@ -25,6 +25,10 @@
           "type": "string",
           "description": "ReviewTitle is the human-readable title for the round when one exists."
         },
+        "reviewed_head_sha": {
+          "type": "string",
+          "description": "ReviewedHeadSHA repeats the manifest candidate boundary accepted at aggregation time."
+        },
         "repair": {
           "$ref": "#/$defs/ReviewRepairReference"
         },
@@ -74,6 +78,13 @@
           },
           "type": "array"
         },
+        "unresolved_blocking_findings": {
+          "items": {
+            "$ref": "#/$defs/ReviewAggregateFinding"
+          },
+          "type": "array",
+          "description": "UnresolvedBlockingFindings is the cumulative blocking set at this chain tip, including inherited findings not resolved by this round."
+        },
         "aggregated_at": {
           "type": "string",
           "description": "AggregatedAt is the aggregate timestamp."
@@ -85,11 +96,13 @@
         "round_id",
         "kind",
         "revision",
+        "reviewed_head_sha",
         "decision",
         "blocking_findings",
         "non_blocking_findings",
         "resolved_finding_ids",
         "unresolved_finding_ids",
+        "unresolved_blocking_findings",
         "aggregated_at"
       ],
       "description": "ReviewAggregate is the command-owned aggregate artifact for a completed review round."
@@ -140,7 +153,7 @@
         "title",
         "details"
       ],
-      "description": "ReviewAggregateFinding is one aggregate finding annotated with its slot and dimension context."
+      "description": "ReviewAggregateFinding is one aggregate finding annotated with its stable identity and reviewer-assignment provenance."
     },
     "ReviewRepairReference": {
       "properties": {
@@ -152,7 +165,7 @@
             "type": "string"
           },
           "type": "array",
-          "minItems": 1
+          "minItems": 0
         }
       },
       "additionalProperties": false,

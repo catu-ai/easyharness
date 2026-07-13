@@ -81,11 +81,13 @@ func TestReviewRepairLoopsWithBuiltBinary(t *testing.T) {
 		"Finished the remaining work needed before finalize review.",
 		fmt.Sprintf("Clean delta review %s passed for %q before entering finalize review.", passingSecondStepRound, reviewRepairStepTwo),
 	)
+	support.CheckAllAcceptanceCriteria(t, planPath)
 
 	preFinalizeStatus := runStatus(t, workspace.Root)
 	assertNode(t, preFinalizeStatus, "execution/finalize/review")
 
-	blockingFinalizeRound := runBlockingFinalizeReview(t, workspace)
+	blockingFinalizeReview := runBlockingFinalizeReview(t, workspace)
+	blockingFinalizeRound := blockingFinalizeReview.Review.RoundID
 	postFinalizeFailure := runStatus(t, workspace.Root)
 	assertNode(t, postFinalizeFailure, "execution/finalize/fix")
 	if postFinalizeFailure.Facts.ReviewStatus != "changes_requested" {
@@ -95,12 +97,16 @@ func TestReviewRepairLoopsWithBuiltBinary(t *testing.T) {
 		t.Fatalf("expected finalize-repair summary, got %#v", postFinalizeFailure)
 	}
 
-	passingFinalizeRound := runPassingFinalizeReview(t, workspace)
+	workspace.WriteFile(t, "candidate/finalize-repair.txt", []byte("repaired finalize candidate\n"))
+	passingFinalizeRound := runPassingFinalizeRepairReview(t, workspace, blockingFinalizeReview)
 	postFinalizeRepair := runStatus(t, workspace.Root)
 	assertNode(t, postFinalizeRepair, "execution/finalize/archive")
 	if len(postFinalizeRepair.NextAction) == 0 || postFinalizeRepair.NextAction[0].Description == "" {
 		t.Fatalf("expected archive-stage guidance after %s, got %#v", passingFinalizeRound, postFinalizeRepair)
 	}
+	archive := support.Run(t, workspace.Root, "archive")
+	support.RequireSuccess(t, archive)
+	assertNode(t, runStatus(t, workspace.Root), "execution/finalize/publish")
 }
 
 func reviewRepairLoopPlanBody() string {
@@ -201,25 +207,27 @@ PENDING_STEP_REVIEW
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+Built-binary review repair coverage passed.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+The full finding and linked delta resolution were both aggregated.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- PR: Not published in this archive-focused fixture.
+- Ready: Full review plus linked repair delta passed.
+- Merge Handoff: Out of scope for this fixture.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+Finalize repair delta coverage and archive acceptance.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+No publish or land behavior.
 
 ### Follow-Up Issues
 
@@ -230,6 +238,7 @@ NONE
 func runBlockingStepReview(t *testing.T, workspace *support.Workspace, stepTitle string, stepNumber int) string {
 	t.Helper()
 
+	workspace.CommitAll(t, "checkpoint blocking step review candidate")
 	anchorSHA := currentWorkspaceHead(t, workspace.Root)
 	aggregatePayload := runSingleSlotReviewWithFindings(
 		t,
@@ -238,11 +247,8 @@ func runBlockingStepReview(t *testing.T, workspace *support.Workspace, stepTitle
 		map[string]any{
 			"kind":       "delta",
 			"anchor_sha": anchorSHA,
-			"dimensions": []map[string]any{
-				{
-					"name":         "correctness",
-					"instructions": "Check that the tracked step is ready to close out cleanly.",
-				},
+			"assignments": []map[string]any{
+				integratedAssignment("integrated", "Check that the tracked step is ready to close out cleanly.", "correctness"),
 			},
 		},
 		"Found a step-level blocker.",
@@ -260,7 +266,7 @@ func runBlockingStepReview(t *testing.T, workspace *support.Workspace, stepTitle
 	return reviewRoundArtifactPath(workspace.Root, "2026-03-27-review-repair-loop", aggregatePayload.Review.RoundID, "aggregate.json")
 }
 
-func runBlockingFinalizeReview(t *testing.T, workspace *support.Workspace) string {
+func runBlockingFinalizeReview(t *testing.T, workspace *support.Workspace) aggregateResult {
 	t.Helper()
 
 	aggregatePayload := runSingleSlotReviewWithFindings(
@@ -269,11 +275,8 @@ func runBlockingFinalizeReview(t *testing.T, workspace *support.Workspace) strin
 		"tmp/finalize-blocking-review-spec.json",
 		map[string]any{
 			"kind": "full",
-			"dimensions": []map[string]any{
-				{
-					"name":         "correctness",
-					"instructions": "Check that the full branch candidate is archive-ready.",
-				},
+			"assignments": []map[string]any{
+				integratedAssignment("integrated", "Check that the full branch candidate is archive-ready.", "correctness", "tests"),
 			},
 		},
 		"Found a finalize blocker.",
@@ -288,7 +291,41 @@ func runBlockingFinalizeReview(t *testing.T, workspace *support.Workspace) strin
 	if aggregatePayload.Review.Decision != "changes_requested" {
 		t.Fatalf("expected blocking finalize review to request changes, got %#v", aggregatePayload)
 	}
-	return reviewRoundArtifactPath(workspace.Root, "2026-03-27-review-repair-loop", aggregatePayload.Review.RoundID, "aggregate.json")
+	return aggregatePayload
+}
+
+func runPassingFinalizeRepairReview(t *testing.T, workspace *support.Workspace, parent aggregateResult) string {
+	t.Helper()
+
+	if len(parent.Review.BlockingFindings) != 1 {
+		t.Fatalf("expected one parent finding for linked repair, got %#v", parent)
+	}
+	findingID := parent.Review.BlockingFindings[0].FindingID
+	start := startReviewRound(t, workspace, "tmp/finalize-repair-review-spec.json", map[string]any{
+		"kind":       "delta",
+		"anchor_sha": parent.Review.ReviewedHeadSHA,
+		"repair": map[string]any{
+			"round_id":    parent.Review.RoundID,
+			"finding_ids": []string{findingID},
+		},
+		"assignments": []map[string]any{
+			integratedAssignment("integrated", "Verify the narrow finalize repair and resolve the parent finding.", "correctness", "tests"),
+		},
+	})
+	submitReviewSlot(t, workspace, start.Artifacts.RoundID, start.Artifacts.Slots[0], "The narrow finalize repair is clean.", nil, map[string]any{
+		"resolutions": []map[string]any{
+			{
+				"finding_id": findingID,
+				"status":     "resolved",
+				"details":    "The candidate repair closes the parent finding.",
+			},
+		},
+	})
+	aggregate := aggregateReviewRound(t, workspace, start.Artifacts.RoundID)
+	if aggregate.Review.Decision != "pass" {
+		t.Fatalf("expected linked finalize repair delta to pass, got %#v", aggregate)
+	}
+	return start.Artifacts.RoundID
 }
 
 func runSingleSlotReviewWithFindings(t *testing.T, workspace *support.Workspace, specRelPath string, spec map[string]any, summary string, findings []map[string]any) aggregateResult {

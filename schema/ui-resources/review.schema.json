@@ -68,7 +68,7 @@
         "title",
         "details"
       ],
-      "description": "ReviewAggregateFinding is one aggregate finding annotated with its slot and dimension context."
+      "description": "ReviewAggregateFinding is one aggregate finding annotated with its stable identity and reviewer-assignment provenance."
     },
     "ReviewArtifactView": {
       "properties": {
@@ -262,7 +262,8 @@
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "minItems": 1
         },
         "description": {
           "type": "string"
@@ -402,6 +403,13 @@
           "type": "string",
           "description": "RepairsRoundID is the direct parent coverage round for a repair delta."
         },
+        "repair_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "RepairFindingIDs lists the parent findings explicitly targeted by this repair delta."
+        },
         "step": {
           "type": "integer",
           "description": "Step is the tracked plan step number when the round is step-scoped."
@@ -466,7 +474,7 @@
             "$ref": "#/$defs/ReviewAggregateFinding"
           },
           "type": "array",
-          "description": "BlockingFindings lists aggregate blocking findings when they exist."
+          "description": "BlockingFindings lists the cumulative unresolved blocking findings at this coverage-chain tip, not only findings newly raised by this round."
         },
         "non_blocking_findings": {
           "items": {
@@ -474,6 +482,24 @@
           },
           "type": "array",
           "description": "NonBlockingFindings lists aggregate non-blocking findings when they exist."
+        },
+        "resolved_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "ResolvedFindingIDs lists repair findings closed by this round."
+        },
+        "unresolved_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "UnresolvedFindingIDs lists all blocking findings still open at this coverage-chain tip."
+        },
+        "coverage_status": {
+          "type": "string",
+          "description": "CoverageStatus is clean, blocked, or pending according to the aggregate coverage-chain state surfaced for this round."
         },
         "artifacts": {
           "items": {

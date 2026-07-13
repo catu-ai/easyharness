@@ -3,6 +3,35 @@
   "$id": "https://github.com/catu-ai/easyharness/tree/main/schema/artifacts/local-state.schema.json",
   "$ref": "#/$defs/LocalStateFile",
   "$defs": {
+    "FinalizeCoverageState": {
+      "properties": {
+        "root_round_id": {
+          "type": "string"
+        },
+        "tip_round_id": {
+          "type": "string"
+        },
+        "covered_head_sha": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "unresolved_blocking_count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "root_round_id",
+        "tip_round_id",
+        "covered_head_sha",
+        "revision",
+        "unresolved_blocking_count"
+      ],
+      "description": "FinalizeCoverageState is a compact cache of the durable review coverage chain stored in review manifests and aggregates."
+    },
     "LandState": {
       "properties": {
         "pr_url": {
@@ -43,6 +72,10 @@
         "active_review_round": {
           "$ref": "#/$defs/ReviewRoundState",
           "description": "ActiveReviewRound records the current active review round when review is in flight."
+        },
+        "finalize_coverage": {
+          "$ref": "#/$defs/FinalizeCoverageState",
+          "description": "FinalizeCoverage records the latest command-validated finalize review coverage tip. Unlike ActiveReviewRound, it survives reopen so a narrow later revision can extend the archived candidate with a linked delta."
         },
         "land": {
           "$ref": "#/$defs/LandState",

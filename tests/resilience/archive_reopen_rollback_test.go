@@ -13,7 +13,7 @@ func TestArchiveRollsBackWhenActivePlanCannotBeRemoved(t *testing.T) {
 	relPlanPath := "docs/plans/active/2026-04-11-resilience-archive-rollback.md"
 	writeActiveArchiveCandidate(t, workspace, relPlanPath)
 	writeCurrentPlan(t, workspace, relPlanPath)
-	writeState(t, workspace, "2026-04-11-resilience-archive-rollback", &runstate.State{
+	state := &runstate.State{
 		ExecutionStartedAt: "2026-04-11T13:15:00Z",
 		Revision:           1,
 		ActiveReviewRound: &runstate.ReviewRound{
@@ -23,7 +23,9 @@ func TestArchiveRollsBackWhenActivePlanCannotBeRemoved(t *testing.T) {
 			Aggregated: true,
 			Decision:   "pass",
 		},
-	})
+	}
+	preparePassingFinalizeCoverage(t, workspace, "2026-04-11-resilience-archive-rollback", state)
+	writeState(t, workspace, "2026-04-11-resilience-archive-rollback", state)
 
 	activeDir := workspace.Path("docs/plans/active")
 	if err := os.Chmod(activeDir, 0o555); err != nil {

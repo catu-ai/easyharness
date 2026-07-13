@@ -36,8 +36,9 @@ Run `harness status` at controller checkpoints, not just once per session:
   review follow-up
 
 Routine review progression is controller-owned. Once the approved plan reaches
-an ordinary step-closeout or finalize-review boundary, the controller should
-start that review flow without asking the human to micromanage it.
+finalize review, the controller should start that review flow without asking
+the human to micromanage it. Step review is optional and should start only when
+an intermediate artifact crosses a concrete risk boundary.
 
 Before high-risk transitions, run a short controller self-check instead of
 trusting momentum. Use the phase-based checklist in
@@ -89,8 +90,8 @@ when it is genuinely impractical, and record the reason in the step's
   - wait for approval or update the plan if scope changed before
     `harness plan approve --by human` and `harness execute start`
 - `execution/step-<n>/implement`
-  - continue the current step, fix review findings, or mark the step done once
-    the slice is genuinely complete
+  - continue the current step, fix findings from an intentionally started step
+    review, or mark the step done once the slice is genuinely complete
   - rerun `harness status` before marking the step done so the next action
     reflects whether review, repair, or a warning-driven follow-up is due
 - `execution/step-<n>/review`
@@ -144,9 +145,8 @@ Execute is done when:
   approved.
 - Do not start execution from the raw task request alone; the newly written
   tracked plan still needs explicit approval.
-- Do not ask the human whether routine step-closeout or finalize review should
-  start once `harness status` and the tracked plan make the next review action
-  clear.
+- Do not ask the human whether finalize review should start once `harness
+  status` and the tracked plan make that next action clear.
 - Do not submit reviewer results from the controller thread or impersonate a
   reviewer slot yourself. Reviewer submissions belong to bounded reviewer
   subagents using `harness review submit --by <reviewer-name>`.

@@ -9,16 +9,20 @@ self-check for the controller, not a second reviewer protocol.
   - decide whether this round is really `delta` or `full`, and say why a
     narrower or broader pass would be less trustworthy
 - anchor and diff truth
-  - for `delta`, verify the review anchor is a real git commit and the current
-    change boundary still matches the intended review slice
+  - ensure intended candidate changes are committed and the worktree is clean
+  - for `delta`, verify the review anchor is the prior covered git head and the
+    repair link matches the intended findings
 - contract scan
   - scan the active plan, touched contracts, docs wording, and focused
     validation so the controller does not outsource all completeness checking
     to reviewers
 - dispatch sanity
+  - make sure one integrated assignment owns whole-candidate review
+  - add only specialists justified by concrete risk surfaces and invariants;
+    plan size alone is not a trigger
   - make sure the review spec and reviewer prompt carry the actual round
-    context, anchor, and bounded change summary instead of forcing reviewers to
-    guess
+    context, captured head, anchor, repair link, role, guidance, and bounded
+    change summary instead of forcing reviewers to guess
 
 ## Pre-Aggregate
 
@@ -32,6 +36,7 @@ self-check for the controller, not a second reviewer protocol.
 - round-state truth
   - verify you are aggregating the current active round and not mixing older
     findings, newer repairs, or the wrong revision
+  - verify candidate HEAD still equals the round's captured reviewed head
 - synthesis sanity
   - read the submitted findings once before aggregation so obvious duplicates,
     missing severities, or malformed claims do not slide through by inertia
@@ -47,6 +52,8 @@ self-check for the controller, not a second reviewer protocol.
 - publish-readiness sanity
   - confirm the branch is truly in archive closeout rather than still needing
     review, repair, or unresolved handoff work
+  - confirm review coverage is a continuous full-plus-repair-delta chain and
+    product/source changes have not moved beyond its covered head
 
 ## Pre-Land
 

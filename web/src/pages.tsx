@@ -1148,6 +1148,9 @@ export function ReviewWorkspace(props: {
 
   const blockingFindings = Array.isArray(selectedRound?.blocking_findings) ? selectedRound.blocking_findings ?? [] : [];
   const nonBlockingFindings = Array.isArray(selectedRound?.non_blocking_findings) ? selectedRound.non_blocking_findings ?? [] : [];
+  const repairFindingIDs = Array.isArray(selectedRound?.repair_finding_ids) ? selectedRound.repair_finding_ids ?? [] : [];
+  const resolvedFindingIDs = Array.isArray(selectedRound?.resolved_finding_ids) ? selectedRound.resolved_finding_ids ?? [] : [];
+  const unresolvedFindingIDs = Array.isArray(selectedRound?.unresolved_finding_ids) ? selectedRound.unresolved_finding_ids ?? [] : [];
   const selectedRoundWarnings = Array.isArray(selectedRound?.warnings) ? selectedRound.warnings ?? [] : [];
 
   useEffect(() => {
@@ -1278,6 +1281,34 @@ export function ReviewWorkspace(props: {
                     <strong>{typeof selectedRound.step === "number" ? `Step ${selectedRound.step}` : selectedRound.review_title || "Finalize / unscoped"}</strong>
                   </div>
                 </section>
+              </section>
+
+              <section class="content-section">
+                <div class="section-head">
+                  <h2>Coverage</h2>
+                  <StatusBadge tone={selectedRound.coverage_status === "clean" ? "good" : selectedRound.coverage_status === "blocked" ? "danger" : "warning"}>
+                    {humanizeLabel(selectedRound.coverage_status || "pending")}
+                  </StatusBadge>
+                </div>
+                <section class="summary-metrics review-summary-metrics" aria-label="Review coverage">
+                  <div class="summary-metric">
+                    <span class="label">Reviewed head</span>
+                    <strong>{selectedRound.reviewed_head_sha || "Not recorded"}</strong>
+                  </div>
+                  <div class="summary-metric">
+                    <span class="label">Repair parent</span>
+                    <strong>{selectedRound.repairs_round_id || "Full root"}</strong>
+                  </div>
+                  <div class="summary-metric">
+                    <span class="label">Resolved here</span>
+                    <strong>{resolvedFindingIDs.length}</strong>
+                  </div>
+                  <div class="summary-metric">
+                    <span class="label">Still unresolved</span>
+                    <strong>{unresolvedFindingIDs.length}</strong>
+                  </div>
+                </section>
+                {repairFindingIDs.length > 0 ? <p class="detail-copy">Targets: {repairFindingIDs.join(", ")}</p> : null}
               </section>
 
               {selectedRoundWarnings.length > 0 ? (

@@ -153,7 +153,7 @@ NONE
 
 #### Validation
 
-- Run a clean delta review before advancing.
+- Advance without starting an optional step review.
 
 #### Execution Notes
 
@@ -181,7 +181,7 @@ Archive-ready top-level summaries are prefilled so the scenario can reach requir
 
 #### Validation
 
-- Run a clean delta review before finalize review.
+- Enter final review without routine step-review debt.
 
 #### Execution Notes
 

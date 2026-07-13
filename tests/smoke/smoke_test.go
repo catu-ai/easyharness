@@ -551,10 +551,10 @@ Check the public contract.
 		OK         bool   `json:"ok"`
 		Command    string `json:"command"`
 		Dimensions []struct {
-			Name         string `json:"name"`
-			Source       string `json:"source"`
-			Description  string `json:"description"`
-			Instructions string `json:"instructions"`
+			Name         string   `json:"name"`
+			Sources      []string `json:"sources"`
+			Description  string   `json:"description"`
+			Instructions string   `json:"instructions"`
 		} `json:"dimensions"`
 	}
 	if err := json.Unmarshal([]byte(list.Stdout), &payload); err != nil {
@@ -563,14 +563,14 @@ Check the public contract.
 	if !payload.OK || payload.Command != "review dimensions list" {
 		t.Fatalf("unexpected list payload: %#v", payload)
 	}
-	seen := map[string]string{}
+	seen := map[string][]string{}
 	for _, dimension := range payload.Dimensions {
-		seen[dimension.Name] = dimension.Source
+		seen[dimension.Name] = dimension.Sources
 		if dimension.Instructions != "" {
 			t.Fatalf("list leaked instruction body: %#v", dimension)
 		}
 	}
-	if seen["correctness"] != "builtin" || seen["api-contract"] != "repo" {
+	if strings.Join(seen["correctness"], ",") != "builtin" || strings.Join(seen["api-contract"], ",") != "repo" {
 		t.Fatalf("expected builtin and repo dimensions, got %#v", payload.Dimensions)
 	}
 
@@ -590,14 +590,17 @@ Check the public contract.
 	startExecution := support.Run(t, workspace.Root, "execute", "start")
 	support.RequireSuccess(t, startExecution)
 	support.RequireNoStderr(t, startExecution)
+	workspace.CommitAll(t, "review candidate")
 
-	specPath := workspace.WriteJSON(t, "review-spec.json", map[string]any{
+	specPath := workspace.WriteJSON(t, "tmp/review-spec.json", map[string]any{
 		"kind":         "full",
 		"review_title": "Catalog-managed review dimension smoke",
-		"dimensions": []map[string]string{
+		"assignments": []map[string]any{
 			{
-				"name":         "api-contract",
-				"instructions": "Run `harness review dimensions instructions api-contract` and follow the returned Markdown instruction.",
+				"slot":         "integrated",
+				"role":         "integrated",
+				"dimensions":   []string{"api-contract"},
+				"instructions": "Review the complete candidate using the API contract guidance.",
 			},
 		},
 	})
@@ -608,13 +611,13 @@ Check the public contract.
 		OK        bool   `json:"ok"`
 		Command   string `json:"command"`
 		Artifacts struct {
-			RoundID string `json:"round_id"`
-			Slots   []struct {
-				Name           string `json:"name"`
+			RoundID     string `json:"round_id"`
+			Assignments []struct {
 				Slot           string `json:"slot"`
+				Role           string `json:"role"`
 				Instructions   string `json:"instructions"`
 				SubmissionPath string `json:"submission_path"`
-			} `json:"slots"`
+			} `json:"assignments"`
 		} `json:"artifacts"`
 	}
 	if err := json.Unmarshal([]byte(reviewStart.Stdout), &reviewStartPayload); err != nil {
@@ -623,21 +626,21 @@ Check the public contract.
 	if !reviewStartPayload.OK || reviewStartPayload.Command != "review start" || reviewStartPayload.Artifacts.RoundID != "review-001-full" {
 		t.Fatalf("unexpected review start payload: %#v", reviewStartPayload)
 	}
-	if len(reviewStartPayload.Artifacts.Slots) != 1 {
-		t.Fatalf("expected one slot, got %#v", reviewStartPayload.Artifacts.Slots)
+	if len(reviewStartPayload.Artifacts.Assignments) != 1 {
+		t.Fatalf("expected one assignment, got %#v", reviewStartPayload.Artifacts.Assignments)
 	}
-	slot := reviewStartPayload.Artifacts.Slots[0]
-	if slot.Name != "api-contract" || slot.Slot != "api-contract" {
-		t.Fatalf("expected catalog dimension slot, got %#v", slot)
+	assignment := reviewStartPayload.Artifacts.Assignments[0]
+	if assignment.Slot != "integrated" || assignment.Role != "integrated" {
+		t.Fatalf("expected integrated catalog-guided assignment, got %#v", assignment)
 	}
-	support.RequireFileExists(t, workspace.Path(slot.SubmissionPath))
+	support.RequireFileExists(t, workspace.Path(assignment.SubmissionPath))
 
 	submit := support.RunWithOptions(t, support.RunOptions{
 		Workdir: workspace.Root,
 		Args: []string{
 			"review", "submit",
 			"--round", reviewStartPayload.Artifacts.RoundID,
-			"--slot", slot.Slot,
+			"--slot", assignment.Slot,
 			"--by", "reviewer-api-contract",
 		},
 		Stdin: `{"summary":"Catalog-managed dimension submission path works.","findings":[]}`,

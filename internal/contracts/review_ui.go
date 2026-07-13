@@ -56,6 +56,10 @@ type ReviewRoundView struct {
 	// RepairsRoundID is the direct parent coverage round for a repair delta.
 	RepairsRoundID string `json:"repairs_round_id,omitempty"`
 
+	// RepairFindingIDs lists the parent findings explicitly targeted by this
+	// repair delta.
+	RepairFindingIDs []string `json:"repair_finding_ids,omitempty"`
+
 	// Step is the tracked plan step number when the round is step-scoped.
 	Step *int `json:"step,omitempty"`
 
@@ -99,12 +103,24 @@ type ReviewRoundView struct {
 	// Reviewers lists the reviewer-centric assignment views for the round.
 	Reviewers []ReviewAssignmentView `json:"reviewers,omitempty"`
 
-	// BlockingFindings lists aggregate blocking findings when they exist.
+	// BlockingFindings lists the cumulative unresolved blocking findings at this
+	// coverage-chain tip, not only findings newly raised by this round.
 	BlockingFindings []ReviewAggregateFinding `json:"blocking_findings,omitempty"`
 
 	// NonBlockingFindings lists aggregate non-blocking findings when they
 	// exist.
 	NonBlockingFindings []ReviewAggregateFinding `json:"non_blocking_findings,omitempty"`
+
+	// ResolvedFindingIDs lists repair findings closed by this round.
+	ResolvedFindingIDs []string `json:"resolved_finding_ids,omitempty"`
+
+	// UnresolvedFindingIDs lists all blocking findings still open at this
+	// coverage-chain tip.
+	UnresolvedFindingIDs []string `json:"unresolved_finding_ids,omitempty"`
+
+	// CoverageStatus is clean, blocked, or pending according to the aggregate
+	// coverage-chain state surfaced for this round.
+	CoverageStatus string `json:"coverage_status,omitempty"`
 
 	// Artifacts lists supporting raw review artifacts for the round.
 	Artifacts []ReviewArtifactView `json:"artifacts,omitempty"`

@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/lifecycle"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
@@ -19,7 +21,7 @@ func TestArchiveMovesPlanAndUpdatesPointers(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
 	activePath := writeActiveArchiveCandidate(t, root, activeRelPath)
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -98,7 +100,7 @@ func TestArchiveMovesSupplementsDirectoryWithPlanPackage(t *testing.T) {
 	writeActiveArchiveCandidate(t, root, activeRelPath)
 	activeSupplements := filepath.Join(root, "docs/plans/active/supplements/2026-03-18-archive-smoke/spec.md")
 	writeFile(t, activeSupplements, "# draft spec\n")
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -132,7 +134,7 @@ func TestArchiveLightweightMovesLocalPlanAndPromptsBreadcrumb(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-lightweight.md"
 	activePath := writeLightweightActiveArchiveCandidate(t, root, activeRelPath)
-	if _, err := runstate.SaveState(root, "2026-03-18-lightweight", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-lightweight", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -182,7 +184,7 @@ func TestArchiveLightweightMovesSupplementsIntoLocalArchivePackage(t *testing.T)
 	activeRelPath := "docs/plans/active/2026-03-18-lightweight.md"
 	writeLightweightActiveArchiveCandidate(t, root, activeRelPath)
 	writeFile(t, filepath.Join(root, "docs/plans/active/supplements/2026-03-18-lightweight/spec.md"), "# lightweight draft\n")
-	if _, err := runstate.SaveState(root, "2026-03-18-lightweight", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-lightweight", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -304,7 +306,7 @@ func TestExecuteStartBackfillsLegacyExecutingPlan(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-execute-start-legacy.md"
 	writeFile(t, filepath.Join(root, activeRelPath), buildAwaitingPlan(t, "Legacy Execute Start"))
-	if _, err := runstate.SaveState(root, "2026-03-18-execute-start-legacy", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-execute-start-legacy", &runstate.State{
 		Revision: 2,
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-legacy-delta",
@@ -435,7 +437,7 @@ func TestArchiveRejectsMissingArchiveSummaryFields(t *testing.T) {
 	content := buildActiveArchiveCandidate(t)
 	content = strings.Replace(content, "- PR: NONE\n", "", 1)
 	writeFile(t, path, content)
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -467,7 +469,7 @@ func TestArchivePreflightFailureLeavesPlanAndPointersUntouched(t *testing.T) {
 	if _, err := runstate.SaveCurrentPlan(root, activeRelPath); err != nil {
 		t.Fatalf("save current plan: %v", err)
 	}
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -518,7 +520,7 @@ func TestArchiveRejectsGoalOrientedPreviewBeforeWritingArchive(t *testing.T) {
 	if _, err := runstate.SaveCurrentPlan(root, activeRelPath); err != nil {
 		t.Fatalf("save current plan: %v", err)
 	}
-	if _, err := runstate.SaveState(root, "2026-03-18-goal-oriented", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-goal-oriented", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -555,7 +557,7 @@ func TestArchiveRollsBackWhenCurrentPlanWriteFails(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
 	activePath := writeActiveArchiveCandidate(t, root, activeRelPath)
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -595,7 +597,7 @@ func TestArchiveRestoresActivePlanWhenTimelineAppendFailsAfterCleanup(t *testing
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
 	activePath := writeActiveArchiveCandidate(t, root, activeRelPath)
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -645,7 +647,7 @@ func TestArchiveRollbackRestoresSupplementsDirectory(t *testing.T) {
 	writeActiveArchiveCandidate(t, root, activeRelPath)
 	activeSupplements := filepath.Join(root, "docs/plans/active/supplements/2026-03-18-archive-smoke/spec.md")
 	writeFile(t, activeSupplements, "# draft spec\n")
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -688,7 +690,7 @@ func TestArchiveRejectsUnresolvedLocalState(t *testing.T) {
 				ActiveReviewRound: &runstate.ReviewRound{RoundID: "review-001-full", Kind: "full", Aggregated: false},
 			},
 			errorPath:  "state.active_review_round",
-			errorMatch: "aggregate or clear",
+			errorMatch: "aggregate or supersede",
 		},
 	}
 
@@ -707,7 +709,7 @@ func TestArchiveRejectsUnresolvedLocalState(t *testing.T) {
 					Decision:   "pass",
 				}
 			}
-			if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", tc.state); err != nil {
+			if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", tc.state); err != nil {
 				t.Fatalf("save state: %v", err)
 			}
 
@@ -730,20 +732,7 @@ func TestArchiveRequiresPassingReviewForRevisionOne(t *testing.T) {
 		{
 			name:       "missing review",
 			state:      &runstate.State{},
-			errorMatch: "passing full finalize review",
-		},
-		{
-			name: "passing delta is not enough",
-			state: &runstate.State{
-				ActiveReviewRound: &runstate.ReviewRound{
-					RoundID:    "review-001-delta",
-					Kind:       "delta",
-					Revision:   1,
-					Aggregated: true,
-					Decision:   "pass",
-				},
-			},
-			errorMatch: "passing full finalize review",
+			errorMatch: "coverage chain rooted in a full review",
 		},
 		{
 			name: "failed full review still blocks",
@@ -756,7 +745,7 @@ func TestArchiveRequiresPassingReviewForRevisionOne(t *testing.T) {
 					Decision:   "changes_requested",
 				},
 			},
-			errorMatch: "not archive-ready",
+			errorMatch: "coverage chain rooted in a full review",
 		},
 	}
 
@@ -766,7 +755,7 @@ func TestArchiveRequiresPassingReviewForRevisionOne(t *testing.T) {
 			activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
 			writeActiveArchiveCandidate(t, root, activeRelPath)
 			tc.state.ExecutionStartedAt = "2026-03-18T03:30:00Z"
-			if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", tc.state); err != nil {
+			if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", tc.state); err != nil {
 				t.Fatalf("save state: %v", err)
 			}
 
@@ -774,18 +763,18 @@ func TestArchiveRequiresPassingReviewForRevisionOne(t *testing.T) {
 			if result.OK {
 				t.Fatalf("expected archive failure, got %#v", result)
 			}
-			assertErrorPath(t, result.Errors, "state.active_review_round")
-			assertErrorContains(t, result.Errors, "state.active_review_round", tc.errorMatch)
+			assertErrorPath(t, result.Errors, "state.finalize_coverage")
+			assertErrorContains(t, result.Errors, "state.finalize_coverage", tc.errorMatch)
 		})
 	}
 }
 
-func TestArchiveRejectsEarlierStepCloseoutDebtEvenAfterPassingFinalizeReview(t *testing.T) {
+func TestArchiveDoesNotInventEarlierStepReviewDebtAfterPassingFinalizeReview(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
 	writeActiveArchiveCandidateWithCloseoutDebt(t, root, activeRelPath)
 
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T03:35:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -799,12 +788,9 @@ func TestArchiveRejectsEarlierStepCloseoutDebtEvenAfterPassingFinalizeReview(t *
 	}
 
 	result := lifecycle.Service{Workdir: root}.Archive()
-	if result.OK {
-		t.Fatalf("expected archive failure when earlier-step closeout debt remains, got %#v", result)
+	if !result.OK {
+		t.Fatalf("expected finalize coverage to archive without historical step-review debt, got %#v", result)
 	}
-	assertErrorPath(t, result.Errors, "plan.steps[0].review_notes")
-	assertErrorContains(t, result.Errors, "plan.steps[0].review_notes", "Step 1: Replace with first step title")
-	assertErrorContains(t, result.Errors, "plan.steps[0].review_notes", "review-complete closeout")
 }
 
 func TestArchiveAllowsPassingDeltaReviewForReopenedRevision(t *testing.T) {
@@ -812,7 +798,7 @@ func TestArchiveAllowsPassingDeltaReviewForReopenedRevision(t *testing.T) {
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
 	writeActiveArchiveCandidate(t, root, activeRelPath)
 
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T03:55:00Z",
 		Revision:           2,
 		ActiveReviewRound: &runstate.ReviewRound{
@@ -843,7 +829,7 @@ func TestArchiveIgnoresEvidenceArtifactsOnceFinalizeReviewPasses(t *testing.T) {
 	writeActiveArchiveCandidate(t, root, activeRelPath)
 	writeMergeReadyEvidenceArtifacts(t, root, "2026-03-18-archive-smoke", "docs/plans/archived/2026-03-18-archive-smoke.md")
 
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T04:05:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -867,11 +853,11 @@ func TestArchiveIgnoresEvidenceArtifactsOnceFinalizeReviewPasses(t *testing.T) {
 	}
 }
 
-func TestArchiveUsesAggregateArtifactForLegacyReviewDecision(t *testing.T) {
+func TestArchiveRejectsLegacyAggregateWithoutFinalizeCoverage(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
 	writeActiveArchiveCandidate(t, root, activeRelPath)
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T04:25:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -892,15 +878,16 @@ func TestArchiveUsesAggregateArtifactForLegacyReviewDecision(t *testing.T) {
 			return time.Date(2026, 3, 18, 4, 30, 0, 0, time.UTC)
 		},
 	}.Archive()
-	if !result.OK {
-		t.Fatalf("expected archive success for legacy review decision, got %#v", result)
+	if result.OK {
+		t.Fatalf("expected legacy aggregate without coverage to fail closed, got %#v", result)
 	}
+	assertErrorPath(t, result.Errors, "state.finalize_coverage")
 }
 
 func TestReopenMovesArchivedPlanBackToActiveAndResetsSummaries(t *testing.T) {
 	root := t.TempDir()
 	writeActiveArchiveCandidate(t, root, "docs/plans/active/2026-03-18-archive-smoke.md")
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -969,7 +956,7 @@ func TestReopenMovesArchivedPlanBackToActiveAndResetsSummaries(t *testing.T) {
 func TestReopenRestoresArchivedPlanWhenTimelineAppendFailsAfterCleanup(t *testing.T) {
 	root := t.TempDir()
 	writeActiveArchiveCandidate(t, root, "docs/plans/active/2026-03-18-archive-smoke.md")
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -1025,7 +1012,7 @@ func TestReopenRollbackRestoresArchivedSupplementsDirectory(t *testing.T) {
 	root := t.TempDir()
 	writeActiveArchiveCandidate(t, root, "docs/plans/active/2026-03-18-archive-smoke.md")
 	writeFile(t, filepath.Join(root, "docs/plans/active/supplements/2026-03-18-archive-smoke/spec.md"), "# active draft\n")
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -1071,7 +1058,7 @@ func TestReopenRemovesSynthesizedStateWhenTimelineAppendFailsWithoutPriorState(t
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
 	writeActiveArchiveCandidate(t, root, activeRelPath)
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -1135,7 +1122,7 @@ func TestReopenLightweightMovesLocalArchiveBackToTrackedActive(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-lightweight-reopen.md"
 	writeLightweightActiveArchiveCandidate(t, root, activeRelPath)
-	if _, err := runstate.SaveState(root, "2026-03-18-lightweight-reopen", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-lightweight-reopen", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -1206,7 +1193,7 @@ func TestReopenLightweightMovesSupplementsBackToTrackedActivePackage(t *testing.
 	activeRelPath := "docs/plans/active/2026-03-18-lightweight-reopen.md"
 	writeLightweightActiveArchiveCandidate(t, root, activeRelPath)
 	writeFile(t, filepath.Join(root, "docs/plans/active/supplements/2026-03-18-lightweight-reopen/spec.md"), "# lightweight active draft\n")
-	if _, err := runstate.SaveState(root, "2026-03-18-lightweight-reopen", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-lightweight-reopen", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		Revision:           1,
 		ActiveReviewRound: &runstate.ReviewRound{
@@ -1242,7 +1229,7 @@ func TestReopenMovesSupplementsDirectoryBackToActivePlanPackage(t *testing.T) {
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
 	writeActiveArchiveCandidate(t, root, activeRelPath)
 	writeFile(t, filepath.Join(root, "docs/plans/active/supplements/2026-03-18-archive-smoke/spec.md"), "# active draft\n")
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		Revision:           1,
 		ActiveReviewRound: &runstate.ReviewRound{
@@ -1280,7 +1267,7 @@ func TestReopenMovesSupplementsDirectoryBackToActivePlanPackage(t *testing.T) {
 func TestReopenNewStepRecordsModeAndStatusCue(t *testing.T) {
 	root := t.TempDir()
 	writeActiveArchiveCandidate(t, root, "docs/plans/active/2026-03-18-archive-smoke.md")
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -1342,7 +1329,7 @@ func TestReopenMarkersMustBeClearedBeforeRearchive(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
 	writeActiveArchiveCandidate(t, root, activeRelPath)
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -1374,7 +1361,7 @@ func TestReopenMarkersMustBeClearedBeforeRearchive(t *testing.T) {
 		t.Fatalf("reopen failed: %#v", reopen)
 	}
 
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T03:05:00Z",
 		Revision:           2,
 		Reopen:             &runstate.ReopenState{Mode: "finalize-fix", ReopenedAt: "2026-03-18T03:00:00Z"},
@@ -1419,7 +1406,7 @@ func TestReopenResetsReviewStateAfterArchive(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
 	writeActiveArchiveCandidate(t, root, activeRelPath)
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
@@ -1443,7 +1430,7 @@ func TestReopenResetsReviewStateAfterArchive(t *testing.T) {
 		t.Fatalf("archive failed: %#v", archive)
 	}
 
-	if _, err := runstate.SaveState(root, "2026-03-18-archive-smoke", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ActiveReviewRound: &runstate.ReviewRound{
 			RoundID:    "review-001-full",
 			Kind:       "full",
@@ -1626,7 +1613,7 @@ func TestLandReadsEvidenceArtifactsWhenStateIsSparse(t *testing.T) {
 	if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-landed-plan.md"); err != nil {
 		t.Fatalf("save current plan: %v", err)
 	}
-	if _, err := runstate.SaveState(root, "2026-03-18-landed-plan", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-landed-plan", &runstate.State{
 		Revision: 3,
 	}); err != nil {
 		t.Fatalf("save legacy state: %v", err)
@@ -1650,13 +1637,13 @@ func TestLandRejectsOlderRevisionEvidenceAfterReopen(t *testing.T) {
 	if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-landed-plan.md"); err != nil {
 		t.Fatalf("save current plan: %v", err)
 	}
-	if _, err := runstate.SaveState(root, "2026-03-18-landed-plan", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-landed-plan", &runstate.State{
 		Revision: 1,
 	}); err != nil {
 		t.Fatalf("save initial state: %v", err)
 	}
 	writeMergeReadyEvidenceArtifacts(t, root, "2026-03-18-landed-plan", "docs/plans/archived/2026-03-18-landed-plan.md")
-	if _, err := runstate.SaveState(root, "2026-03-18-landed-plan", &runstate.State{
+	if _, err := saveLifecycleState(t, root, "2026-03-18-landed-plan", &runstate.State{
 		Revision: 2,
 	}); err != nil {
 		t.Fatalf("save reopened state: %v", err)
@@ -1856,6 +1843,92 @@ func writeActiveArchiveCandidate(t *testing.T, root, relPath string) string {
 	path := filepath.Join(root, relPath)
 	writeFile(t, path, buildActiveArchiveCandidate(t))
 	return path
+}
+
+func saveLifecycleState(t *testing.T, root, planStem string, state *runstate.State) (string, error) {
+	t.Helper()
+	if state != nil && state.ActiveReviewRound != nil && state.ActiveReviewRound.Aggregated && state.ActiveReviewRound.Decision == "pass" {
+		head := commitLifecycleCandidate(t, root)
+		revision := runstate.CurrentRevision(state)
+		tipID := state.ActiveReviewRound.RoundID
+		rootID := tipID
+		rootHead := head
+		if state.ActiveReviewRound.Kind == "delta" {
+			rootID = "review-001-full"
+			rootRevision := revision - 1
+			if rootRevision < 1 {
+				rootRevision = 1
+			}
+			writeLifecycleReviewRound(t, root, planStem, contracts.ReviewManifest{
+				RoundID: rootID, Kind: "full", ReviewedHeadSHA: rootHead, Revision: rootRevision,
+			}, cleanLifecycleAggregate(rootID, "full", rootHead, rootRevision, nil))
+			repair := &contracts.ReviewRepairReference{RoundID: rootID, FindingIDs: []string{}}
+			writeLifecycleReviewRound(t, root, planStem, contracts.ReviewManifest{
+				RoundID: tipID, Kind: "delta", AnchorSHA: rootHead, ReviewedHeadSHA: head, Revision: revision, Repair: repair,
+			}, cleanLifecycleAggregate(tipID, "delta", head, revision, repair))
+		} else {
+			writeLifecycleReviewRound(t, root, planStem, contracts.ReviewManifest{
+				RoundID: tipID, Kind: "full", ReviewedHeadSHA: head, Revision: revision,
+			}, cleanLifecycleAggregate(tipID, "full", head, revision, nil))
+		}
+		state.FinalizeCoverage = &runstate.FinalizeCoverage{
+			RootRoundID: rootID, TipRoundID: tipID, CoveredHeadSHA: head, Revision: revision,
+		}
+	}
+	return runstate.SaveState(root, planStem, state)
+}
+
+func cleanLifecycleAggregate(roundID, kind, head string, revision int, repair *contracts.ReviewRepairReference) contracts.ReviewAggregate {
+	return contracts.ReviewAggregate{
+		RoundID: roundID, Kind: kind, ReviewedHeadSHA: head, Revision: revision, Repair: repair, Decision: "pass",
+		BlockingFindings: []contracts.ReviewAggregateFinding{}, NonBlockingFindings: []contracts.ReviewAggregateFinding{},
+		ResolvedFindingIDs: []string{}, UnresolvedFindingIDs: []string{}, UnresolvedBlockingFindings: []contracts.ReviewAggregateFinding{},
+	}
+}
+
+func writeLifecycleReviewRound(t *testing.T, root, planStem string, manifest contracts.ReviewManifest, aggregate contracts.ReviewAggregate) {
+	t.Helper()
+	dir := runstate.ReviewRoundDir(root, planStem, manifest.RoundID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir review round: %v", err)
+	}
+	for name, value := range map[string]any{"manifest.json": manifest, "aggregate.json": aggregate} {
+		data, err := json.Marshal(value)
+		if err != nil {
+			t.Fatalf("marshal %s: %v", name, err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+}
+
+func commitLifecycleCandidate(t *testing.T, root string) string {
+	t.Helper()
+	run := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
+		}
+		return strings.TrimSpace(string(output))
+	}
+	if _, err := os.Stat(filepath.Join(root, ".git")); os.IsNotExist(err) {
+		run("init", "-q")
+		run("config", "user.name", "Codex Test")
+		run("config", "user.email", "codex@example.com")
+		writeFile(t, filepath.Join(root, ".gitignore"), ".local/\n")
+	}
+	run("add", ".")
+	check := exec.Command("git", "-C", root, "diff", "--cached", "--quiet")
+	if err := check.Run(); err != nil {
+		if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+			t.Fatalf("inspect candidate fixture: %v", err)
+		}
+		run("commit", "-q", "-m", "archive candidate")
+	}
+	return run("rev-parse", "HEAD")
 }
 
 func writeLightweightActiveArchiveCandidate(t *testing.T, root, relPath string) string {

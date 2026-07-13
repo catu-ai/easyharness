@@ -7,7 +7,7 @@ import (
 	"github.com/catu-ai/easyharness/tests/support"
 )
 
-func TestStatusWarnsAndStaysConservativeWhenHistoricalReviewArtifactsAreMalformed(t *testing.T) {
+func TestStatusIgnoresMalformedHistoricalStepReviewArtifactsWithoutActiveBinding(t *testing.T) {
 	workspace := support.NewWorkspace(t)
 	relPlanPath := "docs/plans/active/2026-04-11-resilience-review-artifacts.md"
 	writePlanFixture(t, workspace, relPlanPath, "Resilience Review Artifacts", func(content string) string {
@@ -40,16 +40,8 @@ func TestStatusWarnsAndStaysConservativeWhenHistoricalReviewArtifactsAreMalforme
 	if parsed.State.CurrentNode != "execution/step-2/implement" {
 		t.Fatalf("expected step 2 node to remain stable, got %#v", parsed)
 	}
-	if !findWarning(parsed.Warnings, "Unable to read historical review manifest") {
-		t.Fatalf("expected unreadable review-manifest warning, got %#v", parsed.Warnings)
-	}
-	if !findWarning(parsed.Warnings, "review-002-delta") {
-		t.Fatalf("expected conservative unmapped-round warning, got %#v", parsed.Warnings)
-	}
-	for _, action := range parsed.NextAction {
-		if action.Description != "" && action.Command == nil && findWarning([]string{action.Description}, "review-002-delta") {
-			t.Fatalf("did not expect malformed historical review to inject repair guidance, got %#v", parsed.NextAction)
-		}
+	if len(parsed.Warnings) != 0 {
+		t.Fatalf("expected inactive historical artifacts to create no workflow debt, got %#v", parsed.Warnings)
 	}
 }
 

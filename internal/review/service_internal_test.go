@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -260,6 +261,7 @@ func writeExecutingPlanFixture(t *testing.T, root, relPath string) {
 	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
+	initReviewGitFixture(t, root)
 
 	planStem := strings.TrimSuffix(filepath.Base(relPath), filepath.Ext(relPath))
 	if _, err := runstate.SaveState(root, planStem, &runstate.State{
@@ -268,6 +270,26 @@ func writeExecutingPlanFixture(t *testing.T, root, relPath string) {
 	}); err != nil {
 		t.Fatalf("save execute-start state: %v", err)
 	}
+}
+
+func initReviewGitFixture(t *testing.T, root string) {
+	t.Helper()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
+		}
+	}
+	run("init", "-q")
+	run("config", "user.name", "Codex Test")
+	run("config", "user.email", "codex@example.com")
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".local/\n"), 0o644); err != nil {
+		t.Fatalf("write gitignore: %v", err)
+	}
+	run("add", ".")
+	run("commit", "-q", "-m", "test fixture")
+	run("tag", "anchor-sha")
 }
 
 func mustJSONBytes(t *testing.T, value any) []byte {

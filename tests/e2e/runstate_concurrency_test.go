@@ -59,14 +59,14 @@ func TestArchivedRunstateInterleavingsIgnoreStaleEvidenceAndFailClearlyUnderLock
 		planPath,
 		1,
 		"Re-established the first completed step after reopen.",
-		"NO_STEP_REVIEW_NEEDED: Rehydrated reopen fixture keeps the original closeout intent.",
+		"No optional step review was started in the rehydrated reopen fixture.",
 	)
 	support.CompleteStep(
 		t,
 		planPath,
 		2,
 		"Re-established the second completed step after reopen.",
-		"NO_STEP_REVIEW_NEEDED: Rehydrated reopen fixture keeps the original closeout intent.",
+		"No optional step review was started in the rehydrated reopen fixture.",
 	)
 	support.CheckAllAcceptanceCriteria(t, planPath)
 

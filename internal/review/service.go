@@ -17,9 +17,9 @@ import (
 	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/inputschema"
 	"github.com/catu-ai/easyharness/internal/plan"
+	"github.com/catu-ai/easyharness/internal/reviewcoverage"
 	"github.com/catu-ai/easyharness/internal/reviewdimensions"
 	"github.com/catu-ai/easyharness/internal/runstate"
-	"github.com/catu-ai/easyharness/internal/stepcloseout"
 )
 
 var compactRoundIDPattern = regexp.MustCompile(`^review-([0-9]+)-([a-z0-9-]+)$`)
@@ -141,6 +141,35 @@ func (s Service) Start(specBytes []byte) StartResult {
 			Errors:  issues,
 		}
 	}
+	candidate, err := reviewcoverage.CaptureCandidate(s.Workdir)
+	if err != nil {
+		return StartResult{
+			OK:      false,
+			Command: "review start",
+			Summary: "Review candidate is not a clean committed Git boundary.",
+			Errors:  []CommandError{{Path: "review.candidate", Message: err.Error()}},
+		}
+	}
+	if spec.Kind == "delta" {
+		resolvedAnchor, err := reviewcoverage.ResolveCommit(s.Workdir, spec.AnchorSHA)
+		if err != nil {
+			return StartResult{
+				OK:      false,
+				Command: "review start",
+				Summary: "Review delta anchor is invalid.",
+				Errors:  []CommandError{{Path: "spec.anchor_sha", Message: fmt.Sprintf("must resolve to a real Git commit: %v", err)}},
+			}
+		}
+		spec.AnchorSHA = resolvedAnchor
+	}
+	if issues := validateRepairLink(s.Workdir, planStem, state, spec, inferredStep, revision); len(issues) > 0 {
+		return StartResult{
+			OK:      false,
+			Command: "review start",
+			Summary: "Review repair does not continuously extend finalize coverage.",
+			Errors:  issues,
+		}
+	}
 
 	roundID, err := nextRoundID(s.Workdir, planStem, spec.Kind)
 	if err != nil {
@@ -196,20 +225,37 @@ func (s Service) Start(specBytes []byte) StartResult {
 	}
 
 	manifest := Manifest{
-		RoundID:     roundID,
-		Kind:        spec.Kind,
-		AnchorSHA:   strings.TrimSpace(spec.AnchorSHA),
-		Step:        inferredStep,
-		Revision:    revision,
-		ReviewTitle: reviewTitle,
-		Repair:      cloneRepairReference(spec.Repair),
-		PlanPath:    relPlanPath,
-		PlanStem:    planStem,
-		CreatedAt:   now.Format(time.RFC3339),
-		Assignments: assignments,
-		LedgerPath:  ledgerPath,
-		Aggregate:   aggregatePath,
-		Submissions: submissionsDir,
+		RoundID:         roundID,
+		Kind:            spec.Kind,
+		AnchorSHA:       strings.TrimSpace(spec.AnchorSHA),
+		ReviewedHeadSHA: candidate.HeadSHA,
+		Step:            inferredStep,
+		Revision:        revision,
+		ReviewTitle:     reviewTitle,
+		Repair:          cloneRepairReference(spec.Repair),
+		PlanPath:        relPlanPath,
+		PlanStem:        planStem,
+		CreatedAt:       now.Format(time.RFC3339),
+		Assignments:     assignments,
+		LedgerPath:      ledgerPath,
+		Aggregate:       aggregatePath,
+		Submissions:     submissionsDir,
+	}
+	confirmedCandidate, confirmErr := reviewcoverage.CaptureCandidate(s.Workdir)
+	if confirmErr != nil || confirmedCandidate.HeadSHA != candidate.HeadSHA {
+		_ = os.RemoveAll(roundDir)
+		message := "candidate worktree is no longer clean"
+		if confirmErr != nil {
+			message = confirmErr.Error()
+		} else {
+			message = fmt.Sprintf("candidate HEAD moved from %s to %s", candidate.HeadSHA, confirmedCandidate.HeadSHA)
+		}
+		return StartResult{
+			OK:      false,
+			Command: "review start",
+			Summary: "Review candidate changed before round persistence.",
+			Errors:  []CommandError{{Path: "review.candidate", Message: message}},
+		}
 	}
 	if err := writeJSON(manifestPath, manifest); err != nil {
 		_ = os.RemoveAll(roundDir)
@@ -488,6 +534,26 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 			Errors:  []CommandError{{Path: "review.round", Message: sanitizedReadMessage("review round metadata", err)}},
 		}
 	}
+	candidate, err := reviewcoverage.CaptureCandidate(s.Workdir)
+	if err != nil {
+		return AggregateResult{
+			OK:      false,
+			Command: "review aggregate",
+			Summary: "Review candidate changed while the round was in progress.",
+			Errors:  []CommandError{{Path: "review.candidate", Message: err.Error()}},
+		}
+	}
+	if candidate.HeadSHA != manifest.ReviewedHeadSHA {
+		return AggregateResult{
+			OK:      false,
+			Command: "review aggregate",
+			Summary: "Review candidate HEAD moved while the round was in progress.",
+			Errors: []CommandError{{
+				Path:    "review.reviewed_head_sha",
+				Message: fmt.Sprintf("round captured %s but current HEAD is %s; start a new review round", manifest.ReviewedHeadSHA, candidate.HeadSHA),
+			}},
+		}
+	}
 
 	ledger, err := loadLedger(manifest.LedgerPath)
 	if err != nil {
@@ -506,7 +572,22 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 	blocking := make([]AggregateFinding, 0)
 	nonBlocking := make([]AggregateFinding, 0)
 	missing := make([]string, 0)
-	resolutionStatus := initialResolutionStatus(manifest.Repair)
+	unresolvedByID := map[string]AggregateFinding{}
+	if manifest.Repair != nil {
+		parent, err := reviewcoverage.LoadRound(s.Workdir, planStem, manifest.Repair.RoundID)
+		if err != nil {
+			return AggregateResult{
+				OK:      false,
+				Command: "review aggregate",
+				Summary: "Unable to load the repair parent review round.",
+				Errors:  []CommandError{{Path: "review.repair.round_id", Message: err.Error()}},
+			}
+		}
+		for _, finding := range parent.Aggregate.UnresolvedBlockingFindings {
+			unresolvedByID[finding.FindingID] = finding
+		}
+	}
+	resolutionVerdicts := map[string]string{}
 	for _, assignmentDef := range manifest.Assignments {
 		ledgerSlot, ok := ledgerBySlot[assignmentDef.Slot]
 		if !ok || ledgerSlot.Status != "submitted" {
@@ -542,7 +623,18 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 				Errors:  issues,
 			}
 		}
-		applyResolutions(resolutionStatus, submission.Resolutions)
+		for _, resolution := range submission.Resolutions {
+			findingID := strings.TrimSpace(resolution.FindingID)
+			if prior, exists := resolutionVerdicts[findingID]; exists {
+				return AggregateResult{
+					OK:      false,
+					Command: "review aggregate",
+					Summary: "Repair finding resolution ownership is ambiguous.",
+					Errors:  []CommandError{{Path: "review.resolutions", Message: fmt.Sprintf("finding %q has multiple resolution verdicts (%s and %s)", findingID, prior, resolution.Status)}},
+				}
+			}
+			resolutionVerdicts[findingID] = resolution.Status
+		}
 		for findingIndex, finding := range submission.Findings {
 			aggregateFinding := AggregateFinding{
 				FindingID:    findingID(roundID, submission.Slot, findingIndex),
@@ -571,25 +663,48 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		}
 	}
 
+	resolvedFindingIDs := make([]string, 0)
+	for findingID, verdict := range resolutionVerdicts {
+		if verdict == "resolved" {
+			resolvedFindingIDs = append(resolvedFindingIDs, findingID)
+			delete(unresolvedByID, findingID)
+		}
+	}
+	for _, finding := range blocking {
+		unresolvedByID[finding.FindingID] = finding
+	}
+	slices.Sort(resolvedFindingIDs)
+	unresolvedBlocking := make([]AggregateFinding, 0, len(unresolvedByID))
+	for _, finding := range unresolvedByID {
+		unresolvedBlocking = append(unresolvedBlocking, finding)
+	}
+	slices.SortFunc(unresolvedBlocking, func(left, right AggregateFinding) int {
+		return strings.Compare(left.FindingID, right.FindingID)
+	})
+	unresolvedFindingIDs := make([]string, 0, len(unresolvedBlocking))
+	for _, finding := range unresolvedBlocking {
+		unresolvedFindingIDs = append(unresolvedFindingIDs, finding.FindingID)
+	}
 	decision := "pass"
-	resolvedFindingIDs, unresolvedFindingIDs := partitionResolutionStatus(manifest.Repair, resolutionStatus)
-	if len(blocking) > 0 || len(unresolvedFindingIDs) > 0 {
+	if len(unresolvedFindingIDs) > 0 {
 		decision = "changes_requested"
 	}
 
 	aggregate := Aggregate{
-		RoundID:              roundID,
-		Kind:                 manifest.Kind,
-		Step:                 manifest.Step,
-		Revision:             manifest.Revision,
-		ReviewTitle:          manifest.ReviewTitle,
-		Repair:               cloneRepairReference(manifest.Repair),
-		Decision:             decision,
-		BlockingFindings:     blocking,
-		NonBlockingFindings:  nonBlocking,
-		ResolvedFindingIDs:   resolvedFindingIDs,
-		UnresolvedFindingIDs: unresolvedFindingIDs,
-		AggregatedAt:         s.now().Format(time.RFC3339),
+		RoundID:                    roundID,
+		Kind:                       manifest.Kind,
+		Step:                       manifest.Step,
+		Revision:                   manifest.Revision,
+		ReviewTitle:                manifest.ReviewTitle,
+		ReviewedHeadSHA:            manifest.ReviewedHeadSHA,
+		Repair:                     cloneRepairReference(manifest.Repair),
+		Decision:                   decision,
+		BlockingFindings:           blocking,
+		NonBlockingFindings:        nonBlocking,
+		ResolvedFindingIDs:         resolvedFindingIDs,
+		UnresolvedFindingIDs:       unresolvedFindingIDs,
+		UnresolvedBlockingFindings: unresolvedBlocking,
+		AggregatedAt:               s.now().Format(time.RFC3339),
 	}
 	state, _, err = runstate.LoadState(s.Workdir, planStem)
 	if err != nil {
@@ -613,6 +728,21 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 			Errors:  []CommandError{{Path: "review.decision", Message: sanitizedReadMessage("the previous review decision", err)}},
 		}
 	}
+	confirmedCandidate, err := reviewcoverage.CaptureCandidate(s.Workdir)
+	if err != nil || confirmedCandidate.HeadSHA != manifest.ReviewedHeadSHA {
+		message := "candidate worktree is no longer clean"
+		if err != nil {
+			message = err.Error()
+		} else {
+			message = fmt.Sprintf("round captured %s but current HEAD is %s", manifest.ReviewedHeadSHA, confirmedCandidate.HeadSHA)
+		}
+		return AggregateResult{
+			OK:      false,
+			Command: "review aggregate",
+			Summary: "Review candidate changed before aggregate persistence.",
+			Errors:  []CommandError{{Path: "review.reviewed_head_sha", Message: message}},
+		}
+	}
 	if err := writeJSON(manifest.Aggregate, aggregate); err != nil {
 		return AggregateResult{
 			OK:      false,
@@ -632,6 +762,19 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		Revision:   manifest.Revision,
 		Aggregated: true,
 		Decision:   decision,
+	}
+	if manifest.Step == nil {
+		chain, coverageErr := reviewcoverage.Resolve(s.Workdir, planStem, manifest.RoundID, manifest.Revision)
+		if coverageErr != nil {
+			issues := restoreJSONFileSnapshot(manifest.Aggregate, previousAggregate, previousAggregateExists, "aggregate")
+			return AggregateResult{
+				OK:      false,
+				Command: "review aggregate",
+				Summary: "Unable to establish continuous finalize review coverage.",
+				Errors:  append([]CommandError{{Path: "review.coverage", Message: coverageErr.Error()}}, issues...),
+			}
+		}
+		state.FinalizeCoverage = reviewcoverage.StateFromChain(chain)
 	}
 	statePath, err = saveState(s.Workdir, planStem, state)
 	if err != nil {
@@ -852,9 +995,6 @@ func validateSpec(spec Spec) []CommandError {
 		if strings.TrimSpace(spec.Repair.RoundID) == "" {
 			issues = append(issues, CommandError{Path: "spec.repair.round_id", Message: "must not be empty"})
 		}
-		if len(spec.Repair.FindingIDs) == 0 {
-			issues = append(issues, CommandError{Path: "spec.repair.finding_ids", Message: "must contain at least one finding id"})
-		}
 		seenFindingIDs := map[string]bool{}
 		for i, findingID := range spec.Repair.FindingIDs {
 			findingID = strings.TrimSpace(findingID)
@@ -926,6 +1066,74 @@ func validateAssignmentTopology(spec Spec, inferredStep *int) []CommandError {
 		return []CommandError{{Path: "spec.assignments", Message: "a full finalize review requires exactly one integrated assignment"}}
 	}
 	return nil
+}
+
+func validateRepairLink(workdir, planStem string, state *runstate.State, spec Spec, inferredStep *int, revision int) []CommandError {
+	if inferredStep != nil {
+		if spec.Repair != nil {
+			return []CommandError{{Path: "spec.repair", Message: "is only valid for finalize repair deltas"}}
+		}
+		return nil
+	}
+	if spec.Kind == "full" {
+		if spec.Repair != nil {
+			return []CommandError{{Path: "spec.repair", Message: "must be omitted when a full review resets finalize coverage"}}
+		}
+		return nil
+	}
+	if spec.Repair == nil {
+		return []CommandError{{Path: "spec.repair", Message: "is required for a finalize delta so the coverage parent is explicit"}}
+	}
+	parentID := strings.TrimSpace(spec.Repair.RoundID)
+	if state == nil || state.FinalizeCoverage == nil || strings.TrimSpace(state.FinalizeCoverage.TipRoundID) == "" {
+		return []CommandError{{Path: "spec.repair.round_id", Message: "cannot extend finalize coverage before a full root is aggregated"}}
+	}
+	if parentID != state.FinalizeCoverage.TipRoundID {
+		return []CommandError{{Path: "spec.repair.round_id", Message: fmt.Sprintf("must directly reference current finalize coverage tip %q", state.FinalizeCoverage.TipRoundID)}}
+	}
+	parent, err := reviewcoverage.LoadRound(workdir, planStem, parentID)
+	if err != nil {
+		return []CommandError{{Path: "spec.repair.round_id", Message: err.Error()}}
+	}
+	if parent.Manifest.Step != nil {
+		return []CommandError{{Path: "spec.repair.round_id", Message: "must reference a finalize review round"}}
+	}
+	if spec.AnchorSHA != parent.Manifest.ReviewedHeadSHA {
+		return []CommandError{{Path: "spec.anchor_sha", Message: fmt.Sprintf("must equal parent reviewed head %s", parent.Manifest.ReviewedHeadSHA)}}
+	}
+	if revision < parent.Manifest.Revision || revision > parent.Manifest.Revision+1 {
+		return []CommandError{{Path: "spec.repair.round_id", Message: "parent revision does not continuously precede this review"}}
+	}
+	if revision == parent.Manifest.Revision+1 && (parent.Aggregate.Decision != "pass" || len(parent.Aggregate.UnresolvedFindingIDs) > 0) {
+		return []CommandError{{Path: "spec.repair.round_id", Message: "a reopened revision can extend only a clean prior-revision coverage tip"}}
+	}
+	targeted := map[string]bool{}
+	for _, findingID := range spec.Repair.FindingIDs {
+		targeted[strings.TrimSpace(findingID)] = true
+	}
+	known := map[string]bool{}
+	for _, finding := range parent.Aggregate.BlockingFindings {
+		known[finding.FindingID] = true
+	}
+	for _, finding := range parent.Aggregate.NonBlockingFindings {
+		known[finding.FindingID] = true
+	}
+	for _, finding := range parent.Aggregate.UnresolvedBlockingFindings {
+		known[finding.FindingID] = true
+	}
+	issues := make([]CommandError, 0)
+	for _, findingID := range parent.Aggregate.UnresolvedFindingIDs {
+		if !targeted[findingID] {
+			issues = append(issues, CommandError{Path: "spec.repair.finding_ids", Message: fmt.Sprintf("must cover unresolved parent finding %q", findingID)})
+		}
+	}
+	for index, findingID := range spec.Repair.FindingIDs {
+		findingID = strings.TrimSpace(findingID)
+		if !known[findingID] {
+			issues = append(issues, CommandError{Path: fmt.Sprintf("spec.repair.finding_ids[%d]", index), Message: fmt.Sprintf("finding %q does not exist in parent round %s", findingID, parentID)})
+		}
+	}
+	return issues
 }
 
 func validateRiskBrief(path string, brief *RiskBrief) []CommandError {
@@ -1132,50 +1340,6 @@ func findingID(roundID, slot string, findingIndex int) string {
 	return fmt.Sprintf("%s/%s/%03d", roundID, slot, findingIndex+1)
 }
 
-func initialResolutionStatus(reference *RepairReference) map[string]string {
-	status := map[string]string{}
-	if reference == nil {
-		return status
-	}
-	for _, findingID := range reference.FindingIDs {
-		status[strings.TrimSpace(findingID)] = "unresolved"
-	}
-	return status
-}
-
-func applyResolutions(status map[string]string, resolutions []FindingResolution) {
-	for _, resolution := range resolutions {
-		findingID := strings.TrimSpace(resolution.FindingID)
-		if _, ok := status[findingID]; !ok {
-			continue
-		}
-		if resolution.Status == "unresolved" {
-			status[findingID] = "unresolved-confirmed"
-			continue
-		}
-		if status[findingID] == "unresolved" {
-			status[findingID] = "resolved"
-		}
-	}
-}
-
-func partitionResolutionStatus(reference *RepairReference, status map[string]string) ([]string, []string) {
-	if reference == nil {
-		return []string{}, []string{}
-	}
-	resolved := make([]string, 0, len(reference.FindingIDs))
-	unresolved := make([]string, 0, len(reference.FindingIDs))
-	for _, findingID := range reference.FindingIDs {
-		findingID = strings.TrimSpace(findingID)
-		if status[findingID] == "resolved" {
-			resolved = append(resolved, findingID)
-		} else {
-			unresolved = append(unresolved, findingID)
-		}
-	}
-	return resolved, unresolved
-}
-
 func validateStoredSubmission(submission Submission) []CommandError {
 	issues := make([]CommandError, 0)
 	if strings.TrimSpace(submission.RoundID) == "" {
@@ -1296,7 +1460,7 @@ func formatRoundID(sequence int, kind string) string {
 	return fmt.Sprintf("review-%03d-%s", sequence, kind)
 }
 
-func inferReviewBinding(workdir, planStem string, doc *plan.Document, state *runstate.State, spec Spec) (*int, int, string, error) {
+func inferReviewBinding(_ string, _ string, doc *plan.Document, state *runstate.State, spec Spec) (*int, int, string, error) {
 	revision := runstate.CurrentRevision(state)
 	if stepIndex, ok, err := inferReviewStepIndex(doc, state, spec); err != nil {
 		return nil, 0, "", err
@@ -1315,11 +1479,9 @@ func inferReviewBinding(workdir, planStem string, doc *plan.Document, state *run
 	if !doc.AllStepsCompleted() {
 		return nil, 0, "", fmt.Errorf("no reviewable tracked step could be inferred; set spec.step to select a tracked step explicitly")
 	}
-	reminder := stepcloseout.LoadReminder(workdir, planStem, doc, "execution/finalize/review", nil)
-	if len(reminder.MissingTitles) > 0 {
-		earliestTitle := reminder.MissingTitles[0]
-		earliestStepNumber := reminder.MissingIndexes[0] + 1
-		return nil, 0, "", fmt.Errorf("earlier completed steps still need review-complete closeout; repair %s first with spec.step=%d or record NO_STEP_REVIEW_NEEDED: <reason> in Review Notes before starting default finalize review", earliestTitle, earliestStepNumber)
+	if state != nil && state.ActiveReviewRound != nil && state.ActiveReviewRound.Step != nil &&
+		(!state.ActiveReviewRound.Aggregated || state.ActiveReviewRound.Decision != "pass") {
+		return nil, 0, "", fmt.Errorf("intentional step review %s must be aggregated and clean before finalize review", state.ActiveReviewRound.RoundID)
 	}
 
 	reviewTitle := strings.TrimSpace(spec.ReviewTitle)
@@ -1547,6 +1709,10 @@ func cloneState(state *runstate.State) *runstate.State {
 	if state.ActiveReviewRound != nil {
 		round := *state.ActiveReviewRound
 		cloned.ActiveReviewRound = &round
+	}
+	if state.FinalizeCoverage != nil {
+		coverage := *state.FinalizeCoverage
+		cloned.FinalizeCoverage = &coverage
 	}
 	if state.Reopen != nil {
 		reopen := *state.Reopen
