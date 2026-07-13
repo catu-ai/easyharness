@@ -69,7 +69,10 @@ Path roots mean:
 - `paths.review.dimensions`: the repo-defined review dimensions root
 
 Supplements are not independently configured. They are derived from the
-matching plan root as `supplements/<plan-stem>`.
+matching plan root as `supplements/<plan-stem>`. Additive plan-scoped review
+guidance, when present, is derived further as
+`supplements/<plan-stem>/review-guidance/`; it does not need or accept a
+separate config path.
 
 Lightweight archived plan snapshots, current-plan pointer, plan-local state,
 reviews, evidence, timeline events, locks, and other command-owned local
@@ -104,9 +107,9 @@ Review the change as an API contract...
 ```
 
 Dimension names are stable skill-like identifiers. They must be made from
-lowercase alphanumeric segments separated by single hyphens. The name is also
-the review slot identifier when a controller chooses that dimension for a
-review round.
+lowercase alphanumeric segments separated by single hyphens. A reviewer
+assignment may select several dimension names; names identify guidance and no
+longer determine reviewer slot identifiers or agent count.
 
 The description is compact controller-facing selection guidance. The Markdown
 body is the full reviewer-facing instruction and is intentionally omitted from
@@ -114,6 +117,35 @@ the dimensions list output.
 
 Repo dimensions override built-in dimensions with the same name. Duplicate
 repo dimension names are invalid.
+
+## Plan-Scoped Review Guidance
+
+The active, archived, or reopened plan package may add reviewer guidance under:
+
+```text
+supplements/<plan-stem>/review-guidance
+```
+
+Plan-scoped files use the same stable name, compact description, and non-empty
+Markdown body concepts as repo review dimensions. They are package-owned and
+move with the plan rather than being indexed in `.harness/config.yaml`.
+
+Plan-scoped guidance is additive only:
+
+- a name matching a resolved built-in or repo dimension appends plan-specific
+  invariants and questions to that guidance
+- a new name creates plan-local guidance discoverable for that plan
+- it cannot override or suppress the base reviewer contract, built-in
+  guidance, or repo guidance
+- discovery does not automatically create a reviewer assignment or a
+  specialist; the controller explicitly chooses assignments at pre-review time
+
+Plans may approve risk surfaces and invariants before implementation, but the
+completed candidate determines reviewer topology. The ordinary finalize
+topology is one integrated reviewer with no specialist. A specialist needs a
+concrete risk brief with non-empty risk-surface and invariant lists and is not
+selected from plan size, step count, or file count alone. Every assignment also
+needs a non-empty reviewer handoff independent of its resolved guidance.
 
 ## Loading Behavior
 

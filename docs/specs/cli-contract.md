@@ -596,22 +596,23 @@ Contract:
   goal-oriented status implementation slice
 - return recommended next actions for both "continue work" and "wait/observe"
   situations
-- if an already completed earlier step is missing review-complete closeout,
-  keep the current node stable, surface a warning, and put the earliest repair
-  guidance first in `next_actions`
-- if unreadable historical review metadata cannot be mapped back to a tracked
-  step, keep the current node stable, preserve a conservative warning, and
-  steer the controller toward repairing artifacts or rerunning the relevant
-  step-closeout review instead of silently trusting older clean passes
+- if an intentionally started step review is still in flight or has unresolved
+  blocking findings, keep that step current and put its repair guidance first
+  in `next_actions`; a completed step with no review artifacts is not debt
+- if unreadable historical review metadata belongs to an intentionally started
+  round, keep the current node conservative and steer the controller toward
+  repairing the artifacts or rerunning that bounded review; do not infer that
+  every completed step should have review metadata
 - treat `state.json` as a control-plane artifact for cross-command runtime
   state, not as a cache of the latest resolved node or evidence pointers
 
 Recommended next action examples:
 
 - continue the current step
-- start step-closeout review before marking a completed step done
-- update step-local `Execution Notes` or `Review Notes` after a review or
-  step closeout
+- update step-local `Execution Notes` and `Review Notes` before marking a step
+  done
+- intentionally start a step review when the current intermediate artifact
+  crosses a concrete risk boundary
 - update the plan if scope changed
 - run review aggregation
 - refresh remote state if the latest sync evidence is stale or missing
@@ -636,14 +637,16 @@ Contract:
 - accept the review spec via a structured input such as `--spec <path>` or
   stdin
 - validate and persist the supplied review spec as CLI-owned round metadata
-- normalize each review dimension into a deterministic reviewer slot
+- normalize explicit reviewer assignments into deterministic reviewer slots;
+  one assignment may carry several guidance dimensions
 - reserve reviewer output paths
-- precreate one reviewer-owned folder per slot with a `submission.json`
+- precreate one reviewer-owned folder per assignment slot with a
+  `submission.json`
   skeleton that the reviewer can progressively update during the round
 - initialize round dispatch bookkeeping
-- when `step` is omitted and the inferred binding would be finalize review,
-  reject the request if earlier completed steps still lack review-complete
-  closeout and direct the controller toward explicit `step=<i>` repair instead
+- when `step` is omitted and the inferred binding is finalize review, do not
+  invent missing-review debt for completed steps that had no intentionally
+  started step round
 - when mutating both review artifacts and local state, acquire the review
   mutation lock before the state mutation lock instead of inventing a separate
   acquisition order for this command
@@ -651,7 +654,7 @@ Contract:
 - return round metadata plus next actions for the controller agent
 
 The controller agent should only need to know the round ID, repo-facing
-`plan_path`, review kind, dimension definitions, any reviewer-owned
+`plan_path`, review kind, reviewer assignments, any reviewer-owned
 `submission.json` paths it must hand to reviewer subagents, and how to invoke
 the reviewer skill. It should not need to know the paths or storage names of
 CLI-owned internal review-control artifacts.
@@ -676,25 +679,32 @@ Canonical input shape:
 
 ```json
 {
-  "kind": "delta",
-  "anchor_sha": "<base-commit-sha>",
-  "review_title": "Check the completed step for state-machine mistakes and handoff clarity.",
-  "dimensions": [
+  "kind": "full",
+  "review_title": "Review the complete branch candidate before archive.",
+  "assignments": [
     {
-      "name": "correctness",
-      "instructions": "Run `harness review dimensions instructions correctness` and follow the returned Markdown instruction."
+      "slot": "integrated",
+      "role": "integrated",
+      "dimensions": ["correctness", "tests", "risk-scan", "docs-consistency"],
+      "instructions": "Inspect the complete candidate under the common reviewer contract and all resolved guidance."
     },
     {
-      "name": "agent-ux",
-      "instructions": "Run `harness review dimensions instructions agent-ux` and follow the returned Markdown instruction."
-    },
-    {
-      "name": "docs-consistency",
-      "instructions": "Run `harness review dimensions instructions docs-consistency` and follow the returned Markdown instruction."
-    },
-    {
-      "name": "migration-compat",
-      "instructions": "Review migration compatibility and old-path fallback behavior for this change."
+      "slot": "process-lifecycle",
+      "role": "specialist",
+      "dimensions": ["risk-scan"],
+      "instructions": "Adversarially challenge the process-lifecycle invariants and failure modes in this risk brief.",
+      "risk_brief": {
+        "risk_surfaces": [
+          "New helper process and shell status propagation.",
+          "Target version skew."
+        ],
+        "invariants": [
+          "Known helper failure prevents workload side effects.",
+          "Runtime helper failure makes the run fail.",
+          "Successful capture preserves the workload status."
+        ],
+        "failure_modes": ["stale binary", "missing binary", "late helper exit"]
+      }
     }
   ]
 }
@@ -714,16 +724,30 @@ Review-spec semantics:
 - `kind`
   - required
   - enum: `delta` or `full`
-- `dimensions`
+- `assignments`
   - required
-  - one reviewer slot per normalized dimension
-  - catalog-managed dimensions use stable names made from lowercase
-    alphanumeric segments separated by single hyphens; for those dimensions the
-    name and slot identifier are the same
-  - `instructions` is still explicit review-start handoff text; for
-    catalog-managed dimensions it should usually be a command to fetch the full
-    instruction, while one-off dimensions are first-class review slots and may
-    carry direct reviewer guidance
+  - contains one or more reviewer assignments with unique stable `slot` values
+  - each assignment declares `role` as `integrated` or `specialist`
+  - each assignment carries non-empty `instructions` as the explicit reviewer
+    handoff; resolved dimension guidance augments rather than replaces it
+  - one assignment may select several built-in, repo, or plan-scoped guidance
+    `dimensions`; dimension names classify reusable guidance and do not imply
+    reviewer count or submission ownership
+  - an ordinary finalize round has exactly one `integrated` assignment and no
+    specialist
+  - every `specialist` requires a non-empty `risk_brief` containing non-empty
+    `risk_surfaces` and `invariants` arrays plus any relevant `failure_modes`
+  - a specialist slot is normally added only when the completed candidate
+    contains process/concurrency/lifecycle coordination, failure/retry or
+    idempotency behavior, a security or trust boundary, schema/migration or
+    persistence risk, release/deployment/version-skew risk, irreversible or
+    external side effects, acceptance-critical performance/resource behavior,
+    or another critical mechanism the controller cannot confidently cover with
+    integrated review alone
+  - plan size, step count, file count, or the mere availability of a specialist
+    dimension is not a trigger
+  - normally use at most one specialist; use more only for multiple independent
+    high-risk surfaces
 - `anchor_sha`
   - optional for `full`
   - required for `delta`
@@ -735,12 +759,11 @@ Review-spec semantics:
 - `step`
   - optional 1-based tracked step number
   - usually omitted
-  - when present, explicitly binds the round to that tracked step's
-    step-closeout review, even if the current execution frontier is already on
-    a later step or in finalize repair
-  - use this path for earlier-step closeout repair when missing or failed
-    closeout evidence needs to be repaired intentionally rather than only
-    surfaced as passive warning debt
+  - when present, explicitly binds an intentionally chosen optional round to
+    that tracked step, even if the execution frontier is already on a later
+    step or in finalize repair
+  - use this path only for a concrete intermediate risk boundary or repair, not
+    to backfill absent routine step reviews
   - when omitted, `harness review start` infers the binding from workflow state:
     - during `execution/step-<n>/implement`, the round binds to the current step
     - during `execution/finalize/review` or `execution/finalize/fix`, the round binds to finalize review
@@ -749,20 +772,21 @@ Agents should not supply structural workflow tags such as `step_closeout` or
 `pre_archive`. The CLI owns that inference and persists the bound step or
 finalize scope in stored round metadata and local state.
 
-`harness review start` does not resolve dimension references, does not
-automatically inject built-in or repo-defined dimensions, and does not force a
-controller to use every recommended dimension. Controllers remain responsible
-for choosing dimensions and passing an explicit review spec. The catalog is a
-source of reusable recommended dimensions, not a closed enum; controllers may
-create one-off dimensions with explicit instructions for a particular round.
+`harness review start` resolves the explicitly selected guidance dimensions but
+does not automatically assign every built-in, repo-defined, or plan-scoped
+fragment. Controllers remain responsible for creating assignments and choosing
+their guidance. The catalog is reusable review guidance, not a closed enum or
+an agent topology. Plan-scoped guidance is additive: it may extend a resolved
+same-name dimension or introduce a plan-local name, but it cannot override the
+base reviewer contract or repo/built-in guidance and cannot create an
+assignment by itself.
 
-Explicit `step` binding intentionally re-enters the targeted step's review
-loop. If the controller is already executing `step-k` or finalize work and
-starts a repair review for earlier `step-i`, status may report
+Explicit `step` binding intentionally enters the targeted step's optional
+review loop. If the controller is already executing `step-k` or finalize work
+and starts a review for `step-i`, status may report
 `execution/step-<i>/review` while the round is in flight and
-`execution/step-<i>/implement` after a non-pass aggregate. This is distinct
-from passive warning debt, where status may keep the later frontier stable
-until the controller explicitly starts a repair review for the earlier step.
+`execution/step-<i>/implement` after a non-pass aggregate. No passive debt
+exists for steps that never started a review.
 
 Round identifiers should be short and plan-local:
 
@@ -777,19 +801,32 @@ If `review_title` is omitted, the CLI fills one in:
 - finalize `full` review defaults to `Full branch candidate before archive`
 - finalize `delta` review defaults to `Branch candidate before archive`
 
-If an explicit earlier-step repair review aggregates with findings, the
-follow-up work still belongs to the current candidate, but status should pin
-the repaired step as current until that step-closeout debt is resolved by a
-later clean repair review or explicit `NO_STEP_REVIEW_NEEDED` closeout.
+If an explicit step review aggregates with blocking findings, the follow-up
+work still belongs to the current candidate, but status should pin the reviewed
+step as current until a later round resolves those findings. Non-blocking
+findings do not prevent progression.
 
-Dimension-specific reviewer instructions belong in the input review spec.
-For catalog-managed dimensions, the spec should usually hand reviewers a
-`harness review dimensions instructions <name>` command instead of embedding the
-full instruction body. For one-off review slots that are not in the catalog,
-the spec may carry explicit reviewer guidance directly. Generic reviewer
-behavior, such as "inspect the current diff and submit results through the
-harness contract," belongs in the reviewer skill or in command output helpers,
-not duplicated in every review spec.
+All reviewers follow one base contract for severity, evidence, submission, and
+no tracked-file edits. The integrated role then inspects the complete candidate
+across correctness, tests, risk, and documentation and must not skip a surface
+because a specialist is present. A specialist is an independent adversarial
+challenge of its risk brief and may follow the relevant call chain beyond the
+changed files, but it should not repeat a generic whole-candidate review.
+`blocker` and `important` findings are blocking; `minor` findings are
+non-blocking and remain visible without forcing repair or another round.
+
+Dimension-specific instructions are resolved from the assignment's selected
+guidance. Generic reviewer behavior belongs in the reviewer skill or command
+output helpers, not in every review spec. Known risks and invariants may be
+approved with the plan package, while the controller chooses the actual
+assignment topology from the completed diff, acceptance criteria, validation
+evidence, and residual risks immediately before finalize review.
+
+Repair-delta assignments follow the findings and changed risk surface. A narrow
+specialist finding should return to the same specialist assignment. Include the
+integrated assignment as well when the repair changes broad control flow or
+cross-cutting behavior; establish a new full round only when that change
+invalidates the earlier whole-candidate judgment.
 
 Recommended next action:
 
@@ -808,6 +845,7 @@ Purpose:
 Contract:
 
 - discover built-in dimensions and repo-defined dimensions
+- discover additive plan-scoped guidance from the current plan package
 - discover repo dimensions from the root resolved by
   `harness repo config get paths.review.dimensions`, defaulting to
   `.harness/review/dimensions`
@@ -817,6 +855,8 @@ Contract:
 - dimension names are stable skill-like identifiers made from lowercase
   alphanumeric segments separated by single hyphens
 - repo dimensions override built-in dimensions with the same name
+- plan-scoped guidance never overrides either source: a same-name fragment is
+  appended to the resolved base dimension and a new name is plan-local
 - duplicate repo dimension names are invalid
 - return compact JSON metadata only; do not include full instruction bodies
 
@@ -855,6 +895,7 @@ Canonical output shape:
 
 - `builtin`: packaged easyharness dimension
 - `repo`: dimension defined by the current repository
+- `plan`: additive guidance from the current tracked plan package
 
 ### `harness review dimensions instructions <name>`
 
@@ -866,7 +907,7 @@ Purpose:
 Contract:
 
 - accept one stable dimension name
-- resolve the same built-in plus repo-overridden catalog used by
+- resolve the same built-in plus repo-overridden and plan-augmented catalog used by
   `harness review dimensions list`
 - print only the raw Markdown instruction body on success
 - print clear errors and exit non-zero when the name is invalid, unknown, or
@@ -954,36 +995,48 @@ Contract:
 
 Recommended next action:
 
-- for a passing `delta` review, continue the current step or mark the step
-  complete, then update the step's `Execution Notes` and `Review Notes`
-- for a failing `delta` review, fix the current slice and rerun a delta review
+- for a passing step-bound `delta` review, continue or complete that step
+- for a failing step-bound review, repair the explicit risk boundary before
+  progression
+- for a passing finalize repair `delta`, continue toward archive without
+  forcing another full review
+- for a failing finalize repair `delta`, repair the remaining linked findings
 - for a passing `full` review, move toward final CI and archive readiness
-- for a failing `full` review, fix findings before archive
+- for a failing finalize `full` review, fix findings and normally start a
+  linked repair delta; start a new full only if the repair materially changed
+  the candidate design, scope, or risk model
 
 ## Review Sequencing
 
 The CLI contract should assume this review cadence:
 
-- use `delta` review after a completed plan step or after a narrow follow-up fix
-- anchor `delta` review to a real git commit chosen by the controller; the
-  latest passed-review anchor should be the default start point for a later
-  `delta` review
-- allow a `full` review to satisfy step closeout when a narrower review would
-  be misleading for that completed step
-- use `full` review once all planned work appears complete and the branch looks
-  like an archive candidate
-- if CI failure or conflict resolution creates a narrow, well-bounded change,
-  run a `delta` review on that change
-- if CI or conflict repair is broad or invalidates the prior full-review scope,
-  rerun `full` review before archive
+- implement and validate plan steps without formal review by default; this is
+  independent of plan size
+- allow a controller to start a bounded step review only at an explicit
+  intermediate risk boundary, and make that round binding once started
+- once all planned work appears complete, use a finalize `full` review with one
+  integrated assignment by default
+- choose any specialist immediately before finalize from concrete candidate
+  risks; ordinary work uses none and normally no more than one is needed
+- after a narrow review-driven, CI, or conflict repair, use a linked finalize
+  `delta` to verify finding resolution and related regressions while preserving
+  the prior whole-candidate coverage
+- rerun `full` only when the repair materially changes scope, architecture, or
+  risk enough to invalidate the prior whole-candidate review
 
 Archive readiness requires:
 
-- a clean `full` review for the initial archive candidate (`revision: 1`)
-- a clean review result for later reopened revisions, where a narrow fix may
-  use `delta` review instead of forcing another `full` review
-- no unresolved active review round
+- whole-candidate coverage rooted in a finalize `full` review
+- any review-driven changes covered by continuous linked repair deltas, unless
+  a materially broad repair intentionally established a replacement full root
+- no unresolved blocking findings or active review round
 - no unresolved finalize repair work
+
+For this Review v2 dogfood plan, no implementation step starts a formal review
+round. Finalize uses exactly one integrated reviewer assignment and one
+`review-state-and-coverage` specialist assignment. A narrow finding repair uses
+a linked repair delta rather than another full round unless the controller
+records a material change to candidate design or risk.
 
 Post-archive merge readiness additionally requires:
 
@@ -1079,8 +1132,9 @@ Contract:
 - assume the plan's durable summary sections have already been written from the
   current plan plus local artifacts, not reconstructed from agent memory
 - require finalize review to be satisfied before archive succeeds
-- reject archive while earlier completed steps still lack review-complete
-  closeout, even if the latest finalize review is clean
+- reject archive when an intentionally started step review still has unresolved
+  blocking findings, but do not require review artifacts or no-review markers
+  for ordinary completed steps
 - if the plan still contains `## Deferred Items`, require
   `## Outcome Summary > Follow-Up Issues` to be something other than `NONE`
   before allowing archive to succeed

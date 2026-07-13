@@ -111,6 +111,9 @@ Rules:
 - bulky but durable execution detail that should survive context compaction may
   live in supplements, such as spec drafts, formulas, design notes, or other
   structured reasoning that is too large or awkward for the main markdown
+- additive plan-scoped review guidance may live under
+  `supplements/<plan-stem>/review-guidance/`; it carries approved invariants or
+  specialist questions across active, archived, and reopened plan locations
 - supplements are a staging area for approved execution detail, not the final
   durable home for repository-facing normative content; before archive, anything
   the repository should keep depending on must be absorbed into formal tracked
@@ -131,6 +134,29 @@ Execution-time update rules:
   or key design constraints in either the markdown plan or supplements
 - if a package change would alter the approved intent, reuse the normal plan
   update or reopen approval boundary instead of drifting the package silently
+
+### Plan-Scoped Review Guidance
+
+Plans may record known review risks and invariants in their Markdown body and
+may place longer reviewer guidance in the matching supplements package:
+
+```text
+supplements/<plan-stem>/review-guidance/<guidance-name>.md
+```
+
+This guidance is additive. It may extend a built-in or repo-defined guidance
+name or define a plan-local name, but it must not override the base reviewer
+contract or remove built-in/repo instructions. Merely adding guidance does not
+create a reviewer assignment or require a specialist.
+
+Plan approval makes these risks and invariants durable review input. It does
+not freeze reviewer topology. Immediately before finalize review, the
+controller chooses one integrated assignment and any risk-triggered specialist
+assignments from the completed candidate, acceptance criteria, validation
+evidence, and residual risk. Plan size alone does not determine either step
+review or specialist count. Every assignment receives an explicit non-empty
+handoff; each specialist also receives non-empty risk-surface and invariant
+lists plus any relevant failure modes.
 
 ## File Naming
 
@@ -394,8 +420,13 @@ Rules:
 - if no extra detail is needed, write `NONE` in `Details`
 - `Execution Notes` and `Review Notes` carry durable closeout history as work
   progresses
-- `Review Notes` may record `NO_STEP_REVIEW_NEEDED: <reason>` when a completed
-  step is too small or low risk to justify a separate step-closeout review
+- `Review Notes` summarize any intentionally started step review or state in
+  ordinary prose that formal review was deferred to finalize; absence of a
+  step review is normal and needs no magic marker or risk justification
+- steps are execution and validation boundaries, not mandatory review
+  boundaries; this rule applies to every plan size
+- once a controller intentionally starts a step review at a concrete risk
+  boundary, its blocking findings must be resolved before the step advances
 - if `Step Acceptance Criteria` exists, every entry must be a markdown checkbox
 - archived plans require all step-local acceptance checkboxes to be checked
 - `Checkpoint Reports` is intended for goal-oriented adaptive steps and may
@@ -571,6 +602,8 @@ An active plan must satisfy all of these:
   a reopen
 - when a matching `supplements/<plan-stem>/` directory exists under the active
   root, it is part of the same approved package
+- any `review-guidance/` subtree is additive plan-scoped guidance and does not
+  override built-in or repo-level reviewer guidance
 - when the active plan uses `workflow_profile: lightweight`, supplements are
   supported but should be exceptional rather than the default way to carry plan
   detail
@@ -607,6 +640,9 @@ An archived plan must satisfy all of these:
 - when a matching archived `supplements/<plan-stem>/` directory exists, it is
   retained only as cold-backup context rather than becoming the primary reading
   entrypoint or a durable correctness dependency
+- archived plan-scoped review guidance remains discoverable for audit and
+  reopen, even though durable product contracts must still be absorbed into
+  formal tracked locations outside the supplements tree
 - archive-time correctness must not depend on archived supplements continuing to
   exist; content that still matters after archive must already be absorbed into
   formal tracked locations outside the supplements tree

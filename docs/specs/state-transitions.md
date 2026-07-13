@@ -13,8 +13,8 @@ the normative transition matrix.
 
 - `step-<n>` means the current unfinished step in the ordinary forward loop.
 - `step-<m>` means the next unfinished step after `step-<n>`.
-- `step-<i>` means an explicitly targeted earlier completed step whose
-  step-closeout review is being rerun intentionally.
+- `step-<i>` means an explicitly targeted step whose optional review is being
+  run or repaired intentionally.
 - "Durably complete" means the step `Done` marker is checked and the plan
   satisfies the required step-local closeout notes.
 
@@ -30,30 +30,30 @@ the normative transition matrix.
 | From | To | Driver | Required inputs | Notes |
 | --- | --- | --- | --- | --- |
 | `execution/step-<n>/implement` | `execution/step-<n>/review` | `harness review start` | The command binds the new round to the current step | Review nodes require real review artifacts. |
-| `execution/step-<n>/implement` | `execution/step-<i>/review` | `harness review start` with explicit `step=<i>` | Earlier completed step `<i>` intentionally needs closeout repair | Explicit earlier-step repair re-enters the targeted step's review loop instead of staying on the later frontier. |
-| `execution/step-<n>/implement` | `execution/step-<m>/implement` | Derived from current plan edits | Step `<n>` becomes durably complete, any required step review is clean, and another unfinished step exists | A failed step review must be repaired and rerun before this transition is allowed. |
-| `execution/step-<n>/implement` | `execution/finalize/review` | Derived from current plan edits | Step `<n>` becomes durably complete, any required step review is clean, and no unfinished steps remain | Finalize review stays distinct from step review. |
-| `execution/step-<n>/review` | `execution/step-<n>/implement` | `harness review aggregate` | Latest aggregate is clean | Review is no longer in flight; the controller may continue implementation or mark the step done. |
-| `execution/step-<n>/review` | `execution/step-<n>/implement` | `harness review aggregate` | Latest aggregate has actionable findings or an unrecoverable conservative outcome | The step remains current and must be repaired plus rerun through review before it may advance. |
-| `execution/step-<i>/review` | `execution/step-<i>/implement` | `harness review aggregate` | Earlier-step repair aggregate has actionable findings or an unrecoverable conservative outcome | A non-clean repair keeps the earlier repaired step current and requires another repair pass. |
-| `execution/step-<i>/review` | `execution/step-<m>/implement` or `execution/finalize/...` | `harness review aggregate` | Earlier-step repair aggregate is clean | Once the explicit earlier-step repair is clean, status falls back to the ordinary unfinished-step or finalize resolution for the same candidate. |
+| `execution/step-<n>/implement` | `execution/step-<i>/review` | `harness review start` with explicit `step=<i>` | Step `<i>` intentionally needs an optional risk-boundary review or repair | Explicit binding enters the targeted step's review loop instead of creating review debt for every other step. |
+| `execution/step-<n>/implement` | `execution/step-<m>/implement` | Derived from current plan edits | Step `<n>` becomes durably complete, no intentionally started step review is unresolved, and another unfinished step exists | Absence of a step review is normal and does not block advancement. |
+| `execution/step-<n>/implement` | `execution/finalize/review` | Derived from current plan edits | Step `<n>` becomes durably complete, no intentionally started step review is unresolved, and no unfinished steps remain | Finalize full review is the default formal review gate for every plan size. |
+| `execution/step-<n>/review` | `execution/step-<n>/implement` | `harness review aggregate` | Latest aggregate has no blocking findings | Review is no longer in flight; the controller may continue implementation or mark the step done. Non-blocking findings remain visible. |
+| `execution/step-<n>/review` | `execution/step-<n>/implement` | `harness review aggregate` | Latest aggregate has blocking findings or an unrecoverable conservative outcome | The step remains current and must be repaired plus rerun through review before it may advance. |
+| `execution/step-<i>/review` | `execution/step-<i>/implement` | `harness review aggregate` | The explicit step review has blocking findings or an unrecoverable conservative outcome | A non-clean review keeps the reviewed step current and requires repair. |
+| `execution/step-<i>/review` | `execution/step-<m>/implement` or `execution/finalize/...` | `harness review aggregate` | The explicit step review has no blocking findings | Status falls back to the ordinary unfinished-step or finalize resolution for the same candidate. |
 
 ## Finalize Loop
 
 | From | To | Driver | Required inputs | Notes |
 | --- | --- | --- | --- | --- |
-| `execution/finalize/review` | `execution/step-<i>/review` | `harness review start` with explicit `step=<i>` | Earlier completed step `<i>` intentionally needs closeout repair before finalize can be trusted | Explicit earlier-step repair temporarily leaves finalize-scope review and re-enters the targeted step's review loop. |
-| `execution/finalize/review` | `execution/finalize/fix` | `harness review aggregate` | Latest finalize review aggregate has actionable findings or an unrecoverable conservative outcome | Finalize review findings stay distinct from step-local findings. |
-| `execution/finalize/review` | `execution/finalize/archive` | Derived from clean finalize review | Finalize review is satisfied and archive closeout work remains | Archive closeout includes summary refresh and placeholder replacement. |
-| `execution/finalize/fix` | `execution/step-<i>/review` | `harness review start` with explicit `step=<i>` | Earlier completed step `<i>` intentionally needs closeout repair during finalize-scope repair | Explicit earlier-step repair temporarily leaves finalize fix and re-enters the targeted step's review loop. |
-| `execution/finalize/fix` | `execution/finalize/review` | `harness review start` | A new finalize review round is started after repair and no unresolved earlier-step closeout debt remains | Use explicit `step=<i>` repair instead when earlier completed steps still need review-complete closeout. |
+| `execution/finalize/review` | `execution/step-<i>/review` | `harness review start` with explicit `step=<i>` | A concrete intermediate risk boundary intentionally needs a step-bound review before finalize can be trusted | This is exceptional; missing routine step reviews do not justify the transition. |
+| `execution/finalize/review` | `execution/finalize/fix` | `harness review aggregate` | Latest finalize review aggregate has blocking findings or an unrecoverable conservative outcome | Finalize review findings stay distinct from step-local findings. |
+| `execution/finalize/review` | `execution/finalize/archive` | Derived from finalize review with no blocking findings | Finalize review is satisfied and archive closeout work remains | Non-blocking findings remain visible but do not require repair. Archive closeout includes summary refresh and placeholder replacement. |
+| `execution/finalize/fix` | `execution/step-<i>/review` | `harness review start` with explicit `step=<i>` | Finalize repair intentionally needs a bounded step-risk review | This does not retroactively require reviews for other completed steps. |
+| `execution/finalize/fix` | `execution/finalize/review` | `harness review start` | A linked repair delta or materially necessary new full finalize round is started after repair | Narrow repairs extend the full review with delta; broad repairs may establish a new full root. |
 | `execution/finalize/fix` | `execution/step-<m>/implement` | Derived from current plan edits | Reopen mode is `new-step`, the first new unfinished step has been added, and that new step is now current | Once the first reopened step exists, the special `new-step` requirement is consumed and ordinary step execution resumes. |
 
 ## Archive and Publish Handoff
 
 | From | To | Driver | Required inputs | Notes |
 | --- | --- | --- | --- | --- |
-| `execution/finalize/archive` | `execution/finalize/publish` | `harness archive` | Finalize review is satisfied, archive closeout is ready, and no unresolved earlier-step closeout debt remains | `archive` moves the active tracked plan to the archived plan root resolved by `harness repo config get paths.plans.archived` for `standard` plans or snapshots it under the local runtime root resolved by `harness repo config get paths.local_runtime` for `lightweight` plans, then records archive metadata. |
+| `execution/finalize/archive` | `execution/finalize/publish` | `harness archive` | Finalize review is satisfied, archive closeout is ready, and no intentionally started review remains unresolved | `archive` moves the active tracked plan to the archived plan root resolved by `harness repo config get paths.plans.archived` for `standard` plans or snapshots it under the local runtime root resolved by `harness repo config get paths.local_runtime` for `lightweight` plans, then records archive metadata. |
 | `execution/finalize/publish` | `execution/finalize/await_merge` | Derived from latest publish, CI, and sync evidence | Publish evidence identifies the candidate, CI is good enough or explicit `not_applied`, sync is acceptable or explicit `not_applied`, and no unresolved fix condition remains | `await_merge` is a merge-ready state, not merely an archived state. |
 | `execution/finalize/publish` | `execution/finalize/fix` | `harness reopen --mode finalize-fix` | Archived candidate has been invalidated but does not justify a new step | Reopen is the command-owned reversal of archive-time assumptions for either profile. |
 | `execution/finalize/publish` | `execution/finalize/fix` | `harness reopen --mode new-step` | Archived candidate has been invalidated and the change deserves a new unfinished step | Status stays in finalize-scope repair until the first new unfinished step is actually added. |
@@ -101,10 +101,10 @@ The following are intentionally invalid in v0.2:
 - direct `plan -> execution/finalize/...` jumps
 - direct step-implement jumps that skip the finalize review gate once all
   steps are complete
-- step advancement after a failed step review without a later clean review for
-  that same step
+- step advancement while an intentionally started step review still has
+  unresolved blocking findings
 - direct `execution/finalize/fix -> execution/finalize/archive` jumps without a
-  later clean finalize review
+  clean linked repair delta or a clean replacement full review
 - direct `execution/finalize/archive -> execution/finalize/await_merge`
   jumps without publish, CI, and sync evidence
 - direct `execution/finalize/await_merge -> idle` jumps without explicit land
