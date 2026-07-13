@@ -584,26 +584,88 @@ the approved finalize topology: one integrated reviewer and one
 
 ## Validation Summary
 
-PENDING_UNTIL_ARCHIVE
+- `scripts/validate` passed after the final repair, covering the embedded UI
+  production build and all Go packages.
+- `go test ./tests/e2e -count=1` passed against the built harness workflow,
+  including review, repair, archive, reopen, publish, and land transitions.
+- `pnpm test` passed all 35 UI tests and `pnpm check` passed TypeScript
+  validation.
+- `scripts/sync-contract-artifacts --check`,
+  `scripts/sync-bootstrap-assets --check`, and `git diff --check` passed.
+- The dogfood repair round itself proved that `review start` returned the exact
+  captured `reviewed_head_sha`, the full-to-delta finding chain aggregated
+  cleanly, and status advanced to archive without demanding another full round.
 
 ## Review Summary
 
-PENDING_UNTIL_ARCHIVE
+- Finalize full round `review-001-full` used one integrated reviewer across the
+  standard guidance and one risk-triggered `review-state-and-coverage`
+  specialist. It found four important issues: the start response omitted the
+  captured head, aggregate guidance confused review kind with workflow scope,
+  intentional step-review debt could be overwritten, and fenced Markdown
+  examples could broaden the closeout exemption.
+- The controller repaired those four roots and committed them as a bounded
+  descendant of the reviewed full head.
+- Linked repair delta `review-002-delta` reused the affected integrated and
+  specialist assignments. Each slot explicitly resolved its two owned finding
+  IDs, both reviewers reported no new findings, and aggregate ended with no
+  unresolved blocking or non-blocking findings.
+- No second full review was run: the linked delta continuously extended the
+  passing coverage chain, demonstrating the intended Review v2 repair policy.
 
 ## Archive Summary
 
-PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-07-13T21:55:22+08:00
+- Revision: 1
+- PR: pending post-archive publish from branch
+  `codex/review-v2-composable-coverage`.
+- Ready: implementation, generated contracts, managed bootstrap assets,
+  focused and full validation, one full root review, and its linked repair
+  delta are complete with no unresolved findings.
+- Merge Handoff: publish a ready PR, record real CI and base-sync evidence,
+  resolve any remote drift through the documented reopen path, and stop at
+  `execution/finalize/await_merge` for explicit human merge approval.
 
 ## Outcome Summary
 
 ### Delivered
 
-PENDING_UNTIL_ARCHIVE
+- Replaced routine step-review ceremony with finalize-first review while
+  preserving explicit optional step gates at real semantic risk boundaries.
+- Replaced one-reviewer-per-dimension slots with composable reviewer
+  assignments: one integrated reviewer by default and a small number of
+  risk-triggered specialists selected from the completed candidate.
+- Added additive plan-scoped reviewer guidance and specialist risk briefs
+  without automatic injection or override semantics.
+- Bound review rounds to clean committed Git heads and made full review plus
+  continuously linked repair deltas the archive coverage model.
+- Made blocking-finding debt cumulative and stable across repair rounds while
+  keeping non-blocking findings visible without creating archive debt.
+- Narrowed post-review archive exemptions to the four real top-level closeout
+  bodies, including fenced-Markdown negative-path coverage.
+- Updated CLI/status/UI schemas, E2E fixtures, specs, README, managed skills,
+  and the managed `AGENTS.md` block to current Codex collaboration tools and
+  default subagent use without a per-run human authorization prompt.
 
 ### Not Delivered
 
-PENDING_UNTIL_ARCHIVE
+- No automatic specialist scoring, model selection, reasoning-effort policy,
+  or custom Codex reviewer-agent configuration was added.
+- No backward-compatibility shim for the removed dimension-slot review shape
+  or obsolete subagent tool vocabulary was retained.
+- No product telemetry or mandatory evidence mechanism was added merely to
+  police trusted agent behavior.
+- GitHub issue #263 was not rewritten before landing; its follow-up must reflect
+  the final shipped plan-scoped additive-guidance contract.
 
 ### Follow-Up Issues
 
-NONE
+- [#263: Support plan-scoped review dimensions with append and override modes](https://github.com/catu-ai/easyharness/issues/263)
+  should be closed or rewritten after landing because Review v2 shipped
+  additive plan-scoped guidance without append/override modes.
+- [#288: Measure Review v2 dogfood efficiency and late-finding rate](https://github.com/catu-ai/easyharness/issues/288)
+  tracks post-cutover review-round, reviewer, latency, specialist, and
+  later-unchanged-code finding metrics.
+- [#289: Evaluate custom Codex reviewer agent configuration](https://github.com/catu-ai/easyharness/issues/289)
+  defers model/reasoning/runtime-specific reviewer configuration until the new
+  workflow contract has enough dogfood evidence.
