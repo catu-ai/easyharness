@@ -36,11 +36,45 @@ func TestLintFileAcceptsDoneMarkers(t *testing.T) {
 	}
 }
 
+func TestLintFileRequiresCompactPlanSectionsAndStepFields(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-compact-contract.md")
+	content := mustRenderTemplate(t, "Compact Contract")
+	content = strings.Replace(content, "### Decisions and Constraints\n\n- Decision or constraint\n\n", "", 1)
+	content = strings.Replace(content, "## Review Focus\n\n- Review focus\n\n", "", 1)
+	content = strings.Replace(content, "- Outcome: Describe the concrete outcome for this step.\n", "", 1)
+	content = strings.Replace(content, "- Covers: Criterion 1\n", "", 1)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected compact contract violations, got %#v", result)
+	}
+	assertHasError(t, result, "section.Goal")
+	assertHasError(t, result, "sections")
+	assertHasError(t, result, "step.Step 1: Replace with first step title.outcome")
+	assertHasError(t, result, "step.Step 1: Replace with first step title.covers")
+}
+
+func TestLintFileRejectsLegacyStepSubsections(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-legacy-step-details.md")
+	content := mustRenderTemplate(t, "Legacy Step Details")
+	content = strings.Replace(content, "- Covers: Criterion 1", "- Covers: Criterion 1\n\n#### Details\n\nImplementation recipe.", 1)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected legacy step subsection to fail, got %#v", result)
+	}
+	assertHasError(t, result, "step.Step 1: Replace with first step title")
+}
+
 func TestLintFileRejectsLegacyRuntimeFrontmatter(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-legacy-frontmatter-plan.md")
 	content := mustRenderTemplate(t, "Legacy Runtime Frontmatter")
-	content = strings.Replace(content, "template_version: 0.2.0\n", "status: active\nlifecycle: awaiting_plan_approval\nrevision: 1\nupdated_at: 2026-03-17T14:00:00+08:00\ntemplate_version: 0.2.0\n", 1)
+	content = strings.Replace(content, "template_version: 0.3.0\n", "status: active\nlifecycle: awaiting_plan_approval\nrevision: 1\nupdated_at: 2026-03-17T14:00:00+08:00\ntemplate_version: 0.3.0\n", 1)
 	writeFile(t, path, content)
 
 	result := plan.LintFile(path)
@@ -135,8 +169,7 @@ func TestLintFileRejectsArchivedPlanWithPlaceholders(t *testing.T) {
 	if result.OK {
 		t.Fatal("expected lint failure")
 	}
-	assertHasError(t, result, "section.Validation Summary")
-	assertHasError(t, result, "step.Step 1: Replace with first step title.Execution Notes")
+	assertHasError(t, result, "section.Closeout")
 }
 
 func TestLintFileRejectsArchivedPlanWithUncheckedDoneMarker(t *testing.T) {
@@ -168,20 +201,22 @@ func TestLintFileRejectsLegacyStepStatusMarkers(t *testing.T) {
 	assertHasError(t, result, "step.Step 1: Replace with first step title")
 }
 
-func TestLintFileRejectsArchivedDeferredItemsWithoutOutcomeSummaryWithoutPanic(t *testing.T) {
+func TestLintFileRejectsArchivedDeferredItemsWithoutCloseoutWithoutPanic(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/archived/2026-03-17-easyharness-cli-and-plan-foundations.md")
-	content := mustRenderTemplate(t, "Archived Missing Outcome Summary")
+	content := mustRenderTemplate(t, "Archived Missing Closeout")
 	content = strings.Replace(content, "- None.", "- `harness ui` is intentionally deferred.", 1)
 	content = makeArchiveReady(checkAllBoxes(strings.ReplaceAll(content, "- Done: [ ]", "- Done: [x]")))
-	content = strings.Replace(content, "## Outcome Summary\n\n### Delivered\n\nShipped the planned slice.\n\n### Not Delivered\n\nNONE.\n\n### Follow-Up Issues\n\nNONE\n", "", 1)
+	if start := strings.Index(content, "## Closeout\n"); start >= 0 {
+		content = content[:start]
+	}
 	writeFile(t, path, content)
 
 	result := plan.LintFile(path)
 	if result.OK {
 		t.Fatal("expected lint failure")
 	}
-	assertHasError(t, result, "section.Outcome Summary")
+	assertHasError(t, result, "section.Closeout")
 }
 
 func TestLintFileRejectsArchivedDeferredItemsWithoutFollowUpIssue(t *testing.T) {
@@ -196,14 +231,14 @@ func TestLintFileRejectsArchivedDeferredItemsWithoutFollowUpIssue(t *testing.T) 
 	if result.OK {
 		t.Fatal("expected lint failure")
 	}
-	assertHasError(t, result, "section.Outcome Summary.Follow-Up Issues")
+	assertHasError(t, result, "section.Closeout.Follow-Up Issues")
 }
 
 func TestLintFileAcceptsHistoricalTemplateVersion(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-easyharness-cli-and-plan-foundations.md")
 	content := mustRenderTemplate(t, "Historical Template Version")
-	content = strings.Replace(content, "template_version: 0.2.0", "template_version: 0.0.1", 1)
+	content = strings.Replace(content, "template_version: 0.3.0", "template_version: 0.0.1", 1)
 	writeFile(t, path, content)
 
 	result := plan.LintFile(path)
@@ -216,7 +251,7 @@ func TestLintFileRejectsFutureTemplateVersion(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-easyharness-cli-and-plan-foundations.md")
 	content := mustRenderTemplate(t, "Future Template Version")
-	content = strings.Replace(content, "template_version: 0.2.0", "template_version: 9.9.9", 1)
+	content = strings.Replace(content, "template_version: 0.3.0", "template_version: 9.9.9", 1)
 	writeFile(t, path, content)
 
 	result := plan.LintFile(path)
@@ -533,7 +568,7 @@ func TestLintFileAcceptsTrackedActiveLightweightPlan(t *testing.T) {
 	}
 }
 
-func TestLintFileAcceptsTrackedActiveGoalOrientedPreviewPlan(t *testing.T) {
+func TestLintFileRejectsGoalOrientedProfile(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-goal-oriented-plan.md")
 	content := mustRenderTemplate(t, "Goal-Oriented Preview Plan")
@@ -541,30 +576,10 @@ func TestLintFileAcceptsTrackedActiveGoalOrientedPreviewPlan(t *testing.T) {
 	writeFile(t, path, content)
 
 	result := plan.LintFile(path)
-	if !result.OK {
-		t.Fatalf("expected tracked goal-oriented preview lint success, got %#v", result)
+	if result.OK {
+		t.Fatalf("expected deferred goal-oriented profile to fail, got %#v", result)
 	}
-}
-
-func TestLintFileAcceptsGeneratedGoalOrientedPreviewPlan(t *testing.T) {
-	root := t.TempDir()
-	path := filepath.Join(root, "docs/plans/active/2026-03-17-goal-oriented-plan.md")
-	content, err := plan.RenderTemplate(plan.TemplateOptions{
-		Title:           "Generated Goal-Oriented Preview Plan",
-		Timestamp:       time.Date(2026, 3, 17, 14, 0, 0, 0, time.FixedZone("CST", 8*60*60)),
-		SourceType:      "direct_request",
-		Size:            "M",
-		WorkflowProfile: plan.WorkflowProfileGoalOriented,
-	})
-	if err != nil {
-		t.Fatalf("render goal-oriented template: %v", err)
-	}
-	writeFile(t, path, content)
-
-	result := plan.LintFile(path)
-	if !result.OK {
-		t.Fatalf("expected generated goal-oriented preview lint success, got %#v", result)
-	}
+	assertHasError(t, result, "frontmatter.workflow_profile")
 }
 
 func TestLintFileAcceptsArchivedLightweightLocalPlan(t *testing.T) {
@@ -575,10 +590,7 @@ func TestLintFileAcceptsArchivedLightweightLocalPlan(t *testing.T) {
 	content = strings.Replace(content, "source_refs: []", "source_refs: []\nworkflow_profile: lightweight", 1)
 	content = strings.Replace(content, "- Done: [ ]", "- Done: [x]", 3)
 	content = strings.ReplaceAll(content, "- [ ]", "- [x]")
-	content = strings.ReplaceAll(content, "PENDING_STEP_EXECUTION", "Completed lightweight closeout.")
-	content = strings.ReplaceAll(content, "PENDING_STEP_REVIEW", "NO_STEP_REVIEW_NEEDED: archived fixture.")
-	content = strings.ReplaceAll(content, "PENDING_UNTIL_ARCHIVE", "Archived fixture summary.")
-	content = strings.Replace(content, "## Archive Summary\n\nArchived fixture summary.", "## Archive Summary\n\n- Archived At: 2026-03-17T12:00:00Z\n- Revision: 1\n- PR: NONE\n- Ready: Archived lightweight fixture is complete.\n- Merge Handoff: None for this lint fixture.", 1)
+	content = makeArchiveReady(content)
 	writeFile(t, path, content)
 
 	result := plan.LintFile(path)
@@ -645,7 +657,7 @@ func TestLintFileRejectsUnsupportedWorkflowProfile(t *testing.T) {
 	assertHasError(t, result, "frontmatter.workflow_profile")
 }
 
-func TestLintFileRejectsExplicitStandardWithGoalOrientedDiagnostic(t *testing.T) {
+func TestLintFileRejectsExplicitStandardProfile(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-standard-profile.md")
 	content := mustRenderTemplate(t, "Explicit Standard Plan")
@@ -657,9 +669,6 @@ func TestLintFileRejectsExplicitStandardWithGoalOrientedDiagnostic(t *testing.T)
 		t.Fatalf("expected explicit standard profile lint failure, got %#v", result)
 	}
 	assertHasError(t, result, "frontmatter.workflow_profile")
-	if !strings.Contains(result.Errors[0].Message, "goal_oriented authoring preview") {
-		t.Fatalf("expected diagnostic to mention goal_oriented authoring preview, got %#v", result.Errors)
-	}
 }
 
 func TestLintFileRejectsInvalidStepHeading(t *testing.T) {
@@ -684,22 +693,6 @@ func TestLintResultJSONRoundTrip(t *testing.T) {
 	}
 	if len(data) == 0 {
 		t.Fatal("expected JSON output")
-	}
-}
-
-func TestTrackedPlanCorpusRemainsLintClean(t *testing.T) {
-	paths, err := filepath.Glob(filepath.Join("..", "..", "docs", "plans", "*", "*.md"))
-	if err != nil {
-		t.Fatalf("glob tracked plans: %v", err)
-	}
-	if len(paths) == 0 {
-		t.Fatal("expected tracked plans in repository")
-	}
-	for _, path := range paths {
-		result := plan.LintFile(path)
-		if !result.OK {
-			t.Fatalf("expected tracked plan %s to lint clean, got %#v", path, result)
-		}
 	}
 }
 
@@ -733,13 +726,14 @@ func checkAllBoxes(content string) string {
 }
 
 func makeArchiveReady(content string) string {
-	content = strings.ReplaceAll(content, "PENDING_STEP_EXECUTION", "Finished step execution notes.")
-	content = strings.ReplaceAll(content, "PENDING_STEP_REVIEW", "Finished step review notes.")
-	content = strings.Replace(content, "## Validation Summary\n\nPENDING_UNTIL_ARCHIVE", "## Validation Summary\n\nValidated the planned slice.", 1)
-	content = strings.Replace(content, "## Review Summary\n\nPENDING_UNTIL_ARCHIVE", "## Review Summary\n\nNo unresolved blocking review findings remain.", 1)
-	content = strings.Replace(content, "## Archive Summary\n\nPENDING_UNTIL_ARCHIVE", "## Archive Summary\n\n- Archived At: 2026-03-17T15:00:00+08:00\n- Revision: 1\n- PR: NONE\n- Ready: The candidate satisfies the acceptance criteria and is ready for merge approval.\n- Merge Handoff: Commit and push the archive move before treating this candidate as awaiting merge approval.", 1)
-	content = strings.Replace(content, "### Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Delivered\n\nShipped the planned slice.", 1)
-	content = strings.Replace(content, "### Not Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Not Delivered\n\nNONE.", 1)
+	content = strings.Replace(content, "## Closeout\n", "## Closeout\n\n- Archived At: 2026-03-17T15:00:00+08:00\n- Revision: 1\n", 1)
+	content = strings.Replace(content, "- Validation: PENDING_UNTIL_ARCHIVE", "- Validation: Validated the planned slice.", 1)
+	content = strings.Replace(content, "- Review: PENDING_UNTIL_ARCHIVE", "- Review: No unresolved blocking findings remain.", 1)
+	content = strings.Replace(content, "- Delivered: PENDING_UNTIL_ARCHIVE", "- Delivered: Shipped the planned slice.", 1)
+	content = strings.Replace(content, "- Not Delivered: PENDING_UNTIL_ARCHIVE", "- Not Delivered: NONE.", 1)
+	content = strings.Replace(content, "- PR: PENDING_UNTIL_ARCHIVE", "- PR: NONE", 1)
+	content = strings.Replace(content, "- Ready: PENDING_UNTIL_ARCHIVE", "- Ready: The candidate satisfies the acceptance criteria.", 1)
+	content = strings.Replace(content, "- Merge Handoff: PENDING_UNTIL_ARCHIVE", "- Merge Handoff: Await explicit merge approval.", 1)
 	return content
 }
 

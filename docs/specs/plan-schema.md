@@ -1,736 +1,203 @@
+---
+title: Plan Schema
+created_at: "2026-03-17T14:00:00+08:00"
+updated_at: "2026-07-13T23:55:00+08:00"
+reviewed_at: "2026-07-13T23:55:00+08:00"
+status: active
+---
+
 # Plan Schema
 
 ## Purpose
 
-This document defines the normative v0.2 plan contract for `easyharness`.
+A tracked plan preserves the decisions a human approved and the progress a
+future agent needs. It describes outcomes and boundaries, not predicted files,
+implementation recipes, or an execution diary.
 
-In v0.2, standard, lightweight, and the goal-oriented authoring preview share
-one markdown schema, but the durable planning unit is a markdown-led plan
-package rather than a lone file. Active plans for currently recognized
-profiles live in tracked markdown under the active plan root resolved by
-`harness repo config get paths.plans.active`, which defaults to
-`docs/plans/active/`, and may carry approval-scoped companion material under a
-matching `supplements/<plan-stem>/` directory. Lightweight diverges only at
-archive time, when the archived snapshot moves into command-owned local
-storage. The goal-oriented profile contract is defined separately in
-[Goal-Oriented Workflow](./goal-oriented-workflow.md); authoring template and
-active-plan preview lint recognition exist, while full structural lint,
-archive, reopen, status next actions, docs/examples, and UI support belongs to
-follow-up implementation slices. Runtime lifecycle, milestone
-timestamps, review rounds, evidence history, and resolved node state live in
-the local runtime root resolved by
-`harness repo config get paths.local_runtime`, which defaults to
-`.local/harness/`.
-Agents and scripts that need concrete resolved roots should query them with
-`harness repo config get paths.plans.active`,
-`harness repo config get paths.plans.archived`, and
-`harness repo config get paths.local_runtime` instead of inferring defaults.
+The current template version is `0.3.0`. Generate it with:
 
-## Directory Layout
-
-Tracked plan locations live in the active and archived plan roots resolved by
-`harness repo config get paths.plans.active` and
-`harness repo config get paths.plans.archived`, which default to:
-
-- `docs/plans/active/`
-- `docs/plans/archived/`
-
-Tracked plan package companion locations live under the matching plan root
-resolved by `harness repo config get paths.plans.active` or
-`harness repo config get paths.plans.archived`, defaulting to:
-
-- `docs/plans/active/supplements/<plan-stem>/`
-- `docs/plans/archived/supplements/<plan-stem>/`
-
-Lightweight local archived snapshots live under the local runtime root
-resolved by `harness repo config get paths.local_runtime`, defaulting to:
-
-- `.local/harness/plans/archived/<plan-stem>.md`
-- `.local/harness/plans/archived/supplements/<plan-stem>/`
-
-There is no local active lightweight plan path in v0.2. Both `standard` and
-`lightweight` active plans live under the active plan root resolved by
-`harness repo config get paths.plans.active`.
-
-The markdown file remains the canonical plan path for status resolution,
-current-plan pointers, and most command artifacts. When a matching
-`supplements/<plan-stem>/` directory exists, it is part of the same approved
-plan package and must move with the markdown plan during archive and reopen.
-
-Command-owned local artifacts live under the local runtime root resolved by
-`harness repo config get paths.local_runtime`, defaulting to:
-
-- `.local/harness/current-plan.json`
-- `.local/harness/plans/<plan-stem>/state.json`
-- `.local/harness/plans/<plan-stem>/reviews/`
-- `.local/harness/plans/<plan-stem>/evidence/`
-
-Use that command before reading command-owned local artifacts.
-
-Tracked plans remain durable repository history for active work and standard
-archives. Their optional `supplements/` directories are execution input during
-active work and cold-backup context after archive, not a durable dependency
-surface that later execution should keep relying on. Before archive, any
-normative or reusable material that the repository must still depend on should
-be absorbed into formal durable locations such as `docs/specs/`, code, tests,
-or other tracked docs. The markdown plan remains the default reading
-entrypoint. Lightweight archived snapshots are command-owned local execution
-artifacts. `.local` is still disposable execution support and trajectory;
-lightweight workflow use must therefore leave a small repo-visible breadcrumb
-outside the local archive path, as defined by the CLI and agent guidance
-contracts.
-
-## Source of Truth
-
-The source-of-truth split is:
-
-- this schema document defines the shared markdown plan contract for standard,
-  lightweight, and goal-oriented authoring-preview profiles
-- [Goal-Oriented Workflow](./goal-oriented-workflow.md) defines the recognized
-  preview authoring semantics for `workflow_profile: goal_oriented`, with full
-  structural lint, archive, reopen, status next actions, docs/examples, and UI
-  support left to follow-up implementation slices
-- [the packaged plan template asset](../../assets/templates/plan-template.md)
-  is the canonical authoring example shipped by harness
-- `harness plan template` is a convenience wrapper around the packaged asset
-
-Skills and agent prompts should point operators back to this schema, the state
-model, and CLI help instead of duplicating the contract.
-
-## Plan Package Semantics
-
-Each tracked or archived markdown plan may own an optional companion directory
-at `supplements/<plan-stem>/` under the same active or archived root.
-
-Rules:
-
-- approval covers the markdown plan and its matching supplements directory as
-  one plan package
-- explicit approval for a newly written plan should be recorded durably in the
-  tracked plan frontmatter rather than inferred only from chat context
-- bulky but durable execution detail that should survive context compaction may
-  live in supplements, such as spec drafts, formulas, design notes, or other
-  structured reasoning that is too large or awkward for the main markdown
-- additive plan-scoped review guidance may live under
-  `supplements/<plan-stem>/review-guidance/`; it carries approved invariants or
-  specialist questions across active, archived, and reopened plan locations
-- supplements are a staging area for approved execution detail, not the final
-  durable home for repository-facing normative content; before archive, anything
-  the repository should keep depending on must be absorbed into formal tracked
-  locations
-- supplements are not free-form scratch space; they share the same governance
-  boundary as the markdown plan
-- the markdown file stays concise and remains the main review and archive
-  entrypoint even when supplements exist
-- `harness plan lint` validates the markdown file directly and also rejects
-  invalid companion placement, such as a plan markdown stored under a
-  `supplements/` subtree or a supplements path that is not a directory
-
-Execution-time update rules:
-
-- after approval, agents may update execution-facing closeout, review notes,
-  and supplement absorption tracking without reopening approval
-- agents must not silently change approved intent, scope, acceptance criteria,
-  or key design constraints in either the markdown plan or supplements
-- if a package change would alter the approved intent, reuse the normal plan
-  update or reopen approval boundary instead of drifting the package silently
-
-### Plan-Scoped Review Guidance
-
-Plans may record known review risks and invariants in their Markdown body and
-may place longer reviewer guidance in the matching supplements package:
-
-```text
-supplements/<plan-stem>/review-guidance/<guidance-name>.md
+```bash
+harness plan template
 ```
 
-This guidance is additive. It may extend a built-in or repo-defined guidance
-name or define a plan-local name, but it must not override the base reviewer
-contract or remove built-in/repo instructions. Merely adding guidance does not
-create a reviewer assignment or require a specialist.
+## Location and Naming
 
-Plan approval makes these risks and invariants durable review input. It does
-not freeze reviewer topology. Immediately before finalize review, the
-controller chooses one integrated assignment and any risk-triggered specialist
-assignments from the completed candidate, acceptance criteria, validation
-evidence, and residual risk. Plan size alone does not determine either step
-review or specialist count. Every assignment receives an explicit non-empty
-handoff; each specialist also receives non-empty risk-surface and invariant
-lists plus any relevant failure modes.
+Active and archived roots come from repository configuration. Their defaults
+are:
 
-## File Naming
+```text
+docs/plans/active/
+docs/plans/archived/
+```
 
-Each plan file name is its durable identifier.
-
-Required pattern:
-
-- `YYYY-MM-DD-short-topic.md`
-
-Where:
-
-- `YYYY-MM-DD` is the creation date
-- `short-topic` is a compact kebab-case topic slug
-
-The file stem is the durable identifier used by command-owned local state under
-the local runtime root resolved by
-`harness repo config get paths.local_runtime`. With the default runtime root,
-that looks like:
-
-- `.local/harness/plans/<plan-stem>/...`
-- matching `supplements/<plan-stem>/` package directories
+Standard plans use `YYYY-MM-DD-short-topic.md`. A plan Markdown file cannot
+live below a `supplements/` directory.
 
 ## Frontmatter
 
-Every plan must start with YAML frontmatter containing these durable fields:
-
 ```yaml
 ---
-template_version: 0.2.0
-created_at: 2026-03-17T10:12:01+08:00
+template_version: 0.3.0
+created_at: "2026-07-13T23:30:00+08:00"
+approved_at: "2026-07-13T23:35:00+08:00"
 source_type: direct_request
 source_refs: []
 size: M
-approved_at: 2026-03-17T10:30:00+08:00
 ---
 ```
 
-### Required Fields
+Required fields:
 
-- `template_version`
-  - semver-like version for the tracked-plan schema/template
-  - older historical versions remain lint-valid if the current harness still
-    knows how to validate them
-  - newer versions than the current harness understands must be rejected
-- `created_at`
-  - RFC3339 timestamp with offset
-  - for ordinary new plans, reflect the real creation time rather than a
-    synthetic midnight placeholder
-  - when `harness plan template` is seeded with a date but not an explicit
-    timestamp, keep the current local time-of-day on that date
-  - historical plans that already carry midnight timestamps remain valid; this
-    field is durable history, not a backfilled runtime value
-- `source_type`
-  - short lower-snake-case or kebab-case intake label
-  - examples: `direct_request`, `issue`, `backlog`, `incident`, `other`
-- `source_refs`
-  - array of external references such as issue IDs or URLs
-  - use `[]` when there are none
-- `size`
-  - required t-shirt estimate for the whole planned slice
-  - supported values are `XXS`, `XS`, `S`, `M`, `L`, `XL`, and `XXL`
-  - size describes magnitude, coordination weight, and review load; it does
-    not by itself prove the work is low-risk
-  - size and `workflow_profile` are separate decisions; `XXS` may still use
-    the ordinary `standard` workflow
-  - `XXS` is the only size that may use `workflow_profile: lightweight`
-  - an initial `XXL` estimate is a planning warning, not a routine default:
-    before execution approval, the controller should stop, confirm the size
-    with the human, and seriously consider returning to discovery to split the
-    slice or move deferred follow-up into issues
+- `template_version`: semantic version no newer than the installed template
+- `created_at`: RFC3339 creation time
+- `source_type`: non-empty origin label
+- `source_refs`: source identifiers or URLs, possibly empty
+- `size`: one of `XXS`, `XS`, `S`, `M`, `L`, `XL`, or `XXL`
 
-### Size Meanings
+`approved_at` is added only after explicit human approval. Runtime lifecycle,
+revision, and update state do not belong in tracked frontmatter.
 
-- `XXS`
-  - the smallest bounded slice the repository still wants to plan
-  - one narrow intent with limited coordination, such as a tiny command tweak,
-    focused CI condition change, very small helper-script fix, narrow wording
-    adjustment, or regression-coverage backfill
-- `XS`
-  - one clearly scoped change that still stays small, but already needs a bit
-    of propagation such as code plus tests, contract plus docs, or one narrow
-    behavior fix across a couple of nearby surfaces
-- `S`
-  - a small coherent subsystem slice with limited blast radius, often touching
-    a few related files or one focused workflow edge
-- `M`
-  - a medium slice that changes one meaningful subsystem or workflow and needs
-    multiple coordinated edits to keep behavior, docs, and tests aligned
-- `L`
-  - a broad but still localizable change that spans several surfaces or
-    packages while remaining one coherent project
-- `XL`
-  - a very broad coordinated slice with obvious regression risk across several
-    surfaces, integrations, or workflow layers
-- `XXL`
-  - an unusually large slice that is still coherent enough to describe as one
-    plan, but should normally prompt an explicit split discussion before the
-    plan is approved
+Standard plans omit `workflow_profile`. An explicitly approved `XXS`
+lightweight plan uses `workflow_profile: lightweight`; no other workflow
+profile is currently supported. Goal-oriented authoring and execution are
+deferred to `v0.7.0`.
 
-### Optional Fields
+## Canonical Body
 
-- `approved_at`
-  - optional RFC3339 timestamp with offset
-  - records when an active tracked plan was explicitly approved through the
-    harness workflow, for example via `harness plan approve --by human`
-  - historical plans that predate the explicit approval command may omit this
-    field without backfill
-  - when present, it marks approval of the tracked markdown plan package,
-    including any matching `supplements/<plan-stem>/` directory
-- `workflow_profile`
-  - optional explicit workflow selector
-  - supported active-plan values are `lightweight` and `goal_oriented`
-  - omitted means `standard`
-  - `standard` must not be written explicitly; omitting the field preserves
-    the current standard behavior
-  - tracked plans under the active plan root resolved by
-    `harness repo config get paths.plans.active` may set this field only to
-    `lightweight` or the `goal_oriented` authoring preview
-  - tracked plans under the archived plan root resolved by
-    `harness repo config get paths.plans.archived` must omit this field
-  - local archived plans under the lightweight archived snapshot root must set
-    it to `lightweight`
-  - `workflow_profile: goal_oriented` is recognized by
-    [Goal-Oriented Workflow](./goal-oriented-workflow.md) for active-plan
-    authoring preview only; archive/reopen profile preservation and full
-    structural lint coverage belong to follow-up implementation work
+Top-level sections appear exactly in this order:
 
-## Lightweight Eligibility
+1. `Goal`
+2. `Scope`
+3. `Acceptance Criteria`
+4. `Review Focus`
+5. `Deferred Items`
+6. `Work Breakdown`
+7. `Validation Strategy`
+8. `Closeout`
 
-`workflow_profile: lightweight` is allowed only when every rule below is true:
+### Goal
 
-- the plan carries `size: XXS`
-- the whole slice is one intentionally narrow low-risk change that can be
-  planned, implemented, and validated as a single bounded step
-- the expected edits stay within a low-risk narrow surface such as README or
-  docs wording, comment cleanup, a small CI condition adjustment, a tiny
-  helper-script fix, or another similarly small change whose blast radius is
-  easy to explain
-- the change does not alter schema meaning, core state resolution,
-  review/archive/evidence contracts, release safety, security-sensitive logic,
-  or another risk surface that would make reviewers reasonably want the
-  standard path
-- if the boundary is unclear, the risk is disputed, or the slice stops looking
-  obviously lightweight, it must use `standard`
+State the intended outcome. Include one `### Decisions and Constraints`
+subsection containing the durable choices, rejected directions, authority
+boundaries, or compatibility decisions that execution must preserve.
 
-Examples that may use `lightweight`:
+### Scope
 
-- fixing a broken README link
-- correcting narrow documentation wording
-- cleaning up comments without changing behavior
-- adjusting one narrowly scoped CI condition with easy-to-explain blast radius
-- making a tiny helper or wrapper fix that stays far away from core workflow
-  semantics
+Contain `### In Scope` followed by `### Out of Scope`. These boundaries are the
+approved slice; changing them requires renewed human steering.
 
-Examples that must stay `standard`:
+### Acceptance Criteria
 
-- any change sized above `XXS`
-- any change under `docs/specs/` that changes the product contract
-- any change to core Go/runtime behavior, review/archive logic, or release
-  safety logic
-- any change that needs more than one meaningful implementation step or a
-  broader review posture than bounded low-risk maintenance
+Use one or more Markdown checkboxes. These are the observable completion
+contract and the source for acceptance progress.
 
-### Removed v0.1 Runtime Fields
+### Review Focus
 
-v0.2 plans must not carry these top-level runtime fields:
+Record candidate-specific invariants, failure modes, or questions that the
+mandatory final reviewer must examine. This section is additive to the fixed
+integrated review rubric and is included automatically; it is not a reviewer
+dimension selector.
 
-- `status`
-- `lifecycle`
-- `revision`
-- `updated_at`
+### Deferred Items
 
-Path placement plus optional `workflow_profile: lightweight` answer whether a
-plan is standard or lightweight and whether it is active or archived.
-`workflow_profile: goal_oriented` is a recognized preview workflow profile for
-active-plan authoring. Its full structural lint, archive, and reopen behavior
-belongs to follow-up implementation work. Runtime milestones and revision
-history belong in command-owned artifacts, not plan frontmatter.
+Name work intentionally excluded from the slice, or use `- None.`. Deferred
+work that remains at archive must have a concrete follow-up in `Closeout`.
 
-## Required Sections
+### Work Breakdown
 
-Every plan must contain these sections in order:
+Every plan has at least one outcome boundary:
 
-1. `# <Title>`
-2. `## Goal`
-3. `## Scope`
-4. `## Acceptance Criteria`
-5. `## Deferred Items`
-6. `## Work Breakdown`
-7. `## Validation Strategy`
-8. `## Risks`
-9. `## Validation Summary`
-10. `## Review Summary`
-11. `## Archive Summary`
-12. `## Outcome Summary`
+```markdown
+### Step 1: Establish the compact contract
 
-`## Scope` must include:
-
-- `### In Scope`
-- `### Out of Scope`
-
-`## Outcome Summary` must include, in order:
-
-- `### Delivered`
-- `### Not Delivered`
-- `### Follow-Up Issues`
-
-The markdown plan does not need a dedicated `Supplements` top-level section.
-When supplements exist, keep the package discoverable by naming the directory
-with the plan stem and by mentioning important supplement absorption in the
-existing archive-facing summaries.
-
-## Acceptance Criteria
-
-- every acceptance criterion must be a markdown checkbox
-- active plans may mix checked and unchecked criteria
-- archived plans must have every acceptance criterion checked
-
-## Work Breakdown
-
-The work breakdown uses step headings:
-
-```md
-### Step 1: Define the contract
-```
-
-Every step must begin with a durable completion marker directly under the step
-heading:
-
-```md
 - Done: [ ]
+- Outcome: The template and lint contract use the compact plan shape.
+- Covers: Acceptance criteria 1 and 2.
+- Check: Focused template and lint tests pass.
 ```
 
-or
+Each step contains only:
 
-```md
-- Done: [x]
+- a numbered `### Step N: Title` heading
+- `- Done: [ ]` or `- Done: [x]`
+- one non-empty `Outcome`
+- one non-empty `Covers` reference to the acceptance criteria advanced by the
+  outcome
+- an optional non-empty `Check`
+
+The first unfinished `Done` marker is the current step. Steps are meaningful
+progress boundaries, not review units or prescribed implementation sequences.
+Do not add expected-file lists, details, execution notes, review notes, or
+step-local acceptance checklists.
+
+### Validation Strategy
+
+Describe the whole-plan evidence needed for confidence. Keep command-level
+mechanics in repository skills or tooling unless a command is itself part of
+the approved outcome.
+
+### Closeout
+
+The template starts with compact archive-time fields:
+
+```markdown
+## Closeout
+
+- Validation: PENDING_UNTIL_ARCHIVE
+- Review: PENDING_UNTIL_ARCHIVE
+- Delivered: PENDING_UNTIL_ARCHIVE
+- Not Delivered: PENDING_UNTIL_ARCHIVE
+- Follow-Up Issues: NONE
+- PR: PENDING_UNTIL_ARCHIVE
+- Ready: PENDING_UNTIL_ARCHIVE
+- Merge Handoff: PENDING_UNTIL_ARCHIVE
 ```
 
-Legacy `- Status: ...` lines are no longer part of the v0.2 tracked-plan
-contract and must be rejected by lint.
+Before archive, replace every placeholder with a concise durable result. The
+archive command adds `Archived At` and `Revision`. `PR`, `Ready`, and
+`Merge Handoff` preserve the publish boundary; `Follow-Up Issues` cannot remain
+`NONE` when deferred items remain.
 
-Every step must also contain:
+## Plan Packages
 
-- `#### Objective`
-- `#### Details`
-- `#### Expected Files`
-- `#### Validation`
-- `#### Execution Notes`
-- `#### Review Notes`
+A plan may own durable supporting material under:
 
-Optional step section:
+```text
+supplements/<plan-stem>/
+```
 
-- `#### Step Acceptance Criteria`
-- `#### Checkpoint Reports`
+Approval covers the Markdown plan and its matching supplements directory as
+one package. Supplements hold bulky approved context, not scratch work or the
+only copy of repository-facing normative behavior. Absorb normative content
+into code, tests, or formal specs before archive and summarize that absorption
+in `Closeout`.
 
-Rules:
+Plan-specific final-review focus normally belongs in the Markdown `Review
+Focus` section. A supplements subtree may carry longer approved review context
+when needed, but it remains additive and must not become reviewer topology or
+selection machinery.
 
-- `Objective` should stay concise
-- longer planning detail belongs in `Details`
-- if no extra detail is needed, write `NONE` in `Details`
-- `Execution Notes` and `Review Notes` carry durable closeout history as work
-  progresses
-- `Review Notes` summarize any intentionally started step review or state in
-  ordinary prose that formal review was deferred to finalize; absence of a
-  step review is normal and needs no magic marker or risk justification
-- steps are execution and validation boundaries, not mandatory review
-  boundaries; this rule applies to every plan size
-- once a controller intentionally starts a step review at a concrete risk
-  boundary, its blocking findings must be resolved before the step advances
-- if `Step Acceptance Criteria` exists, every entry must be a markdown checkbox
-- archived plans require all step-local acceptance checkboxes to be checked
-- `Checkpoint Reports` is intended for goal-oriented adaptive steps and may
-  carry tracked checkpoint report headings such as `##### CP1 - ...`; it is a
-  preview authoring anchor, not full structural lint enforcement
-- when discovery detail is too bulky for `Details`, move that material into the
-  matching `supplements/<plan-stem>/` package directory rather than burying it
-  only in chat history
+## Lightweight Profile
 
-## Placeholder Policy
+`workflow_profile: lightweight` is available only when a human explicitly
+approves it for one bounded, low-risk `XXS` change. It keeps the same compact
+plan contract and mandatory steering boundaries, normally uses one step, and
+archives its lightweight snapshot beneath the configured local runtime root.
 
-These exact active-plan placeholders are allowed in active tracked plans for
-all workflow profiles:
+## Lint and Archive Rules
 
-- `Execution Notes`: `PENDING_STEP_EXECUTION`
-- `Review Notes`: `PENDING_STEP_REVIEW`
-- `Validation Summary`: `PENDING_UNTIL_ARCHIVE`
-- `Review Summary`: `PENDING_UNTIL_ARCHIVE`
-- `Archive Summary`: `PENDING_UNTIL_ARCHIVE`
-- `Outcome Summary > Delivered`: `PENDING_UNTIL_ARCHIVE`
-- `Outcome Summary > Not Delivered`: `PENDING_UNTIL_ARCHIVE`
-- `Outcome Summary > Follow-Up Issues`: `NONE`
+`harness plan lint <path>` validates frontmatter, section order, scope shape,
+acceptance checkboxes, compact step fields, closeout fields, filename/location,
+profile eligibility, and supplement placement.
 
-Archive must reject any plan that still contains `PENDING_UNTIL_ARCHIVE`.
+Archived plans additionally require:
 
-Archived plans must not leave `PENDING_STEP_EXECUTION` or
-`PENDING_STEP_REVIEW` in any completed step.
+- every acceptance criterion checked
+- every step done
+- no archive placeholder remaining in `Closeout`
+- `Archived At`, `Revision`, and all durable closeout fields present
+- follow-up issue information when deferred work remains
 
-## Reopen Update Markers
-
-`harness reopen` must preserve prior archive-time wording instead of blanking
-it out.
-
-The reopen marker token is:
-
-- `UPDATE_REQUIRED_AFTER_REOPEN`
-
-Usage rules:
-
-- reopen-sensitive sections keep their prior archived content
-- the controller or CLI prepends `UPDATE_REQUIRED_AFTER_REOPEN` to:
-  - `Validation Summary`
-  - `Review Summary`
-  - `Archive Summary`
-  - every `Outcome Summary` subsection
-- active reopened plans may temporarily contain this marker
-- archive must reject any plan that still contains this marker
-
-This makes it obvious that the plan was once archived and that the archived
-summary now needs refresh before the next archive.
-
-## Deferred Items and Follow-Up Tracking
-
-Use these two surfaces deliberately:
-
-- `## Deferred Items`
-  - work or risk deliberately left out of the current slice
-- `## Outcome Summary > Follow-Up Issues`
-  - the durable handoff note recorded at archive time for deferred items that
-    remain intentionally out of scope
-- `## Archive Summary` / `## Outcome Summary`
-  - the place to summarize supplement absorption, such as which draft files
-    became formal specs, code, tests, or other durable repository artifacts
-
-Archive readiness rules:
-
-- if `Deferred Items` still contains real items at archive time, `Follow-Up
-  Issues` must not remain `NONE`
-- if there are no deferred items and no follow-up, `Follow-Up Issues` may stay
-  `NONE`
-
-## Lightweight Eligibility
-
-`workflow_profile: lightweight` is only for narrow low-risk work that keeps
-human steering but does not justify a tracked archived plan artifact.
-
-The lightweight profile is eligible only when all of these are true:
-
-- the human explicitly approves using the lightweight profile
-- the plan carries `size: XXS`
-- the plan still describes a small bounded slice that one short plan can steer
-- the expected change is limited to low-risk repository surfaces such as:
-  - README or docs wording
-  - comments or other non-behavioral text cleanup
-  - a small CI condition or workflow-glue adjustment whose blast radius is
-    easy to explain
-  - a tiny helper-script or narrowly scoped code fix that does not change
-    schema meaning, state transitions, review/archive/evidence semantics,
-    release safety, or security-sensitive behavior
-- the controller can explain the lightweight choice in one small repo-visible
-  breadcrumb such as a readable PR body merge memo
-- the plan can stay clear and reviewable without depending on supplements as a
-  default authoring pattern
-
-The lightweight profile is not eligible when any of these are true:
-
-- the plan is sized above `XXS`
-- the change affects CLI, runtime, release, review, archive, evidence, or
-  state-machine behavior in a way that is not obviously tiny and low-risk
-- the change modifies normative product contracts, schema meaning, or command
-  semantics
-- the change spans multiple risk areas or would make a reviewer reasonably ask
-  for a tracked archive record
-- the controller is unsure whether the slice is truly low-risk
-
-Lightweight plans should normally avoid `supplements/`. If a lightweight plan
-temporarily needs one, keep it minimal, treat it with the same approval
-governance as the markdown plan, and ensure archive writes it only to
-the lightweight archived snapshot supplements root under the local runtime root
-resolved by `harness repo config get paths.local_runtime` rather than treating
-it as durable tracked history.
-
-When there is any doubt, escalate to the standard tracked-plan workflow.
-
-## Goal-Oriented Authoring Preview
-
-`workflow_profile: goal_oriented` is for adaptive work where the objective and
-success scorecard are explicit, but the path must proceed through hypotheses,
-probes, checkpoint rounds, optional challenge, and final synthesis.
-
-This value is a recognized preview workflow profile for active-plan authoring.
-`harness plan template --goal-oriented` can seed the plan shape, and
-`harness plan lint` recognizes active tracked plans that declare
-`workflow_profile: goal_oriented` with shallow preview validation. Full
-structural lint, archive, status, and reopen support belongs to the v0.6.0
-follow-up implementation slices.
-
-The target profile uses standard tracked plan packages for path and archive
-purposes. It does not create a separate local active path, local archive path,
-node tree, review gate, or workflow engine. It adds the additional planning and
-execution semantics defined in
-[Goal-Oriented Workflow](./goal-oriented-workflow.md).
-
-The plan body or tracked plan package should carry the durable goal-oriented
-record required by that contract, including objective, success scorecard,
-checkpoint cadence, tracked checkpoint reports or equivalent synthesis,
-challenge triggers, evidence requirements, stopping conditions, and final
-synthesis. Local checkpoint drafts remain disposable runtime working memory
-unless their content is promoted into the tracked plan package or another
-approved deliverable.
-
-Tracked checkpoint reports are the goal-oriented plan body's durable
-intermediate record for meaningful adaptive work boundaries. They should be
-discoverable from the markdown plan, normally through a dedicated section such
-as `#### Checkpoint Reports` inside an adaptive step, and each report should
-use a stable checkpoint ID such as `CP1` or `S2-CP1`. The report itself remains
-the review and resume entrypoint even when it indexes approved curated support
-material under the matching `supplements/<plan-stem>/` directory.
-
-Future goal-oriented lint and status support may consume checkpoint report
-headings, IDs, and labels shallowly. That future tooling must not require
-bullet-only report content, treat supplements as the canonical report body, or
-judge whether a hypothesis, probe, evidence argument, or next mutation is
-persuasive.
-
-## Active Plan Rules
-
-An active plan must satisfy all of these:
-
-- the file lives under the active plan root resolved by
-  `harness repo config get paths.plans.active`
-- the file does not live inside the active root's `supplements/` subtree
-- lightweight does not create a separate local active-plan location
-- the required frontmatter fields are present
-- any optional `workflow_profile` field is compatible with the path:
-  - omitted means `standard`
-  - explicit `workflow_profile` is allowed only for `lightweight` or the
-    `goal_oriented` authoring preview
-- every step uses a `Done` marker
-- archive-only summary sections may still contain the documented active-plan
-  placeholders
-- reopen update markers are allowed only while the plan is active again after
-  a reopen
-- when a matching `supplements/<plan-stem>/` directory exists under the active
-  root, it is part of the same approved package
-- any `review-guidance/` subtree is additive plan-scoped guidance and does not
-  override built-in or repo-level reviewer guidance
-- when the active plan uses `workflow_profile: lightweight`, supplements are
-  supported but should be exceptional rather than the default way to carry plan
-  detail
-- future goal-oriented implementation work must update these rules before
-  full structural lint or execution support is treated as complete
-
-## Archived Plan Rules
-
-An archived plan must satisfy all of these:
-
-- the file lives under either:
-  - the archived plan root resolved by
-    `harness repo config get paths.plans.archived`
-  - the lightweight archived snapshot root under the local runtime root
-    resolved by `harness repo config get paths.local_runtime`
-- any optional `workflow_profile` field is compatible with the path:
-  - tracked archived plans must omit `workflow_profile`
-  - local archived plans require `workflow_profile: lightweight`
-- future goal-oriented implementation work must define how archive and reopen
-  preserve goal-oriented profile identity without violating tracked archived
-  plan frontmatter rules
-- every acceptance criterion is checked
-- the markdown plan does not live inside an archived `supplements/` subtree
-- every step is `Done: [x]`
-- every step-local acceptance checkbox is checked when present
-- no completed step still contains:
-  - `PENDING_STEP_EXECUTION`
-  - `PENDING_STEP_REVIEW`
-- no archive-time placeholder token remains:
-  - `PENDING_UNTIL_ARCHIVE`
-  - `UPDATE_REQUIRED_AFTER_REOPEN`
-- if `Deferred Items` contains real items, `Follow-Up Issues` must not be
-  `NONE`
-- when a matching archived `supplements/<plan-stem>/` directory exists, it is
-  retained only as cold-backup context rather than becoming the primary reading
-  entrypoint or a durable correctness dependency
-- archived plan-scoped review guidance remains discoverable for audit and
-  reopen, even though durable product contracts must still be absorbed into
-  formal tracked locations outside the supplements tree
-- archive-time correctness must not depend on archived supplements continuing to
-  exist; content that still matters after archive must already be absorbed into
-  formal tracked locations outside the supplements tree
-- when the archived plan is `lightweight`, any supplements snapshot lives only
-  under the lightweight archived snapshot supplements root and must not be
-  treated as tracked repository history
-
-### Required Archive Summary Contents
-
-The `Archive Summary` section must include:
-
-- `- Archived At: <RFC3339 timestamp>`
-- `- Revision: <current revision>`
-- `- PR: <URL or NONE>`
-- `- Ready: <why this candidate is ready to wait for merge approval>`
-- `- Merge Handoff: <handoff note for the archived candidate>`
-
-When supplements existed during execution, the archive-facing summaries should
-also note the important absorption result at a human-readable level, such as:
-
-- which supplement drafts became formal specs or code
-- which supplement files remain only as archived backup context
-
-Those summaries should make it clear that archive-time correctness no longer
-depends on the supplements remaining available verbatim.
-
-`Revision` is command-owned runtime history that must be stamped into the
-tracked archive summary. It is no longer tracked as frontmatter.
-
-## Reopen Behavior
-
-`harness reopen --mode <...>` is a mechanical transition from archived back to
-active:
-
-- move the file from the archived path back to the corresponding active path:
-  - archived plan root resolved by
-    `harness repo config get paths.plans.archived` -> active plan root
-    resolved by `harness repo config get paths.plans.active` for `standard`
-  - lightweight archived snapshot root -> active plan root resolved by
-    `harness repo config get paths.plans.active` for `lightweight`
-- move the matching `supplements/<plan-stem>/` directory with the markdown
-  plan when it exists
-- preserve prior archive-time wording
-- prepend `UPDATE_REQUIRED_AFTER_REOPEN` markers to reopen-sensitive summaries
-- clear stale review and evidence facts that belonged to the invalidated
-  archived candidate
-- increment the command-owned revision
-- update current-plan and plan-local state pointers back to the active path
-
-Mode-specific rules:
-
-- `finalize-fix`
-  - reopened work remains finalize-scope repair
-- `new-step`
-  - reopened work must be represented by a new unfinished step
-  - the controller adds that new step after reopen rather than editing old
-    completed steps
-  - once that first reopened step exists, later finalize-time repair may update
-    the reopened work in place instead of forcing yet another new unfinished
-    step by default
-
-## Lint Expectations
-
-`harness plan lint` must stop with compact targeted errors on:
-
-- missing required frontmatter fields
-- legacy frontmatter runtime fields that are no longer allowed
-- invalid or unsupported `template_version`
-- non-RFC3339 `created_at`
-- missing required sections or wrong section order
-- missing `### In Scope` / `### Out of Scope`
-- acceptance criteria or step-local acceptance criteria that are not checkboxes
-- missing step `Done` markers or legacy `Status:` lines
-- missing required step subsections
-- unsupported `workflow_profile` values
-- plans stored outside:
-  - the active plan root resolved by
-    `harness repo config get paths.plans.active`
-  - the archived plan root resolved by
-    `harness repo config get paths.plans.archived`
-  - the lightweight archived snapshot root under the local runtime root
-    resolved by `harness repo config get paths.local_runtime`
-- plan markdown stored under a `supplements/` subtree
-- plans whose path and `workflow_profile` disagree
-- archived plans that declare the `goal_oriented` authoring preview before
-  archive/reopen profile preservation is implemented
-- supplements paths that are present but are not directories
-- archived plans with unchecked acceptance criteria, incomplete steps, or
-  unchecked step-local acceptance criteria
-- archived plans that still contain active-plan or reopen update placeholders
-- archived plans with deferred items but `Follow-Up Issues: NONE`
+The schema deliberately does not preserve the pre-`0.3.0` step subsection or
+goal-oriented preview shapes. This repository is in rapid development and uses
+the clean current contract without compatibility shims.

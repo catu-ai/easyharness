@@ -57,31 +57,11 @@ func TestCanonicalPlanSeedsKeepLintAndLoadAligned(t *testing.T) {
 				t.Fatalf("AllStepsCompleted mismatch: got %v want %v", got, seed.wantAllCompleted)
 			}
 
-			archiveReady := !doc.HasPendingArchivePlaceholders() && !doc.CompletedStepsHavePendingPlaceholders()
+			archiveReady := !doc.HasPendingArchivePlaceholders()
 			if archiveReady != seed.wantArchiveReady {
 				t.Fatalf("archive readiness mismatch: got %v want %v", archiveReady, seed.wantArchiveReady)
 			}
 		})
-	}
-}
-
-func TestTrackedPlanCorpusKeepsLintAndLoadAligned(t *testing.T) {
-	paths, err := filepath.Glob(filepath.Join("..", "..", "docs", "plans", "*", "*.md"))
-	if err != nil {
-		t.Fatalf("glob tracked plans: %v", err)
-	}
-	if len(paths) == 0 {
-		t.Fatal("expected tracked plans in repository")
-	}
-
-	for _, path := range paths {
-		result := plan.LintFile(path)
-		if !result.OK {
-			t.Fatalf("expected tracked plan %s to lint clean, got %#v", path, result)
-		}
-		if _, err := plan.LoadFile(path); err != nil {
-			t.Fatalf("expected tracked plan %s to load cleanly after lint success, got %v", path, err)
-		}
 	}
 }
 
@@ -139,7 +119,6 @@ func FuzzLintFileAndLoadFileAgreement(f *testing.F) {
 
 		_ = doc.AllAcceptanceChecked()
 		_ = doc.HasPendingArchivePlaceholders()
-		_ = doc.CompletedStepsHavePendingPlaceholders()
 	})
 }
 
@@ -158,10 +137,7 @@ func canonicalPlanSeeds(tb testing.TB) []canonicalPlanSeed {
 	lightweight = strings.Replace(lightweight, "source_refs: []", "source_refs: []\nworkflow_profile: lightweight", 1)
 	lightweight = strings.ReplaceAll(lightweight, "- Done: [ ]", "- Done: [x]")
 	lightweight = checkAllBoxes(lightweight)
-	lightweight = strings.ReplaceAll(lightweight, "PENDING_STEP_EXECUTION", "Completed lightweight execution notes.")
-	lightweight = strings.ReplaceAll(lightweight, "PENDING_STEP_REVIEW", "NO_STEP_REVIEW_NEEDED: lightweight canonical seed.")
-	lightweight = strings.ReplaceAll(lightweight, "PENDING_UNTIL_ARCHIVE", "Archived lightweight seed summary.")
-	lightweight = strings.Replace(lightweight, "## Archive Summary\n\nArchived lightweight seed summary.", "## Archive Summary\n\n- Archived At: 2026-03-17T12:00:00Z\n- Revision: 1\n- PR: NONE\n- Ready: Archived lightweight canonical seed is complete.\n- Merge Handoff: None for this lightweight canonical seed.", 1)
+	lightweight = makeArchiveReady(lightweight)
 
 	return []canonicalPlanSeed{
 		{

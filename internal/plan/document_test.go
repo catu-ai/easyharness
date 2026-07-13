@@ -50,46 +50,12 @@ func TestLoadFileParsesDoneMarkers(t *testing.T) {
 	}
 }
 
-func TestLoadFilePrefersDoneMarkersOverLegacyInProgressDuringMigration(t *testing.T) {
-	root := t.TempDir()
-	path := filepath.Join(root, "docs/plans/active/2026-03-18-mixed-marker-plan.md")
-	content := mustRenderTemplate(t, "Mixed Marker Plan")
-	content = strings.Replace(content, "- Done: [ ]", "- Status: in_progress", 1)
-	writeFile(t, path, content)
-
-	doc, err := plan.LoadFile(path)
-	if err != nil {
-		t.Fatalf("LoadFile returned error: %v", err)
-	}
-	if doc.CurrentStep() == nil || doc.CurrentStep().Title != "Step 1: Replace with first step title" {
-		t.Fatalf("expected first unfinished Done-marked step to stay authoritative, got %#v", doc.CurrentStep())
-	}
-}
-
-func TestLoadFileMixedMarkersStillUsesFirstUnfinishedStep(t *testing.T) {
-	root := t.TempDir()
-	path := filepath.Join(root, "docs/plans/active/2026-03-18-mixed-order-plan.md")
-	content := mustRenderTemplate(t, "Mixed Order Plan")
-	content = strings.Replace(content, "- Done: [ ]", "- Status: in_progress", 1)
-	writeFile(t, path, content)
-
-	doc, err := plan.LoadFile(path)
-	if err != nil {
-		t.Fatalf("LoadFile returned error: %v", err)
-	}
-	if doc.CurrentStep() == nil || doc.CurrentStep().Title != "Step 1: Replace with first step title" {
-		t.Fatalf("expected first unfinished step to win in mixed documents, got %#v", doc.CurrentStep())
-	}
-}
-
 func TestDocumentReadyForArchiveSignals(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-18-ready-plan.md")
 	content := mustRenderTemplate(t, "Ready Plan")
 	content = strings.ReplaceAll(content, "- Done: [ ]", "- Done: [x]")
 	content = checkAllBoxes(content)
-	content = strings.ReplaceAll(content, "PENDING_STEP_EXECUTION", "Done.")
-	content = strings.ReplaceAll(content, "PENDING_STEP_REVIEW", "Reviewed.")
 	content = strings.ReplaceAll(content, "PENDING_UNTIL_ARCHIVE", "Ready.")
 	writeFile(t, path, content)
 
@@ -100,7 +66,7 @@ func TestDocumentReadyForArchiveSignals(t *testing.T) {
 	if !doc.AllStepsCompleted() || !doc.AllAcceptanceChecked() {
 		t.Fatal("expected document to be complete")
 	}
-	if doc.HasPendingArchivePlaceholders() || doc.CompletedStepsHavePendingPlaceholders() {
+	if doc.HasPendingArchivePlaceholders() {
 		t.Fatal("expected document to be archive-ready")
 	}
 }
@@ -111,8 +77,6 @@ func TestDocumentReadyForArchiveWithDoneMarkers(t *testing.T) {
 	content := mustRenderTemplate(t, "Ready Done Plan")
 	content = strings.ReplaceAll(content, "- Done: [ ]", "- Done: [x]")
 	content = checkAllBoxes(content)
-	content = strings.ReplaceAll(content, "PENDING_STEP_EXECUTION", "Done.")
-	content = strings.ReplaceAll(content, "PENDING_STEP_REVIEW", "Reviewed.")
 	content = strings.ReplaceAll(content, "PENDING_UNTIL_ARCHIVE", "Ready.")
 	writeFile(t, path, content)
 
@@ -123,7 +87,7 @@ func TestDocumentReadyForArchiveWithDoneMarkers(t *testing.T) {
 	if !doc.AllStepsCompleted() || !doc.AllAcceptanceChecked() {
 		t.Fatal("expected document to be complete")
 	}
-	if doc.HasPendingArchivePlaceholders() || doc.CompletedStepsHavePendingPlaceholders() {
+	if doc.HasPendingArchivePlaceholders() {
 		t.Fatal("expected document to be archive-ready")
 	}
 }
