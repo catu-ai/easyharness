@@ -14,9 +14,9 @@ harness review start
 
 The first round establishes full whole-candidate coverage. After a blocking
 review and a narrow committed repair, `review start` infers the linked delta
-from current coverage and unresolved findings. Use `harness review start
---full` only when the repair changes design, scope, or risk enough to invalidate
-the prior full judgment.
+from current coverage and unresolved findings. Use
+`harness review start --full` only when the repair changes design, scope, or
+risk enough to invalidate the prior full judgment.
 
 The command captures HEAD and returns the integrated reviewer handoff,
 including the plan and Review Focus. Spawn one clean reviewer subagent and tell
