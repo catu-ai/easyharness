@@ -52,16 +52,6 @@ func FuzzValidateNormalizesIssuePaths(f *testing.F) {
 		payload   string
 	}{
 		{
-			schemaKey: SchemaReviewSpec,
-			rootLabel: "spec",
-			payload:   `{"kind":"delta","dimensions":[{"name":"correctness","instructions":"Check correctness."}]}`,
-		},
-		{
-			schemaKey: SchemaReviewSpec,
-			rootLabel: "spec",
-			payload:   `{"kind":"delta","dimensions":[{"name":"correctness","instructions":"Check correctness."}],"unexpected":true}`,
-		},
-		{
 			schemaKey: SchemaReviewSubmission,
 			rootLabel: "submission",
 			payload:   `{"summary":"Missing fields.","findings":[{"title":"Missing metadata"}]}`,
@@ -94,8 +84,7 @@ func FuzzValidateNormalizesIssuePaths(f *testing.F) {
 		if len(payload) > 1<<14 {
 			t.Skip()
 		}
-		if schemaKey != SchemaReviewSpec &&
-			schemaKey != SchemaReviewSubmission &&
+		if schemaKey != SchemaReviewSubmission &&
 			schemaKey != SchemaEvidenceCI &&
 			schemaKey != SchemaEvidencePublish &&
 			schemaKey != SchemaEvidenceSync {

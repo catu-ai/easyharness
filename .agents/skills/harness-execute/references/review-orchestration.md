@@ -1,125 +1,47 @@
 # Review Orchestration
 
-Every candidate receives an independent finalize review. The controller stays
-in `harness-execute`; each assignment belongs to a reviewer subagent using
-`harness-reviewer`.
+Every candidate receives one independent integrated finalize review. The
+controller stays in `harness-execute`; the reviewer subagent uses
+`harness-reviewer` and owns the only submission.
 
-## Coverage
+## Start and Dispatch
 
-A finalize `full` round has exactly one `integrated` assignment covering the
-complete plan and candidate. Always assign `correctness`, `tests`, `risk-scan`,
-and `docs-consistency`; add other relevant guidance without splitting those
-dimensions into separate reviewers. Dimensions are reusable guidance fragments,
-not reviewer topology.
-
-Add a `specialist` only when the completed candidate has a concrete high-risk
-surface that benefits from an independent adversarial pass, such as security,
-concurrency, recovery, migration, persistence, deployment, irreversible side
-effects, or acceptance-critical performance. Give it a bounded risk brief with
-non-empty risk surfaces and invariants. Size and file count are not triggers.
-
-Repository dimensions may refine built-ins. Plan-scoped guidance is additive:
-it may extend a selected dimension or add a plan-local dimension, but it never
-overrides the base reviewer contract or creates an assignment automatically.
-Inspect available guidance with:
+Commit the candidate and keep the worktree clean. At finalize, run:
 
 ```bash
-harness review dimensions list
+harness review start
 ```
 
-Step review is optional. Starting one intentionally binds that step until its
-blocking findings are resolved; routine completed steps create no review debt.
+The first round establishes full whole-candidate coverage. After a blocking
+review and a narrow committed repair, `review start` infers the linked delta
+from current coverage and unresolved findings. Use `harness review start
+--full` only when the repair changes design, scope, or risk enough to invalidate
+the prior full judgment.
 
-## Full and Repair Delta
+The command captures HEAD and returns the integrated reviewer handoff,
+including the plan and Review Focus. Spawn one clean reviewer subagent and tell
+it to use `harness-reviewer`. Pass the returned round ID, plan path, reviewed
+HEAD, submission path, repair link, and concise change context. Do not invent
+or select dimensions, slots, specialists, or instructions.
 
-Use `full` to establish whole-candidate coverage. After narrow review-driven
-repairs, use a linked `delta` anchored at the prior round's captured
-`reviewed_head_sha`. Target each prior finding exactly once for an explicit
-resolution verdict.
+The reviewer may create bounded advisor subagents for concrete investigations.
+Advisors report only to that reviewer. They do not call harness review commands
+or submit separate verdicts.
 
-Start a new full root only when a repair materially changes design, scope, or
-risk enough to invalidate the earlier judgment. Non-blocking `minor` findings
-do not require repair.
+## Completion and Repair
 
-## Start a Round
+Reviewer completion is not review completion; wait for its successful
+reviewer-owned `harness review submit`. Submission atomically verifies the
+captured HEAD, records findings and resolutions, derives the decision, and
+updates coverage. Run `harness status` after submission.
 
-Commit intended candidate changes and keep the worktree clean. Create a review
-spec and run:
+The controller must not submit, edit, or synthesize the reviewer result. If the
+review requests changes, repair every blocking finding and validate the repair.
+Then commit and start the inferred linked delta. Reuse the reviewer only when a
+narrow follow-up benefits materially from continuity; otherwise use a fresh
+reviewer.
 
-```bash
-harness review start --spec <path>
-```
-
-Minimal finalize spec:
-
-```json
-{
-  "kind": "full",
-  "assignments": [
-    {
-      "slot": "integrated",
-      "role": "integrated",
-      "dimensions": ["correctness", "tests", "risk-scan", "docs-consistency"],
-      "instructions": "Review the complete candidate for archive readiness."
-    }
-  ]
-}
-```
-
-A specialist assignment additionally requires `risk_brief.risk_surfaces` and
-`risk_brief.invariants`; `failure_modes` is optional.
-
-A finalize repair delta requires:
-
-```json
-{
-  "kind": "delta",
-  "anchor_sha": "<prior-reviewed-head-sha>",
-  "repair": {
-    "round_id": "<direct-coverage-tip-round>",
-    "finding_ids": ["<finding-id>"]
-  },
-  "assignments": [
-    {
-      "slot": "integrated",
-      "role": "integrated",
-      "dimensions": ["correctness", "tests"],
-      "instructions": "Verify the bounded repair and its interaction with the covered candidate."
-    }
-  ]
-}
-```
-
-Use stable unique slots and non-empty instructions. `step` is optional and only
-for an intentionally chosen step review. Do not invent workflow metadata; the
-CLI owns round allocation, binding, candidate-head capture, artifacts, and
-normalized assignments.
-
-## Dispatch and Aggregate
-
-For every assignment returned by `review start`:
-
-1. Spawn a clean reviewer subagent.
-2. Tell it to use `harness-reviewer` exactly.
-3. Pass the returned round ID, plan path, reviewed HEAD, slot, role, dimensions
-   and resolved guidance handoff, assignment instructions, risk brief,
-   submission path, anchor and repair link, plus a concise change summary.
-4. Wait for the reviewer-owned submission. Agent completion is not submission;
-   verify the slot artifact and replace a reviewer that finished without one.
-
-Before aggregation, ensure every expected assignment submitted and candidate
-HEAD still equals the round's captured head. Then run:
-
-```bash
-harness review aggregate --round <round-id>
-harness status
-```
-
-The controller must not submit or rewrite reviewer results. If blocking
-findings remain, repair and validate them, then dispatch the relevant linked
-delta assignments. Return specialist findings to the same risk role; include
-integrated coverage when the repair affects broad control flow.
-
-Reuse an earlier reviewer for a narrow same-role repair only when continuity is
-more useful than a fresh view. Otherwise dispatch a clean reviewer. The newest
-round handles and guidance are always authoritative.
+A clean linked delta extends the full root without another full review.
+Non-blocking findings do not require repair. Archive remains blocked when
+findings are unresolved, candidate changes are uncovered, or the reviewed git
+boundary moved.

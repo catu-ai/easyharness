@@ -198,7 +198,7 @@ Typical `easyharness` resilience coverage should include:
 
 - corrupted current-plan pointers under the local runtime root resolved by
   `harness repo config get paths.local_runtime`
-- missing or unreadable review aggregate artifacts
+- missing or unreadable review decision artifacts
 - archive operations that fail mid-write and must roll back cleanly
 - conflicting active plans or ambiguous current-plan pointers
 - stale sync or CI state that must block archive or merge-readiness claims
@@ -345,7 +345,7 @@ The first repo-level cases should be:
 - smoke: `harness --help`
 - smoke: `harness status` in a temporary minimal workspace
 - smoke: `plan template -> plan lint`
-- E2E: `plan template -> review start -> review submit -> review aggregate`
+- E2E: `plan template -> review start -> integrated review submit`
 - E2E: `archive -> status -> reopen -> status`
 - resilience: corrupted current-plan marker
 - resilience: archive rollback after a write failure

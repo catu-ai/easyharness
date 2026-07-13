@@ -70,22 +70,15 @@ paths:
 	initialStatus := runStatus(t, workspace.Root)
 	assertNode(t, initialStatus, "execution/step-1/implement")
 
-	roundID := runPassingDeltaReview(t, workspace, customPathStepTitle, 1)
-	reviewManifest := filepath.Join("tmp/harness-runtime/plans/2026-06-07-custom-path-roots/reviews", roundID, "manifest.json")
-	support.RequireFileExists(t, workspace.Path(reviewManifest))
-
-	support.CompleteStep(
-		t,
-		planPath,
-		1,
-		"Implemented the configured-root workflow fixture.",
-		"Clean delta review "+roundID+" passed for the custom-root fixture.",
-	)
+	support.CompleteStep(t, planPath, 1)
 	support.CheckAllAcceptanceCriteria(t, planPath)
 
 	preFinalizeStatus := runStatus(t, workspace.Root)
 	assertNode(t, preFinalizeStatus, "execution/finalize/review")
-	runPassingFinalizeReview(t, workspace)
+	roundID := runPassingFinalizeReview(t, workspace)
+	reviewManifest := filepath.Join("tmp/harness-runtime/plans/2026-06-07-custom-path-roots/reviews", roundID, "manifest.json")
+	support.RequireFileExists(t, workspace.Path(reviewManifest))
+	support.CompleteCloseout(t, planPath)
 
 	archive := support.Run(t, workspace.Root, "archive")
 	support.RequireSuccess(t, archive)
@@ -181,94 +174,5 @@ paths:
 }
 
 func customPathRootsPlanBody() string {
-	return strings.TrimSpace(`
-## Goal
-
-Exercise configurable harness path roots through the built binary.
-
-## Scope
-
-### In Scope
-
-- Use configured active, archived, and runtime roots.
-
-### Out of Scope
-
-- Dashboard behavior.
-
-## Acceptance Criteria
-
-- [ ] The custom-root workflow reaches merge-ready handoff.
-
-## Deferred Items
-
-- None.
-
-## Work Breakdown
-
-### Step 1: Wire the custom roots
-
-- Done: [ ]
-
-#### Objective
-
-Drive a standard plan through custom configured roots.
-
-#### Details
-
-NONE
-
-#### Expected Files
-
-- workflow/plans/open/2026-06-07-custom-path-roots.md
-
-#### Validation
-
-- Built-binary e2e coverage.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
-
-## Validation Strategy
-
-- Run the built binary through status, review, archive, and evidence commands.
-
-## Risks
-
-- Risk: Runtime artifacts might still land in the default root.
-  - Mitigation: Assert current-plan, state, review, and evidence paths.
-
-## Validation Summary
-
-Custom-root e2e validation is provided by this test.
-
-## Review Summary
-
-Custom-root e2e validation submits and aggregates review artifacts.
-
-## Archive Summary
-
-- PR: test fixture
-- Ready: archive-ready test fixture
-- Merge Handoff: test fixture records evidence and reaches await_merge
-
-## Outcome Summary
-
-### Delivered
-
-Built-binary custom-root workflow coverage.
-
-### Not Delivered
-
-NONE
-
-### Follow-Up Issues
-
-NONE
-`)
+	return compactPlanFixture(customPathStepTitle)
 }

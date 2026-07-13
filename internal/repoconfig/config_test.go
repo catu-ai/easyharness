@@ -20,8 +20,7 @@ func TestLoadMissingConfigUsesDefaults(t *testing.T) {
 	}
 	if result.Config.Paths.Plans.Active != DefaultActivePlansRoot ||
 		result.Config.Paths.Plans.Archived != DefaultArchivedPlansRoot ||
-		result.Config.Paths.LocalRuntime != DefaultLocalRuntimeRoot ||
-		result.Config.Paths.Review.Dimensions != DefaultReviewDimensionsRoot {
+		result.Config.Paths.LocalRuntime != DefaultLocalRuntimeRoot {
 		t.Fatalf("expected default paths, got %#v", result.Config.Paths)
 	}
 }
@@ -48,8 +47,6 @@ func TestDefaultContentShowsCommentedPathDefaults(t *testing.T) {
 		"#     active: " + DefaultActivePlansRoot,
 		"#     archived: " + DefaultArchivedPlansRoot,
 		"#   local_runtime: " + DefaultLocalRuntimeRoot,
-		"#   review:",
-		"#     dimensions: " + DefaultReviewDimensionsRoot,
 	} {
 		if !strings.Contains(DefaultContent, want) {
 			t.Fatalf("DefaultContent missing %q:\n%s", want, DefaultContent)
@@ -75,7 +72,6 @@ func TestRenderCustomPathRoots(t *testing.T) {
 	config.Paths.Plans.Active = "workflow/plans/open"
 	config.Paths.Plans.Archived = "workflow/plans/done"
 	config.Paths.LocalRuntime = "tmp/harness-runtime"
-	config.Paths.Review.Dimensions = ".harness/custom-review-dimensions"
 
 	got := Render(config)
 	want := `version: 1
@@ -84,8 +80,6 @@ paths:
     active: workflow/plans/open
     archived: workflow/plans/done
   local_runtime: tmp/harness-runtime
-  review:
-    dimensions: .harness/custom-review-dimensions
 `
 	if got != want {
 		t.Fatalf("rendered custom config mismatch:\nwant:\n%s\ngot:\n%s", want, got)
@@ -122,8 +116,6 @@ paths:
     active: workflow/plans/open
     archived: workflow/plans/done
   local_runtime: tmp/harness-runtime
-  review:
-    dimensions: .harness/review/dims
 `)
 
 	result := Load(root)
@@ -138,9 +130,6 @@ paths:
 	}
 	if got, want := result.Config.Paths.LocalRuntime, "tmp/harness-runtime"; got != want {
 		t.Fatalf("local runtime root = %q, want %q", got, want)
-	}
-	if got, want := result.Config.Paths.Review.Dimensions, ".harness/review/dims"; got != want {
-		t.Fatalf("review dimensions root = %q, want %q", got, want)
 	}
 }
 
@@ -165,9 +154,6 @@ paths:
 	if got, want := result.Config.Paths.LocalRuntime, DefaultLocalRuntimeRoot; got != want {
 		t.Fatalf("local runtime root = %q, want %q", got, want)
 	}
-	if got, want := result.Config.Paths.Review.Dimensions, DefaultReviewDimensionsRoot; got != want {
-		t.Fatalf("review dimensions root = %q, want %q", got, want)
-	}
 }
 
 func TestLoadInvalidConfigWarnsAndUsesDefaults(t *testing.T) {
@@ -185,15 +171,12 @@ func TestLoadInvalidConfigWarnsAndUsesDefaults(t *testing.T) {
 		{name: "paths non object", content: "version: 1\npaths: []\n", want: "field paths must be a YAML object"},
 		{name: "unknown paths field", content: "version: 1\npaths:\n  hooks: {}\n", want: "unsupported field \"paths.hooks\""},
 		{name: "unknown plans field", content: "version: 1\npaths:\n  plans:\n    current: docs/current\n", want: "unsupported field \"paths.plans.current\""},
-		{name: "review non object", content: "version: 1\npaths:\n  review: []\n", want: "field paths.review must be a YAML object"},
-		{name: "unknown review field", content: "version: 1\npaths:\n  review:\n    default: .harness/review\n", want: "unsupported field \"paths.review.default\""},
+		{name: "removed review paths", content: "version: 1\npaths:\n  review: {}\n", want: "unsupported field \"paths.review\""},
 		{name: "absolute path", content: "version: 1\npaths:\n  plans:\n    active: /tmp/plans\n", want: "paths.plans.active must be repo-relative"},
-		{name: "absolute review dimensions path", content: "version: 1\npaths:\n  review:\n    dimensions: /tmp/dimensions\n", want: "paths.review.dimensions must be repo-relative"},
 		{name: "escaping path", content: "version: 1\npaths:\n  plans:\n    active: ../plans\n", want: "paths.plans.active must stay within the repository"},
 		{name: "empty path", content: "version: 1\npaths:\n  local_runtime: \"\"\n", want: "paths.local_runtime must not be empty"},
 		{name: "overlapping plan roots", content: "version: 1\npaths:\n  plans:\n    active: workflow/plans\n    archived: workflow/plans/archived\n", want: "configured path roots must not overlap"},
 		{name: "runtime inside plan root", content: "version: 1\npaths:\n  plans:\n    active: workflow\n  local_runtime: workflow/.local\n", want: "configured path roots must not overlap"},
-		{name: "review dimensions inside plan root", content: "version: 1\npaths:\n  plans:\n    active: .harness\n  review:\n    dimensions: .harness/review/dimensions\n", want: "configured path roots must not overlap"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -234,7 +217,6 @@ paths:
 		{key: "paths.plans.active", want: "workflow/plans/open"},
 		{key: "paths.plans.archived", want: DefaultArchivedPlansRoot},
 		{key: "paths.local_runtime", want: "tmp/harness-runtime"},
-		{key: "paths.review.dimensions", want: DefaultReviewDimensionsRoot},
 	} {
 		got, err := result.Config.GetScalar(tc.key)
 		if err != nil {
@@ -255,9 +237,6 @@ func TestGetScalarRejectsObjectsAndUnknownKeys(t *testing.T) {
 	if _, err := config.GetScalar("paths.plans"); err == nil || !strings.Contains(err.Error(), "object") || !strings.Contains(err.Error(), "harness repo config list paths.plans") {
 		t.Fatalf("expected nested object error with list hint, got %v", err)
 	}
-	if _, err := config.GetScalar("paths.review"); err == nil || !strings.Contains(err.Error(), "object") || !strings.Contains(err.Error(), "harness repo config list paths.review") {
-		t.Fatalf("expected review object error with list hint, got %v", err)
-	}
 	if _, err := config.GetScalar("paths.missing"); err == nil || !strings.Contains(err.Error(), "unknown repo config key") {
 		t.Fatalf("expected unknown key error, got %v", err)
 	}
@@ -274,7 +253,6 @@ func TestListResolvedEntries(t *testing.T) {
 		{Key: "paths.plans.active", Value: DefaultActivePlansRoot},
 		{Key: "paths.plans.archived", Value: DefaultArchivedPlansRoot},
 		{Key: "paths.local_runtime", Value: DefaultLocalRuntimeRoot},
-		{Key: "paths.review.dimensions", Value: DefaultReviewDimensionsRoot},
 	}
 	if len(entries) != len(want) {
 		t.Fatalf("expected %d entries, got %#v", len(want), entries)
@@ -299,14 +277,6 @@ func TestListResolvedEntries(t *testing.T) {
 	}
 	if len(entries) != 1 || entries[0].Key != "paths.local_runtime" {
 		t.Fatalf("unexpected scalar-prefixed entries: %#v", entries)
-	}
-
-	entries, err = config.ListResolved("paths.review")
-	if err != nil {
-		t.Fatalf("ListResolved(paths.review) returned error: %v", err)
-	}
-	if len(entries) != 1 || entries[0].Key != "paths.review.dimensions" {
-		t.Fatalf("unexpected paths.review entries: %#v", entries)
 	}
 
 	if _, err := config.ListResolved("missing"); err == nil || !strings.Contains(err.Error(), "unknown repo config prefix") {

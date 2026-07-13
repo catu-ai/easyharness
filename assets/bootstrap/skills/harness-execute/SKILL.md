@@ -34,8 +34,8 @@ documented setup path before relying on it.
 - Delegate bounded exploration, non-overlapping implementation, validation, or
   advisory work when useful. The controller integrates shared state and owns
   final judgment.
-- A completed step creates no review debt. Start a step review only for a real
-  intermediate risk boundary that should be frozen before later work.
+- A completed step advances progress without a review boundary. Use ordinary
+  bounded validation or advisory subagents for intermediate uncertainty.
 - Run the mandatory independent finalize review after the complete candidate is
   committed. Follow [review-orchestration.md](references/review-orchestration.md).
 - Fix blocking findings and extend coverage with a linked repair delta unless
@@ -52,9 +52,7 @@ documented setup path before relying on it.
 
 - `plan`: wait for or record explicit approval, then start execution.
 - `execution/step-<n>/implement`: complete the current plan outcome and its
-  validation; an intentionally started step review may temporarily bind this
-  step.
-- `execution/step-<n>/review`: wait for or aggregate the active review.
+  validation.
 - `execution/finalize/review|fix|archive`: establish finalize coverage, repair
   findings, then close out and archive.
 - `execution/finalize/publish`: publish and record fresh remote evidence.
@@ -65,7 +63,7 @@ documented setup path before relying on it.
 
 - [step-inner-loop.md](references/step-inner-loop.md): step outcomes and notes
 - [review-orchestration.md](references/review-orchestration.md): mandatory
-  finalize review and optional specialists
+  integrated finalize review and repair deltas
 - [closeout-and-archive.md](references/closeout-and-archive.md): durable closeout
 - [publish-ci-sync.md](references/publish-ci-sync.md): PR, CI, and sync evidence
 

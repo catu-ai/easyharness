@@ -16,6 +16,11 @@ type Topic struct {
 
 var registry = []Topic{
 	{
+		Path:    []string{"review"},
+		Summary: "Integrated finalize review, advisors, and repair deltas.",
+		Asset:   "review.md",
+	},
+	{
 		Path:    []string{"repo"},
 		Summary: "Repository resources and customization guidance.",
 		Asset:   "repo.md",

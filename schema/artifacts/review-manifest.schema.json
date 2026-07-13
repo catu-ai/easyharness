@@ -11,18 +11,11 @@
         "role": {
           "type": "string"
         },
-        "dimensions": {
-          "items": {
-            "$ref": "#/$defs/ReviewResolvedDimension"
-          },
-          "type": "array",
-          "minItems": 1
-        },
         "instructions": {
           "type": "string"
         },
-        "risk_brief": {
-          "$ref": "#/$defs/ReviewRiskBrief"
+        "review_focus": {
+          "type": "string"
         },
         "submission_path": {
           "type": "string"
@@ -33,7 +26,6 @@
       "required": [
         "slot",
         "role",
-        "dimensions",
         "instructions",
         "submission_path"
       ],
@@ -68,6 +60,10 @@
         "review_title": {
           "type": "string",
           "description": "ReviewTitle is the human-readable title for the round when one exists."
+        },
+        "review_focus": {
+          "type": "string",
+          "description": "ReviewFocus snapshots the plan's reviewer-specific focus for this round."
         },
         "repair": {
           "$ref": "#/$defs/ReviewRepairReference",
@@ -150,76 +146,6 @@
         "finding_ids"
       ],
       "description": "ReviewRepairReference identifies the findings targeted by a repair delta."
-    },
-    "ReviewResolvedDimension": {
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "sources": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "minItems": 1
-        },
-        "description": {
-          "type": "string"
-        },
-        "instructions": {
-          "type": "string"
-        },
-        "plan_path": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "name",
-        "sources",
-        "description",
-        "instructions"
-      ],
-      "description": "ReviewResolvedDimension snapshots one explicitly assigned guidance fragment."
-    },
-    "ReviewRiskBrief": {
-      "properties": {
-        "risk_surfaces": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "minItems": 1
-        },
-        "invariants": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "minItems": 1
-        },
-        "failure_modes": {
-          "oneOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "risk_surfaces",
-        "invariants"
-      ],
-      "description": "ReviewRiskBrief gives a specialist a concrete risk surface to challenge."
     }
   },
   "title": "Review manifest artifact",

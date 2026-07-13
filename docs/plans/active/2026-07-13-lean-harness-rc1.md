@@ -128,40 +128,40 @@ more workflow machinery.
       decisions, scope, acceptance, review focus, progress, validation,
       deferred, and closeout content without required file predictions,
       implementation details, execution notes, or review notes.
-- [ ] Every step is an outcome-based progress boundary with `Done`, covered
+- [x] Every step is an outcome-based progress boundary with `Done`, covered
       acceptance criteria, and optional concise validation; current status and
       dashboard surfaces present `Step N / M` and derived acceptance progress
       without requiring frequent plan writes.
-- [ ] Standard lifecycle and UI progression no longer create or require formal
+- [x] Standard lifecycle and UI progression no longer create or require formal
       step-review nodes, while current-step execution and later finalize,
       archive, publish, await-merge, reopen, and land boundaries remain sound.
-- [ ] Finalize cannot complete without exactly one independent integrated
+- [x] Finalize cannot complete without exactly one independent integrated
       reviewer submission for the complete candidate, and the reviewer always
       receives the fixed complete rubric plus the plan's review focus without
       controller dimension selection.
-- [ ] Reviewer subagents can and are instructed to create bounded advisor
+- [x] Reviewer subagents can and are instructed to create bounded advisor
       subagents when useful; advisors report only to the reviewer, create no
       harness slots or submissions, and do not reduce the reviewer's complete
       judgment responsibility.
-- [ ] Controller-facing review dimensions, formal specialists, review-spec
+- [x] Controller-facing review dimensions, formal specialists, review-spec
       assignment orchestration, progressive reviewer worklogs, and separate
       aggregate ceremony are removed from commands, prompts, schemas, status,
       UI, and normative contracts.
-- [ ] Full review coverage remains tied to the captured candidate git head;
+- [x] Full review coverage remains tied to the captured candidate git head;
       narrow linked repair deltas resolve findings and extend coverage without
       another full review, while materially broad repairs require a new full
       root and uncovered product changes still block archive.
-- [ ] Representative before/after dogfood traces show the ordinary plan,
+- [x] Representative before/after dogfood traces show the ordinary plan,
       execute, review, repair, archive, publish, and land path using fewer
       controller decisions and review rounds without weakening the mandatory
       gates.
-- [ ] Bootstrap synchronization, focused Go tests, lifecycle/review E2E tests,
+- [x] Bootstrap synchronization, focused Go tests, lifecycle/review E2E tests,
       schema and documentation validation, UI tests/build, `git diff --check`,
       `scripts/validate`, and `scripts/validate-release` pass.
-- [ ] Issue #293 is the sole open `v0.6.0` delivery issue for this slice; #288,
+- [x] Issue #293 is the sole open `v0.6.0` delivery issue for this slice; #288,
       #289, #291, and #292 carry clear consolidation/not-planned rationale and
       no goal-oriented issue is pulled out of `v0.7.0`.
-- [ ] `VERSION` is `0.6.0-rc.1`, the merge handoff requires explicit human
+- [x] `VERSION` is `0.6.0-rc.1`, the merge handoff requires explicit human
       approval, and land verification covers tag `v0.6.0-rc.1`, GitHub
       prerelease assets, the updated default Homebrew formula, and an installed
       Homebrew binary reporting the RC version.
@@ -198,21 +198,21 @@ more workflow machinery.
 
 ### Step 2: Collapse review into one accountable reviewer
 
-- Done: [ ]
+- Done: [x]
 - Outcome: Deliver mandatory integrated finalize review, automatic review focus, reviewer-owned advisors, and direct submission closeout.
 - Covers: Mandatory review, advisor ownership, orchestration removal, and continuous full-plus-delta coverage criteria.
 - Check: Exercise clean review, findings, advisor handoff, narrow repair delta, broad repair reset, changed-HEAD rejection, and uncovered-change archive rejection.
 
 ### Step 3: Preserve simple human-visible progress
 
-- Done: [ ]
+- Done: [x]
 - Outcome: Deliver step and acceptance progress without formal step-review lifecycle or frequent agent-authored status churn.
 - Covers: Lifecycle and UI progress criteria while retaining current state and all post-execution steering gates.
 - Check: Exercise multi-step progress, acceptance counts, resume, finalize, reopen, and dashboard rendering with no step-review nodes.
 
 ### Step 4: Consolidate the milestone and prepare the RC release
 
-- Done: [ ]
+- Done: [x]
 - Outcome: Leave one delivery issue and a validated `v0.6.0-rc.1` candidate ready for explicit merge approval and automated GitHub/Homebrew publication.
 - Covers: Dogfood, issue consolidation, validation, VERSION, and release handoff criteria; the human approved including VERSION in this PR.
 - Check: Run representative traces and the release-ready validation profile, then record the exact post-merge GitHub and Homebrew checks.
@@ -226,6 +226,13 @@ more workflow machinery.
   run the full repository and release validation profiles.
 - Compare representative old and new controller traces for an ordinary clean
   candidate and a candidate with one narrow review repair.
+- The Orchard timestamp dogfood that motivated this slice required 11 formal
+  rounds: two step-review pairs, repeated finalize full reviews, and separate
+  dimension submissions and aggregate actions. The new real-binary E2E trace
+  reaches archive with one full round and one integrated submission when clean;
+  a narrow finding requires exactly one additional linked delta and submission.
+  Neither path asks the controller to select dimensions, start specialists, or
+  aggregate reviewer output.
 - Run one mandatory final integrated full reviewer. The reviewer may create
   bounded advisors and must submit the complete judgment itself.
 - Close any narrow blocking repair with a linked delta; rerun full review only

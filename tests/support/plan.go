@@ -99,7 +99,7 @@ func CheckAllAcceptanceCriteria(t *testing.T, path string) {
 	writePlanFile(t, path, updated)
 }
 
-func CompleteStep(t *testing.T, path string, stepNumber int, executionNotes, reviewNotes string) {
+func CompleteStep(t *testing.T, path string, stepNumber int) {
 	t.Helper()
 
 	content := readPlanFile(t, path)
@@ -126,9 +126,46 @@ func CompleteStep(t *testing.T, path string, stepNumber int, executionNotes, rev
 		t.Fatalf("done marker not found in step %d for %s", stepNumber, path)
 	}
 
-	block = replaceSubsectionBody(t, path, block, "#### Execution Notes", executionNotes)
-	block = replaceSubsectionBody(t, path, block, "#### Review Notes", reviewNotes)
 	writePlanFile(t, path, content[:stepStart]+block+content[stepEnd:])
+}
+
+func CompleteCloseout(t *testing.T, path string) {
+	t.Helper()
+
+	content := readPlanFile(t, path)
+	replacements := map[string]string{
+		"Validation":       "Validated through deterministic repository-level fixtures.",
+		"Review":           "The required final review passed with no unresolved blocking findings.",
+		"Delivered":        "Delivered the tracked test fixture outcome.",
+		"Not Delivered":    "None.",
+		"Follow-Up Issues": "NONE",
+		"PR":               "NONE",
+		"Ready":            "The candidate is ready for archive.",
+		"Merge Handoff":    "Commit and publish the archived candidate before merge approval.",
+	}
+	updated, replaced := rewriteSection(content, "## Closeout", func(section string) string {
+		lines := strings.Split(section, "\n")
+		seen := map[string]bool{}
+		for index, line := range lines {
+			for label, value := range replacements {
+				prefix := "- " + label + ":"
+				if strings.HasPrefix(line, prefix) {
+					lines[index] = prefix + " " + value
+					seen[label] = true
+				}
+			}
+		}
+		for label := range replacements {
+			if !seen[label] {
+				t.Fatalf("closeout field %q not found in %s", label, path)
+			}
+		}
+		return strings.Join(lines, "\n")
+	})
+	if !replaced {
+		t.Fatalf("Closeout section not found in %s", path)
+	}
+	writePlanFile(t, path, updated)
 }
 
 func AppendStepBeforeValidationStrategy(t *testing.T, path, stepMarkdown string) {
@@ -196,31 +233,4 @@ func rewriteSection(content, heading string, rewrite func(section string) string
 
 	section := content[bodyStart:end]
 	return content[:bodyStart] + rewrite(section) + content[end:], true
-}
-
-func replaceSubsectionBody(t *testing.T, path, block, heading, body string) string {
-	t.Helper()
-
-	start := strings.Index(block, heading)
-	if start < 0 {
-		t.Fatalf("subsection %q not found in %s", heading, path)
-	}
-
-	bodyStart := start + len(heading)
-	if !strings.HasPrefix(block[bodyStart:], "\n") {
-		t.Fatalf("expected newline after %q in %s", heading, path)
-	}
-	bodyStart++
-
-	bodyEnd := len(block)
-	for _, marker := range []string{"\n#### ", "\n### ", "\n## "} {
-		if idx := strings.Index(block[bodyStart:], marker); idx >= 0 {
-			candidate := bodyStart + idx
-			if candidate < bodyEnd {
-				bodyEnd = candidate
-			}
-		}
-	}
-
-	return block[:bodyStart] + strings.TrimSpace(body) + "\n" + block[bodyEnd:]
 }

@@ -7,9 +7,8 @@ Archive freezes the reviewed outcome and its durable handoff.
 1. Run `harness status` and resolve its archive blockers.
 2. Confirm acceptance criteria and steps are complete and finalize coverage
    contains a passing full root plus any linked repair deltas.
-3. Update the tracked plan's `Validation Summary`, `Review Summary`, `Archive
-   Summary`, and `Outcome Summary` from repository and review evidence, not
-   memory.
+3. Replace the tracked plan's `Closeout` placeholders from repository and
+   review evidence, not memory.
 4. Record durable follow-up details when `Deferred Items` contains real work.
 5. Run `harness plan lint <plan-path>` and `harness archive`.
 

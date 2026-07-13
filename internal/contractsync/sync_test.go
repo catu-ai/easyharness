@@ -66,26 +66,11 @@ func TestExpectedFilesStableForRelativeAndAbsoluteWorkdir(t *testing.T) {
 	}
 }
 
-func TestReviewInputSchemasMatchValidatorBoundaries(t *testing.T) {
+func TestReviewSubmissionSchemaMatchesValidatorBoundaries(t *testing.T) {
 	repoRoot := filepath.Clean(filepath.Join("..", ".."))
 	files, err := expectedFiles(repoRoot)
 	if err != nil {
 		t.Fatalf("expectedFiles: %v", err)
-	}
-
-	var reviewSpec map[string]any
-	if err := json.Unmarshal(files["schema/inputs/review.spec.schema.json"], &reviewSpec); err != nil {
-		t.Fatalf("unmarshal review spec schema: %v", err)
-	}
-	specDefs := reviewSpec["$defs"].(map[string]any)
-	specRoot := specDefs["ReviewSpec"].(map[string]any)
-	specProps := specRoot["properties"].(map[string]any)
-	assignmentsSchema := specProps["assignments"].(map[string]any)
-	if schemaAllowsNull(assignmentsSchema) {
-		t.Fatalf("expected review spec assignments to reject null, got %#v", assignmentsSchema)
-	}
-	if got := assignmentsSchema["minItems"]; got != float64(1) {
-		t.Fatalf("expected review spec assignments minItems=1, got %#v", got)
 	}
 
 	var submission map[string]any

@@ -60,9 +60,6 @@ const emptyTimelineWorkspaceState = (): TimelineWorkspaceState => ({
 
 const emptyReviewWorkspaceState = (): ReviewWorkspaceState => ({
   selectedRoundId: null,
-  selectedDetailTab: "summary",
-  selectedArtifactKey: null,
-  showArtifacts: false,
 });
 
 function isPage(value: string | null): value is Page {
@@ -246,7 +243,6 @@ export function App(props: {
     () => ({
       rounds: Array.isArray(review?.rounds) ? review.rounds ?? [] : [],
       warnings: Array.isArray(review?.warnings) ? review.warnings ?? [] : [],
-      artifacts: pickEntries((review?.artifacts as Record<string, unknown>) ?? null),
       summary: review?.summary ?? "Waiting for review data.",
     }),
     [review],
@@ -433,7 +429,6 @@ export function App(props: {
                 summary={activeReview.summary}
                 rounds={activeReview.rounds}
                 warnings={activeReview.warnings}
-                artifacts={activeReview.artifacts}
                 state={reviewWorkspaceState}
                 onStateChange={setReviewWorkspaceState}
               />

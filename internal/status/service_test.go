@@ -268,340 +268,6 @@ func TestStatusSnapshotDoesNotCompeteForStateMutationLock(t *testing.T) {
 	}
 }
 
-func TestStatusIgnoresNonStructuralReviewFactsForCurrentStep(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		return content
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"active_review_round": map[string]any{
-			"round_id":   "review-011-delta",
-			"kind":       "delta",
-			"aggregated": true,
-			"decision":   "pass",
-		},
-	})
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/step-1/implement" {
-		t.Fatalf("unexpected node: %#v", result.State)
-	}
-	if result.Facts == nil || result.Facts.ReviewStatus != "" || result.Facts.ReviewTrigger != "" {
-		t.Fatalf("expected non-structural review facts to be ignored, got %#v", result.Facts)
-	}
-	if strings.Contains(result.Summary, "clean review") {
-		t.Fatalf("expected non-structural review round to stay out of summary, got %q", result.Summary)
-	}
-}
-
-func TestStatusExecutionStepReviewNode(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		return content
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"active_review_round": map[string]any{
-			"round_id":   "review-001-delta",
-			"kind":       "delta",
-			"aggregated": false,
-		},
-	})
-	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"review_title": stepOneTitle,
-		"step":         1,
-		"revision":     1,
-		"assignments": []map[string]any{
-			{
-				"slot":            "correctness",
-				"role":            "integrated",
-				"dimensions":      []map[string]any{{"name": "correctness", "sources": []string{"builtin"}, "description": "Correctness.", "instructions": "Check correctness."}},
-				"instructions":    "Check correctness.",
-				"submission_path": filepath.Join(root, ".local", "harness", "plans", "2026-03-18-status-plan", "reviews", "review-001-delta", "submissions", "correctness", "submission.json"),
-			},
-		},
-	})
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/step-1/review" {
-		t.Fatalf("unexpected node: %#v", result.State)
-	}
-	if result.Facts == nil || result.Facts.ReviewStatus != "in_progress" || result.Facts.CurrentStep != stepOneTitle || result.Facts.ReviewTitle != stepOneTitle || result.Facts.ReviewTrigger != "step_closeout" {
-		t.Fatalf("unexpected facts: %#v", result.Facts)
-	}
-	if result.Artifacts == nil || result.Artifacts.ReviewRoundID != "review-001-delta" {
-		t.Fatalf("unexpected artifacts: %#v", result.Artifacts)
-	}
-	if len(result.Artifacts.ReviewAssignments) != 1 || result.Artifacts.ReviewAssignments[0].SubmissionPath != ".local/harness/plans/2026-03-18-status-plan/reviews/review-001-delta/submissions/correctness/submission.json" {
-		t.Fatalf("expected active review slot handles, got %#v", result.Artifacts)
-	}
-}
-
-func TestStatusStepReviewMatchesTargetWithoutMarkdownPunctuation(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		return strings.Replace(content, "### Step 1: Replace with first step title", "### Step 1: Resolve `current_node`", 1)
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"active_review_round": map[string]any{
-			"round_id":   "review-001-delta",
-			"kind":       "delta",
-			"aggregated": false,
-		},
-	})
-	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"review_title": "Step 1: Resolve current_node",
-		"step":         1,
-		"revision":     1,
-	})
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/step-1/review" {
-		t.Fatalf("unexpected node: %#v", result.State)
-	}
-	if len(result.Warnings) != 0 {
-		t.Fatalf("expected normalized target match to avoid warnings, got %#v", result.Warnings)
-	}
-}
-
-func TestStatusStepReviewInFlightOffersOnlyAggregate(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		return completeFirstStep(content)
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"active_review_round": map[string]any{
-			"round_id":   "review-002-delta",
-			"kind":       "delta",
-			"aggregated": false,
-		},
-	})
-	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"review_title": stepTwoTitle,
-		"step":         2,
-		"revision":     1,
-	})
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/step-2/review" {
-		t.Fatalf("expected in-flight step review node, got %#v", result.State)
-	}
-	if len(result.NextAction) != 1 || result.NextAction[0].Command == nil || !strings.Contains(*result.NextAction[0].Command, "harness review aggregate --round review-002-delta") {
-		t.Fatalf("expected the active step review to remain binding with only its aggregate action, got %#v", result.NextAction)
-	}
-}
-
-func TestStatusShowsExplicitEarlierStepRepairAsInFlightReview(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		content = completeAllSteps(content, true)
-		return appendThirdStep(content)
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"reopen": map[string]any{
-			"mode":            "new-step",
-			"reopened_at":     "2026-03-18T11:00:00+08:00",
-			"base_step_count": 2,
-		},
-		"active_review_round": map[string]any{
-			"round_id":   "review-004-full",
-			"kind":       "full",
-			"step":       1,
-			"revision":   1,
-			"aggregated": false,
-		},
-	})
-	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-004-full", map[string]any{
-		"review_title": stepOneTitle,
-		"step":         1,
-		"revision":     1,
-	})
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/step-1/review" {
-		t.Fatalf("expected explicit earlier-step repair to show step 1 review in flight, got %#v", result.State)
-	}
-	if result.Facts == nil || result.Facts.CurrentStep != stepOneTitle || result.Facts.ReviewStatus != "in_progress" {
-		t.Fatalf("expected in-flight review facts for step 1, got %#v", result.Facts)
-	}
-	for _, warning := range result.Warnings {
-		if strings.Contains(warning, stepOneTitle) {
-			t.Fatalf("did not expect passive debt warnings while explicit repair review is active, got %#v", result.Warnings)
-		}
-	}
-	for _, action := range result.NextAction {
-		if action.Command != nil && *action.Command == "harness review start --spec <path>" {
-			t.Fatalf("did not expect a second review-start action while explicit repair review is active, got %#v", result.NextAction)
-		}
-	}
-	if len(result.NextAction) == 0 || result.NextAction[len(result.NextAction)-1].Command == nil || !strings.Contains(*result.NextAction[len(result.NextAction)-1].Command, "harness review aggregate --round review-004-full") {
-		t.Fatalf("expected aggregate action for the explicit repair round, got %#v", result.NextAction)
-	}
-}
-
-func TestStatusFinalizeReviewInFlightOffersOnlyAggregate(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		return completeAllStepsWithoutCloseout(content, false)
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"active_review_round": map[string]any{
-			"round_id":   "review-003-full",
-			"kind":       "full",
-			"revision":   1,
-			"aggregated": false,
-		},
-	})
-	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"review_title": stepTwoTitle,
-		"step":         2,
-		"revision":     1,
-	})
-	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"decision": "pass",
-	})
-	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-003-full", map[string]any{
-		"review_title": "Full branch candidate before archive",
-		"revision":     1,
-	})
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/finalize/review" {
-		t.Fatalf("expected in-flight finalize review node, got %#v", result.State)
-	}
-	if len(result.NextAction) != 1 || result.NextAction[0].Command == nil || !strings.Contains(*result.NextAction[0].Command, "harness review aggregate --round review-003-full") {
-		t.Fatalf("expected the active finalize review to remain binding with only its aggregate action, got %#v", result.NextAction)
-	}
-}
-
-func TestStatusFailedStepReviewUsesActiveReviewRoundWhenManifestIsMissing(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		return completeFirstStep(content)
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"active_review_round": map[string]any{
-			"round_id":   "review-001-delta",
-			"kind":       "delta",
-			"step":       1,
-			"revision":   1,
-			"aggregated": true,
-			"decision":   "changes_requested",
-		},
-	})
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/step-1/implement" {
-		t.Fatalf("unexpected node: %#v", result.State)
-	}
-	state, _, err := runstate.LoadState(root, "2026-03-18-status-plan")
-	if err != nil {
-		t.Fatalf("load state: %v", err)
-	}
-	if state == nil || state.ActiveReviewRound == nil || state.ActiveReviewRound.RoundID != "review-001-delta" {
-		t.Fatalf("expected review control state to remain intact without a node cache, got %#v", state)
-	}
-	assertStateJSONLacksKeys(t, root, "2026-03-18-status-plan", "current_node")
-}
-
-func TestStatusUnknownAggregatedReviewDecisionStaysConservative(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		return content
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"active_review_round": map[string]any{
-			"round_id":   "review-001-delta",
-			"kind":       "delta",
-			"aggregated": true,
-		},
-	})
-	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-001-delta", map[string]any{
-		"review_title": stepOneTitle,
-		"step":         1,
-		"revision":     1,
-	})
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/step-1/implement" {
-		t.Fatalf("unexpected node: %#v", result.State)
-	}
-	if result.Facts == nil || result.Facts.ReviewStatus != "unknown" {
-		t.Fatalf("unexpected facts: %#v", result.Facts)
-	}
-	if len(result.NextAction) == 0 || !strings.Contains(result.NextAction[0].Description, "Recover or rerun review-001-delta") {
-		t.Fatalf("unexpected next actions: %#v", result.NextAction)
-	}
-}
-
-func TestStatusFailedStepReviewPinsReviewedStep(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		return completeFirstStep(content)
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"active_review_round": map[string]any{
-			"round_id":   "review-002-delta",
-			"kind":       "delta",
-			"aggregated": true,
-			"decision":   "changes_requested",
-		},
-	})
-	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"review_title": stepOneTitle,
-		"step":         1,
-		"revision":     1,
-	})
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/step-1/implement" {
-		t.Fatalf("unexpected node: %#v", result.State)
-	}
-	if result.Facts == nil || result.Facts.CurrentStep != stepOneTitle || result.Facts.ReviewStatus != "changes_requested" {
-		t.Fatalf("unexpected facts: %#v", result.Facts)
-	}
-	if len(result.NextAction) < 2 || result.NextAction[1].Command == nil || *result.NextAction[1].Command != "harness review start --spec <path>" {
-		t.Fatalf("unexpected next actions: %#v", result.NextAction)
-	}
-}
-
-func TestStatusAdvancesToNextStepAfterCleanStepReview(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		return completeFirstStep(content)
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"active_review_round": map[string]any{
-			"round_id":   "review-003-delta",
-			"kind":       "delta",
-			"aggregated": true,
-			"decision":   "pass",
-		},
-	})
-	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-003-delta", map[string]any{
-		"review_title": stepOneTitle,
-		"step":         1,
-		"revision":     1,
-	})
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/step-2/implement" {
-		t.Fatalf("unexpected node: %#v", result.State)
-	}
-	if result.Facts == nil || result.Facts.CurrentStep != stepTwoTitle {
-		t.Fatalf("unexpected facts: %#v", result.Facts)
-	}
-}
-
 func TestStatusFinalizeReviewNode(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
@@ -615,40 +281,8 @@ func TestStatusFinalizeReviewNode(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
-	if len(result.NextAction) == 0 || result.NextAction[0].Command == nil || *result.NextAction[0].Command != "harness review start --spec <path>" {
+	if len(result.NextAction) == 0 || result.NextAction[0].Command == nil || *result.NextAction[0].Command != "harness review start" {
 		t.Fatalf("unexpected next actions: %#v", result.NextAction)
-	}
-}
-
-func TestStatusFinalizeReviewClearsPriorStepReviewFacts(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		return completeAllSteps(content, false)
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"active_review_round": map[string]any{
-			"round_id":   "review-003-delta",
-			"kind":       "delta",
-			"aggregated": true,
-			"decision":   "pass",
-		},
-	})
-	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-003-delta", map[string]any{
-		"review_title": stepTwoTitle,
-		"step":         2,
-		"revision":     1,
-	})
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/finalize/review" {
-		t.Fatalf("unexpected node: %#v", result.State)
-	}
-	if result.Facts != nil && (result.Facts.ReviewStatus != "" || result.Facts.ReviewTitle != "" || result.Facts.ReviewTrigger != "" || result.Facts.ReviewKind != "") {
-		t.Fatalf("expected prior step-review facts to be cleared at finalize review, got %#v", result.Facts)
-	}
-	if result.Artifacts != nil && result.Artifacts.ReviewRoundID != "" {
-		t.Fatalf("expected prior step-review artifact pointer to be cleared at finalize review, got %#v", result.Artifacts)
 	}
 }
 
@@ -671,7 +305,7 @@ func TestStatusFinalizeReviewInFlightIncludesReviewFacts(t *testing.T) {
 	if result.State.CurrentNode != "execution/finalize/review" {
 		t.Fatalf("unexpected node: %#v", result.State)
 	}
-	if result.Facts == nil || result.Facts.ReviewTrigger != "pre_archive" || result.Facts.ReviewStatus != "in_progress" {
+	if result.Facts == nil || result.Facts.ReviewKind != "full" || result.Facts.ReviewStatus != "in_progress" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
 }
@@ -1919,225 +1553,6 @@ func TestStatusReopenedNewStepContinuesOnceStepExists(t *testing.T) {
 	}
 }
 
-func TestStatusReentersReviewedStepAfterFailedExplicitEarlierStepRepair(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		content = completeAllSteps(content, true)
-		return appendThirdStep(content)
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"reopen": map[string]any{
-			"mode":            "new-step",
-			"reopened_at":     "2026-03-18T11:00:00+08:00",
-			"base_step_count": 2,
-		},
-	})
-	initCommittedGitCandidate(t, root)
-
-	svc := review.Service{
-		Workdir: root,
-		Now: func() time.Time {
-			return time.Date(2026, 3, 18, 11, 10, 0, 0, time.FixedZone("CST", 8*60*60))
-		},
-	}
-	start := svc.Start(mustJSONBytes(t, review.Spec{
-		Step: reviewIntPtr(1),
-		Kind: "full",
-		Assignments: []review.AssignmentSpec{
-			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Repair the earlier step closeout from the later frontier."},
-		},
-	}))
-	if !start.OK {
-		t.Fatalf("expected explicit earlier-step review start, got %#v", start)
-	}
-
-	svc.Now = func() time.Time {
-		return time.Date(2026, 3, 18, 11, 12, 0, 0, time.FixedZone("CST", 8*60*60))
-	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSONBytes(t, review.SubmissionInput{
-		Summary: "The repair still needs work.",
-		Findings: []review.Finding{
-			{
-				Area:     "step-review",
-				Severity: "important",
-				Title:    "Earlier-step contract drift",
-				Details:  "The explicit repair still misses one frontier-stability assertion.",
-			},
-		},
-	}))
-	if !submit.OK {
-		t.Fatalf("expected review submission, got %#v", submit)
-	}
-
-	svc.Now = func() time.Time {
-		return time.Date(2026, 3, 18, 11, 14, 0, 0, time.FixedZone("CST", 8*60*60))
-	}
-	aggregate := svc.Aggregate(start.Artifacts.RoundID)
-	if !aggregate.OK || aggregate.Review == nil || aggregate.Review.Decision != "changes_requested" {
-		t.Fatalf("expected failed explicit earlier-step repair aggregate, got %#v", aggregate)
-	}
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/step-1/implement" {
-		t.Fatalf("expected failed explicit earlier-step repair to reenter step 1, got %#v", result.State)
-	}
-	if result.Facts == nil || result.Facts.CurrentStep != stepOneTitle || result.Facts.ReviewStatus != "changes_requested" {
-		t.Fatalf("expected reviewed step facts after failed explicit repair, got %#v", result.Facts)
-	}
-	for _, warning := range result.Warnings {
-		if strings.Contains(warning, stepOneTitle) {
-			t.Fatalf("did not expect passive debt warnings once explicit repair has reentered step 1, got %#v", result.Warnings)
-		}
-	}
-	if len(result.NextAction) < 2 || !strings.Contains(result.NextAction[0].Description, "Address the findings from review-001-full") {
-		t.Fatalf("expected ordinary repair guidance after reentering step 1, got %#v", result.NextAction)
-	}
-	if result.NextAction[1].Command == nil || *result.NextAction[1].Command != "harness review start --spec <path>" {
-		t.Fatalf("expected another explicit step-closeout review to remain available, got %#v", result.NextAction)
-	}
-}
-
-func TestStatusReturnsToLaterFrontierAfterCleanExplicitEarlierStepRepair(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		content = completeAllSteps(content, true)
-		return appendThirdStep(content)
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-		"reopen": map[string]any{
-			"mode":            "new-step",
-			"reopened_at":     "2026-03-18T11:00:00+08:00",
-			"base_step_count": 2,
-		},
-	})
-	initCommittedGitCandidate(t, root)
-
-	svc := review.Service{
-		Workdir: root,
-		Now: func() time.Time {
-			return time.Date(2026, 3, 18, 11, 20, 0, 0, time.FixedZone("CST", 8*60*60))
-		},
-	}
-	start := svc.Start(mustJSONBytes(t, review.Spec{
-		Step: reviewIntPtr(1),
-		Kind: "full",
-		Assignments: []review.AssignmentSpec{
-			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Repair the earlier step closeout from the later frontier."},
-		},
-	}))
-	if !start.OK {
-		t.Fatalf("expected explicit earlier-step review start, got %#v", start)
-	}
-
-	svc.Now = func() time.Time {
-		return time.Date(2026, 3, 18, 11, 22, 0, 0, time.FixedZone("CST", 8*60*60))
-	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSONBytes(t, review.SubmissionInput{
-		Summary:  "The earlier-step repair is now clean.",
-		Findings: nil,
-	}))
-	if !submit.OK {
-		t.Fatalf("expected review submission, got %#v", submit)
-	}
-
-	svc.Now = func() time.Time {
-		return time.Date(2026, 3, 18, 11, 24, 0, 0, time.FixedZone("CST", 8*60*60))
-	}
-	aggregate := svc.Aggregate(start.Artifacts.RoundID)
-	if !aggregate.OK || aggregate.Review == nil || aggregate.Review.Decision != "pass" {
-		t.Fatalf("expected clean explicit earlier-step repair aggregate, got %#v", aggregate)
-	}
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/step-3/implement" {
-		t.Fatalf("expected clean explicit earlier-step repair to return to the later frontier, got %#v", result.State)
-	}
-	if result.Facts == nil || result.Facts.CurrentStep != "Step 3: Follow-up reopened work" || result.Facts.ReviewStatus != "pass" {
-		t.Fatalf("expected later-frontier facts after clean explicit repair, got %#v", result.Facts)
-	}
-	for _, warning := range result.Warnings {
-		if strings.Contains(warning, stepOneTitle) {
-			t.Fatalf("did not expect repaired step debt to remain after clean explicit repair, got %#v", result.Warnings)
-		}
-	}
-	if len(result.NextAction) == 0 || result.NextAction[0].Command != nil || !strings.Contains(result.NextAction[0].Description, "Continue the current step") {
-		t.Fatalf("expected ordinary later-frontier guidance after clean explicit repair, got %#v", result.NextAction)
-	}
-}
-
-func TestStatusReturnsToFinalizeReviewAfterCleanExplicitEarlierStepRepair(t *testing.T) {
-	root := t.TempDir()
-	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
-		return completeAllStepsWithoutCloseout(content, false)
-	})
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"execution_started_at": "2026-03-18T10:05:00+08:00",
-	})
-	writeReviewManifest(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"review_title": stepTwoTitle,
-		"step":         2,
-		"revision":     1,
-	})
-	writeReviewAggregate(t, root, "2026-03-18-status-plan", "review-002-delta", map[string]any{
-		"decision": "pass",
-	})
-	initCommittedGitCandidate(t, root)
-
-	svc := review.Service{
-		Workdir: root,
-		Now: func() time.Time {
-			return time.Date(2026, 3, 18, 11, 30, 0, 0, time.FixedZone("CST", 8*60*60))
-		},
-	}
-	start := svc.Start(mustJSONBytes(t, review.Spec{
-		Step: reviewIntPtr(1),
-		Kind: "full",
-		Assignments: []review.AssignmentSpec{
-			{Slot: "correctness", Role: "integrated", Dimensions: []string{"correctness"}, Instructions: "Repair the earlier step closeout from finalize review."},
-		},
-	}))
-	if !start.OK {
-		t.Fatalf("expected explicit earlier-step review start from finalize review, got %#v", start)
-	}
-
-	svc.Now = func() time.Time {
-		return time.Date(2026, 3, 18, 11, 32, 0, 0, time.FixedZone("CST", 8*60*60))
-	}
-	submit := svc.Submit(start.Artifacts.RoundID, "correctness", "reviewer-correctness", mustJSONBytes(t, review.SubmissionInput{
-		Summary:  "The finalize-context earlier-step repair is clean.",
-		Findings: nil,
-	}))
-	if !submit.OK {
-		t.Fatalf("expected review submission, got %#v", submit)
-	}
-
-	svc.Now = func() time.Time {
-		return time.Date(2026, 3, 18, 11, 34, 0, 0, time.FixedZone("CST", 8*60*60))
-	}
-	aggregate := svc.Aggregate(start.Artifacts.RoundID)
-	if !aggregate.OK || aggregate.Review == nil || aggregate.Review.Decision != "pass" {
-		t.Fatalf("expected clean explicit earlier-step repair aggregate from finalize review, got %#v", aggregate)
-	}
-
-	result := status.Service{Workdir: root}.Snapshot()
-	if result.State.CurrentNode != "execution/finalize/review" {
-		t.Fatalf("expected clean explicit earlier-step repair to return to finalize review, got %#v", result.State)
-	}
-	if result.Facts != nil && result.Facts.CurrentStep == stepOneTitle {
-		t.Fatalf("did not expect repaired step facts to stay pinned after clean finalize-context repair, got %#v", result.Facts)
-	}
-	for _, warning := range result.Warnings {
-		if strings.Contains(warning, stepOneTitle) {
-			t.Fatalf("did not expect repaired step debt to remain after clean finalize-context repair, got %#v", result.Warnings)
-		}
-	}
-	if len(result.NextAction) == 0 || result.NextAction[0].Command == nil || *result.NextAction[0].Command != "harness review start --spec <path>" {
-		t.Fatalf("expected ordinary finalize-review guidance after clean explicit repair, got %#v", result.NextAction)
-	}
-}
-
 func TestStatusConsumedReopenedNewStepDoesNotForceAnotherStepAfterLaterFinding(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
@@ -2416,30 +1831,16 @@ func initCommittedGitCandidate(t *testing.T, root string) string {
 func completePassingFinalizeReview(t *testing.T, root string) {
 	t.Helper()
 	svc := review.Service{Workdir: root}
-	start := svc.Start(mustJSONBytes(t, review.Spec{
-		Kind: "full",
-		Assignments: []review.AssignmentSpec{
-			{
-				Slot:         "integrated",
-				Role:         "integrated",
-				Dimensions:   []string{"correctness", "tests", "risk-scan"},
-				Instructions: "Review the complete candidate before archive.",
-			},
-		},
-	}))
+	start := svc.Start(review.StartOptions{})
 	if !start.OK {
 		t.Fatalf("start finalize review: %#v", start)
 	}
-	submit := svc.Submit(start.Artifacts.RoundID, "integrated", "reviewer-integrated", mustJSONBytes(t, review.SubmissionInput{
+	submit := svc.Submit(start.Artifacts.RoundID, "reviewer-integrated", mustJSONBytes(t, review.SubmissionInput{
 		Summary:  "The complete candidate is ready for archive.",
 		Findings: nil,
 	}))
-	if !submit.OK {
+	if !submit.OK || submit.Review == nil || submit.Review.Decision != "pass" {
 		t.Fatalf("submit finalize review: %#v", submit)
-	}
-	aggregate := svc.Aggregate(start.Artifacts.RoundID)
-	if !aggregate.OK || aggregate.Review == nil || aggregate.Review.Decision != "pass" {
-		t.Fatalf("aggregate finalize review: %#v", aggregate)
 	}
 }
 
@@ -2475,8 +1876,6 @@ func writeReviewAggregate(t *testing.T, root, planStem, roundID string, payload 
 
 func completeFirstStep(content string) string {
 	content = replaceOnce(content, "- Done: [ ]", "- Done: [x]")
-	content = replaceOnce(content, "PENDING_STEP_EXECUTION", "Done.")
-	content = replaceOnce(content, "PENDING_STEP_REVIEW", "Reviewed.")
 	return content
 }
 
@@ -2487,14 +1886,14 @@ func completeAllSteps(content string, archiveReady bool) string {
 func completeAllStepsWithoutCloseout(content string, archiveReady bool) string {
 	content = stringsReplaceAll(content, "- Done: [ ]", "- Done: [x]")
 	content = stringsReplaceAll(content, "- [ ]", "- [x]")
-	content = stringsReplaceAll(content, "PENDING_STEP_EXECUTION", "Done.")
-	content = stringsReplaceAll(content, "PENDING_STEP_REVIEW", "Reviewed.")
 	if archiveReady {
-		content = stringsReplaceAll(content, "## Validation Summary\n\nPENDING_UNTIL_ARCHIVE", "## Validation Summary\n\nValidated the implementation.")
-		content = stringsReplaceAll(content, "## Review Summary\n\nPENDING_UNTIL_ARCHIVE", "## Review Summary\n\nNo blocking review findings remain.")
-		content = stringsReplaceAll(content, "## Archive Summary\n\nPENDING_UNTIL_ARCHIVE", "## Archive Summary\n\n- PR: NONE\n- Ready: The candidate is ready for archive.\n- Merge Handoff: Commit and push the archive move before merge approval.")
-		content = stringsReplaceAll(content, "### Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Delivered\n\nDelivered the planned slice.")
-		content = stringsReplaceAll(content, "### Not Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Not Delivered\n\nNONE.")
+		content = stringsReplaceAll(content, "- Validation: PENDING_UNTIL_ARCHIVE", "- Validation: Validated the implementation.")
+		content = stringsReplaceAll(content, "- Review: PENDING_UNTIL_ARCHIVE", "- Review: No blocking review findings remain.")
+		content = stringsReplaceAll(content, "- Delivered: PENDING_UNTIL_ARCHIVE", "- Delivered: Delivered the planned slice.")
+		content = stringsReplaceAll(content, "- Not Delivered: PENDING_UNTIL_ARCHIVE", "- Not Delivered: NONE.")
+		content = stringsReplaceAll(content, "- PR: PENDING_UNTIL_ARCHIVE", "- PR: NONE")
+		content = stringsReplaceAll(content, "- Ready: PENDING_UNTIL_ARCHIVE", "- Ready: The candidate is ready for archive.")
+		content = stringsReplaceAll(content, "- Merge Handoff: PENDING_UNTIL_ARCHIVE", "- Merge Handoff: Commit and push the archive move before merge approval.")
 	}
 	return content
 }
@@ -2503,30 +1902,9 @@ func appendThirdStep(content string) string {
 	insert := `### Step 3: Follow-up reopened work
 
 - Done: [ ]
-
-#### Objective
-
-Carry the reopened follow-up work as a proper third step.
-
-#### Details
-
-NONE
-
-#### Expected Files
-
-- ` + "`path/to/file`" + `
-
-#### Validation
-
-- Verify the reopened scope is complete.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
+- Outcome: Carry the reopened follow-up work as a proper third step.
+- Covers: Criterion 2
+- Check: Verify the reopened scope is complete.
 
 ## Validation Strategy`
 	return strings.Replace(content, "## Validation Strategy", insert, 1)

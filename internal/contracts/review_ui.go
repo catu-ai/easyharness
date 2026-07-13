@@ -1,7 +1,5 @@
 package contracts
 
-import "encoding/json"
-
 // ReviewResult is the read-only UI resource returned by `/api/review`.
 type ReviewResult struct {
 	// OK reports whether review loading succeeded.
@@ -14,10 +12,6 @@ type ReviewResult struct {
 	// rounds.
 	Summary string `json:"summary"`
 
-	// Artifacts points to the current-plan review artifact paths used to build
-	// this response.
-	Artifacts *ReviewArtifacts `json:"artifacts,omitempty"`
-
 	// Rounds lists the discovered review rounds for the current plan.
 	Rounds []ReviewRoundView `json:"rounds"`
 
@@ -27,16 +21,6 @@ type ReviewResult struct {
 
 	// Errors lists hard failures that prevented review loading.
 	Errors []ErrorDetail `json:"errors,omitempty"`
-}
-
-// ReviewArtifacts points to the current plan review sources.
-type ReviewArtifacts struct {
-	// PlanPath is the current plan path associated with the review data.
-	PlanPath string `json:"plan_path,omitempty"`
-
-	// ActiveRoundID is the currently active review round when one exists in
-	// local state.
-	ActiveRoundID string `json:"active_round_id,omitempty"`
 }
 
 // ReviewRoundView is one read-only UI representation of a review round.
@@ -75,7 +59,7 @@ type ReviewRoundView struct {
 	// StatusSummary is the concise explanation of the current round status.
 	StatusSummary string `json:"status_summary,omitempty"`
 
-	// Decision is the aggregate decision when one is known.
+	// Decision is the completed review decision when one is known.
 	Decision string `json:"decision,omitempty"`
 
 	// CreatedAt is the round creation timestamp when known.
@@ -84,32 +68,21 @@ type ReviewRoundView struct {
 	// UpdatedAt is the ledger update timestamp when known.
 	UpdatedAt string `json:"updated_at,omitempty"`
 
-	// AggregatedAt is the aggregate timestamp when known.
-	AggregatedAt string `json:"aggregated_at,omitempty"`
+	// DecidedAt is the completed review timestamp when known.
+	DecidedAt string `json:"decided_at,omitempty"`
 
 	// IsActive reports whether local state still points at this round as active.
 	IsActive bool `json:"is_active,omitempty"`
 
-	// TotalAssignments is the number of reviewer assignments in the round.
-	TotalAssignments int `json:"total_assignments,omitempty"`
-
-	// SubmittedAssignments is the number of assignments with a submission.
-	SubmittedAssignments int `json:"submitted_assignments,omitempty"`
-
-	// PendingAssignments is the number of assignments still waiting on a
-	// submission.
-	PendingAssignments int `json:"pending_assignments,omitempty"`
-
-	// Reviewers lists the reviewer-centric assignment views for the round.
-	Reviewers []ReviewAssignmentView `json:"reviewers,omitempty"`
+	// Reviewer is the independent integrated reviewer shown for this round.
+	Reviewer *ReviewReviewerView `json:"reviewer,omitempty"`
 
 	// BlockingFindings lists the cumulative unresolved blocking findings at this
 	// coverage-chain tip, not only findings newly raised by this round.
-	BlockingFindings []ReviewAggregateFinding `json:"blocking_findings,omitempty"`
+	BlockingFindings []ReviewFindingView `json:"blocking_findings,omitempty"`
 
-	// NonBlockingFindings lists aggregate non-blocking findings when they
-	// exist.
-	NonBlockingFindings []ReviewAggregateFinding `json:"non_blocking_findings,omitempty"`
+	// NonBlockingFindings lists non-blocking findings when they exist.
+	NonBlockingFindings []ReviewFindingView `json:"non_blocking_findings,omitempty"`
 
 	// ResolvedFindingIDs lists repair findings closed by this round.
 	ResolvedFindingIDs []string `json:"resolved_finding_ids,omitempty"`
@@ -118,112 +91,40 @@ type ReviewRoundView struct {
 	// coverage-chain tip.
 	UnresolvedFindingIDs []string `json:"unresolved_finding_ids,omitempty"`
 
-	// CoverageStatus is clean, blocked, or pending according to the aggregate
+	// CoverageStatus is clean, blocked, or pending according to the completed
 	// coverage-chain state surfaced for this round.
 	CoverageStatus string `json:"coverage_status,omitempty"`
-
-	// Artifacts lists supporting raw review artifacts for the round.
-	Artifacts []ReviewArtifactView `json:"artifacts,omitempty"`
 
 	// Warnings lists non-fatal degraded-state notes for the round.
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-// ReviewAssignmentView is one reviewer-centric view of a materialized
-// assignment plus any submission returned for it.
-type ReviewAssignmentView struct {
-	// Slot is the stable assignment identifier.
-	Slot string `json:"slot"`
+// ReviewReviewerView is the independent reviewer result surfaced for a round.
+// Internal reviewer orchestration is intentionally not part of the UI resource.
+type ReviewReviewerView struct {
+	// Name is the reviewer-provided identity label when available.
+	Name string `json:"name,omitempty"`
 
-	// Role is integrated or specialist.
-	Role string `json:"role"`
-
-	// Dimensions are the snapshotted guidance fragments assigned to the
-	// reviewer.
-	Dimensions []ReviewResolvedDimension `json:"dimensions,omitempty"`
-
-	// RiskBrief is present only for specialist assignments.
-	RiskBrief *ReviewRiskBrief `json:"risk_brief,omitempty"`
-
-	// Instructions is the explicit reviewer handoff for this slot when it is
-	// available in surfaced review data.
-	Instructions string `json:"instructions,omitempty"`
-
-	// Status is the current submission status label for the slot.
+	// Status is pending or submitted.
 	Status string `json:"status,omitempty"`
 
-	// SubmissionPath is the path to the submission artifact for this slot.
-	SubmissionPath string `json:"submission_path,omitempty"`
-
-	// SubmittedAt is the submission timestamp when one is known.
+	// SubmittedAt is the submission timestamp when known.
 	SubmittedAt string `json:"submitted_at,omitempty"`
 
-	// Summary is the reviewer's concise overall assessment when one was
-	// submitted.
+	// Summary is the reviewer's concise assessment.
 	Summary string `json:"summary,omitempty"`
 
-	// Resolutions records explicit repair-finding verdicts from this reviewer.
-	Resolutions []ReviewFindingResolution `json:"resolutions,omitempty"`
-
-	// Findings lists the slot-level review findings when one was submitted.
-	Findings []ReviewFinding `json:"findings,omitempty"`
-
-	// Worklog contains normalized progressive reviewer-worklog fields derived
-	// from the submission payload when available.
-	Worklog *ReviewWorklogView `json:"worklog,omitempty"`
-
-	// RawSubmission preserves the raw reviewer submission payload for secondary
-	// UI inspection.
-	RawSubmission json.RawMessage `json:"raw_submission,omitempty"`
-
-	// Warnings lists non-fatal degraded-state notes for this slot.
+	// Warnings lists non-fatal degraded-state notes for the reviewer result.
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-// ReviewWorklogView contains normalized reviewer-progress fields derived from
-// the richer submission payload.
-type ReviewWorklogView struct {
-	// ReviewKind is the reviewer-reported kind from the coverage payload when
-	// available.
-	ReviewKind string `json:"review_kind,omitempty"`
-
-	// AnchorSHA is the reviewer-reported anchor SHA from the coverage payload
-	// when available.
-	AnchorSHA string `json:"anchor_sha,omitempty"`
-
-	// FullPlanRead reports whether the reviewer marked the full active plan as
-	// read.
-	FullPlanRead *bool `json:"full_plan_read,omitempty"`
-
-	// CheckedAreas lists the files, checkpoints, or areas the reviewer says it
-	// already covered.
-	CheckedAreas []string `json:"checked_areas,omitempty"`
-
-	// OpenQuestions lists unresolved review trails still in flight.
-	OpenQuestions []string `json:"open_questions,omitempty"`
-
-	// CandidateFindings lists provisional findings captured during review before
-	// they were finalized into the canonical findings payload.
-	CandidateFindings []string `json:"candidate_findings,omitempty"`
-}
-
-// ReviewArtifactView is one raw supporting artifact view for a review round.
-type ReviewArtifactView struct {
-	// Label is the stable display label for the artifact.
-	Label string `json:"label"`
-
-	// Path is the repo-facing artifact path when one exists.
-	Path string `json:"path,omitempty"`
-
-	// Status reports whether the artifact is available, missing, or invalid.
-	Status string `json:"status,omitempty"`
-
-	// Summary is the concise artifact-state explanation.
-	Summary string `json:"summary,omitempty"`
-
-	// ContentType reports how Content should be rendered in the UI resource.
-	ContentType string `json:"content_type,omitempty"`
-
-	// Content is the resolved artifact file payload for UI tabs when readable.
-	Content json.RawMessage `json:"content,omitempty"`
+// ReviewFindingView is one decision finding without internal orchestration
+// metadata.
+type ReviewFindingView struct {
+	FindingID string   `json:"finding_id,omitempty"`
+	Area      string   `json:"area"`
+	Severity  string   `json:"severity"`
+	Title     string   `json:"title"`
+	Details   string   `json:"details"`
+	Locations []string `json:"locations,omitempty"`
 }

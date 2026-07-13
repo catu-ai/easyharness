@@ -44,8 +44,8 @@ func TestReopenNewStepWithBuiltBinary(t *testing.T) {
 	support.RequireSuccess(t, execute)
 	support.RequireNoStderr(t, execute)
 
-	for index, title := range []string{reopenStepOneTitle, reopenStepTwoTitle, reopenStepThreeTitle} {
-		support.CompleteStep(t, planPath, index+1, "Completed "+title+".", "No optional step review was started; final review covers the integrated candidate.")
+	for index := range []string{reopenStepOneTitle, reopenStepTwoTitle, reopenStepThreeTitle} {
+		support.CompleteStep(t, planPath, index+1)
 	}
 
 	support.CheckAllAcceptanceCriteria(t, planPath)
@@ -54,6 +54,7 @@ func TestReopenNewStepWithBuiltBinary(t *testing.T) {
 	assertNode(t, preFinalizeStatus, "execution/finalize/review")
 
 	passingFinalizeRound := runPassingFinalizeReview(t, workspace)
+	support.CompleteCloseout(t, planPath)
 	postFinalizeReview := runStatus(t, workspace.Root)
 	assertNode(t, postFinalizeReview, "execution/finalize/archive")
 	if len(postFinalizeReview.NextAction) == 0 || postFinalizeReview.NextAction[0].Description == "" {
@@ -118,171 +119,14 @@ func TestReopenNewStepWithBuiltBinary(t *testing.T) {
 	stillImplementing := runStatus(t, workspace.Root)
 	assertNode(t, stillImplementing, "execution/step-4/implement")
 
-	passingFourthStepRound := runPassingDeltaReview(t, workspace, reopenStepFourTitle, 4)
-	support.CompleteStep(
-		t,
-		planPath,
-		4,
-		"Added and completed the reopened follow-up scope as a new tracked step.",
-		fmt.Sprintf("Clean delta review %s passed for the reopened step before returning to finalize review.", passingFourthStepRound),
-	)
+	support.CompleteStep(t, planPath, 4)
 
 	postFourthStepStatus := runStatus(t, workspace.Root)
 	assertNode(t, postFourthStepStatus, "execution/finalize/review")
 }
 
 func reopenNewStepPlanBody() string {
-	return strings.TrimSpace(fmt.Sprintf(`
-## Goal
-
-Exercise the real-binary `+"`reopen --mode new-step`"+` path so the workflow
-first stays in a pending finalize/new-step state and only resumes ordinary
-step execution after a new unfinished step is added to the tracked plan.
-
-## Scope
-
-### In Scope
-
-- Archive a clean three-step candidate.
-- Reopen with `+"`new-step`"+` and assert the pending status cue.
-- Add step 4 after reopen and prove it behaves like an ordinary current step.
-
-### Out of Scope
-
-- Publish evidence, merge approval, and required post-merge bookkeeping.
-
-## Acceptance Criteria
-
-- [ ] Reopen with `+"`new-step`"+` first resolves to finalize repair and explicitly asks for a new unfinished step.
-- [ ] Once step 4 is added, status resumes at `+"`execution/step-4/implement`"+` and the reopened step can follow ordinary step review and finalize progression.
-
-## Deferred Items
-
-- None.
-
-## Work Breakdown
-
-### Step 1: %s
-
-- Done: [ ]
-
-#### Objective
-
-Close out the first original tracked step.
-
-#### Details
-
-Keep the first three steps simple so the reopen behavior is the focus.
-
-#### Expected Files
-
-- tests/e2e/reopen_new_step_test.go
-
-#### Validation
-
-- Advance without starting an optional step review.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
-
-### Step 2: %s
-
-- Done: [ ]
-
-#### Objective
-
-Close out the second original tracked step.
-
-#### Details
-
-NONE
-
-#### Expected Files
-
-- tests/e2e/reopen_new_step_test.go
-
-#### Validation
-
-- Advance without starting an optional step review.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
-
-### Step 3: %s
-
-- Done: [ ]
-
-#### Objective
-
-Close out the original branch candidate before archive and reopen.
-
-#### Details
-
-The initial candidate should archive cleanly before the reopen step begins.
-
-#### Expected Files
-
-- tests/e2e/reopen_new_step_test.go
-
-#### Validation
-
-- Enter final review without routine step-review debt.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
-
-## Validation Strategy
-
-- Run repo-level E2E coverage with the built binary.
-
-## Risks
-
-- Risk: A reopened new step could accidentally skip the pending finalize state and jump straight to implementation.
-  - Mitigation: Assert both the pre-step and post-step-added nodes explicitly.
-
-## Validation Summary
-
-Validated the three-step candidate and the reopened step flow through the built binary.
-
-## Review Summary
-
-No unresolved blocking review findings remain in the archived candidate used for reopen.
-
-## Archive Summary
-
-- PR: NONE
-- Ready: The candidate satisfies the acceptance criteria and is ready for merge approval.
-- Merge Handoff: Commit and push the archive move before treating this candidate as awaiting merge approval.
-
-## Outcome Summary
-
-### Delivered
-
-Delivered the initial three-step candidate and the tracked reopen follow-up scenario.
-
-### Not Delivered
-
-NONE.
-
-### Follow-Up Issues
-
-NONE
-`, reopenStepOneTitle, reopenStepTwoTitle, reopenStepThreeTitle))
+	return compactPlanFixture(reopenStepOneTitle, reopenStepTwoTitle, reopenStepThreeTitle)
 }
 
 func reopenedStepFourBody() string {
@@ -290,30 +134,8 @@ func reopenedStepFourBody() string {
 ### Step 4: %s
 
 - Done: [ ]
-
-#### Objective
-
-Represent the reopened follow-up as a new unfinished tracked step.
-
-#### Details
-
-This step is added only after `+"`harness reopen --mode new-step`"+` has returned
-the archived candidate to active execution.
-
-#### Expected Files
-
-- tests/e2e/reopen_new_step_test.go
-
-#### Validation
-
-- Run a clean delta review before marking the reopened step complete.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
+- Outcome: Represent the reopened follow-up as a new tracked step.
+- Covers: Criterion 1
+- Check: Verify status selects the new unfinished step.
 `, reopenStepFourTitle))
 }

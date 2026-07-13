@@ -165,10 +165,11 @@ state_path.parent.mkdir(parents=True, exist_ok=True)
 
 plan_path.write_text(
     """---
-template_version: 0.2.0
+template_version: 0.3.0
 created_at: "2026-04-10T10:00:00Z"
 source_type: direct_request
 source_refs: []
+size: M
 ---
 
 # Plan UI Smoke
@@ -176,6 +177,10 @@ source_refs: []
 ## Goal
 
 Read the current plan package in one dense workbench.
+
+### Decisions and Constraints
+
+- Keep supplement navigation visible beside the tracked plan.
 
 ## Scope
 
@@ -193,6 +198,10 @@ Read the current plan package in one dense workbench.
 - [ ] Supplements preview states are visible in the reader.
 - [ ] Inline code like `supplements/`, `H3`, and `not supported` stays readable in flowing text.
 
+## Review Focus
+
+- Verify hierarchy, navigation, and readable Markdown rendering.
+
 ## Deferred Items
 
 - None.
@@ -202,30 +211,9 @@ Read the current plan package in one dense workbench.
 ### Step 1: Build the read model
 
 - Done: [ ]
-
-#### Objective
-
-Serve the current plan package to the UI.
-
-#### Details
-
-Preview supported files in-place.
-
-#### Expected Files
-
-- `internal/planui/service.go`
-
-#### Validation
-
-- `go test ./internal/planui ./internal/ui`
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
+- Outcome: Serve the current plan package and preview supported supplements in-place.
+- Covers: Plan package rendering, supplement previews, and inline code readability.
+- Check: `go test ./internal/planui ./internal/ui`
 
 ## Validation Strategy
 
@@ -235,36 +223,16 @@ PENDING_STEP_REVIEW
 harness ui
 ```
 
-## Risks
+## Closeout
 
-- Risk: Reader navigation could drift from the selected heading.
-  - Mitigation: Verify heading clicks against reader scroll position.
-
-## Validation Summary
-
-PENDING_UNTIL_ARCHIVE
-
-## Review Summary
-
-PENDING_UNTIL_ARCHIVE
-
-## Archive Summary
-
-PENDING_UNTIL_ARCHIVE
-
-## Outcome Summary
-
-### Delivered
-
-PENDING_UNTIL_ARCHIVE
-
-### Not Delivered
-
-PENDING_UNTIL_ARCHIVE
-
-### Follow-Up Issues
-
-NONE
+- Validation: PENDING_UNTIL_ARCHIVE
+- Review: PENDING_UNTIL_ARCHIVE
+- Delivered: PENDING_UNTIL_ARCHIVE
+- Not Delivered: PENDING_UNTIL_ARCHIVE
+- Follow-Up Issues: NONE
+- PR: PENDING_UNTIL_ARCHIVE
+- Ready: PENDING_UNTIL_ARCHIVE
+- Merge Handoff: PENDING_UNTIL_ARCHIVE
 """,
     encoding="utf-8",
 )
@@ -324,10 +292,11 @@ state_path.parent.mkdir(parents=True, exist_ok=True)
 
 plan_path.write_text(
     """---
-template_version: 0.2.0
+template_version: 0.3.0
 created_at: "2026-04-10T10:30:00Z"
 source_type: direct_request
 source_refs: []
+size: S
 ---
 
 # Archived Plan UI Smoke
@@ -335,6 +304,10 @@ source_refs: []
 ## Goal
 
 Keep the current archived plan readable until the worktree returns to idle.
+
+### Decisions and Constraints
+
+- Preserve archived-plan visibility through merge handoff.
 
 ## Scope
 
@@ -350,64 +323,39 @@ Keep the current archived plan readable until the worktree returns to idle.
 
 - [x] Archived current plans remain visible in the Plan page.
 
+## Review Focus
+
+- Verify archived current plans remain readable without exposing idle fallback.
+
+## Deferred Items
+
+- None.
+
 ## Work Breakdown
 
 ### Step 1: Preserve plan visibility after archive
 
 - Done: [x]
+- Outcome: Keep the archived current plan package readable during merge handoff.
+- Covers: Archived current-plan visibility.
+- Check: `go test ./internal/planui ./internal/ui`
 
-#### Objective
+## Validation Strategy
 
-Keep the archived current plan package readable during merge handoff.
+- Use Playwright to inspect the archived Plan page.
 
-#### Details
+## Closeout
 
-Continue rendering the current archived plan package instead of collapsing to
-idle empty state.
-
-#### Expected Files
-
-- `internal/planui/service.go`
-
-#### Validation
-
-- `go test ./internal/planui ./internal/ui`
-
-#### Execution Notes
-
-Archived fixture execution complete.
-
-#### Review Notes
-
-Archived fixture review complete.
-
-## Validation Summary
-
-- Archived plan browsing should stay available while the worktree is not idle.
-
-## Review Summary
-
-- Finalize review already passed for this fixture.
-
-## Archive Summary
-
+- Archived At: 2026-04-10T10:45:00Z
+- Revision: 1
+- Validation: Archived plan browser smoke passed.
+- Review: Finalize review passed for this fixture.
+- Delivered: Archived plan remains readable.
+- Not Delivered: Idle fallback browsing.
+- Follow-Up Issues: NONE
 - PR: https://example.invalid/archived-fixture
-- Ready: archived fixture for browser validation.
+- Ready: Archived fixture is ready for browser validation.
 - Merge Handoff: Fixture only; no real merge handoff.
-
-## Outcome Summary
-
-### Delivered
-
-- Archived plan remains readable.
-
-### Not Delivered
-
-- Idle fallback browsing.
-
-### Follow-Up Issues
-
-- NONE in fixture.
 """,
     encoding="utf-8",
 )

@@ -6,7 +6,7 @@ import (
 )
 
 const reviewedPlan = `---
-template_version: 0.2.0
+template_version: 0.3.0
 created_at: "2026-07-13T00:00:00Z"
 source_type: direct_request
 source_refs: [test]
@@ -19,35 +19,54 @@ size: S
 
 Ship the candidate.
 
+### Decisions and Constraints
+
+- Keep the closeout narrow.
+
+## Scope
+
+### In Scope
+
+- Candidate behavior.
+
+### Out of Scope
+
+- Unrelated behavior.
+
 ## Acceptance Criteria
 
 - [x] Candidate works.
 
-## Validation Summary
+## Review Focus
 
-PENDING_UNTIL_ARCHIVE
+- Check candidate coverage.
 
-## Review Summary
+## Deferred Items
 
-PENDING_UNTIL_ARCHIVE
+- None.
 
-## Archive Summary
+## Work Breakdown
 
-PENDING_UNTIL_ARCHIVE
+### Step 1: Ship candidate
 
-## Outcome Summary
+- Done: [x]
+- Outcome: Candidate shipped.
+- Covers: Candidate works.
 
-### Delivered
+## Validation Strategy
 
-PENDING_UNTIL_ARCHIVE
+- Run focused tests.
 
-### Not Delivered
+## Closeout
 
-PENDING_UNTIL_ARCHIVE
-
-### Follow-Up Issues
-
-NONE
+- Validation: PENDING_UNTIL_ARCHIVE
+- Review: PENDING_UNTIL_ARCHIVE
+- Delivered: PENDING_UNTIL_ARCHIVE
+- Not Delivered: PENDING_UNTIL_ARCHIVE
+- Follow-Up Issues: NONE
+- PR: PENDING_UNTIL_ARCHIVE
+- Ready: PENDING_UNTIL_ARCHIVE
+- Merge Handoff: PENDING_UNTIL_ARCHIVE
 `
 
 func TestValidateArchiveWorktreeAllowsOnlyCloseoutSectionBodies(t *testing.T) {
@@ -101,7 +120,7 @@ func TestValidateArchiveWorktreeRejectsChangeAfterFencedCloseoutHeading(t *testi
 The review contract includes this non-closeout example:
 
 ~~~markdown
-## Validation Summary
+## Closeout
 
 Example content only.
 ~~~

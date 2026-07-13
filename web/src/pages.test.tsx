@@ -17,9 +17,13 @@ function dashboardWorkspace(overrides: Partial<DashboardWorkspace> = {}): Dashbo
     progress: {
       nodes: [
         { label: "execution/step-1/implement · Prepare data", state: "done" },
-        { label: "execution/step-1/review · Prepare data", state: "done" },
         { label: "execution/step-2/implement · Build UI", state: "current" },
+        { label: "execution/finalize", state: "pending" },
       ],
+      step_completed: 1,
+      step_total: 2,
+      acceptance_completed: 2,
+      acceptance_total: 3,
     },
     ...overrides,
   };
@@ -89,6 +93,8 @@ describe("dashboard helpers and pages", () => {
     expect(currentNode?.getAttribute("role")).toBe("img");
     expect(screen.getByText("alpha")).toBeTruthy();
     expect(screen.getByText("Open")).toBeTruthy();
+    expect(screen.getByText("Steps 1 / 2")).toBeTruthy();
+    expect(screen.getByText("Acceptance 2 / 3")).toBeTruthy();
     expect(screen.queryByText("execution/step-2/implement")).toBeNull();
     const progress = document.querySelector(".dashboard-progress") as HTMLElement;
     const firstNode = document.querySelector(".dashboard-progress-node") as HTMLElement;

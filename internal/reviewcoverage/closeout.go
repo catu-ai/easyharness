@@ -8,12 +8,7 @@ import (
 	"strings"
 )
 
-var allowedCloseoutSections = map[string]bool{
-	"Validation Summary": true,
-	"Review Summary":     true,
-	"Archive Summary":    true,
-	"Outcome Summary":    true,
-}
+const allowedCloseoutSection = "Closeout"
 
 // ValidateArchiveWorktree permits only closeout-body edits in the current plan
 // after the reviewed head. Every product, source, test, specification,
@@ -129,7 +124,7 @@ func maskCloseoutBodies(content []byte) []byte {
 		}
 		if strings.HasPrefix(line, "## ") {
 			name := strings.TrimSpace(strings.TrimPrefix(line, "## "))
-			masking = allowedCloseoutSections[name]
+			masking = name == allowedCloseoutSection
 			out = append(out, line)
 			if masking {
 				out = append(out, "<EASYHARNESS_CLOSEOUT_BODY>")

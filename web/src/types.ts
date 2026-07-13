@@ -31,12 +31,16 @@ export type StatusRemoteDegradation = {
 
 export type StatusFacts = {
   current_step?: string;
+  current_step_number?: number;
+  step_completed?: number;
+  step_total?: number;
+  acceptance_completed?: number;
+  acceptance_total?: number;
   revision?: number;
   reopen_mode?: string;
   review_kind?: string;
-  review_trigger?: string;
-  review_title?: string;
   review_status?: string;
+  reviewed_head_sha?: string;
   archive_blocker_count?: number;
   evidence?: {
     recorded?: {
@@ -193,15 +197,6 @@ export type TimelineWorkspaceState = {
   selectedTab: string;
 };
 
-export type ReviewArtifact = {
-  label: string;
-  path?: string;
-  status?: string;
-  summary?: string;
-  content_type?: string;
-  content?: unknown;
-};
-
 export type ReviewFinding = {
   finding_id?: string;
   area: string;
@@ -211,55 +206,11 @@ export type ReviewFinding = {
   locations?: string[] | null;
 };
 
-export type ReviewAggregateFinding = ReviewFinding & {
-  finding_id: string;
-  slot: string;
-  role: string;
-};
-
-export type ReviewFindingResolution = {
-  finding_id: string;
-  status: string;
-  details: string;
-};
-
-export type ReviewResolvedDimension = {
-  name: string;
-  sources: string[];
-  description: string;
-  instructions: string;
-  plan_path?: string;
-};
-
-export type ReviewRiskBrief = {
-  risk_surfaces: string[];
-  invariants: string[];
-  failure_modes?: string[] | null;
-};
-
-export type ReviewWorklog = {
-  review_kind?: string;
-  anchor_sha?: string;
-  full_plan_read?: boolean | null;
-  checked_areas?: string[] | null;
-  open_questions?: string[] | null;
-  candidate_findings?: string[] | null;
-};
-
 export type ReviewReviewer = {
-  slot: string;
-  role: string;
-  dimensions?: ReviewResolvedDimension[] | null;
-  risk_brief?: ReviewRiskBrief | null;
-  instructions?: string;
+  name?: string;
   status?: string;
-  submission_path?: string;
   submitted_at?: string;
   summary?: string;
-  resolutions?: ReviewFindingResolution[] | null;
-  findings?: ReviewFinding[] | null;
-  worklog?: ReviewWorklog | null;
-  raw_submission?: unknown;
   warnings?: string[] | null;
 };
 
@@ -278,18 +229,14 @@ export type ReviewRound = {
   decision?: string;
   created_at?: string;
   updated_at?: string;
-  aggregated_at?: string;
+  decided_at?: string;
   is_active?: boolean;
-  total_assignments?: number;
-  submitted_assignments?: number;
-  pending_assignments?: number;
-  reviewers?: ReviewReviewer[] | null;
-  blocking_findings?: ReviewAggregateFinding[] | null;
-  non_blocking_findings?: ReviewAggregateFinding[] | null;
+  reviewer?: ReviewReviewer | null;
+  blocking_findings?: ReviewFinding[] | null;
+  non_blocking_findings?: ReviewFinding[] | null;
   resolved_finding_ids?: string[] | null;
   unresolved_finding_ids?: string[] | null;
   coverage_status?: string;
-  artifacts?: ReviewArtifact[] | null;
   warnings?: string[] | null;
 };
 
@@ -297,10 +244,6 @@ export type ReviewResult = {
   ok: boolean;
   resource: string;
   summary: string;
-  artifacts?: {
-    plan_path?: string;
-    active_round_id?: string;
-  } | null;
   rounds?: ReviewRound[] | null;
   warnings?: string[] | null;
   errors?: ErrorDetail[] | null;
@@ -308,9 +251,6 @@ export type ReviewResult = {
 
 export type ReviewWorkspaceState = {
   selectedRoundId: string | null;
-  selectedDetailTab: string;
-  selectedArtifactKey: string | null;
-  showArtifacts: boolean;
 };
 
 export type DashboardProgressNode = {
@@ -320,6 +260,10 @@ export type DashboardProgressNode = {
 
 export type DashboardProgress = {
   nodes?: DashboardProgressNode[] | null;
+  step_completed?: number;
+  step_total?: number;
+  acceptance_completed?: number;
+  acceptance_total?: number;
 };
 
 export type DashboardWorkspace = {
@@ -343,6 +287,7 @@ export type DashboardWorkspace = {
     plan_path?: string;
     supplements_path?: string;
     review_round_id?: string;
+    review_submission_path?: string;
     last_landed_at?: string;
   } | null;
 };

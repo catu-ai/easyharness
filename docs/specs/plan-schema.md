@@ -172,9 +172,8 @@ only copy of repository-facing normative behavior. Absorb normative content
 into code, tests, or formal specs before archive and summarize that absorption
 in `Closeout`.
 
-Plan-specific final-review focus normally belongs in the Markdown `Review
-Focus` section. A supplements subtree may carry longer approved review context
-when needed, but it remains additive and must not become reviewer topology or
+Plan-specific final-review input belongs in the Markdown `Review Focus`
+section. Supplements do not define additional reviewer guidance, topology, or
 selection machinery.
 
 ## Lightweight Profile

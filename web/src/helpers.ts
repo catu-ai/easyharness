@@ -5,8 +5,6 @@ import type {
   LiveFreshness,
   LiveFreshnessKind,
   PlanResult,
-  ReviewAggregateFinding,
-  ReviewArtifact,
   ReviewFinding,
   ReviewReviewer,
   ReviewRound,
@@ -422,18 +420,16 @@ export function reviewRoundCompactStatusLabel(round: ReviewRound): string {
       return "PASS";
     case "changes_requested":
       return "CHG";
-    case "waiting_for_submissions":
+    case "waiting_for_review":
       return "WAIT";
-    case "waiting_for_aggregation":
-      return "AGGR";
+    case "waiting_for_decision":
+      return "WAIT";
     case "degraded":
       return "DEG";
     case "in_progress":
       return "WIP";
     case "complete":
       return "DONE";
-    case "aggregated":
-      return "AGGR";
     case "incomplete":
       return "PART";
     default:
@@ -460,13 +456,7 @@ export function reviewRoundExplorerMetaLabel(round: ReviewRound): string {
   } else {
     parts.push(reviewRoundSequenceLabel(round));
   }
-  parts.push(`${reviewCountLabel(round.submitted_assignments)}/${reviewCountLabel(round.total_assignments)}`);
   return parts.join(" · ");
-}
-
-export function reviewCountLabel(value: number | undefined): string {
-  if (typeof value !== "number") return "0";
-  return String(value);
 }
 
 export function reviewRoundAriaLabel(round: ReviewRound): string {
@@ -476,11 +466,10 @@ export function reviewRoundAriaLabel(round: ReviewRound): string {
     reviewRoundCompactMeta(round),
     reviewRoundSubtitle(round),
   ].filter(Boolean);
-  const timestamp = round.created_at || round.updated_at || round.aggregated_at;
+  const timestamp = round.created_at || round.updated_at || round.decided_at;
   if (timestamp) {
     parts.push(formatTimestamp(timestamp));
   }
-  parts.push(`${reviewCountLabel(round.submitted_assignments)}/${reviewCountLabel(round.total_assignments)} submitted`);
   return parts.join(" ");
 }
 
@@ -492,18 +481,16 @@ export function reviewRoundStatusLabel(round: ReviewRound): string {
       return "Pass";
     case "changes_requested":
       return "Changes requested";
-    case "waiting_for_submissions":
-      return "Waiting for submissions";
-    case "waiting_for_aggregation":
-      return "Waiting for aggregation";
+    case "waiting_for_review":
+      return "Waiting for review";
+    case "waiting_for_decision":
+      return "Waiting for decision";
     case "degraded":
       return "Degraded";
     case "in_progress":
       return "In progress";
     case "complete":
       return "Complete";
-    case "aggregated":
-      return "Aggregated";
     case "incomplete":
       return "Incomplete";
     default:
@@ -519,8 +506,8 @@ export function reviewRoundStatusTone(round: ReviewRound): "good" | "danger" | "
     case "changes_requested":
     case "degraded":
       return "danger";
-    case "waiting_for_submissions":
-    case "waiting_for_aggregation":
+    case "waiting_for_review":
+    case "waiting_for_decision":
     case "incomplete":
       return "warning";
     default:
@@ -529,10 +516,7 @@ export function reviewRoundStatusTone(round: ReviewRound): "good" | "danger" | "
 }
 
 export function reviewReviewerLabel(reviewer: ReviewReviewer): string {
-  const role = reviewer.role?.trim() ? humanizeLabel(reviewer.role) : "Reviewer";
-  const slot = reviewer.slot?.trim() ? humanizeLabel(reviewer.slot) : "Unassigned";
-  if (role.toLowerCase() === slot.toLowerCase()) return role;
-  return `${slot} · ${role}`;
+  return reviewer.name?.trim() || "Independent reviewer";
 }
 
 export function reviewReviewerStatusLabel(reviewer: ReviewReviewer): string {
@@ -558,44 +542,9 @@ export function reviewFindingBadgeTone(severity: string): "danger" | "warning" {
 }
 
 export function reviewFindingKey(finding: ReviewFinding, index: number): string {
-  const aggregateFinding = finding as ReviewAggregateFinding;
-  return [aggregateFinding.finding_id, aggregateFinding.slot, aggregateFinding.role, finding.area, finding.title, finding.details, String(index)]
+  return [finding.finding_id, finding.area, finding.title, finding.details, String(index)]
     .filter(Boolean)
     .join("::");
-}
-
-export function reviewAggregateFindingSource(finding: ReviewAggregateFinding): string | null {
-  const labels = reviewAggregateFindingLabels(finding);
-  return labels.length > 0 ? labels.join(" · ") : null;
-}
-
-export function reviewAggregateFindingLabels(finding: ReviewAggregateFinding): string[] {
-  const labels: string[] = [];
-  const findingID = finding.finding_id?.trim() ?? "";
-  const role = finding.role?.trim() ? humanizeLabel(finding.role) : "";
-  const slot = finding.slot?.trim() ? humanizeLabel(finding.slot) : "";
-  const area = finding.area?.trim() ? humanizeLabel(finding.area) : "";
-  if (findingID) labels.push(findingID);
-  if (role) labels.push(role);
-  if (slot) labels.push(`slot ${slot}`);
-  if (area) labels.push(area);
-  return labels;
-}
-
-export function reviewArtifactLabel(artifact: ReviewArtifact): string {
-  return artifact.label?.trim() || "Artifact";
-}
-
-export function reviewArtifactKey(artifact: ReviewArtifact, index: number): string {
-  const path = artifact.path?.trim();
-  if (path) return path;
-  return `${reviewArtifactLabel(artifact)}-${index}`;
-}
-
-export function reviewArtifactText(artifact: ReviewArtifact | null): string {
-  if (!artifact) return "";
-  if (artifact.content_type === "text" && typeof artifact.content === "string") return artifact.content;
-  return jsonStringify(artifact.content ?? { status: artifact.status, summary: artifact.summary, path: artifact.path });
 }
 
 export function formatPlanError(result: PlanResult | null, statusCode?: number): string {
@@ -615,11 +564,6 @@ export function formatPlanError(result: PlanResult | null, statusCode?: number):
   if (details.length > 0) return details.join("; ");
   if (statusCode) return `GET /api/plan failed with ${statusCode}`;
   return "Unable to load plan";
-}
-
-export function reviewRawSubmissionText(value: unknown): string {
-  if (typeof value === "string") return value;
-  return jsonStringify(value);
 }
 
 export function formatReviewError(result: ReviewResult | null, statusCode?: number): string {

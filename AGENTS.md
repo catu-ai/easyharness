@@ -139,9 +139,10 @@ integration and final workflow judgment.
 ## Review
 
 Every candidate requires an independent finalize review before archive. Use
-one integrated reviewer for whole-candidate coverage. Add a
-specialist only for a concrete high-risk surface; size alone is not a trigger.
-Step review is optional and creates no debt unless the controller starts one.
+one integrated reviewer for whole-candidate coverage. The reviewer receives the
+fixed standard rubric plus the plan's Review Focus automatically and may spawn
+bounded advisor subagents for deeper investigation. Advisors report to the
+reviewer and do not own harness submissions.
 
 Reviewer subagents own their submissions through `harness review submit`; the
 controller must not submit on their behalf. A narrow review repair normally

@@ -30,6 +30,25 @@ func TestRenderParentAddsGeneratedSubtopicsOutsideAssetBody(t *testing.T) {
 	}
 }
 
+func TestRenderReviewExplainsIntegratedDecisionAndRepairDelta(t *testing.T) {
+	var out bytes.Buffer
+	if err := Render(&out, []string{"review"}); err != nil {
+		t.Fatalf("render review help: %v", err)
+	}
+	for _, want := range []string{
+		"complete judgment",
+		"controller does not select dimensions",
+		"advisor subagents",
+		"separate aggregate command",
+		"linked delta",
+		"review start --full",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("review help missing %q:\n%s", want, out.String())
+		}
+	}
+}
+
 func TestUnknownTopicReportsNearestSubtopics(t *testing.T) {
 	var out bytes.Buffer
 	err := Render(&out, []string{"repo", "missing"})
@@ -66,7 +85,7 @@ func TestUnknownLeafChildFallsBackToRootTopics(t *testing.T) {
 	if !unknown.RootFallback {
 		t.Fatalf("expected root fallback for leaf child")
 	}
-	if len(unknown.Subtopics) != 1 || strings.Join(unknown.Subtopics[0].Path, " ") != "repo" {
+	if len(unknown.Subtopics) != 2 || strings.Join(unknown.Subtopics[0].Path, " ") != "repo" || strings.Join(unknown.Subtopics[1].Path, " ") != "review" {
 		t.Fatalf("unexpected fallback topics: %#v", unknown.Subtopics)
 	}
 }

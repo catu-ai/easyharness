@@ -17,19 +17,10 @@ type commandError struct {
 	Message string `json:"message"`
 }
 
-type reviewSlot struct {
-	Slot           string            `json:"slot"`
-	Role           string            `json:"role"`
-	Dimensions     []reviewDimension `json:"dimensions,omitempty"`
-	Instructions   string            `json:"instructions,omitempty"`
-	SubmissionPath string            `json:"submission_path"`
-}
-
-type reviewDimension struct {
-	Name         string   `json:"name"`
-	Sources      []string `json:"sources,omitempty"`
-	Description  string   `json:"description,omitempty"`
-	Instructions string   `json:"instructions"`
+type reviewHandle struct {
+	Instructions   string `json:"instructions"`
+	ReviewFocus    string `json:"review_focus"`
+	SubmissionPath string `json:"submission_path"`
 }
 
 type executeStartResult struct {
@@ -71,11 +62,11 @@ type reviewStartResult struct {
 	OK        bool   `json:"ok"`
 	Command   string `json:"command"`
 	Artifacts struct {
-		ProjectRoot     string       `json:"project_root"`
-		PlanPath        string       `json:"plan_path"`
-		RoundID         string       `json:"round_id"`
-		ReviewedHeadSHA string       `json:"reviewed_head_sha"`
-		Slots           []reviewSlot `json:"assignments"`
+		ProjectRoot     string        `json:"project_root"`
+		PlanPath        string        `json:"plan_path"`
+		RoundID         string        `json:"round_id"`
+		ReviewedHeadSHA string        `json:"reviewed_head_sha"`
+		Reviewer        *reviewHandle `json:"reviewer"`
 	} `json:"artifacts"`
 	NextAction []struct {
 		Command     *string `json:"command"`
@@ -101,20 +92,8 @@ type submitResult struct {
 	Command   string `json:"command"`
 	Artifacts struct {
 		ProjectRoot    string `json:"project_root"`
-		Slot           string `json:"slot"`
 		SubmissionPath string `json:"submission_path"`
 		RoundID        string `json:"round_id"`
-	} `json:"artifacts"`
-}
-
-type aggregateResult struct {
-	OK        bool           `json:"ok"`
-	Command   string         `json:"command"`
-	Summary   string         `json:"summary"`
-	Errors    []commandError `json:"errors"`
-	Artifacts struct {
-		ProjectRoot string `json:"project_root"`
-		RoundID     string `json:"round_id"`
 	} `json:"artifacts"`
 	Review struct {
 		RoundID          string `json:"round_id"`
@@ -131,6 +110,7 @@ type aggregateResult struct {
 			Title    string `json:"title"`
 			Details  string `json:"details"`
 		} `json:"non_blocking_findings"`
+		UnresolvedFindingIDs []string `json:"unresolved_finding_ids"`
 	} `json:"review"`
 	NextAction []struct {
 		Command     *string `json:"command"`
@@ -138,46 +118,21 @@ type aggregateResult struct {
 	} `json:"next_actions"`
 }
 
-type aggregateArtifact struct {
-	RoundID             string `json:"round_id"`
-	Kind                string `json:"kind"`
-	Step                *int   `json:"step,omitempty"`
-	Revision            int    `json:"revision"`
-	ReviewTitle         string `json:"review_title"`
-	Decision            string `json:"decision"`
-	AggregatedAt        string `json:"aggregated_at"`
-	NonBlockingFindings []struct {
-		Severity string `json:"severity"`
-		Title    string `json:"title"`
-		Details  string `json:"details"`
-	} `json:"non_blocking_findings"`
-}
-
 type reviewManifest struct {
-	RoundID         string       `json:"round_id"`
-	Step            *int         `json:"step,omitempty"`
-	Revision        int          `json:"revision"`
-	ReviewTitle     string       `json:"review_title"`
-	PlanPath        string       `json:"plan_path"`
-	ReviewedHeadSHA string       `json:"reviewed_head_sha"`
-	Assignments     []reviewSlot `json:"assignments"`
-}
-
-type reviewLedger struct {
-	Slots []struct {
-		Slot   string `json:"slot"`
-		Status string `json:"status"`
-	} `json:"assignments"`
+	RoundID         string `json:"round_id"`
+	Kind            string `json:"kind"`
+	AnchorSHA       string `json:"anchor_sha"`
+	ReviewedHeadSHA string `json:"reviewed_head_sha"`
+	ReviewFocus     string `json:"review_focus"`
 }
 
 type reviewSubmission struct {
 	RoundID     string          `json:"round_id"`
 	Slot        string          `json:"slot"`
-	Role        string          `json:"role"`
+	By          string          `json:"by"`
 	SubmittedAt string          `json:"submitted_at"`
 	Summary     string          `json:"summary"`
-	Worklog     json.RawMessage `json:"worklog"`
-	Coverage    json.RawMessage `json:"coverage"`
+	Resolutions json.RawMessage `json:"resolutions"`
 	Findings    []struct {
 		Area     string `json:"area"`
 		Severity string `json:"severity"`
@@ -200,12 +155,15 @@ type statusResult struct {
 		CurrentNode string `json:"current_node"`
 	} `json:"state"`
 	Facts struct {
-		CurrentStep  string `json:"current_step"`
-		ReviewStatus string `json:"review_status"`
-		ReviewTitle  string `json:"review_title"`
-		ReopenMode   string `json:"reopen_mode"`
-		Revision     int    `json:"revision"`
-		Evidence     struct {
+		CurrentStep         string `json:"current_step"`
+		ReviewStatus        string `json:"review_status"`
+		ReopenMode          string `json:"reopen_mode"`
+		Revision            int    `json:"revision"`
+		StepCompleted       int    `json:"step_completed"`
+		StepTotal           int    `json:"step_total"`
+		AcceptanceCompleted int    `json:"acceptance_completed"`
+		AcceptanceTotal     int    `json:"acceptance_total"`
+		Evidence            struct {
 			Recorded struct {
 				Publish struct {
 					Status string `json:"status"`
@@ -226,11 +184,12 @@ type statusResult struct {
 		LandPRURL string `json:"land_pr_url"`
 	} `json:"facts"`
 	Artifacts struct {
-		ProjectRoot   string       `json:"project_root"`
-		PlanPath      string       `json:"plan_path"`
-		ReviewRoundID string       `json:"review_round_id"`
-		ReviewSlots   []reviewSlot `json:"review_assignments"`
-		LastLandedAt  string       `json:"last_landed_at"`
+		ProjectRoot          string `json:"project_root"`
+		PlanPath             string `json:"plan_path"`
+		ReviewRoundID        string `json:"review_round_id"`
+		ReviewSubmissionPath string `json:"review_submission_path"`
+		ReviewedHeadSHA      string `json:"reviewed_head_sha"`
+		LastLandedAt         string `json:"last_landed_at"`
 	} `json:"artifacts"`
 	NextAction []struct {
 		Command     *string `json:"command"`
@@ -341,7 +300,7 @@ func assertRawStateJSONOmitsKeys(t *testing.T, path string, keys ...string) {
 	}
 }
 
-func submitReviewSlot(t *testing.T, workspace *support.Workspace, roundID string, slot reviewSlot, summary string, findings []map[string]any, extras ...map[string]any) {
+func submitReview(t *testing.T, workspace *support.Workspace, roundID, reviewer, summary string, findings []map[string]any, resolutions []map[string]any) submitResult {
 	t.Helper()
 
 	for _, finding := range findings {
@@ -353,20 +312,17 @@ func submitReviewSlot(t *testing.T, workspace *support.Workspace, roundID string
 		"summary":  summary,
 		"findings": findings,
 	}
-	if len(extras) > 0 && extras[0] != nil {
-		for key, value := range extras[0] {
-			payload[key] = value
-		}
+	if resolutions != nil {
+		payload["resolutions"] = resolutions
 	}
-	submissionPath := workspace.WriteJSON(t, fmt.Sprintf("tmp/%s-%s.json", roundID, slot.Slot), payload)
+	submissionPath := workspace.WriteJSON(t, fmt.Sprintf("tmp/%s-submission.json", roundID), payload)
 
 	submit := support.Run(
 		t,
 		workspace.Root,
 		"review", "submit",
 		"--round", roundID,
-		"--slot", slot.Slot,
-		"--by", "reviewer-"+slot.Slot,
+		"--by", reviewer,
 		"--input", submissionPath,
 	)
 	support.RequireSuccess(t, submit)
@@ -375,36 +331,11 @@ func submitReviewSlot(t *testing.T, workspace *support.Workspace, roundID string
 	if !submitPayload.OK || submitPayload.Command != "review submit" {
 		t.Fatalf("unexpected review-submit payload: %#v", submitPayload)
 	}
-	if submitPayload.Artifacts.Slot != slot.Slot || submitPayload.Artifacts.SubmissionPath != slot.SubmissionPath {
-		t.Fatalf("unexpected submit artifacts for slot %#v: %#v", slot, submitPayload)
+	if submitPayload.Artifacts.RoundID != roundID || submitPayload.Artifacts.SubmissionPath == "" {
+		t.Fatalf("unexpected submit artifacts: %#v", submitPayload)
 	}
 	support.RequireFileExists(t, filepath.Join(workspace.Root, filepath.FromSlash(submitPayload.Artifacts.SubmissionPath)))
-}
-
-func slotMap(slots []reviewSlot) map[string]reviewSlot {
-	byName := make(map[string]reviewSlot, len(slots))
-	for _, slot := range slots {
-		byName[slot.Slot] = slot
-	}
-	return byName
-}
-
-func assertLedgerStatuses(t *testing.T, ledger reviewLedger, want map[string]string) {
-	t.Helper()
-
-	got := make(map[string]string, len(ledger.Slots))
-	for _, slot := range ledger.Slots {
-		got[slot.Slot] = slot.Status
-	}
-
-	if len(got) != len(want) {
-		t.Fatalf("expected %d ledger slots, got %#v", len(want), ledger)
-	}
-	for slot, status := range want {
-		if got[slot] != status {
-			t.Fatalf("expected ledger slot %q to be %q, got %#v", slot, status, ledger)
-		}
-	}
+	return submitPayload
 }
 
 func trackedStepTitle(stepNumber int, stepTitle string) string {
@@ -421,34 +352,15 @@ func reviewRoundArtifactPath(root, planStem, roundID string, elems ...string) st
 	return filepath.Join(parts...)
 }
 
-func integratedAssignment(slot, instructions string, dimensions ...string) map[string]any {
-	return map[string]any{
-		"slot":         slot,
-		"role":         "integrated",
-		"dimensions":   dimensions,
-		"instructions": instructions,
-	}
-}
-
-func specialistAssignment(slot, instructions string, dimensions, riskSurfaces, invariants []string) map[string]any {
-	return map[string]any{
-		"slot":         slot,
-		"role":         "specialist",
-		"dimensions":   dimensions,
-		"instructions": instructions,
-		"risk_brief": map[string]any{
-			"risk_surfaces": riskSurfaces,
-			"invariants":    invariants,
-		},
-	}
-}
-
-func startReviewRound(t *testing.T, workspace *support.Workspace, specRelPath string, spec map[string]any) reviewStartResult {
+func startReviewRound(t *testing.T, workspace *support.Workspace, forceFull bool) reviewStartResult {
 	t.Helper()
 
 	workspace.CommitAll(t, "checkpoint review candidate")
-	specPath := workspace.WriteJSON(t, specRelPath, spec)
-	start := support.Run(t, workspace.Root, "review", "start", "--spec", specPath)
+	args := []string{"review", "start"}
+	if forceFull {
+		args = append(args, "--full")
+	}
+	start := support.Run(t, workspace.Root, args...)
 	support.RequireSuccess(t, start)
 	support.RequireNoStderr(t, start)
 	payload := support.RequireJSONResult[reviewStartResult](t, start)
@@ -458,18 +370,8 @@ func startReviewRound(t *testing.T, workspace *support.Workspace, specRelPath st
 	if payload.Artifacts.ReviewedHeadSHA == "" {
 		t.Fatalf("expected built review-start command to surface the captured candidate HEAD, got %#v", payload.Artifacts)
 	}
-	return payload
-}
-
-func aggregateReviewRound(t *testing.T, workspace *support.Workspace, roundID string) aggregateResult {
-	t.Helper()
-
-	aggregate := support.Run(t, workspace.Root, "review", "aggregate", "--round", roundID)
-	support.RequireSuccess(t, aggregate)
-	support.RequireNoStderr(t, aggregate)
-	payload := support.RequireJSONResult[aggregateResult](t, aggregate)
-	if !payload.OK || payload.Command != "review aggregate" {
-		t.Fatalf("unexpected review aggregate payload: %#v", payload)
+	if payload.Artifacts.Reviewer == nil || payload.Artifacts.Reviewer.SubmissionPath == "" || payload.Artifacts.Reviewer.Instructions == "" {
+		t.Fatalf("expected one integrated reviewer handoff, got %#v", payload.Artifacts)
 	}
 	return payload
 }
@@ -495,104 +397,22 @@ func currentWorkspaceHead(t *testing.T, root string) string {
 	return head
 }
 
-func runPassingDeltaReview(t *testing.T, workspace *support.Workspace, stepTitle string, stepNumber int) string {
-	t.Helper()
-
-	target := trackedStepTitle(stepNumber, stepTitle)
-	workspace.CommitAll(t, "checkpoint step review candidate")
-	anchorSHA := currentWorkspaceHead(t, workspace.Root)
-	startPayload := startReviewRound(t, workspace, fmt.Sprintf("tmp/step-%d-review-spec.json", stepNumber), map[string]any{
-		"kind":       "delta",
-		"anchor_sha": anchorSHA,
-		"assignments": []map[string]any{
-			{
-				"slot":         "integrated",
-				"role":         "integrated",
-				"dimensions":   []string{"correctness"},
-				"instructions": "Check that the tracked step is ready to close out cleanly.",
-			},
-		},
-	})
-	if !strings.HasSuffix(startPayload.Artifacts.RoundID, "-delta") {
-		t.Fatalf("expected delta round id shape, got %#v", startPayload)
-	}
-	if len(startPayload.Artifacts.Slots) != 1 {
-		t.Fatalf("expected one delta review slot, got %#v", startPayload)
-	}
-
-	reviewStatus := runStatus(t, workspace.Root)
-	assertNode(t, reviewStatus, fmt.Sprintf("execution/step-%d/review", stepNumber))
-	if reviewStatus.Facts.CurrentStep != target || reviewStatus.Facts.ReviewStatus != "in_progress" || reviewStatus.Facts.ReviewTitle != target {
-		t.Fatalf("expected active step-review facts for %q, got %#v", target, reviewStatus)
-	}
-
-	slot := startPayload.Artifacts.Slots[0]
-	submitReviewSlot(t, workspace, startPayload.Artifacts.RoundID, slot, fmt.Sprintf("Step %d is ready to close out.", stepNumber), nil)
-
-	stillInReviewStatus := runStatus(t, workspace.Root)
-	assertNode(t, stillInReviewStatus, fmt.Sprintf("execution/step-%d/review", stepNumber))
-	if stillInReviewStatus.Facts.CurrentStep != target || stillInReviewStatus.Facts.ReviewStatus != "in_progress" || stillInReviewStatus.Facts.ReviewTitle != target {
-		t.Fatalf("expected submission-only update to preserve active step-review facts for %q, got %#v", target, stillInReviewStatus)
-	}
-
-	aggregatePayload := aggregateReviewRound(t, workspace, startPayload.Artifacts.RoundID)
-	if aggregatePayload.Review.Decision != "pass" {
-		t.Fatalf("expected clean delta aggregate for %q, got %#v", stepTitle, aggregatePayload)
-	}
-
-	return startPayload.Artifacts.RoundID
-}
-
 func runPassingFinalizeReview(t *testing.T, workspace *support.Workspace) string {
 	t.Helper()
 
-	startPayload := startReviewRound(t, workspace, "tmp/finalize-passing-review-spec.json", map[string]any{
-		"kind": "full",
-		"assignments": []map[string]any{
-			{
-				"slot":         "integrated",
-				"role":         "integrated",
-				"dimensions":   []string{"correctness", "tests", "docs-consistency"},
-				"instructions": "Check that the full branch candidate is archive-ready.",
-			},
-		},
-	})
-	if len(startPayload.Artifacts.Slots) != 1 {
-		t.Fatalf("expected one finalize review slot, got %#v", startPayload)
-	}
+	startPayload := startReviewRound(t, workspace, false)
 
 	inReviewStatus := runStatus(t, workspace.Root)
 	assertNode(t, inReviewStatus, "execution/finalize/review")
-	if inReviewStatus.Facts.ReviewStatus != "in_progress" || inReviewStatus.Facts.ReviewTitle != "Full branch candidate before archive" {
+	if inReviewStatus.Facts.ReviewStatus != "in_progress" || inReviewStatus.Artifacts.ReviewSubmissionPath == "" {
 		t.Fatalf("expected active finalize-review facts, got %#v", inReviewStatus)
 	}
 
-	submitReviewSlot(t, workspace, startPayload.Artifacts.RoundID, startPayload.Artifacts.Slots[0], "Finalize issues were repaired.", nil)
-
-	stillInReviewStatus := runStatus(t, workspace.Root)
-	assertNode(t, stillInReviewStatus, "execution/finalize/review")
-	if stillInReviewStatus.Facts.ReviewStatus != "in_progress" || stillInReviewStatus.Facts.ReviewTitle != "Full branch candidate before archive" {
-		t.Fatalf("expected submission-only update to preserve active finalize-review facts, got %#v", stillInReviewStatus)
-	}
-
-	aggregatePayload := aggregateReviewRound(t, workspace, startPayload.Artifacts.RoundID)
-	if aggregatePayload.Review.Decision != "pass" {
-		t.Fatalf("expected passing finalize review, got %#v", aggregatePayload)
+	submission := submitReview(t, workspace, startPayload.Artifacts.RoundID, "integrated-reviewer", "The complete candidate is ready to archive.", nil, nil)
+	if submission.Review.Decision != "pass" {
+		t.Fatalf("expected passing finalize review, got %#v", submission)
 	}
 	return startPayload.Artifacts.RoundID
-}
-
-func runPassingDeltaReviewAndComplete(t *testing.T, workspace *support.Workspace, planPath, stepTitle string, stepNumber int) {
-	t.Helper()
-
-	roundID := runPassingDeltaReview(t, workspace, stepTitle, stepNumber)
-	support.CompleteStep(
-		t,
-		planPath,
-		stepNumber,
-		fmt.Sprintf("Completed %q and prepared the next tracked step.", stepTitle),
-		fmt.Sprintf("Clean delta review %s passed for %q before advancing.", roundID, stepTitle),
-	)
 }
 
 func drivePlanToArchivedPublishNode(t *testing.T, workspace *support.Workspace, planPath string, stepTitles ...string) lifecycleCommandResult {
@@ -604,13 +424,8 @@ func drivePlanToArchivedPublishNode(t *testing.T, workspace *support.Workspace, 
 	support.RequireNoStderr(t, execute)
 
 	for index, stepTitle := range stepTitles {
-		support.CompleteStep(
-			t,
-			planPath,
-			index+1,
-			fmt.Sprintf("Completed %q and prepared the next tracked boundary.", stepTitle),
-			"No optional step review was started; the final full review covers the integrated candidate.",
-		)
+		_ = stepTitle
+		support.CompleteStep(t, planPath, index+1)
 	}
 
 	support.CheckAllAcceptanceCriteria(t, planPath)
@@ -619,6 +434,7 @@ func drivePlanToArchivedPublishNode(t *testing.T, workspace *support.Workspace, 
 	assertNode(t, preFinalizeStatus, "execution/finalize/review")
 
 	runPassingFinalizeReview(t, workspace)
+	support.CompleteCloseout(t, planPath)
 
 	postFinalizeStatus := runStatus(t, workspace.Root)
 	assertNode(t, postFinalizeStatus, "execution/finalize/archive")
@@ -637,6 +453,30 @@ func drivePlanToArchivedPublishNode(t *testing.T, workspace *support.Workspace, 
 	assertNode(t, postArchiveStatus, "execution/finalize/publish")
 
 	return payload
+}
+
+func compactPlanFixture(stepTitles ...string) string {
+	if len(stepTitles) == 0 {
+		panic("compact plan fixture requires at least one step title")
+	}
+
+	var body strings.Builder
+	body.WriteString("## Goal\n\nExercise the built harness workflow through a compact tracked plan.\n\n")
+	body.WriteString("### Decisions and Constraints\n\n- Final integrated review is mandatory.\n\n")
+	body.WriteString("## Scope\n\n### In Scope\n\n- The lifecycle behavior under test.\n\n### Out of Scope\n\n- Unrelated product behavior.\n\n")
+	body.WriteString("## Acceptance Criteria\n\n")
+	for index := range stepTitles {
+		fmt.Fprintf(&body, "- [ ] Criterion %d\n", index+1)
+	}
+	body.WriteString("\n## Review Focus\n\n- Challenge lifecycle correctness, review coverage, and persisted artifacts.\n\n")
+	body.WriteString("## Deferred Items\n\n- None.\n\n## Work Breakdown\n")
+	for index, title := range stepTitles {
+		title = strings.TrimSpace(title)
+		fmt.Fprintf(&body, "\n### Step %d: %s\n\n- Done: [ ]\n- Outcome: Complete %s.\n- Covers: Criterion %d\n- Check: Verify the step through the built binary.\n", index+1, title, title, index+1)
+	}
+	body.WriteString("\n## Validation Strategy\n\n- Run the built-binary end-to-end scenario.\n\n## Closeout\n\n")
+	body.WriteString("- Validation: PENDING_UNTIL_ARCHIVE\n- Review: PENDING_UNTIL_ARCHIVE\n- Delivered: PENDING_UNTIL_ARCHIVE\n- Not Delivered: PENDING_UNTIL_ARCHIVE\n- Follow-Up Issues: NONE\n- PR: PENDING_UNTIL_ARCHIVE\n- Ready: PENDING_UNTIL_ARCHIVE\n- Merge Handoff: PENDING_UNTIL_ARCHIVE\n")
+	return body.String()
 }
 
 func drivePlanToAwaitMergeNode(t *testing.T, workspace *support.Workspace, planPath string, stepTitles ...string) {

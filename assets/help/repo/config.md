@@ -1,22 +1,15 @@
 Repo Config Customization
 
-Use this topic when a human asks to customize where easyharness stores plans,
-local runtime state, or repo-defined review dimensions. The expected
-interaction is that humans describe the outcome they want, agents read this
-help, edit `.harness/config.yaml` when needed, verify the effective values,
-and report the result back to the human.
+Use this topic when a human asks to customize where easyharness stores plans
+or disposable local runtime state.
 
-`.harness/config.yaml` is a tracked repo-level manifest and index. It should
-stay small. Long-form customization text belongs in referenced `.harness/**/*.md`
-files, not inline YAML.
-
-The smallest valid config is:
+The smallest valid `.harness/config.yaml` is:
 
 ```yaml
 version: 1
 ```
 
-Version 1 supports optional `paths` fields:
+Version 1 supports optional path roots:
 
 ```yaml
 version: 1
@@ -25,65 +18,20 @@ paths:
     active: docs/plans/active
     archived: docs/plans/archived
   local_runtime: .local/harness
-  review:
-    dimensions: .harness/review/dimensions
 ```
 
-All path fields are optional. Omitted fields use built-in defaults.
+Omitted fields use built-in defaults. Path values must be repo-relative,
+slash-separated, non-overlapping, and must not resolve to the repository root.
 
-Path meanings:
-
-- `paths.plans.active`: tracked active plan root
-- `paths.plans.archived`: tracked standard archived plan root
-- `paths.local_runtime`: disposable command-owned runtime root
-- `paths.review.dimensions`: repo-defined review dimensions root
-
-Path values must be repo-relative slash-separated paths. Do not use empty
-paths, absolute paths, `~`, backslashes, paths outside the repository, the
-repository root itself, or overlapping configured roots.
-
-After editing config, verify effective values with:
+Verify effective values with:
 
 ```bash
 harness repo config list
 harness repo config get paths.plans.active
 harness repo config get paths.plans.archived
 harness repo config get paths.local_runtime
-harness repo config get paths.review.dimensions
 ```
 
-Before applying the canonical refresh rewrite, inspect it with:
-
-```bash
-harness repo config refresh --diff
-```
-
-After reviewing and accepting the preview, apply it with:
-
-```bash
-harness repo config refresh
-```
-
-`harness repo config refresh` owns the canonical rendered file shape. Valid
-user-authored YAML comments are accepted when the config values remain valid,
-but refresh does not preserve those comments or the original field ordering.
-The canonical renderer preserves supported configured values, normalizes field
-ordering, and still rejects unsupported fields.
-
-If `.harness/config.yaml` is missing, easyharness uses built-in defaults.
-Config-consuming commands warn the agent, ignore an invalid existing config as
-a whole, and use built-in defaults instead of partially consuming it. Refresh
-commands are stricter: `harness repo config refresh` and `harness repo config
-refresh --diff` fail invalid existing configs without overwriting them.
-
-Repo-defined review dimensions are Markdown files directly under the resolved
-`paths.review.dimensions` root, which defaults to:
-
-```text
-.harness/review/dimensions
-```
-
-Each review dimension file has YAML frontmatter with exactly `name` and
-`description`, followed by the reviewer instruction body. Use
-`harness review dimensions list` to see available dimensions and
-`harness review dimensions instructions <name>` to read the full instruction.
+Preview canonical refresh with `harness repo config refresh --diff`, then apply
+it with `harness repo config refresh`. Invalid existing config is ignored with
+a warning by ordinary consumers, but refresh fails rather than overwriting it.

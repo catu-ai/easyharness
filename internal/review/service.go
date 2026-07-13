@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -18,31 +17,25 @@ import (
 	"github.com/catu-ai/easyharness/internal/inputschema"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/reviewcoverage"
-	"github.com/catu-ai/easyharness/internal/reviewdimensions"
 	"github.com/catu-ai/easyharness/internal/runstate"
 )
 
 var compactRoundIDPattern = regexp.MustCompile(`^review-([0-9]+)-([a-z0-9-]+)$`)
+var findingAreaPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 var saveState = runstate.SaveState
 var writeJSON = writeJSONFile
-var resolveDimensions = resolveReviewDimensions
 
 type Service struct {
-	Workdir               string
-	Now                   func() time.Time
-	AfterStart            func(StartResult) error
-	AfterSubmit           func(SubmitResult) error
-	AfterAggregate        func(AggregateResult) error
-	AfterStartSuccess     func(StartResult)
-	AfterSubmitSuccess    func(SubmitResult)
-	AfterAggregateSuccess func(AggregateResult)
+	Workdir            string
+	Now                func() time.Time
+	AfterStart         func(StartResult) error
+	AfterSubmit        func(SubmitResult) error
+	AfterStartSuccess  func(StartResult)
+	AfterSubmitSuccess func(SubmitResult)
 }
 
-type Spec = contracts.ReviewSpec
-type AssignmentSpec = contracts.ReviewAssignmentSpec
+type StartOptions = contracts.ReviewStartOptions
 type RepairReference = contracts.ReviewRepairReference
-type RiskBrief = contracts.ReviewRiskBrief
-type ResolvedDimension = contracts.ReviewResolvedDimension
 type Manifest = contracts.ReviewManifest
 type ManifestAssignment = contracts.ReviewAssignment
 type Ledger = contracts.ReviewLedger
@@ -59,8 +52,19 @@ type StartResult = contracts.ReviewStartResult
 type StartArtifacts = contracts.ReviewStartArtifacts
 type SubmitResult = contracts.ReviewSubmitResult
 type SubmitArtifacts = contracts.ReviewSubmitArtifacts
-type AggregateResult = contracts.ReviewAggregateResult
-type AggregateArtifacts = contracts.ReviewAggregateArtifacts
+
+type inferredSpec struct {
+	Kind      string
+	AnchorSHA string
+	Repair    *RepairReference
+}
+
+type completionResult struct {
+	OK      bool
+	Summary string
+	Errors  []CommandError
+	Review  *Aggregate
+}
 
 type reviewDualMutationLocks struct {
 	PlanPath string
@@ -72,7 +76,7 @@ type reviewMutationLockFailure struct {
 	Issue   CommandError
 }
 
-func (s Service) Start(specBytes []byte) StartResult {
+func (s Service) Start(options StartOptions) StartResult {
 	locks, failure := s.acquireReviewAndStateMutationLocks()
 	if failure != nil {
 		return StartResult{
@@ -85,70 +89,53 @@ func (s Service) Start(specBytes []byte) StartResult {
 	defer locks.release()
 
 	now := s.now()
-	planPath, doc, planStem, relPlanPath, state, statePath, errResult := s.loadCurrentExecutingPlan(locks.PlanPath)
+	_, doc, planStem, relPlanPath, state, statePath, errResult := s.loadCurrentExecutingPlan(locks.PlanPath)
 	if errResult != nil {
 		return *errResult
 	}
 
-	var spec Spec
-	if issues := inputschema.DecodeAndValidate("inputs.review.spec", "spec", specBytes, &spec); len(issues) > 0 {
+	if !doc.AllStepsCompleted() {
 		return StartResult{
 			OK:      false,
 			Command: "review start",
-			Summary: "Review spec is invalid.",
-			Errors:  issues,
+			Summary: "Finalize review is not ready to start.",
+			Errors:  []CommandError{{Path: "plan.steps", Message: "complete every tracked step before starting finalize review"}},
 		}
 	}
-	if issues := validateSpec(spec); len(issues) > 0 {
+	if pendingNewStepReopen(doc, state) {
 		return StartResult{
 			OK:      false,
 			Command: "review start",
-			Summary: "Review spec is invalid.",
-			Errors:  issues,
+			Summary: "Finalize review is not ready to start.",
+			Errors:  []CommandError{{Path: "plan.steps", Message: "reopen mode new-step still requires a new unfinished step before review can start"}},
 		}
 	}
-	if issues := validateDeltaAnchor(s.Workdir, spec); len(issues) > 0 {
+	if state != nil && state.ActiveReviewRound != nil && !state.ActiveReviewRound.Aggregated {
 		return StartResult{
 			OK:      false,
 			Command: "review start",
-			Summary: "Review spec is invalid.",
-			Errors:  issues,
+			Summary: "Finalize review is already in progress.",
+			Errors:  []CommandError{{Path: "state.active_review_round", Message: fmt.Sprintf("review round %s must be submitted before another review starts", state.ActiveReviewRound.RoundID)}},
 		}
 	}
-	inferredStep, revision, reviewTitle, err := inferReviewBinding(s.Workdir, planStem, doc, state, spec)
+	spec, err := inferFinalizeSpec(s.Workdir, planStem, state, options.ForceFull)
 	if err != nil {
 		return StartResult{
 			OK:      false,
 			Command: "review start",
-			Summary: "Review spec does not match the current workflow state.",
-			Errors:  []CommandError{{Path: "spec", Message: err.Error()}},
+			Summary: "Unable to infer finalize review coverage.",
+			Errors:  []CommandError{{Path: "review.coverage", Message: err.Error()}},
 		}
 	}
-	if err := validateStartedStepReviewOwnership(state, inferredStep); err != nil {
-		return StartResult{
-			OK:      false,
-			Command: "review start",
-			Summary: "Review spec does not match the active intentional step review.",
-			Errors:  []CommandError{{Path: "spec.step", Message: err.Error()}},
-		}
-	}
-	if issues := validateAssignmentTopology(spec, inferredStep); len(issues) > 0 {
-		return StartResult{
-			OK:      false,
-			Command: "review start",
-			Summary: "Review spec is invalid.",
-			Errors:  issues,
-		}
-	}
-	materializedAssignments, issues := materializeAssignments(s.Workdir, planPath, spec.Assignments)
-	if len(issues) > 0 {
-		return StartResult{
-			OK:      false,
-			Command: "review start",
-			Summary: "Review assignment guidance could not be resolved.",
-			Errors:  issues,
-		}
-	}
+	revision := runstate.CurrentRevision(state)
+	reviewTitle := "Complete candidate before archive"
+	reviewFocus := strings.TrimSpace(doc.SectionText("Review Focus"))
+	materializedAssignments := []ManifestAssignment{{
+		Slot:         "integrated",
+		Role:         "integrated",
+		Instructions: "Use the harness-reviewer skill to review the complete candidate against its fixed integrated rubric. Spawn bounded advisor subagents only when they materially improve coverage; advisors report only to you.",
+		ReviewFocus:  reviewFocus,
+	}}
 	candidate, err := reviewcoverage.CaptureCandidate(s.Workdir)
 	if err != nil {
 		return StartResult{
@@ -158,19 +145,7 @@ func (s Service) Start(specBytes []byte) StartResult {
 			Errors:  []CommandError{{Path: "review.candidate", Message: err.Error()}},
 		}
 	}
-	if spec.Kind == "delta" {
-		resolvedAnchor, err := reviewcoverage.ResolveCommit(s.Workdir, spec.AnchorSHA)
-		if err != nil {
-			return StartResult{
-				OK:      false,
-				Command: "review start",
-				Summary: "Review delta anchor is invalid.",
-				Errors:  []CommandError{{Path: "spec.anchor_sha", Message: fmt.Sprintf("must resolve to a real Git commit: %v", err)}},
-			}
-		}
-		spec.AnchorSHA = resolvedAnchor
-	}
-	if issues := validateRepairLink(s.Workdir, planStem, state, spec, inferredStep, revision); len(issues) > 0 {
+	if issues := validateRepairLink(s.Workdir, planStem, state, spec, revision); len(issues) > 0 {
 		return StartResult{
 			OK:      false,
 			Command: "review start",
@@ -237,9 +212,9 @@ func (s Service) Start(specBytes []byte) StartResult {
 		Kind:            spec.Kind,
 		AnchorSHA:       strings.TrimSpace(spec.AnchorSHA),
 		ReviewedHeadSHA: candidate.HeadSHA,
-		Step:            inferredStep,
 		Revision:        revision,
 		ReviewTitle:     reviewTitle,
+		ReviewFocus:     reviewFocus,
 		Repair:          cloneRepairReference(spec.Repair),
 		PlanPath:        relPlanPath,
 		PlanStem:        planStem,
@@ -291,7 +266,6 @@ func (s Service) Start(specBytes []byte) StartResult {
 	state.ActiveReviewRound = &runstate.ReviewRound{
 		RoundID:    roundID,
 		Kind:       spec.Kind,
-		Step:       inferredStep,
 		Revision:   revision,
 		Aggregated: false,
 		Decision:   "",
@@ -322,16 +296,12 @@ func (s Service) Start(specBytes []byte) StartResult {
 			PlanPath:        relPlanPath,
 			RoundID:         roundID,
 			ReviewedHeadSHA: candidate.HeadSHA,
-			Assignments:     surfacedReviewAssignments(s.Workdir, assignments),
+			Reviewer:        surfacedReviewAssignment(s.Workdir, assignments[0]),
 		},
 		NextAction: []NextAction{
 			{
 				Command:     nil,
-				Description: "Launch reviewer subagents for the returned assignments and have each reviewer submit structured results for its assigned slot.",
-			},
-			{
-				Command:     strPtr(fmt.Sprintf("harness review aggregate --round %s", roundID)),
-				Description: "Aggregate the round once every expected reviewer submission has landed.",
+				Description: "Launch the returned integrated reviewer. Its single submission completes the review round and records the decision.",
 			},
 		},
 	}, func() []CommandError {
@@ -343,19 +313,18 @@ func (s Service) Start(specBytes []byte) StartResult {
 	})
 }
 
-func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) SubmitResult {
-	lockedPlanPath, release, err := s.acquireReviewMutationLock()
-	if err == nil {
-		defer release()
-	} else {
+func (s Service) Submit(roundID, reviewerName string, inputBytes []byte) SubmitResult {
+	locks, failure := s.acquireReviewAndStateMutationLocks()
+	if failure != nil {
 		return SubmitResult{
 			OK:      false,
 			Command: "review submit",
-			Summary: "Another review state mutation is already in progress.",
-			Errors:  []CommandError{{Path: "review", Message: "Another review state mutation is already in progress."}},
+			Summary: failure.Summary,
+			Errors:  []CommandError{failure.Issue},
 		}
 	}
-	_, _, planStem, _, _, _, errResult := s.loadCurrentExecutingPlan(lockedPlanPath)
+	defer locks.release()
+	_, _, planStem, _, _, _, errResult := s.loadCurrentExecutingPlan(locks.PlanPath)
 	if errResult != nil {
 		return SubmitResult{
 			OK:      false,
@@ -375,15 +344,15 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 			Errors:  []CommandError{{Path: "review.round", Message: sanitizedReadMessage("review round metadata", err)}},
 		}
 	}
-	assignmentDef := findAssignment(manifest, slot)
-	if assignmentDef == nil {
+	if len(manifest.Assignments) != 1 || manifest.Assignments[0].Slot != "integrated" || manifest.Assignments[0].Role != "integrated" {
 		return SubmitResult{
 			OK:      false,
 			Command: "review submit",
-			Summary: "Submission does not match an expected reviewer slot.",
-			Errors:  []CommandError{{Path: "slot", Message: fmt.Sprintf("unknown slot %q for review round %q", slot, roundID)}},
+			Summary: "Review round does not contain exactly one integrated reviewer.",
+			Errors:  []CommandError{{Path: "review.reviewer", Message: fmt.Sprintf("round %q must contain exactly one integrated reviewer", roundID)}},
 		}
 	}
+	assignmentDef := &manifest.Assignments[0]
 	if strings.TrimSpace(reviewerName) == "" {
 		return SubmitResult{
 			OK:      false,
@@ -429,7 +398,6 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 		Summary:     strings.TrimSpace(input.Summary),
 		Resolutions: cloneResolutions(input.Resolutions),
 		Findings:    input.Findings,
-		ExtraFields: cloneRawFields(input.ExtraFields),
 	}
 	previousSubmission, previousSubmissionExists, err := readFileIfExists(assignmentDef.SubmissionPath)
 	if err != nil {
@@ -484,78 +452,83 @@ func (s Service) Submit(roundID, slot, reviewerName string, inputBytes []byte) S
 			Errors:  issues,
 		}
 	}
+	originalState, statePath, err := runstate.LoadState(s.Workdir, planStem)
+	if err != nil {
+		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "review.assignments")
+		issues = append(issues, restoreJSONFileSnapshot(assignmentDef.SubmissionPath, previousSubmission, previousSubmissionExists, "review.submission")...)
+		return SubmitResult{OK: false, Command: "review submit", Summary: "Unable to snapshot local harness state before completing review.", Errors: append([]CommandError{{Path: "state", Message: sanitizedReadMessage("local harness state", err)}}, issues...)}
+	}
+	previousAggregate, previousAggregateExists, err := readFileIfExists(manifest.Aggregate)
+	if err != nil {
+		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "review.assignments")
+		issues = append(issues, restoreJSONFileSnapshot(assignmentDef.SubmissionPath, previousSubmission, previousSubmissionExists, "review.submission")...)
+		return SubmitResult{OK: false, Command: "review submit", Summary: "Unable to snapshot the review decision before completing review.", Errors: append([]CommandError{{Path: "review.decision", Message: sanitizedReadMessage("the review decision", err)}}, issues...)}
+	}
+	completion := s.completeRoundLocked(roundID, planStem)
+	if !completion.OK || completion.Review == nil {
+		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "review.assignments")
+		issues = append(issues, restoreJSONFileSnapshot(assignmentDef.SubmissionPath, previousSubmission, previousSubmissionExists, "review.submission")...)
+		return SubmitResult{OK: false, Command: "review submit", Summary: completion.Summary, Errors: append(completion.Errors, issues...)}
+	}
 
 	return s.finalizeSubmit(SubmitResult{
 		OK:      true,
 		Command: "review submit",
-		Summary: fmt.Sprintf("Recorded submission for slot %q in review round %q.", assignmentDef.Slot, roundID),
+		Summary: fmt.Sprintf("Recorded the integrated reviewer submission for review round %q.", roundID),
 		Artifacts: &SubmitArtifacts{
 			ProjectRoot:    s.Workdir,
 			RoundID:        roundID,
-			Slot:           assignmentDef.Slot,
 			SubmissionPath: repoFacingReviewPath(s.Workdir, assignmentDef.SubmissionPath),
 		},
+		Review: completion.Review,
 		NextAction: []NextAction{
 			{
 				Command:     nil,
-				Description: "Report the submission receipt to the controller agent and end the reviewer thread. If the same slot later needs a narrow follow-up for the same tracked step or the same finalize review title in the same revision, the controller may reopen this reviewer through the runtime's native resume mechanism only after this submission is verified and only while the slot instructions still materially match.",
+				Description: "Report the completed review decision to the controller and end the reviewer thread.",
 			},
 		},
 	}, func() []CommandError {
 		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "ledger")
 		issues = append(issues, restoreJSONFileSnapshot(assignmentDef.SubmissionPath, previousSubmission, previousSubmissionExists, "submission")...)
+		issues = append(issues, restoreJSONFileSnapshot(manifest.Aggregate, previousAggregate, previousAggregateExists, "review.decision")...)
+		issues = append(issues, restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)...)
 		return issues
 	})
 }
 
-func (s Service) Aggregate(roundID string) AggregateResult {
-	locks, failure := s.acquireReviewAndStateMutationLocks()
-	if failure != nil {
-		return AggregateResult{
+func (s Service) completeRoundLocked(roundID, planStem string) completionResult {
+	state, statePath, err := runstate.LoadState(s.Workdir, planStem)
+	if err != nil {
+		return completionResult{
 			OK:      false,
-			Command: "review aggregate",
-			Summary: failure.Summary,
-			Errors:  []CommandError{failure.Issue},
+			Summary: "Unable to read local harness state.",
+			Errors:  []CommandError{{Path: "state", Message: sanitizedReadMessage("local harness state", err)}},
 		}
 	}
-	defer locks.release()
-
-	_, _, planStem, _, state, statePath, errResult := s.loadCurrentExecutingPlan(locks.PlanPath)
-	if errResult != nil {
-		return AggregateResult{
-			OK:      false,
-			Command: "review aggregate",
-			Summary: errResult.Summary,
-			Errors:  errResult.Errors,
-		}
-	}
-	if guard := activeAggregateRoundError(state, roundID); guard != nil {
+	if guard := activeCompletionRoundError(state, roundID); guard != nil {
 		return *guard
 	}
 
 	manifestPath := filepath.Join(runstate.ReviewRoundDir(s.Workdir, planStem, roundID), "manifest.json")
 	manifest, err := loadManifest(manifestPath)
 	if err != nil {
-		return AggregateResult{
+		return completionResult{
 			OK:      false,
-			Command: "review aggregate",
 			Summary: "Unable to load review round metadata.",
 			Errors:  []CommandError{{Path: "review.round", Message: sanitizedReadMessage("review round metadata", err)}},
 		}
 	}
 	candidate, err := reviewcoverage.CaptureCandidate(s.Workdir)
 	if err != nil {
-		return AggregateResult{
+		return completionResult{
 			OK:      false,
-			Command: "review aggregate",
 			Summary: "Review candidate changed while the round was in progress.",
 			Errors:  []CommandError{{Path: "review.candidate", Message: err.Error()}},
 		}
 	}
 	if candidate.HeadSHA != manifest.ReviewedHeadSHA {
-		return AggregateResult{
+		return completionResult{
 			OK:      false,
-			Command: "review aggregate",
 			Summary: "Review candidate HEAD moved while the round was in progress.",
 			Errors: []CommandError{{
 				Path:    "review.reviewed_head_sha",
@@ -566,9 +539,8 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 
 	ledger, err := loadLedger(manifest.LedgerPath)
 	if err != nil {
-		return AggregateResult{
+		return completionResult{
 			OK:      false,
-			Command: "review aggregate",
 			Summary: "Unable to load reviewer assignment state.",
 			Errors:  []CommandError{{Path: "review.assignments", Message: sanitizedReadMessage("reviewer assignment state", err)}},
 		}
@@ -585,9 +557,8 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 	if manifest.Repair != nil {
 		parent, err := reviewcoverage.LoadRound(s.Workdir, planStem, manifest.Repair.RoundID)
 		if err != nil {
-			return AggregateResult{
+			return completionResult{
 				OK:      false,
-				Command: "review aggregate",
 				Summary: "Unable to load the repair parent review round.",
 				Errors:  []CommandError{{Path: "review.repair.round_id", Message: err.Error()}},
 			}
@@ -609,25 +580,22 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 				missing = append(missing, assignmentDef.Slot)
 				continue
 			}
-			return AggregateResult{
+			return completionResult{
 				OK:      false,
-				Command: "review aggregate",
 				Summary: "Unable to load reviewer submissions.",
 				Errors:  []CommandError{{Path: "review.submission", Message: sanitizedReadMessage("reviewer submissions", err)}},
 			}
 		}
 		if issues := validateStoredSubmission(*submission); len(issues) > 0 {
-			return AggregateResult{
+			return completionResult{
 				OK:      false,
-				Command: "review aggregate",
 				Summary: "Reviewer submission artifact is invalid for aggregation.",
 				Errors:  issues,
 			}
 		}
 		if issues := validateStoredSubmissionForAssignment(*submission, manifest, assignmentDef); len(issues) > 0 {
-			return AggregateResult{
+			return completionResult{
 				OK:      false,
-				Command: "review aggregate",
 				Summary: "Reviewer submission artifact does not match its assignment or repair contract.",
 				Errors:  issues,
 			}
@@ -635,9 +603,8 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		for _, resolution := range submission.Resolutions {
 			findingID := strings.TrimSpace(resolution.FindingID)
 			if prior, exists := resolutionVerdicts[findingID]; exists {
-				return AggregateResult{
+				return completionResult{
 					OK:      false,
-					Command: "review aggregate",
 					Summary: "Repair finding resolution ownership is ambiguous.",
 					Errors:  []CommandError{{Path: "review.resolutions", Message: fmt.Sprintf("finding %q has multiple resolution verdicts (%s and %s)", findingID, prior, resolution.Status)}},
 				}
@@ -664,9 +631,8 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		}
 	}
 	if len(missing) > 0 {
-		return AggregateResult{
+		return completionResult{
 			OK:      false,
-			Command: "review aggregate",
 			Summary: "Review round is missing required submissions.",
 			Errors:  []CommandError{{Path: "submissions", Message: fmt.Sprintf("missing submissions for slots: %s", strings.Join(missing, ", "))}},
 		}
@@ -702,7 +668,6 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 	aggregate := Aggregate{
 		RoundID:                    roundID,
 		Kind:                       manifest.Kind,
-		Step:                       manifest.Step,
 		Revision:                   manifest.Revision,
 		ReviewTitle:                manifest.ReviewTitle,
 		ReviewedHeadSHA:            manifest.ReviewedHeadSHA,
@@ -717,22 +682,20 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 	}
 	state, _, err = runstate.LoadState(s.Workdir, planStem)
 	if err != nil {
-		return AggregateResult{
+		return completionResult{
 			OK:      false,
-			Command: "review aggregate",
 			Summary: "Unable to reload local harness state before persisting the aggregate.",
 			Errors:  []CommandError{{Path: "state", Message: sanitizedReadMessage("local harness state", err)}},
 		}
 	}
-	if guard := activeAggregateRoundError(state, roundID); guard != nil {
+	if guard := activeCompletionRoundError(state, roundID); guard != nil {
 		return *guard
 	}
 	originalState := cloneState(state)
 	previousAggregate, previousAggregateExists, err := readFileIfExists(manifest.Aggregate)
 	if err != nil {
-		return AggregateResult{
+		return completionResult{
 			OK:      false,
-			Command: "review aggregate",
 			Summary: "Unable to snapshot the previous aggregate artifact.",
 			Errors:  []CommandError{{Path: "review.decision", Message: sanitizedReadMessage("the previous review decision", err)}},
 		}
@@ -745,17 +708,15 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 		} else {
 			message = fmt.Sprintf("round captured %s but current HEAD is %s", manifest.ReviewedHeadSHA, confirmedCandidate.HeadSHA)
 		}
-		return AggregateResult{
+		return completionResult{
 			OK:      false,
-			Command: "review aggregate",
 			Summary: "Review candidate changed before aggregate persistence.",
 			Errors:  []CommandError{{Path: "review.reviewed_head_sha", Message: message}},
 		}
 	}
 	if err := writeJSON(manifest.Aggregate, aggregate); err != nil {
-		return AggregateResult{
+		return completionResult{
 			OK:      false,
-			Command: "review aggregate",
 			Summary: "Unable to persist the aggregate review result.",
 			Errors:  []CommandError{{Path: "review.decision", Message: sanitizedWriteMessage("the persisted review decision", err)}},
 		}
@@ -767,55 +728,41 @@ func (s Service) Aggregate(roundID string) AggregateResult {
 	state.ActiveReviewRound = &runstate.ReviewRound{
 		RoundID:    manifest.RoundID,
 		Kind:       manifest.Kind,
-		Step:       manifest.Step,
 		Revision:   manifest.Revision,
 		Aggregated: true,
 		Decision:   decision,
 	}
-	if manifest.Step == nil {
-		chain, coverageErr := reviewcoverage.Resolve(s.Workdir, planStem, manifest.RoundID, manifest.Revision)
-		if coverageErr != nil {
-			issues := restoreJSONFileSnapshot(manifest.Aggregate, previousAggregate, previousAggregateExists, "aggregate")
-			return AggregateResult{
-				OK:      false,
-				Command: "review aggregate",
-				Summary: "Unable to establish continuous finalize review coverage.",
-				Errors:  append([]CommandError{{Path: "review.coverage", Message: coverageErr.Error()}}, issues...),
-			}
+	chain, coverageErr := reviewcoverage.Resolve(s.Workdir, planStem, manifest.RoundID, manifest.Revision)
+	if coverageErr != nil {
+		issues := restoreJSONFileSnapshot(manifest.Aggregate, previousAggregate, previousAggregateExists, "aggregate")
+		return completionResult{
+			OK:      false,
+			Summary: "Unable to establish continuous finalize review coverage.",
+			Errors:  append([]CommandError{{Path: "review.coverage", Message: coverageErr.Error()}}, issues...),
 		}
-		state.FinalizeCoverage = reviewcoverage.StateFromChain(chain)
 	}
+	state.FinalizeCoverage = reviewcoverage.StateFromChain(chain)
 	statePath, err = saveState(s.Workdir, planStem, state)
 	if err != nil {
 		issues := restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
 		issues = append(issues, restoreJSONFileSnapshot(manifest.Aggregate, previousAggregate, previousAggregateExists, "aggregate")...)
 		issues = append([]CommandError{{Path: "state", Message: sanitizedWriteMessage("local harness state", err)}}, issues...)
-		return AggregateResult{
+		return completionResult{
 			OK:      false,
-			Command: "review aggregate",
 			Summary: "Unable to persist local harness state.",
 			Errors:  issues,
 		}
 	}
 
-	return s.finalizeAggregate(AggregateResult{
+	return completionResult{
 		OK:      true,
-		Command: "review aggregate",
 		Summary: buildAggregateSummary(manifest, decision, len(unresolvedBlocking), len(nonBlocking)),
-		Artifacts: &AggregateArtifacts{
-			ProjectRoot: s.Workdir,
-			RoundID:     roundID,
-		},
-		Review:     &aggregate,
-		NextAction: buildAggregateNextActions(manifest, decision),
-	}, func() []CommandError {
-		issues := restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)
-		issues = append(issues, restoreJSONFileSnapshot(manifest.Aggregate, previousAggregate, previousAggregateExists, "aggregate")...)
-		return issues
-	})
+		Review:  &aggregate,
+	}
 }
 
-// review start and review aggregate both mutate review artifacts plus state.json.
+// Review start and reviewer submission completion both mutate review artifacts
+// plus state.json.
 // Keep the review lock outermost so future edits cannot drift into a different
 // acquisition order than the rest of the review command family expects.
 func (s Service) acquireReviewAndStateMutationLocks() (*reviewDualMutationLocks, *reviewMutationLockFailure) {
@@ -844,22 +791,20 @@ func (s Service) acquireReviewAndStateMutationLocks() (*reviewDualMutationLocks,
 	}, nil
 }
 
-func activeAggregateRoundError(state *runstate.State, roundID string) *AggregateResult {
+func activeCompletionRoundError(state *runstate.State, roundID string) *completionResult {
 	if state == nil || state.ActiveReviewRound == nil {
-		return &AggregateResult{
+		return &completionResult{
 			OK:      false,
-			Command: "review aggregate",
-			Summary: "No active review round is available to aggregate.",
-			Errors:  []CommandError{{Path: "round", Message: "review aggregate only supports the current active review round"}},
+			Summary: "No active review round is available to complete.",
+			Errors:  []CommandError{{Path: "round", Message: "review submit only supports the current active review round"}},
 		}
 	}
 	if state.ActiveReviewRound.RoundID == roundID {
 		return nil
 	}
-	return &AggregateResult{
+	return &completionResult{
 		OK:      false,
-		Command: "review aggregate",
-		Summary: "Only the current active review round can be aggregated.",
+		Summary: "Only the current active review round can be completed.",
 		Errors: []CommandError{{
 			Path:    "round",
 			Message: fmt.Sprintf("round %q is not the current active review round %q", roundID, state.ActiveReviewRound.RoundID),
@@ -884,7 +829,7 @@ func (s Service) acquireReviewMutationLock() (string, func(), error) {
 	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		_ = file.Close()
 		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
-			return "", nil, fmt.Errorf("another review start or aggregate command is already mutating plan %q; retry after it finishes", planStem)
+			return "", nil, fmt.Errorf("another review command is already mutating plan %q; retry after it finishes", planStem)
 		}
 		return "", nil, err
 	}
@@ -952,17 +897,12 @@ func (s Service) loadCurrentExecutingPlan(lockedPlanPath string) (string, *plan.
 	return planPath, doc, planStem, relPlanPath, state, statePath, nil
 }
 
-func surfacedReviewAssignments(workdir string, assignments []ManifestAssignment) []ManifestAssignment {
-	if len(assignments) == 0 {
-		return nil
+func surfacedReviewAssignment(workdir string, assignment ManifestAssignment) *contracts.ReviewHandle {
+	return &contracts.ReviewHandle{
+		Instructions:   assignment.Instructions,
+		ReviewFocus:    assignment.ReviewFocus,
+		SubmissionPath: repoFacingReviewPath(workdir, assignment.SubmissionPath),
 	}
-	surfaced := make([]ManifestAssignment, 0, len(assignments))
-	for _, assignment := range assignments {
-		next := assignment
-		next.SubmissionPath = repoFacingReviewPath(workdir, assignment.SubmissionPath)
-		surfaced = append(surfaced, next)
-	}
-	return surfaced
 }
 
 func repoFacingReviewPath(workdir, path string) string {
@@ -986,104 +926,33 @@ func repoFacingReviewPath(workdir, path string) string {
 	return filepath.ToSlash(filepath.Clean(relPath))
 }
 
-func validateSpec(spec Spec) []CommandError {
-	issues := make([]CommandError, 0)
-	if !slices.Contains([]string{"delta", "full"}, spec.Kind) {
-		issues = append(issues, CommandError{Path: "spec.kind", Message: "must be delta or full"})
+func inferFinalizeSpec(workdir, planStem string, state *runstate.State, forceFull bool) (inferredSpec, error) {
+	if forceFull || state == nil || state.FinalizeCoverage == nil || strings.TrimSpace(state.FinalizeCoverage.TipRoundID) == "" {
+		return inferredSpec{Kind: "full"}, nil
 	}
-	if spec.Kind == "delta" && strings.TrimSpace(spec.AnchorSHA) == "" {
-		issues = append(issues, CommandError{Path: "spec.anchor_sha", Message: "must not be empty for delta review"})
+	coverage := state.FinalizeCoverage
+	parent, err := reviewcoverage.LoadRound(workdir, planStem, coverage.TipRoundID)
+	if err != nil {
+		return inferredSpec{}, fmt.Errorf("load current finalize coverage tip: %w", err)
 	}
-	if spec.Step != nil && *spec.Step <= 0 {
-		issues = append(issues, CommandError{Path: "spec.step", Message: "must be a positive 1-based step number"})
+	anchor := strings.TrimSpace(coverage.CoveredHeadSHA)
+	if anchor == "" {
+		anchor = strings.TrimSpace(parent.Manifest.ReviewedHeadSHA)
 	}
-	if spec.Repair != nil {
-		if spec.Kind != "delta" {
-			issues = append(issues, CommandError{Path: "spec.repair", Message: "is only valid for delta review"})
-		}
-		if strings.TrimSpace(spec.Repair.RoundID) == "" {
-			issues = append(issues, CommandError{Path: "spec.repair.round_id", Message: "must not be empty"})
-		}
-		seenFindingIDs := map[string]bool{}
-		for i, findingID := range spec.Repair.FindingIDs {
-			findingID = strings.TrimSpace(findingID)
-			if findingID == "" {
-				issues = append(issues, CommandError{Path: fmt.Sprintf("spec.repair.finding_ids[%d]", i), Message: "must not be empty"})
-			} else if seenFindingIDs[findingID] {
-				issues = append(issues, CommandError{Path: fmt.Sprintf("spec.repair.finding_ids[%d]", i), Message: fmt.Sprintf("duplicates finding id %q", findingID)})
-			}
-			seenFindingIDs[findingID] = true
-		}
+	if anchor == "" {
+		return inferredSpec{}, fmt.Errorf("current finalize coverage tip has no reviewed head")
 	}
-	if len(spec.Assignments) == 0 {
-		issues = append(issues, CommandError{Path: "spec.assignments", Message: "must contain at least one reviewer assignment"})
-	}
-	seenSlots := map[string]bool{}
-	for i, assignment := range spec.Assignments {
-		pathPrefix := fmt.Sprintf("spec.assignments[%d]", i)
-		slot := strings.TrimSpace(assignment.Slot)
-		if !reviewdimensions.ValidName(slot) {
-			issues = append(issues, CommandError{Path: pathPrefix + ".slot", Message: "must use lowercase alphanumeric segments separated by single hyphens"})
-		}
-		if !slices.Contains([]string{"integrated", "specialist"}, assignment.Role) {
-			issues = append(issues, CommandError{Path: pathPrefix + ".role", Message: "must be integrated or specialist"})
-		}
-		if strings.TrimSpace(assignment.Instructions) == "" {
-			issues = append(issues, CommandError{Path: pathPrefix + ".instructions", Message: "must not be empty"})
-		}
-		if len(assignment.Dimensions) == 0 {
-			issues = append(issues, CommandError{Path: pathPrefix + ".dimensions", Message: "must contain at least one guidance dimension"})
-		}
-		if seenSlots[slot] {
-			issues = append(issues, CommandError{Path: pathPrefix + ".slot", Message: fmt.Sprintf("duplicates slot %q", slot)})
-		}
-		seenSlots[slot] = true
-		seenDimensions := map[string]bool{}
-		for j, dimension := range assignment.Dimensions {
-			dimension = strings.TrimSpace(dimension)
-			if !reviewdimensions.ValidName(dimension) {
-				issues = append(issues, CommandError{Path: fmt.Sprintf("%s.dimensions[%d]", pathPrefix, j), Message: "must use lowercase alphanumeric segments separated by single hyphens"})
-			} else if seenDimensions[dimension] {
-				issues = append(issues, CommandError{Path: fmt.Sprintf("%s.dimensions[%d]", pathPrefix, j), Message: fmt.Sprintf("duplicates dimension %q", dimension)})
-			}
-			seenDimensions[dimension] = true
-		}
-		if assignment.Role == "specialist" {
-			if assignment.RiskBrief == nil {
-				issues = append(issues, CommandError{Path: pathPrefix + ".risk_brief", Message: "is required for specialist assignments"})
-			} else {
-				issues = append(issues, validateRiskBrief(pathPrefix+".risk_brief", assignment.RiskBrief)...)
-			}
-		} else if assignment.RiskBrief != nil {
-			issues = append(issues, CommandError{Path: pathPrefix + ".risk_brief", Message: "must be omitted for integrated assignments"})
-		}
-	}
-	return issues
+	return inferredSpec{
+		Kind:      "delta",
+		AnchorSHA: anchor,
+		Repair: &RepairReference{
+			RoundID:    coverage.TipRoundID,
+			FindingIDs: append([]string(nil), parent.Aggregate.UnresolvedFindingIDs...),
+		},
+	}, nil
 }
 
-func validateAssignmentTopology(spec Spec, inferredStep *int) []CommandError {
-	if spec.Kind != "full" || inferredStep != nil {
-		return nil
-	}
-	count := 0
-	for _, assignment := range spec.Assignments {
-		if assignment.Role == "integrated" {
-			count++
-		}
-	}
-	if count != 1 {
-		return []CommandError{{Path: "spec.assignments", Message: "a full finalize review requires exactly one integrated assignment"}}
-	}
-	return nil
-}
-
-func validateRepairLink(workdir, planStem string, state *runstate.State, spec Spec, inferredStep *int, revision int) []CommandError {
-	if inferredStep != nil {
-		if spec.Repair != nil {
-			return []CommandError{{Path: "spec.repair", Message: "is only valid for finalize repair deltas"}}
-		}
-		return nil
-	}
+func validateRepairLink(workdir, planStem string, state *runstate.State, spec inferredSpec, revision int) []CommandError {
 	if spec.Kind == "full" {
 		if spec.Repair != nil {
 			return []CommandError{{Path: "spec.repair", Message: "must be omitted when a full review resets finalize coverage"}}
@@ -1103,9 +972,6 @@ func validateRepairLink(workdir, planStem string, state *runstate.State, spec Sp
 	parent, err := reviewcoverage.LoadRound(workdir, planStem, parentID)
 	if err != nil {
 		return []CommandError{{Path: "spec.repair.round_id", Message: err.Error()}}
-	}
-	if parent.Manifest.Step != nil {
-		return []CommandError{{Path: "spec.repair.round_id", Message: "must reference a finalize review round"}}
 	}
 	if spec.AnchorSHA != parent.Manifest.ReviewedHeadSHA {
 		return []CommandError{{Path: "spec.anchor_sha", Message: fmt.Sprintf("must equal parent reviewed head %s", parent.Manifest.ReviewedHeadSHA)}}
@@ -1145,65 +1011,8 @@ func validateRepairLink(workdir, planStem string, state *runstate.State, spec Sp
 	return issues
 }
 
-func validateRiskBrief(path string, brief *RiskBrief) []CommandError {
-	issues := make([]CommandError, 0)
-	if len(brief.RiskSurfaces) == 0 {
-		issues = append(issues, CommandError{Path: path + ".risk_surfaces", Message: "must contain at least one concrete risk surface"})
-	}
-	if len(brief.Invariants) == 0 {
-		issues = append(issues, CommandError{Path: path + ".invariants", Message: "must contain at least one invariant"})
-	}
-	for field, values := range map[string][]string{"risk_surfaces": brief.RiskSurfaces, "invariants": brief.Invariants, "failure_modes": brief.FailureModes} {
-		for i, value := range values {
-			if strings.TrimSpace(value) == "" {
-				issues = append(issues, CommandError{Path: fmt.Sprintf("%s.%s[%d]", path, field, i), Message: "must not be empty"})
-			}
-		}
-	}
-	return issues
-}
-
-func validateDeltaAnchor(workdir string, spec Spec) []CommandError {
-	if spec.Kind != "delta" {
-		return nil
-	}
-
-	anchor := strings.TrimSpace(spec.AnchorSHA)
-	if anchor == "" {
-		return nil
-	}
-
-	if _, err := os.Stat(filepath.Join(workdir, ".git")); err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return []CommandError{{
-			Path:    "spec.anchor_sha",
-			Message: fmt.Sprintf("unable to inspect git metadata: %v", err),
-		}}
-	}
-
-	cmd := exec.Command("git", "-C", workdir, "rev-parse", "--verify", anchor+"^{commit}")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		message := strings.TrimSpace(string(output))
-		if message == "" {
-			message = err.Error()
-		}
-		return []CommandError{{
-			Path:    "spec.anchor_sha",
-			Message: fmt.Sprintf("must resolve to a real git commit for delta review: %s", message),
-		}}
-	}
-
-	return nil
-}
-
 func validateSubmission(input SubmissionInput) []CommandError {
 	issues := make([]CommandError, 0)
-	if _, obsolete := input.ExtraFields["dimension"]; obsolete {
-		issues = append(issues, CommandError{Path: "submission.dimension", Message: "is obsolete; findings now carry area and submissions are owned by reviewer assignments"})
-	}
 	if strings.TrimSpace(input.Summary) == "" {
 		issues = append(issues, CommandError{Path: "submission.summary", Message: "must not be empty"})
 	}
@@ -1226,7 +1035,7 @@ func validateSubmission(input SubmissionInput) []CommandError {
 	}
 	for i, finding := range input.Findings {
 		pathPrefix := fmt.Sprintf("submission.findings[%d]", i)
-		if !reviewdimensions.ValidName(finding.Area) {
+		if !findingAreaPattern.MatchString(strings.TrimSpace(finding.Area)) {
 			issues = append(issues, CommandError{Path: pathPrefix + ".area", Message: "must use lowercase alphanumeric segments separated by single hyphens"})
 		}
 		if !slices.Contains([]string{"blocker", "important", "minor"}, finding.Severity) {
@@ -1277,57 +1086,6 @@ func validateSubmissionForManifest(input SubmissionInput, manifest *Manifest) []
 	return issues
 }
 
-func materializeAssignments(workdir, planPath string, specs []AssignmentSpec) ([]ManifestAssignment, []CommandError) {
-	assignments := make([]ManifestAssignment, 0, len(specs))
-	for i, spec := range specs {
-		dimensions, err := resolveDimensions(workdir, planPath, spec.Dimensions)
-		if err != nil {
-			return nil, []CommandError{{Path: fmt.Sprintf("spec.assignments[%d].dimensions", i), Message: err.Error()}}
-		}
-		assignments = append(assignments, ManifestAssignment{
-			Slot:         strings.TrimSpace(spec.Slot),
-			Role:         strings.TrimSpace(spec.Role),
-			Dimensions:   dimensions,
-			Instructions: strings.TrimSpace(spec.Instructions),
-			RiskBrief:    cloneRiskBrief(spec.RiskBrief),
-		})
-	}
-	return assignments, nil
-}
-
-func resolveReviewDimensions(workdir, planPath string, names []string) ([]ResolvedDimension, error) {
-	service := reviewdimensions.Service{Workdir: workdir}
-	resolved := make([]ResolvedDimension, 0, len(names))
-	for _, name := range names {
-		dimension, warnings, issues := service.ResolveForPlan(planPath, strings.TrimSpace(name))
-		if len(issues) > 0 {
-			return nil, fmt.Errorf("unable to resolve dimension %q: %s", name, issues[0].Message)
-		}
-		if len(warnings) > 0 {
-			return nil, fmt.Errorf("unable to resolve dimension %q cleanly: %s", name, warnings[0])
-		}
-		resolved = append(resolved, ResolvedDimension{
-			Name:         dimension.Name,
-			Sources:      append([]string(nil), dimension.Sources...),
-			Description:  dimension.Description,
-			Instructions: dimension.Instructions,
-			PlanPath:     dimension.PlanPath,
-		})
-	}
-	return resolved, nil
-}
-
-func cloneRiskBrief(brief *RiskBrief) *RiskBrief {
-	if brief == nil {
-		return nil
-	}
-	return &RiskBrief{
-		RiskSurfaces: append([]string(nil), brief.RiskSurfaces...),
-		Invariants:   append([]string(nil), brief.Invariants...),
-		FailureModes: append([]string(nil), brief.FailureModes...),
-	}
-}
-
 func cloneRepairReference(reference *RepairReference) *RepairReference {
 	if reference == nil {
 		return nil
@@ -1357,8 +1115,8 @@ func validateStoredSubmission(submission Submission) []CommandError {
 	if strings.TrimSpace(submission.Slot) == "" {
 		issues = append(issues, CommandError{Path: "submission.slot", Message: "must not be empty"})
 	}
-	if !slices.Contains([]string{"integrated", "specialist"}, submission.Role) {
-		issues = append(issues, CommandError{Path: "submission.role", Message: "must be integrated or specialist"})
+	if submission.Role != "integrated" {
+		issues = append(issues, CommandError{Path: "submission.role", Message: "must be integrated"})
 	}
 	if strings.TrimSpace(submission.SubmittedAt) == "" {
 		issues = append(issues, CommandError{Path: "submission.submitted_at", Message: "must not be empty"})
@@ -1367,7 +1125,6 @@ func validateStoredSubmission(submission Submission) []CommandError {
 		Summary:     submission.Summary,
 		Resolutions: submission.Resolutions,
 		Findings:    submission.Findings,
-		ExtraFields: submission.ExtraFields,
 	})...)
 	return issues
 }
@@ -1399,17 +1156,6 @@ func cloneLocations(locations []string, present bool) []string {
 	return append([]string(nil), locations...)
 }
 
-func cloneRawFields(fields map[string]json.RawMessage) map[string]json.RawMessage {
-	if len(fields) == 0 {
-		return nil
-	}
-	cloned := make(map[string]json.RawMessage, len(fields))
-	for key, value := range fields {
-		cloned[key] = append(json.RawMessage(nil), value...)
-	}
-	return cloned
-}
-
 func newSubmissionSkeleton(roundID string, assignment ManifestAssignment) map[string]any {
 	return map[string]any{
 		"round_id":    roundID,
@@ -1418,12 +1164,6 @@ func newSubmissionSkeleton(roundID string, assignment ManifestAssignment) map[st
 		"summary":     "",
 		"resolutions": []FindingResolution{},
 		"findings":    []Finding{},
-		"worklog": map[string]any{
-			"full_plan_read":     false,
-			"checked_areas":      []string{},
-			"open_questions":     []string{},
-			"candidate_findings": []string{},
-		},
 	}
 }
 
@@ -1467,91 +1207,6 @@ func nextRoundSequence(workdir, planStem string) (int, error) {
 
 func formatRoundID(sequence int, kind string) string {
 	return fmt.Sprintf("review-%03d-%s", sequence, kind)
-}
-
-func inferReviewBinding(_ string, _ string, doc *plan.Document, state *runstate.State, spec Spec) (*int, int, string, error) {
-	revision := runstate.CurrentRevision(state)
-	if stepIndex, ok, err := inferReviewStepIndex(doc, state, spec); err != nil {
-		return nil, 0, "", err
-	} else if ok {
-		reviewTitle := strings.TrimSpace(spec.ReviewTitle)
-		if reviewTitle == "" {
-			reviewTitle = doc.Steps[stepIndex].Title
-		}
-		stepNumber := stepIndex + 1
-		return &stepNumber, revision, reviewTitle, nil
-	}
-
-	if pendingNewStepReopen(doc, state) {
-		return nil, 0, "", fmt.Errorf("reopen mode new-step still requires a new unfinished step before review can start")
-	}
-	if !doc.AllStepsCompleted() {
-		return nil, 0, "", fmt.Errorf("no reviewable tracked step could be inferred; set spec.step to select a tracked step explicitly")
-	}
-	if state != nil && state.ActiveReviewRound != nil && state.ActiveReviewRound.Step != nil &&
-		(!state.ActiveReviewRound.Aggregated || state.ActiveReviewRound.Decision != "pass") {
-		return nil, 0, "", fmt.Errorf("intentional step review %s must be aggregated and clean before finalize review", state.ActiveReviewRound.RoundID)
-	}
-
-	reviewTitle := strings.TrimSpace(spec.ReviewTitle)
-	if reviewTitle == "" {
-		if spec.Kind == "full" {
-			reviewTitle = "Full branch candidate before archive"
-		} else {
-			reviewTitle = "Branch candidate before archive"
-		}
-	}
-	return nil, revision, reviewTitle, nil
-}
-
-// Once an intentional step review starts, it owns that step's review boundary
-// until aggregation completes. A failed aggregate may be superseded only by a
-// repair or rerun bound to the same step; otherwise a different step could
-// silently erase the explicit review debt from local state.
-func validateStartedStepReviewOwnership(state *runstate.State, inferredStep *int) error {
-	if state == nil || state.ActiveReviewRound == nil || state.ActiveReviewRound.Step == nil {
-		return nil
-	}
-	active := state.ActiveReviewRound
-	if !active.Aggregated {
-		return fmt.Errorf("intentional step review %s for step %d must be aggregated before another review starts", active.RoundID, *active.Step)
-	}
-	if active.Decision == "pass" {
-		return nil
-	}
-	if inferredStep == nil || *inferredStep != *active.Step {
-		return fmt.Errorf("intentional step review %s for step %d is unresolved; only a same-step repair or rerun may supersede it", active.RoundID, *active.Step)
-	}
-	return nil
-}
-
-func inferReviewStepIndex(doc *plan.Document, state *runstate.State, spec Spec) (int, bool, error) {
-	if doc == nil {
-		return 0, false, fmt.Errorf("current plan is unavailable")
-	}
-	if spec.Step != nil {
-		index := *spec.Step - 1
-		if index < 0 || index >= len(doc.Steps) {
-			return 0, false, fmt.Errorf("spec.step=%d does not match a tracked step", *spec.Step)
-		}
-		return index, true, nil
-	}
-	if current := currentStepIndex(doc); current >= 0 {
-		return current, true, nil
-	}
-	return 0, false, nil
-}
-
-func currentStepIndex(doc *plan.Document) int {
-	if doc == nil {
-		return -1
-	}
-	for index, step := range doc.Steps {
-		if !step.Done {
-			return index
-		}
-	}
-	return -1
 }
 
 func pendingNewStepReopen(doc *plan.Document, state *runstate.State) bool {
@@ -1632,35 +1287,7 @@ func buildAggregateSummary(manifest *Manifest, decision string, unresolvedBlocki
 	return fmt.Sprintf("%s review has %d unresolved blocking and %d non-blocking finding(s).", scope, unresolvedBlocking, nonBlocking)
 }
 
-func buildAggregateNextActions(manifest *Manifest, decision string) []NextAction {
-	if decision == "pass" {
-		if manifest.Step != nil {
-			return []NextAction{{
-				Command:     nil,
-				Description: "Continue the current step or mark it complete, then update the step's Execution Notes and Review Notes.",
-			}}
-		}
-		return []NextAction{{
-			Command:     nil,
-			Description: "Move toward final CI and archive readiness for the current candidate.",
-		}}
-	}
-	if manifest.Step != nil {
-		return []NextAction{{
-			Command:     nil,
-			Description: "Fix the unresolved step findings and start a same-step repair or rerun before ordinary progression resumes.",
-		}}
-	}
-	return []NextAction{{
-		Command:     nil,
-		Description: "Fix the unresolved finalize findings and run a linked repair delta; rerun full review only if the candidate design, scope, or risk changed materially.",
-	}}
-}
-
 func aggregateWorkflowScope(manifest *Manifest) string {
-	if manifest.Step != nil {
-		return fmt.Sprintf("Step %d", *manifest.Step)
-	}
 	if manifest.Repair != nil {
 		return "Finalize repair"
 	}
@@ -1713,31 +1340,6 @@ func (s Service) finalizeSubmit(result SubmitResult, rollback func() []CommandEr
 	}
 	if s.AfterSubmitSuccess != nil {
 		s.AfterSubmitSuccess(result)
-	}
-	return result
-}
-
-func (s Service) finalizeAggregate(result AggregateResult, rollback func() []CommandError) AggregateResult {
-	if !result.OK || s.AfterAggregate == nil {
-		if result.OK && s.AfterAggregateSuccess != nil {
-			s.AfterAggregateSuccess(result)
-		}
-		return result
-	}
-	if err := s.AfterAggregate(result); err != nil {
-		issues := []CommandError{{Path: "timeline", Message: "Unable to record the review timeline event."}}
-		if rollback != nil {
-			issues = append(issues, rollback()...)
-		}
-		return AggregateResult{
-			OK:      false,
-			Command: result.Command,
-			Summary: "Unable to record the timeline event for the successful command result.",
-			Errors:  issues,
-		}
-	}
-	if s.AfterAggregateSuccess != nil {
-		s.AfterAggregateSuccess(result)
 	}
 	return result
 }

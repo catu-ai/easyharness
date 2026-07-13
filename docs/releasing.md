@@ -85,7 +85,11 @@ remain, and whether a post-publication repair is needed.
 
 Release PR separation is a team convention rather than a repository-enforced
 rule. The expected path is that a release PR contains the `VERSION` bump and
-any release-doc updates, while ordinary feature PRs leave `VERSION` alone.
+any release-doc updates, while ordinary feature PRs leave `VERSION` alone. An
+explicitly approved release-candidate plan may combine the coherent feature
+slice and prerelease bump when immediate dogfood is part of the release goal;
+that exception still requires the release-ready validation profile and normal
+post-merge publication checks.
 
 You can still use the `Release` workflow-dispatch path to republish assets for
 an existing `v*` tag without creating a second tag. The workflow rejects

@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/dashboard"
 	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/helptopics"
@@ -24,7 +23,6 @@ import (
 	"github.com/catu-ai/easyharness/internal/remote"
 	"github.com/catu-ai/easyharness/internal/repoconfig"
 	"github.com/catu-ai/easyharness/internal/review"
-	"github.com/catu-ai/easyharness/internal/reviewdimensions"
 	"github.com/catu-ai/easyharness/internal/runstate"
 	"github.com/catu-ai/easyharness/internal/status"
 	"github.com/catu-ai/easyharness/internal/ui"
@@ -167,36 +165,12 @@ func (a *App) runReview(args []string) int {
 		return a.runReviewStart(args[1:])
 	case "submit":
 		return a.runReviewSubmit(args[1:])
-	case "aggregate":
-		return a.runReviewAggregate(args[1:])
-	case "dimensions":
-		return a.runReviewDimensions(args[1:])
 	case "-h", "--help", "help":
 		a.printReviewUsage()
 		return 0
 	default:
 		fmt.Fprintf(a.Stderr, "unknown review subcommand %q\n\n", args[0])
 		a.printReviewUsage()
-		return 2
-	}
-}
-
-func (a *App) runReviewDimensions(args []string) int {
-	if len(args) == 0 {
-		a.printReviewDimensionsUsage()
-		return 2
-	}
-	switch args[0] {
-	case "list":
-		return a.runReviewDimensionsList(args[1:])
-	case "instructions":
-		return a.runReviewDimensionsInstructions(args[1:])
-	case "-h", "--help", "help":
-		a.printReviewDimensionsUsage()
-		return 0
-	default:
-		fmt.Fprintf(a.Stderr, "unknown review dimensions subcommand %q\n\n", args[0])
-		a.printReviewDimensionsUsage()
 		return 2
 	}
 }
@@ -1097,13 +1071,12 @@ func (a *App) settleStatusSnapshot(workdir string) (status.Result, bool) {
 func (a *App) runReviewStart(args []string) int {
 	fs := flag.NewFlagSet("harness review start", flag.ContinueOnError)
 	fs.SetOutput(a.Stderr)
-	specPath := fs.String("spec", "", "Read the review spec JSON from this path. Defaults to stdin.")
+	forceFull := fs.Bool("full", false, "Start a new full coverage root instead of the inferred linked delta.")
 	fs.Usage = func() {
-		fmt.Fprintln(a.Stderr, "Usage: harness review start [--spec <path>]")
+		fmt.Fprintln(a.Stderr, "Usage: harness review start [--full]")
 		fmt.Fprintln(a.Stderr)
-		fmt.Fprintln(a.Stderr, "Create a deterministic review round from a minimal review spec.")
-		fmt.Fprintln(a.Stderr, "The spec must include `kind` and `dimensions`, and may include optional `review_title` or `step`.")
-		fmt.Fprintln(a.Stderr, "Harness infers whether the round is step-bound or finalize-bound from the current workflow state.")
+		fmt.Fprintln(a.Stderr, "Create the mandatory integrated finalize review round.")
+		fmt.Fprintln(a.Stderr, "The first round is full; later rounds infer a linked delta unless --full deliberately resets coverage.")
 	}
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -1120,18 +1093,13 @@ func (a *App) runReviewStart(args []string) int {
 		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
 		return 1
 	}
-	specBytes, err := a.readInput(*specPath)
-	if err != nil {
-		fmt.Fprintf(a.Stderr, "read review spec: %v\n", err)
-		return 1
-	}
 	recordedAt := a.Now().Format(time.RFC3339)
 	beforeStatus := readStatusSnapshot(workdir)
 	result := review.Service{
 		Workdir:    workdir,
 		Now:        a.Now,
-		AfterStart: reviewStartTimelineHook(workdir, beforeStatus, recordedAt, specBytes),
-	}.Start(specBytes)
+		AfterStart: reviewStartTimelineHook(workdir, beforeStatus, recordedAt, map[string]any{"force_full": *forceFull}),
+	}.Start(review.StartOptions{ForceFull: *forceFull})
 	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
@@ -1139,13 +1107,12 @@ func (a *App) runReviewSubmit(args []string) int {
 	fs := flag.NewFlagSet("harness review submit", flag.ContinueOnError)
 	fs.SetOutput(a.Stderr)
 	roundID := fs.String("round", "", "Review round ID.")
-	slot := fs.String("slot", "", "Reviewer slot name.")
 	by := fs.String("by", "", "Reviewer identity label for this submission.")
 	inputPath := fs.String("input", "", "Read the reviewer submission JSON from this path. Defaults to stdin.")
 	fs.Usage = func() {
-		fmt.Fprintln(a.Stderr, "Usage: harness review submit --round <round-id> --slot <slot> --by <reviewer-name> [--input <path>]")
+		fmt.Fprintln(a.Stderr, "Usage: harness review submit --round <round-id> --by <reviewer-name> [--input <path>]")
 		fmt.Fprintln(a.Stderr)
-		fmt.Fprintln(a.Stderr, "Record one reviewer submission for the selected review round and slot.")
+		fmt.Fprintln(a.Stderr, "Record the integrated reviewer submission and complete the selected review round.")
 	}
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -1153,7 +1120,7 @@ func (a *App) runReviewSubmit(args []string) int {
 		}
 		return 2
 	}
-	if fs.NArg() != 0 || strings.TrimSpace(*roundID) == "" || strings.TrimSpace(*slot) == "" || strings.TrimSpace(*by) == "" {
+	if fs.NArg() != 0 || strings.TrimSpace(*roundID) == "" || strings.TrimSpace(*by) == "" {
 		fs.Usage()
 		return 2
 	}
@@ -1176,110 +1143,8 @@ func (a *App) runReviewSubmit(args []string) int {
 			"by":    strings.TrimSpace(*by),
 			"input": json.RawMessage(inputBytes),
 		}),
-	}.Submit(*roundID, *slot, *by, inputBytes)
+	}.Submit(*roundID, *by, inputBytes)
 	return a.writeJSONResultForWorkdir(workdir, result)
-}
-
-func (a *App) runReviewAggregate(args []string) int {
-	fs := flag.NewFlagSet("harness review aggregate", flag.ContinueOnError)
-	fs.SetOutput(a.Stderr)
-	roundID := fs.String("round", "", "Review round ID.")
-	fs.Usage = func() {
-		fmt.Fprintln(a.Stderr, "Usage: harness review aggregate --round <round-id>")
-		fmt.Fprintln(a.Stderr)
-		fmt.Fprintln(a.Stderr, "Aggregate reviewer submissions into a decision surface for the controller agent.")
-	}
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
-		}
-		return 2
-	}
-	if fs.NArg() != 0 || strings.TrimSpace(*roundID) == "" {
-		fs.Usage()
-		return 2
-	}
-	workdir, err := a.Getwd()
-	if err != nil {
-		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
-		return 1
-	}
-	recordedAt := a.Now().Format(time.RFC3339)
-	beforeStatus := readStatusSnapshot(workdir)
-	result := review.Service{
-		Workdir:        workdir,
-		Now:            a.Now,
-		AfterAggregate: reviewAggregateTimelineHook(workdir, beforeStatus, recordedAt, map[string]any{"round_id": *roundID}),
-	}.Aggregate(*roundID)
-	return a.writeJSONResultForWorkdir(workdir, result)
-}
-
-func (a *App) runReviewDimensionsList(args []string) int {
-	fs := flag.NewFlagSet("harness review dimensions list", flag.ContinueOnError)
-	fs.SetOutput(a.Stderr)
-	fs.Usage = func() {
-		fmt.Fprintln(a.Stderr, "Usage: harness review dimensions list")
-		fmt.Fprintln(a.Stderr)
-		fmt.Fprintln(a.Stderr, "Print controller-facing review dimension metadata as JSON.")
-	}
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
-		}
-		return 2
-	}
-	if fs.NArg() != 0 {
-		fs.Usage()
-		return 2
-	}
-	workdir, err := a.Getwd()
-	if err != nil {
-		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
-		return 1
-	}
-	result := reviewdimensions.Service{Workdir: workdir}.List()
-	return a.writeJSONResult(result)
-}
-
-func (a *App) runReviewDimensionsInstructions(args []string) int {
-	fs := flag.NewFlagSet("harness review dimensions instructions", flag.ContinueOnError)
-	fs.SetOutput(a.Stderr)
-	fs.Usage = func() {
-		fmt.Fprintln(a.Stderr, "Usage: harness review dimensions instructions <name>")
-		fmt.Fprintln(a.Stderr)
-		fmt.Fprintln(a.Stderr, "Print the raw Markdown instructions for one review dimension.")
-	}
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
-		}
-		return 2
-	}
-	if fs.NArg() != 1 {
-		fs.Usage()
-		return 2
-	}
-	workdir, err := a.Getwd()
-	if err != nil {
-		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
-		return 1
-	}
-	instructions, warnings, issues := reviewdimensions.Service{Workdir: workdir}.Instructions(fs.Arg(0))
-	for _, warning := range warnings {
-		fmt.Fprintln(a.Stderr, warning)
-	}
-	if len(issues) > 0 {
-		for _, issue := range issues {
-			if strings.TrimSpace(issue.Path) != "" {
-				fmt.Fprintf(a.Stderr, "%s: %s\n", issue.Path, issue.Message)
-			} else {
-				fmt.Fprintln(a.Stderr, issue.Message)
-			}
-		}
-		return 1
-	}
-	fmt.Fprintln(a.Stdout, instructions)
-	return 0
 }
 
 func (a *App) runExecuteStart(args []string) int {
@@ -1449,9 +1314,7 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "  evidence submit Record append-only CI, publish, or sync evidence")
 	fmt.Fprintln(a.Stderr, "  evidence refresh Refresh CI and sync evidence from a recorded PR")
 	fmt.Fprintln(a.Stderr, "  review start    Create a deterministic review round")
-	fmt.Fprintln(a.Stderr, "  review submit   Record one reviewer submission")
-	fmt.Fprintln(a.Stderr, "  review aggregate Aggregate reviewer submissions")
-	fmt.Fprintln(a.Stderr, "  review dimensions List and read recommended review dimensions")
+	fmt.Fprintln(a.Stderr, "  review submit   Record the integrated reviewer decision")
 	fmt.Fprintln(a.Stderr, "  land            Record merge confirmation and start required post-merge bookkeeping")
 	fmt.Fprintln(a.Stderr, "  land complete   Record required post-merge bookkeeping completion")
 	fmt.Fprintln(a.Stderr, "  archive         Freeze the current active plan")
@@ -1485,17 +1348,7 @@ func (a *App) printReviewUsage() {
 	fmt.Fprintln(a.Stderr)
 	fmt.Fprintln(a.Stderr, "Subcommands:")
 	fmt.Fprintln(a.Stderr, "  start      Create a deterministic review round")
-	fmt.Fprintln(a.Stderr, "  submit     Record one reviewer submission")
-	fmt.Fprintln(a.Stderr, "  aggregate  Aggregate reviewer submissions")
-	fmt.Fprintln(a.Stderr, "  dimensions List and read recommended review dimensions")
-}
-
-func (a *App) printReviewDimensionsUsage() {
-	fmt.Fprintln(a.Stderr, "Usage: harness review dimensions <subcommand> [flags]")
-	fmt.Fprintln(a.Stderr)
-	fmt.Fprintln(a.Stderr, "Subcommands:")
-	fmt.Fprintln(a.Stderr, "  list          Print controller-facing dimension metadata")
-	fmt.Fprintln(a.Stderr, "  instructions  Print raw Markdown instructions for one dimension")
+	fmt.Fprintln(a.Stderr, "  submit     Record the integrated reviewer decision")
 }
 
 func (a *App) printExecuteUsage() {
@@ -1627,14 +1480,6 @@ func (a *App) writeJSONResult(value any) int {
 		if result.OK {
 			return 0
 		}
-	case review.AggregateResult:
-		if result.OK {
-			return 0
-		}
-	case contracts.ReviewDimensionsListResult:
-		if result.OK {
-			return 0
-		}
 	case evidence.Result:
 		if result.OK {
 			return 0
@@ -1657,7 +1502,7 @@ func (a *App) writeJSONResult(value any) int {
 
 func watchlistTouchEnabled(value any) bool {
 	switch value.(type) {
-	case evidence.Result, evidence.RefreshResult, lifecycle.Result, review.AggregateResult, review.StartResult, review.SubmitResult, status.Result:
+	case evidence.Result, evidence.RefreshResult, lifecycle.Result, review.StartResult, review.SubmitResult, status.Result:
 		return true
 	default:
 		return false

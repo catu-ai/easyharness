@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -57,8 +56,6 @@ const (
 	progressStateCurrent = "current"
 	progressStateDone    = "done"
 )
-
-var finalizeProgressPhases = []string{"review", "fix", "archive", "publish", "await_merge"}
 
 func (s Service) Read() Result {
 	file, err := watchlist.Service{
@@ -383,16 +380,20 @@ func buildProgress(doc *plan.Document, statusResult contracts.StatusResult) *Pro
 		return nil
 	}
 
-	nodes := make([]ProgressNode, 0, len(doc.Steps)*2+len(finalizeProgressPhases))
+	nodes := make([]ProgressNode, 0, len(doc.Steps)+1)
 	for index, step := range doc.Steps {
 		stepNumber := index + 1
-		nodes = append(nodes,
-			ProgressNode{Label: fmt.Sprintf("execution/step-%d/implement · %s", stepNumber, step.Title), State: progressStatePending},
-			ProgressNode{Label: fmt.Sprintf("execution/step-%d/review · %s", stepNumber, step.Title), State: progressStatePending},
-		)
+		nodes = append(nodes, ProgressNode{Label: fmt.Sprintf("execution/step-%d/implement · %s", stepNumber, step.Title), State: progressStatePending})
 	}
-	for _, phase := range finalizeProgressPhases {
-		nodes = append(nodes, ProgressNode{Label: "execution/finalize/" + phase, State: progressStatePending})
+	nodes = append(nodes, ProgressNode{Label: "execution/finalize", State: progressStatePending})
+	stepCompleted := completedStepCount(doc)
+	acceptanceCompleted, acceptanceTotal := acceptanceProgress(doc)
+	progress := &Progress{
+		Nodes:               nodes,
+		StepCompleted:       stepCompleted,
+		StepTotal:           len(doc.Steps),
+		AcceptanceCompleted: acceptanceCompleted,
+		AcceptanceTotal:     acceptanceTotal,
 	}
 
 	currentIndex, allDone := progressPosition(doc, statusResult)
@@ -400,10 +401,10 @@ func buildProgress(doc *plan.Document, statusResult contracts.StatusResult) *Pro
 		for i := range nodes {
 			nodes[i].State = progressStateDone
 		}
-		return &Progress{Nodes: nodes}
+		return progress
 	}
 	if currentIndex < 0 {
-		return &Progress{Nodes: nodes}
+		return progress
 	}
 	if currentIndex >= len(nodes) {
 		currentIndex = len(nodes) - 1
@@ -418,22 +419,22 @@ func buildProgress(doc *plan.Document, statusResult contracts.StatusResult) *Pro
 			nodes[i].State = progressStatePending
 		}
 	}
-	return &Progress{Nodes: nodes}
+	return progress
 }
 
 func progressPosition(doc *plan.Document, statusResult contracts.StatusResult) (int, bool) {
 	currentNode := strings.TrimSpace(statusResult.State.CurrentNode)
-	finalizeStart := len(doc.Steps) * 2
+	finalizeIndex := len(doc.Steps)
 	if currentNode == "land" {
-		return finalizeStart + len(finalizeProgressPhases) - 1, true
+		return finalizeIndex, true
 	}
 	if currentNode == "idle" {
 		if statusResult.Artifacts != nil && strings.TrimSpace(statusResult.Artifacts.LastLandedAt) != "" {
-			return finalizeStart + len(finalizeProgressPhases) - 1, true
+			return finalizeIndex, true
 		}
 		if statusResult.Facts != nil {
 			if index := stepIndexForTitle(doc, statusResult.Facts.CurrentStep); index >= 0 {
-				return index * 2, false
+				return index, false
 			}
 		}
 		return -1, false
@@ -442,17 +443,11 @@ func progressPosition(doc *plan.Document, statusResult contracts.StatusResult) (
 		return index, false
 	}
 	if strings.HasPrefix(currentNode, "execution/finalize/") {
-		phase := strings.TrimPrefix(currentNode, "execution/finalize/")
-		for index, candidate := range finalizeProgressPhases {
-			if phase == candidate {
-				return finalizeStart + index, false
-			}
-		}
-		return finalizeStart, false
+		return finalizeIndex, false
 	}
 	if currentNode == "plan" && statusResult.Facts != nil {
 		if index := stepIndexForTitle(doc, statusResult.Facts.CurrentStep); index >= 0 {
-			return index * 2, false
+			return index, false
 		}
 	}
 	return -1, false
@@ -467,15 +462,41 @@ func progressIndexFromStepNode(currentNode string) (int, bool) {
 	if !ok {
 		return 0, false
 	}
-	value, err := strconv.Atoi(stepPart)
-	if err != nil || value <= 0 {
+	var value int
+	if _, err := fmt.Sscanf(stepPart, "%d", &value); err != nil || value <= 0 || phase != "implement" {
 		return 0, false
 	}
-	index := (value - 1) * 2
-	if phase == "review" {
-		index++
+	return value - 1, true
+}
+
+func completedStepCount(doc *plan.Document) int {
+	completed := 0
+	for _, step := range doc.Steps {
+		if step.Done {
+			completed++
+		}
 	}
-	return index, true
+	return completed
+}
+
+func acceptanceProgress(doc *plan.Document) (int, int) {
+	completed := 0
+	total := 0
+	for _, rawLine := range strings.Split(doc.SectionText("Acceptance Criteria"), "\n") {
+		line := strings.TrimSpace(rawLine)
+		if len(line) < 6 || !strings.HasPrefix(line, "- [") || line[4] != ']' {
+			continue
+		}
+		marker := line[3]
+		if marker != ' ' && marker != 'x' && marker != 'X' {
+			continue
+		}
+		total++
+		if marker == 'x' || marker == 'X' {
+			completed++
+		}
+	}
+	return completed, total
 }
 
 func stepIndexForTitle(doc *plan.Document, title string) int {

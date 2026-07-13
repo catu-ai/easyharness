@@ -20,10 +20,8 @@ type Service struct {
 }
 
 type Result = contracts.ReviewResult
-type Artifacts = contracts.ReviewArtifacts
 type Round = contracts.ReviewRoundView
-type Reviewer = contracts.ReviewAssignmentView
-type Artifact = contracts.ReviewArtifactView
+type Reviewer = contracts.ReviewReviewerView
 type ErrorDetail = contracts.ErrorDetail
 type Manifest = contracts.ReviewManifest
 type ManifestAssignment = contracts.ReviewAssignment
@@ -31,9 +29,21 @@ type Ledger = contracts.ReviewLedger
 type LedgerAssignment = contracts.ReviewLedgerAssignment
 type Submission = contracts.ReviewSubmission
 type Aggregate = contracts.ReviewAggregate
-type ReviewFinding = contracts.ReviewFinding
-type AggregateFinding = contracts.ReviewAggregateFinding
-type ReviewerWorklog = contracts.ReviewWorklogView
+type FindingView = contracts.ReviewFindingView
+
+type artifact struct {
+	Status string
+}
+
+type reviewerState struct {
+	Slot        string
+	Role        string
+	Status      string
+	SubmittedAt string
+	Name        string
+	Summary     string
+	Warnings    []string
+}
 
 func (s Service) Read() Result {
 	planPath, err := plan.DetectCurrentPath(s.Workdir)
@@ -71,10 +81,7 @@ func (s Service) Read() Result {
 			OK:       true,
 			Resource: "review",
 			Summary:  "Review data is only shown for the current tracked plan.",
-			Artifacts: &Artifacts{
-				PlanPath: relPlanPath,
-			},
-			Rounds: []Round{},
+			Rounds:   []Round{},
 		}
 	}
 
@@ -89,9 +96,6 @@ func (s Service) Read() Result {
 			OK:       true,
 			Resource: "review",
 			Summary:  "Review data is hidden once required post-merge bookkeeping begins.",
-			Artifacts: &Artifacts{
-				PlanPath: relPlanPath,
-			},
 			Rounds:   []Round{},
 			Warnings: warnings,
 		}
@@ -105,11 +109,8 @@ func (s Service) Read() Result {
 			OK:       false,
 			Resource: "review",
 			Summary:  "Unable to enumerate review rounds for the current plan.",
-			Artifacts: &Artifacts{
-				PlanPath: relPlanPath,
-			},
-			Errors: []ErrorDetail{{Path: "reviews", Message: "Unable to enumerate review rounds for the current plan."}},
-			Rounds: []Round{},
+			Errors:   []ErrorDetail{{Path: "reviews", Message: "Unable to enumerate review rounds for the current plan."}},
+			Rounds:   []Round{},
 		}
 	}
 
@@ -132,10 +133,6 @@ func (s Service) Read() Result {
 		OK:       true,
 		Resource: "review",
 		Summary:  summary,
-		Artifacts: &Artifacts{
-			PlanPath:      relPlanPath,
-			ActiveRoundID: activeRoundID,
-		},
 		Rounds:   rounds,
 		Warnings: warnings,
 	}
@@ -267,11 +264,10 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 	ledgerPath := filepath.Join(roundDir, "ledger.json")
 	aggregatePath := filepath.Join(roundDir, "aggregate.json")
 
-	manifestArtifact, manifest, manifestWarning := readJSONArtifact[Manifest]("Manifest", manifestPath, "", validateManifestArtifact)
-	ledgerArtifact, ledger, ledgerWarning := readJSONArtifact[Ledger]("Ledger", ledgerPath, "", validateLedgerArtifact)
-	aggregateArtifact, aggregate, aggregateWarning := readJSONArtifact[Aggregate]("Aggregate", aggregatePath, "", validateAggregateArtifact)
+	manifestArtifact, manifest, manifestWarning := readJSONArtifact[Manifest]("Review metadata", manifestPath, validateManifestArtifact)
+	ledgerArtifact, ledger, ledgerWarning := readJSONArtifact[Ledger]("Review progress", ledgerPath, validateLedgerArtifact)
+	decisionArtifact, aggregate, decisionWarning := readJSONArtifact[Aggregate]("Decision", aggregatePath, validateAggregateArtifact)
 
-	artifacts := []Artifact{}
 	warnings := make([]string, 0, 8)
 	appendWarning := func(message string) {
 		message = strings.TrimSpace(message)
@@ -283,15 +279,14 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 
 	appendWarning(manifestWarning)
 	appendWarning(ledgerWarning)
-	if aggregateWarning != "" && aggregateArtifact.Status != "missing" {
-		appendWarning(aggregateWarning)
+	if decisionWarning != "" && decisionArtifact.Status != "missing" {
+		appendWarning(decisionWarning)
 	}
 
 	round := Round{
-		RoundID:   roundID,
-		Status:    "unknown",
-		IsActive:  roundID == strings.TrimSpace(activeRoundID),
-		Artifacts: artifacts,
+		RoundID:  roundID,
+		Status:   "unknown",
+		IsActive: roundID == strings.TrimSpace(activeRoundID),
 	}
 
 	if manifest != nil {
@@ -326,7 +321,7 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 		if round.ReviewTitle == "" {
 			round.ReviewTitle = aggregate.ReviewTitle
 		}
-		round.AggregatedAt = aggregate.AggregatedAt
+		round.DecidedAt = aggregate.AggregatedAt
 		round.Decision = aggregate.Decision
 		if round.ReviewedHeadSHA == "" {
 			round.ReviewedHeadSHA = aggregate.ReviewedHeadSHA
@@ -336,11 +331,11 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 			round.RepairFindingIDs = append([]string(nil), aggregate.Repair.FindingIDs...)
 		}
 		if aggregate.UnresolvedBlockingFindings != nil {
-			round.BlockingFindings = aggregate.UnresolvedBlockingFindings
+			round.BlockingFindings = findingViews(aggregate.UnresolvedBlockingFindings)
 		} else {
-			round.BlockingFindings = aggregate.BlockingFindings
+			round.BlockingFindings = findingViews(aggregate.BlockingFindings)
 		}
-		round.NonBlockingFindings = aggregate.NonBlockingFindings
+		round.NonBlockingFindings = findingViews(aggregate.NonBlockingFindings)
 		round.ResolvedFindingIDs = append([]string(nil), aggregate.ResolvedFindingIDs...)
 		round.UnresolvedFindingIDs = append([]string(nil), aggregate.UnresolvedFindingIDs...)
 		switch {
@@ -353,41 +348,37 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 		}
 	}
 
-	reviewers, submissionArtifacts, reviewerWarnings := s.readReviewers(roundDir, manifest, ledger)
-	round.Reviewers = reviewers
-	round.Artifacts = append(round.Artifacts, submissionArtifacts...)
+	reviewers, reviewerWarnings := s.readReviewers(roundDir, manifest, ledger)
 	warnings = append(warnings, reviewerWarnings...)
 
-	round.TotalAssignments = len(reviewers)
+	pendingReviewers := 0
 	for _, reviewer := range reviewers {
-		switch normalizeSlotStatus(reviewer.Status) {
-		case "submitted":
-			round.SubmittedAssignments++
-		default:
-			round.PendingAssignments++
+		if normalizeSlotStatus(reviewer.Status) != "submitted" {
+			pendingReviewers++
 		}
 	}
+	round.Reviewer = selectReviewer(reviewers)
 
-	status, summary := resolveRoundStatus(round, manifestArtifact, ledgerArtifact, aggregateArtifact)
+	status, summary := resolveRoundStatus(round, len(reviewers), pendingReviewers, manifestArtifact, ledgerArtifact, decisionArtifact)
 	round.Status = status
 	round.StatusSummary = summary
-	if manifestArtifact.Status == "invalid" || ledgerArtifact.Status == "invalid" || aggregateArtifact.Status == "invalid" {
+	if manifestArtifact.Status == "invalid" || ledgerArtifact.Status == "invalid" || decisionArtifact.Status == "invalid" {
 		appendWarning("One or more review artifacts are malformed; the round is shown conservatively.")
 	}
 	if manifestArtifact.Status == "missing" {
-		appendWarning("Manifest is missing, so reviewer instructions and round metadata may be incomplete.")
+		appendWarning("Review metadata is missing, so round context may be incomplete.")
 	}
 	if ledgerArtifact.Status == "missing" && len(reviewers) > 0 {
-		appendWarning("Ledger is missing, so submission progress is inferred conservatively from submission artifacts.")
+		appendWarning("Review progress is missing, so reviewer state is inferred conservatively.")
 	}
-	if aggregateArtifact.Status == "missing" && round.SubmittedAssignments == round.TotalAssignments && round.TotalAssignments > 0 {
-		appendWarning("All reviewer submissions are present, but the aggregate artifact is still missing.")
+	if decisionArtifact.Status == "missing" && pendingReviewers == 0 && len(reviewers) > 0 {
+		appendWarning("Reviewer results are present, but the review decision is still missing.")
 	}
 	round.Warnings = dedupeStrings(warnings)
 	return round
 }
 
-func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledger) ([]Reviewer, []Artifact, []string) {
+func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledger) ([]reviewerState, []string) {
 	slotOrder := make([]string, 0)
 	slotSeen := map[string]bool{}
 	manifestBySlot := map[string]ManifestAssignment{}
@@ -442,12 +433,11 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 		}
 	}
 
-	reviewers := make([]Reviewer, 0, len(slotOrder))
-	artifacts := make([]Artifact, 0, len(slotOrder))
+	reviewers := make([]reviewerState, 0, len(slotOrder))
 	warnings := make([]string, 0, len(slotOrder)+len(discoveryWarnings))
 	warnings = append(warnings, discoveryWarnings...)
 	for _, slot := range slotOrder {
-		reviewer := Reviewer{Slot: slot}
+		reviewer := reviewerState{Slot: slot}
 		ledgerClaimedSubmitted := false
 		ledgerStatusWarning := ""
 		hasLedgerEntry := false
@@ -457,9 +447,6 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 		}
 		if item, ok := manifestBySlot[slot]; ok {
 			reviewer.Role = item.Role
-			reviewer.Dimensions = item.Dimensions
-			reviewer.RiskBrief = item.RiskBrief
-			reviewer.Instructions = item.Instructions
 		}
 		if item, ok := ledgerBySlot[slot]; ok {
 			hasLedgerEntry = true
@@ -472,29 +459,14 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 			ledgerClaimedSubmitted = normalizedLedgerStatus == "submitted"
 			ledgerStatusWarning = warning
 		}
-		reviewer.SubmissionPath = repoFacingReviewUIPath(s.Workdir, artifactPath)
-
-		artifactLabel := fmt.Sprintf("Submission: %s", reviewer.Slot)
-		if reviewer.Role != "" {
-			artifactLabel = fmt.Sprintf("Submission: %s (%s)", reviewer.Slot, reviewer.Role)
-		}
 		reviewerWarnings := make([]string, 0, 4)
-		submissionArtifact, submission, submissionWarning := readJSONArtifact[Submission](artifactLabel, artifactPath, repoFacingReviewUIPath(s.Workdir, artifactPath), validateSubmissionArtifact)
-		if submissionArtifact.Status != "" {
-			artifacts = append(artifacts, submissionArtifact)
-		}
-		if len(submissionArtifact.Content) > 0 {
-			reviewer.RawSubmission = append(json.RawMessage(nil), submissionArtifact.Content...)
-		}
+		_, submission, submissionWarning := readJSONArtifact[Submission]("Reviewer result", artifactPath, validateSubmissionArtifact)
 		if submission != nil {
 			if reviewer.Role == "" {
 				reviewer.Role = submission.Role
 			}
+			reviewer.Name = strings.TrimSpace(submission.By)
 			reviewer.Summary = submission.Summary
-			reviewer.Resolutions = submission.Resolutions
-			reviewer.Findings = submission.Findings
-			worklog, worklogWarnings := normalizeReviewerWorklog(*submission)
-			reviewer.Worklog = worklog
 			if reviewer.SubmittedAt == "" {
 				reviewer.SubmittedAt = submission.SubmittedAt
 			}
@@ -505,7 +477,6 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 					reviewer.Status = "pending"
 				}
 			}
-			reviewerWarnings = append(reviewerWarnings, worklogWarnings...)
 		} else if reviewer.Status == "" || ledgerClaimedSubmitted {
 			reviewer.Status = "pending"
 		}
@@ -524,137 +495,50 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 		}
 		reviewer.Warnings = dedupeStrings(reviewerWarnings)
 		if len(reviewer.Warnings) > 0 {
-			warnings = append(warnings, fmt.Sprintf("%s (%s): %s", reviewerDisplayName(reviewer), reviewer.Slot, strings.Join(reviewer.Warnings, " ")))
+			warnings = append(warnings, fmt.Sprintf("Reviewer result: %s", strings.Join(reviewer.Warnings, " ")))
 		}
 		reviewers = append(reviewers, reviewer)
 	}
-	return reviewers, artifacts, warnings
+	return reviewers, warnings
 }
 
-func reviewerDisplayName(reviewer Reviewer) string {
-	if strings.TrimSpace(reviewer.Role) != "" {
-		return fmt.Sprintf("%s %s", reviewer.Role, reviewer.Slot)
+func selectReviewer(reviewers []reviewerState) *Reviewer {
+	if len(reviewers) == 0 {
+		return nil
 	}
-	return reviewer.Slot
+	selected := reviewers[0]
+	for _, reviewer := range reviewers {
+		if strings.EqualFold(strings.TrimSpace(reviewer.Role), "integrated") {
+			selected = reviewer
+			break
+		}
+	}
+	return &Reviewer{
+		Name:        selected.Name,
+		Status:      normalizeSlotStatus(selected.Status),
+		SubmittedAt: selected.SubmittedAt,
+		Summary:     selected.Summary,
+		Warnings:    selected.Warnings,
+	}
+}
+
+func findingViews(findings []contracts.ReviewAggregateFinding) []FindingView {
+	views := make([]FindingView, 0, len(findings))
+	for _, finding := range findings {
+		views = append(views, FindingView{
+			FindingID: finding.FindingID,
+			Area:      finding.Area,
+			Severity:  finding.Severity,
+			Title:     finding.Title,
+			Details:   finding.Details,
+			Locations: append([]string(nil), finding.Locations...),
+		})
+	}
+	return views
 }
 
 func submissionLooksSubmitted(submission Submission) bool {
 	return strings.TrimSpace(submission.SubmittedAt) != ""
-}
-
-func normalizeReviewerWorklog(submission Submission) (*ReviewerWorklog, []string) {
-	if len(submission.ExtraFields) == 0 {
-		return nil, nil
-	}
-
-	worklog := &ReviewerWorklog{}
-	hasValue := false
-	warnings := []string{}
-
-	if raw := submission.ExtraFields["worklog"]; len(raw) > 0 {
-		payload := map[string]json.RawMessage{}
-		if err := json.Unmarshal(raw, &payload); err != nil {
-			warnings = append(warnings, "Reviewer worklog payload is malformed, so progressive notes are shown conservatively.")
-		} else {
-			if value, ok, warning := parseOptionalBoolField(payload, "full_plan_read"); warning != "" {
-				warnings = append(warnings, warning)
-			} else if ok {
-				worklog.FullPlanRead = value
-				hasValue = true
-			}
-			if values, ok, warning := parseOptionalStringListField(payload, "checked_areas"); warning != "" {
-				warnings = append(warnings, warning)
-			} else if ok {
-				worklog.CheckedAreas = values
-				hasValue = true
-			}
-			if values, ok, warning := parseOptionalStringListField(payload, "open_questions"); warning != "" {
-				warnings = append(warnings, warning)
-			} else if ok {
-				worklog.OpenQuestions = values
-				hasValue = true
-			}
-			if values, ok, warning := parseOptionalStringListField(payload, "candidate_findings"); warning != "" {
-				warnings = append(warnings, warning)
-			} else if ok {
-				worklog.CandidateFindings = values
-				hasValue = true
-			}
-		}
-	}
-
-	if raw := submission.ExtraFields["coverage"]; len(raw) > 0 {
-		payload := map[string]json.RawMessage{}
-		if err := json.Unmarshal(raw, &payload); err != nil {
-			warnings = append(warnings, "Reviewer coverage payload is malformed, so anchor context is shown conservatively.")
-		} else {
-			if value, ok, warning := parseOptionalStringField(payload, "review_kind"); warning != "" {
-				warnings = append(warnings, warning)
-			} else if ok {
-				worklog.ReviewKind = value
-				hasValue = true
-			}
-			if value, ok, warning := parseOptionalStringField(payload, "anchor_sha"); warning != "" {
-				warnings = append(warnings, warning)
-			} else if ok {
-				worklog.AnchorSHA = value
-				hasValue = true
-			}
-		}
-	}
-
-	if !hasValue {
-		return nil, dedupeStrings(warnings)
-	}
-	return worklog, dedupeStrings(warnings)
-}
-
-func parseOptionalBoolField(payload map[string]json.RawMessage, key string) (*bool, bool, string) {
-	raw, ok := payload[key]
-	if !ok || len(raw) == 0 {
-		return nil, false, ""
-	}
-	var value bool
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return nil, false, fmt.Sprintf("Reviewer worklog field %q is malformed and was omitted.", key)
-	}
-	return &value, true, ""
-}
-
-func parseOptionalStringField(payload map[string]json.RawMessage, key string) (string, bool, string) {
-	raw, ok := payload[key]
-	if !ok || len(raw) == 0 {
-		return "", false, ""
-	}
-	var value string
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return "", false, fmt.Sprintf("Reviewer worklog field %q is malformed and was omitted.", key)
-	}
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return "", false, ""
-	}
-	return value, true, ""
-}
-
-func parseOptionalStringListField(payload map[string]json.RawMessage, key string) ([]string, bool, string) {
-	raw, ok := payload[key]
-	if !ok || len(raw) == 0 {
-		return nil, false, ""
-	}
-	var values []string
-	if err := json.Unmarshal(raw, &values); err != nil {
-		return nil, false, fmt.Sprintf("Reviewer worklog field %q is malformed and was omitted.", key)
-	}
-	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		normalized = append(normalized, trimmed)
-	}
-	return normalized, true, ""
 }
 
 func normalizeSlotStatus(status string) string {
@@ -670,49 +554,49 @@ func canonicalSlotStatus(status string) (string, string) {
 	case "submitted":
 		return "submitted", ""
 	default:
-		return "pending", fmt.Sprintf("Ledger reports unknown assignment status %q, so this reviewer is shown conservatively as pending.", strings.TrimSpace(status))
+		return "pending", fmt.Sprintf("Review progress reports unknown reviewer status %q, so the result is shown conservatively as pending.", strings.TrimSpace(status))
 	}
 }
 
-func resolveRoundStatus(round Round, manifestArtifact, ledgerArtifact, aggregateArtifact Artifact) (string, string) {
-	if manifestArtifact.Status == "invalid" || ledgerArtifact.Status == "invalid" || aggregateArtifact.Status == "invalid" {
+func resolveRoundStatus(round Round, reviewerCount, pendingReviewers int, manifestArtifact, ledgerArtifact, decisionArtifact artifact) (string, string) {
+	if manifestArtifact.Status == "invalid" || ledgerArtifact.Status == "invalid" || decisionArtifact.Status == "invalid" {
 		return "degraded", "One or more artifacts are malformed; review state is shown conservatively."
 	}
 	if manifestArtifact.Status == "missing" && ledgerArtifact.Status == "missing" {
 		return "degraded", "Core review artifacts are missing."
 	}
-	if round.TotalAssignments == 0 {
+	if reviewerCount == 0 {
 		if round.IsActive {
-			return "in_progress", "Review round is active, but reviewer assignments could not be recovered yet."
+			return "in_progress", "Review is active, but the independent reviewer could not be recovered yet."
 		}
-		return "incomplete", "Review round metadata is incomplete."
+		return "incomplete", "Review metadata is incomplete."
 	}
-	if round.PendingAssignments > 0 {
-		return "waiting_for_submissions", fmt.Sprintf("Waiting for %d of %d reviewer submissions.", round.PendingAssignments, round.TotalAssignments)
+	if pendingReviewers > 0 {
+		return "waiting_for_review", "Waiting for independent review."
 	}
 	if manifestArtifact.Status != "available" || ledgerArtifact.Status != "available" {
-		return "degraded", "Core review artifacts are incomplete, so aggregate state is shown conservatively."
+		return "degraded", "Core review artifacts are incomplete, so the decision is shown conservatively."
 	}
-	if aggregateArtifact.Status == "available" && strings.TrimSpace(round.Decision) != "" {
+	if decisionArtifact.Status == "available" && strings.TrimSpace(round.Decision) != "" {
 		switch round.Decision {
 		case "pass":
-			return "pass", "Aggregate review coverage passed cleanly."
+			return "pass", "Independent review passed."
 		case "changes_requested":
 			if len(round.UnresolvedFindingIDs) > 0 {
-				return "changes_requested", fmt.Sprintf("Aggregate review requested changes; %d blocking finding(s) remain unresolved in the coverage chain.", len(round.UnresolvedFindingIDs))
+				return "changes_requested", fmt.Sprintf("Review requested changes; %d blocking finding(s) remain unresolved.", len(round.UnresolvedFindingIDs))
 			}
-			return "changes_requested", "Aggregate review requested changes."
+			return "changes_requested", "Review requested changes."
 		default:
-			return "aggregated", fmt.Sprintf("Aggregate review decision: %s.", round.Decision)
+			return "complete", fmt.Sprintf("Review decision: %s.", round.Decision)
 		}
 	}
-	if aggregateArtifact.Status == "missing" {
-		return "waiting_for_aggregation", "All reviewer submissions are present; waiting for aggregation."
+	if decisionArtifact.Status == "missing" {
+		return "waiting_for_decision", "Independent review is complete; waiting for its decision."
 	}
 	if round.IsActive {
 		return "in_progress", "Review round is still active."
 	}
-	return "complete", "Review round artifacts are present."
+	return "complete", "Review data is available."
 }
 
 func discoverSubmissionPaths(submissionsDir string) (map[string]string, []string) {
@@ -755,115 +639,41 @@ func discoverSubmissionPaths(submissionsDir string) (map[string]string, []string
 
 type artifactValidator[T any] func(*T) []string
 
-var hiddenReviewArtifactKeys = map[string]bool{
-	"manifest_path":     true,
-	"ledger_path":       true,
-	"aggregate_path":    true,
-	"submission_path":   true,
-	"submissions_dir":   true,
-	"record_path":       true,
-	"local_state_path":  true,
-	"current_plan_path": true,
-	"event_index_path":  true,
-	"reviews_dir":       true,
-}
-
-func readJSONArtifact[T any](label, path, surfacedPath string, validator artifactValidator[T]) (Artifact, *T, string) {
-	artifact := Artifact{
-		Label: label,
-		Path:  surfacedPath,
-	}
+func readJSONArtifact[T any](label, path string, validator artifactValidator[T]) (artifact, *T, string) {
+	result := artifact{}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			artifact.Status = "missing"
-			artifact.Summary = "Artifact file is missing."
-			return artifact, nil, fmt.Sprintf("%s is missing.", label)
+			result.Status = "missing"
+			return result, nil, fmt.Sprintf("%s is missing.", label)
 		}
-		artifact.Status = "invalid"
-		artifact.Summary = fmt.Sprintf("Unable to read %s.", strings.ToLower(label))
-		return artifact, nil, fmt.Sprintf("Unable to read %s.", strings.ToLower(label))
+		result.Status = "invalid"
+		return result, nil, fmt.Sprintf("Unable to read %s.", strings.ToLower(label))
 	}
 	trimmed := strings.TrimSpace(string(data))
 	if trimmed == "" {
-		artifact.Status = "invalid"
-		artifact.Summary = "Artifact file is empty."
-		return artifact, nil, fmt.Sprintf("%s is empty.", label)
+		result.Status = "invalid"
+		return result, nil, fmt.Sprintf("%s is empty.", label)
 	}
 	if !json.Valid([]byte(trimmed)) {
-		artifact.Status = "invalid"
-		artifact.Summary = "Artifact file is not valid JSON."
-		artifact.ContentType = "text"
-		artifact.Content = mustMarshalString(trimmed)
-		return artifact, nil, fmt.Sprintf("%s is not valid JSON.", label)
+		result.Status = "invalid"
+		return result, nil, fmt.Sprintf("%s is not valid JSON.", label)
 	}
 
 	var parsed T
 	if err := json.Unmarshal([]byte(trimmed), &parsed); err != nil {
-		artifact.Status = "invalid"
-		artifact.Summary = "Artifact JSON could not be parsed."
-		artifact.ContentType = "json"
-		artifact.Content = sanitizeReviewArtifactJSON([]byte(trimmed))
-		return artifact, nil, fmt.Sprintf("%s could not be parsed cleanly.", label)
+		result.Status = "invalid"
+		return result, nil, fmt.Sprintf("%s could not be parsed cleanly.", label)
 	}
 	if validator != nil {
 		if missing := dedupeStrings(validator(&parsed)); len(missing) > 0 {
-			artifact.Status = "invalid"
-			artifact.Summary = "Artifact JSON is missing required fields."
-			artifact.ContentType = "json"
-			artifact.Content = sanitizeReviewArtifactJSON([]byte(trimmed))
-			return artifact, nil, fmt.Sprintf("%s is missing required fields: %s.", label, strings.Join(missing, ", "))
+			result.Status = "invalid"
+			return result, nil, fmt.Sprintf("%s is missing required fields: %s.", label, strings.Join(missing, ", "))
 		}
 	}
 
-	artifact.Status = "available"
-	artifact.Summary = "Artifact is available."
-	artifact.ContentType = "json"
-	artifact.Content = sanitizeReviewArtifactJSON([]byte(trimmed))
-	return artifact, &parsed, ""
-}
-
-func sanitizeReviewArtifactJSON(raw []byte) json.RawMessage {
-	var value any
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return json.RawMessage(raw)
-	}
-	sanitized := sanitizeReviewArtifactValue(value)
-	data, err := json.Marshal(sanitized)
-	if err != nil {
-		return json.RawMessage(raw)
-	}
-	return json.RawMessage(data)
-}
-
-func sanitizeReviewArtifactValue(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		sanitized := make(map[string]any, len(typed))
-		for key, child := range typed {
-			if hiddenReviewArtifactKeys[strings.TrimSpace(key)] {
-				continue
-			}
-			sanitized[key] = sanitizeReviewArtifactValue(child)
-		}
-		return sanitized
-	case []any:
-		sanitized := make([]any, 0, len(typed))
-		for _, child := range typed {
-			sanitized = append(sanitized, sanitizeReviewArtifactValue(child))
-		}
-		return sanitized
-	default:
-		return value
-	}
-}
-
-func mustMarshalString(value string) json.RawMessage {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return json.RawMessage(`""`)
-	}
-	return data
+	result.Status = "available"
+	return result, &parsed, ""
 }
 
 func dedupeStrings(values []string) []string {
@@ -878,27 +688,6 @@ func dedupeStrings(values []string) []string {
 		result = append(result, trimmed)
 	}
 	return result
-}
-
-func repoFacingReviewUIPath(workdir, path string) string {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		return ""
-	}
-	if !filepath.IsAbs(trimmed) {
-		return filepath.ToSlash(filepath.Clean(trimmed))
-	}
-	relPath, err := filepath.Rel(workdir, trimmed)
-	if err != nil {
-		return filepath.ToSlash(filepath.Clean(trimmed))
-	}
-	if relPath == "." || relPath == "" {
-		return "."
-	}
-	if strings.HasPrefix(relPath, ".."+string(filepath.Separator)) || relPath == ".." {
-		return filepath.ToSlash(filepath.Clean(trimmed))
-	}
-	return filepath.ToSlash(filepath.Clean(relPath))
 }
 
 func validateManifestArtifact(manifest *Manifest) []string {
@@ -921,60 +710,6 @@ func validateManifestArtifact(manifest *Manifest) []string {
 	if strings.TrimSpace(manifest.CreatedAt) == "" {
 		missing = append(missing, "created_at")
 	}
-	if strings.TrimSpace(manifest.LedgerPath) == "" {
-		missing = append(missing, "ledger_path")
-	}
-	if strings.TrimSpace(manifest.Aggregate) == "" {
-		missing = append(missing, "aggregate_path")
-	}
-	if strings.TrimSpace(manifest.Submissions) == "" {
-		missing = append(missing, "submissions_dir")
-	}
-	if len(manifest.Assignments) == 0 {
-		missing = append(missing, "assignments")
-	}
-	for index, assignment := range manifest.Assignments {
-		prefix := fmt.Sprintf("assignments[%d]", index)
-		if strings.TrimSpace(assignment.Slot) == "" {
-			missing = append(missing, prefix+".slot")
-		}
-		if strings.TrimSpace(assignment.Role) == "" {
-			missing = append(missing, prefix+".role")
-		}
-		if len(assignment.Dimensions) == 0 {
-			missing = append(missing, prefix+".dimensions")
-		}
-		for dimensionIndex, dimension := range assignment.Dimensions {
-			dimensionPrefix := fmt.Sprintf("%s.dimensions[%d]", prefix, dimensionIndex)
-			if strings.TrimSpace(dimension.Name) == "" {
-				missing = append(missing, dimensionPrefix+".name")
-			}
-			if len(dimension.Sources) == 0 {
-				missing = append(missing, dimensionPrefix+".sources")
-			}
-			if strings.TrimSpace(dimension.Instructions) == "" {
-				missing = append(missing, dimensionPrefix+".instructions")
-			}
-		}
-		if assignment.Role == "specialist" {
-			if assignment.RiskBrief == nil {
-				missing = append(missing, prefix+".risk_brief")
-			} else {
-				if len(assignment.RiskBrief.RiskSurfaces) == 0 {
-					missing = append(missing, prefix+".risk_brief.risk_surfaces")
-				}
-				if len(assignment.RiskBrief.Invariants) == 0 {
-					missing = append(missing, prefix+".risk_brief.invariants")
-				}
-			}
-		}
-		if strings.TrimSpace(assignment.Instructions) == "" {
-			missing = append(missing, prefix+".instructions")
-		}
-		if strings.TrimSpace(assignment.SubmissionPath) == "" {
-			missing = append(missing, prefix+".submission_path")
-		}
-	}
 	return missing
 }
 
@@ -989,27 +724,6 @@ func validateLedgerArtifact(ledger *Ledger) []string {
 	if strings.TrimSpace(ledger.UpdatedAt) == "" {
 		missing = append(missing, "updated_at")
 	}
-	if len(ledger.Assignments) == 0 {
-		missing = append(missing, "assignments")
-	}
-	for index, assignment := range ledger.Assignments {
-		prefix := fmt.Sprintf("assignments[%d]", index)
-		if strings.TrimSpace(assignment.Slot) == "" {
-			missing = append(missing, prefix+".slot")
-		}
-		if strings.TrimSpace(assignment.Role) == "" {
-			missing = append(missing, prefix+".role")
-		}
-		if strings.TrimSpace(assignment.Status) == "" {
-			missing = append(missing, prefix+".status")
-		}
-		if strings.TrimSpace(assignment.SubmissionPath) == "" {
-			missing = append(missing, prefix+".submission_path")
-		}
-		if normalizedStatus, _ := canonicalSlotStatus(assignment.Status); normalizedStatus == "submitted" && strings.TrimSpace(assignment.SubmittedAt) == "" {
-			missing = append(missing, prefix+".submitted_at")
-		}
-	}
 	return missing
 }
 
@@ -1017,39 +731,6 @@ func validateSubmissionArtifact(submission *Submission) []string {
 	missing := []string{}
 	if strings.TrimSpace(submission.RoundID) == "" {
 		missing = append(missing, "round_id")
-	}
-	if strings.TrimSpace(submission.Slot) == "" {
-		missing = append(missing, "slot")
-	}
-	if strings.TrimSpace(submission.Role) == "" {
-		missing = append(missing, "role")
-	}
-	for index, finding := range submission.Findings {
-		prefix := fmt.Sprintf("findings[%d]", index)
-		if strings.TrimSpace(finding.Area) == "" {
-			missing = append(missing, prefix+".area")
-		}
-		if strings.TrimSpace(finding.Severity) == "" {
-			missing = append(missing, prefix+".severity")
-		}
-		if strings.TrimSpace(finding.Title) == "" {
-			missing = append(missing, prefix+".title")
-		}
-		if strings.TrimSpace(finding.Details) == "" {
-			missing = append(missing, prefix+".details")
-		}
-	}
-	for index, resolution := range submission.Resolutions {
-		prefix := fmt.Sprintf("resolutions[%d]", index)
-		if strings.TrimSpace(resolution.FindingID) == "" {
-			missing = append(missing, prefix+".finding_id")
-		}
-		if strings.TrimSpace(resolution.Status) == "" {
-			missing = append(missing, prefix+".status")
-		}
-		if strings.TrimSpace(resolution.Details) == "" {
-			missing = append(missing, prefix+".details")
-		}
 	}
 	return missing
 }
@@ -1069,21 +750,15 @@ func validateAggregateArtifact(aggregate *Aggregate) []string {
 		missing = append(missing, "decision")
 	}
 	if strings.TrimSpace(aggregate.AggregatedAt) == "" {
-		missing = append(missing, "aggregated_at")
+		missing = append(missing, "decided_at")
 	}
-	findings := append([]AggregateFinding(nil), aggregate.BlockingFindings...)
+	findings := append([]contracts.ReviewAggregateFinding(nil), aggregate.BlockingFindings...)
 	findings = append(findings, aggregate.NonBlockingFindings...)
 	findings = append(findings, aggregate.UnresolvedBlockingFindings...)
 	for index, finding := range findings {
 		prefix := fmt.Sprintf("findings[%d]", index)
 		if strings.TrimSpace(finding.FindingID) == "" {
 			missing = append(missing, prefix+".finding_id")
-		}
-		if strings.TrimSpace(finding.Slot) == "" {
-			missing = append(missing, prefix+".slot")
-		}
-		if strings.TrimSpace(finding.Role) == "" {
-			missing = append(missing, prefix+".role")
 		}
 		if strings.TrimSpace(finding.Area) == "" {
 			missing = append(missing, prefix+".area")
