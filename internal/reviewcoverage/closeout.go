@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/catu-ai/easyharness/internal/plan"
+	"gopkg.in/yaml.v3"
 )
 
 const allowedCloseoutSection = "Closeout"
@@ -68,6 +71,177 @@ func ValidateArchiveWorktree(workdir, planPath, coveredHead string) error {
 		return fmt.Errorf("current plan changed outside the allowed closeout summary bodies")
 	}
 	return nil
+}
+
+// ValidateArchivedCandidate binds publish and merge handoff to the reviewed
+// candidate. It permits only the mechanical archive move of the reviewed plan
+// and its supplements, plus Closeout-body changes that were already allowed at
+// the archive boundary.
+func ValidateArchivedCandidate(workdir, archivedPlanPath string, chain *Chain) error {
+	if chain == nil || strings.TrimSpace(chain.CoveredHeadSHA) == "" {
+		return fmt.Errorf("archived candidate has no reviewed head coverage")
+	}
+	reviewedPlan, err := repoRelativePath(workdir, chain.ReviewedPlanPath)
+	if err != nil {
+		return fmt.Errorf("resolve reviewed plan path: %w", err)
+	}
+	archivedPlan, err := repoRelativePath(workdir, archivedPlanPath)
+	if err != nil {
+		return fmt.Errorf("resolve archived plan path: %w", err)
+	}
+	if reviewedPlan == archivedPlan {
+		return fmt.Errorf("archived plan path still equals reviewed active plan path")
+	}
+
+	currentHead, err := ResolveCommit(workdir, "HEAD")
+	if err != nil {
+		return fmt.Errorf("resolve archived candidate head: %w", err)
+	}
+	ancestor, err := IsAncestor(workdir, chain.CoveredHeadSHA, currentHead)
+	if err != nil {
+		return fmt.Errorf("validate reviewed candidate ancestry: %w", err)
+	}
+	if !ancestor {
+		return fmt.Errorf("archived candidate HEAD is not descended from reviewed head %s; reopen and review the current candidate", chain.CoveredHeadSHA)
+	}
+
+	baseline, err := gitBytes(workdir, "show", chain.CoveredHeadSHA+":"+reviewedPlan)
+	if err != nil {
+		return fmt.Errorf("read reviewed plan content: %w", err)
+	}
+	current, err := os.ReadFile(filepath.Join(workdir, filepath.FromSlash(archivedPlan)))
+	if err != nil {
+		return fmt.Errorf("read archived plan content: %w", err)
+	}
+	baselineComparable, err := archiveComparablePlan(baseline)
+	if err != nil {
+		return fmt.Errorf("normalize reviewed plan: %w", err)
+	}
+	currentComparable, err := archiveComparablePlan(current)
+	if err != nil {
+		return fmt.Errorf("normalize archived plan: %w", err)
+	}
+	if !bytes.Equal(baselineComparable, currentComparable) {
+		return fmt.Errorf("archived plan differs from the reviewed plan outside the allowed Closeout body near %s", firstComparableDifference(baselineComparable, currentComparable))
+	}
+	if _, err := os.Stat(filepath.Join(workdir, filepath.FromSlash(reviewedPlan))); !os.IsNotExist(err) {
+		if err != nil {
+			return fmt.Errorf("inspect reviewed active plan path: %w", err)
+		}
+		return fmt.Errorf("reviewed active plan path still exists after archive: %s", reviewedPlan)
+	}
+
+	allowed := map[string]bool{reviewedPlan: true, archivedPlan: true}
+	if err := validateArchivedSupplements(workdir, chain.CoveredHeadSHA, reviewedPlan, archivedPlan, allowed); err != nil {
+		return err
+	}
+	changed, err := changedPaths(workdir, chain.CoveredHeadSHA)
+	if err != nil {
+		return err
+	}
+	for _, path := range changed {
+		if !allowed[path] {
+			return fmt.Errorf("unreviewed product change after archive; reopen and review the current candidate: %s", path)
+		}
+	}
+	return nil
+}
+
+func firstComparableDifference(left, right []byte) string {
+	leftLines := strings.Split(string(left), "\n")
+	rightLines := strings.Split(string(right), "\n")
+	limit := len(leftLines)
+	if len(rightLines) < limit {
+		limit = len(rightLines)
+	}
+	for index := 0; index < limit; index++ {
+		if leftLines[index] != rightLines[index] {
+			return fmt.Sprintf("line %d (%q -> %q)", index+1, leftLines[index], rightLines[index])
+		}
+	}
+	return fmt.Sprintf("end of document (%d lines -> %d lines)", len(leftLines), len(rightLines))
+}
+
+func archiveComparablePlan(content []byte) ([]byte, error) {
+	normalized := bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+	if !bytes.HasPrefix(normalized, []byte("---\n")) {
+		return nil, fmt.Errorf("missing opening frontmatter delimiter")
+	}
+	separator := []byte("\n---\n")
+	end := bytes.Index(normalized[len("---\n"):], separator)
+	if end < 0 {
+		return nil, fmt.Errorf("missing closing frontmatter delimiter")
+	}
+	end += len("---\n")
+	var frontmatter plan.Frontmatter
+	if err := yaml.Unmarshal(normalized[len("---\n"):end], &frontmatter); err != nil {
+		return nil, fmt.Errorf("parse frontmatter: %w", err)
+	}
+	canonicalFrontmatter, err := yaml.Marshal(frontmatter)
+	if err != nil {
+		return nil, fmt.Errorf("render frontmatter: %w", err)
+	}
+	body := normalized[end+len(separator):]
+	return bytes.Join([][]byte{canonicalFrontmatter, maskCloseoutBodies(body)}, []byte("---\n")), nil
+}
+
+func validateArchivedSupplements(workdir, coveredHead, reviewedPlan, archivedPlan string, allowed map[string]bool) error {
+	reviewedDir := repoSlashPath(plan.SupplementsDirForPlanPath(filepath.FromSlash(reviewedPlan)))
+	archivedDir := repoSlashPath(plan.SupplementsDirForPlanPath(filepath.FromSlash(archivedPlan)))
+	data, err := gitBytes(workdir, "ls-tree", "-r", "--name-only", "-z", coveredHead, "--", reviewedDir)
+	if err != nil {
+		return fmt.Errorf("inspect reviewed plan supplements: %w", err)
+	}
+	for _, raw := range bytes.Split(data, []byte{0}) {
+		source := filepath.ToSlash(string(raw))
+		if source == "" {
+			continue
+		}
+		rel, err := filepath.Rel(filepath.FromSlash(reviewedDir), filepath.FromSlash(source))
+		if err != nil || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+			return fmt.Errorf("reviewed supplement escaped its expected directory: %s", source)
+		}
+		target := filepath.ToSlash(filepath.Join(filepath.FromSlash(archivedDir), rel))
+		baseline, err := gitBytes(workdir, "show", coveredHead+":"+source)
+		if err != nil {
+			return fmt.Errorf("read reviewed supplement %s: %w", source, err)
+		}
+		current, err := os.ReadFile(filepath.Join(workdir, filepath.FromSlash(target)))
+		if err != nil {
+			return fmt.Errorf("read archived supplement %s: %w", target, err)
+		}
+		if !bytes.Equal(baseline, current) {
+			return fmt.Errorf("archived supplement differs from reviewed content: %s", target)
+		}
+		if _, err := os.Stat(filepath.Join(workdir, filepath.FromSlash(source))); !os.IsNotExist(err) {
+			if err != nil {
+				return fmt.Errorf("inspect reviewed supplement path %s: %w", source, err)
+			}
+			return fmt.Errorf("reviewed supplement still exists after archive: %s", source)
+		}
+		allowed[source] = true
+		allowed[target] = true
+	}
+	return nil
+}
+
+func repoRelativePath(workdir, path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", fmt.Errorf("path is empty")
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(workdir, filepath.FromSlash(path))
+	}
+	path = filepath.Clean(path)
+	rel, err := filepath.Rel(workdir, path)
+	if err != nil || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+		return "", fmt.Errorf("path is outside the repository")
+	}
+	return filepath.ToSlash(rel), nil
+}
+
+func repoSlashPath(path string) string {
+	return filepath.ToSlash(filepath.Clean(path))
 }
 
 func changedPaths(workdir, coveredHead string) ([]string, error) {

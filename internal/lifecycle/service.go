@@ -566,7 +566,7 @@ func (s Service) Land(prURL, commit string) Result {
 			},
 		}, nil)
 	}
-	if issues := s.landReadinessIssues(planStem, state, prURL); len(issues) > 0 {
+	if issues := s.landReadinessIssues(planStem, doc, state, prURL); len(issues) > 0 {
 		return errorResult("land", "Archived candidate is not ready to enter required post-merge bookkeeping.", issues)
 	}
 	originalState := cloneState(state)
@@ -1084,6 +1084,35 @@ func EvaluateArchiveReadiness(workdir, planStem string, doc *plan.Document, stat
 	return issues
 }
 
+// EvaluateArchivedReviewCoverage verifies that the archived worktree is still
+// the candidate accepted by finalize review, apart from the command-owned plan
+// archive move and allowed Closeout updates.
+func EvaluateArchivedReviewCoverage(workdir, planStem string, doc *plan.Document, state *runstate.State) []CommandError {
+	if state == nil || state.FinalizeCoverage == nil || strings.TrimSpace(state.FinalizeCoverage.TipRoundID) == "" {
+		return []CommandError{{
+			Path:    "state.finalize_coverage",
+			Message: "merge handoff requires a finalize review coverage chain rooted in a full review",
+		}}
+	}
+	chain, err := reviewcoverage.Resolve(workdir, planStem, state.FinalizeCoverage.TipRoundID, runstate.CurrentRevision(state))
+	if err != nil {
+		return []CommandError{{
+			Path:    "state.finalize_coverage",
+			Message: fmt.Sprintf("finalize review coverage is invalid: %v", err),
+		}}
+	}
+	if chain.Decision != "pass" || chain.UnresolvedBlockingCount > 0 {
+		return []CommandError{{
+			Path:    "state.finalize_coverage",
+			Message: fmt.Sprintf("coverage tip %s still has %d unresolved blocking finding(s)", chain.TipRoundID, chain.UnresolvedBlockingCount),
+		}}
+	}
+	if err := reviewcoverage.ValidateArchivedCandidate(workdir, doc.Path, chain); err != nil {
+		return []CommandError{{Path: "review.coverage", Message: err.Error()}}
+	}
+	return nil
+}
+
 func archiveStateIssues(workdir, planStem string, doc *plan.Document, revision int, state *runstate.State) []CommandError {
 	issues := make([]CommandError, 0)
 	if state != nil && state.ActiveReviewRound != nil && !state.ActiveReviewRound.Aggregated {
@@ -1121,8 +1150,8 @@ func archiveStateIssues(workdir, planStem string, doc *plan.Document, revision i
 	return issues
 }
 
-func (s Service) landReadinessIssues(planStem string, state *runstate.State, prURL string) []CommandError {
-	issues := make([]CommandError, 0)
+func (s Service) landReadinessIssues(planStem string, doc *plan.Document, state *runstate.State, prURL string) []CommandError {
+	issues := EvaluateArchivedReviewCoverage(s.Workdir, planStem, doc, state)
 
 	publish, err := evidence.LoadLatestPublish(s.Workdir, planStem, runstate.CurrentRevision(state))
 	if err != nil {

@@ -324,13 +324,21 @@ func (s Service) Submit(roundID, reviewerName string, inputBytes []byte) SubmitR
 		}
 	}
 	defer locks.release()
-	_, _, planStem, _, _, _, errResult := s.loadCurrentExecutingPlan(locks.PlanPath)
+	_, _, planStem, _, state, _, errResult := s.loadCurrentExecutingPlan(locks.PlanPath)
 	if errResult != nil {
 		return SubmitResult{
 			OK:      false,
 			Command: "review submit",
 			Summary: errResult.Summary,
 			Errors:  errResult.Errors,
+		}
+	}
+	if guard := activeCompletionRoundError(state, roundID); guard != nil {
+		return SubmitResult{
+			OK:      false,
+			Command: "review submit",
+			Summary: guard.Summary,
+			Errors:  guard.Errors,
 		}
 	}
 
@@ -799,8 +807,18 @@ func activeCompletionRoundError(state *runstate.State, roundID string) *completi
 			Errors:  []CommandError{{Path: "round", Message: "review submit only supports the current active review round"}},
 		}
 	}
-	if state.ActiveReviewRound.RoundID == roundID {
+	if state.ActiveReviewRound.RoundID == roundID && !state.ActiveReviewRound.Aggregated {
 		return nil
+	}
+	if state.ActiveReviewRound.RoundID == roundID {
+		return &completionResult{
+			OK:      false,
+			Summary: "Review round is already complete.",
+			Errors: []CommandError{{
+				Path:    "round",
+				Message: fmt.Sprintf("round %q is complete and immutable; start a new review round for later candidate changes", roundID),
+			}},
+		}
 	}
 	return &completionResult{
 		OK:      false,

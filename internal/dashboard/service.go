@@ -383,7 +383,11 @@ func buildProgress(doc *plan.Document, statusResult contracts.StatusResult) *Pro
 	nodes := make([]ProgressNode, 0, len(doc.Steps)+1)
 	for index, step := range doc.Steps {
 		stepNumber := index + 1
-		nodes = append(nodes, ProgressNode{Label: fmt.Sprintf("execution/step-%d/implement · %s", stepNumber, step.Title), State: progressStatePending})
+		state := progressStatePending
+		if step.Done {
+			state = progressStateDone
+		}
+		nodes = append(nodes, ProgressNode{Label: fmt.Sprintf("execution/step-%d/implement · %s", stepNumber, step.Title), State: state})
 	}
 	nodes = append(nodes, ProgressNode{Label: "execution/finalize", State: progressStatePending})
 	stepCompleted := completedStepCount(doc)
@@ -396,61 +400,32 @@ func buildProgress(doc *plan.Document, statusResult contracts.StatusResult) *Pro
 		AcceptanceTotal:     acceptanceTotal,
 	}
 
-	currentIndex, allDone := progressPosition(doc, statusResult)
-	if allDone {
-		for i := range nodes {
-			nodes[i].State = progressStateDone
-		}
-		return progress
-	}
-	if currentIndex < 0 {
-		return progress
-	}
-	if currentIndex >= len(nodes) {
-		currentIndex = len(nodes) - 1
-	}
-	for i := range nodes {
-		switch {
-		case i < currentIndex:
-			nodes[i].State = progressStateDone
-		case i == currentIndex:
-			nodes[i].State = progressStateCurrent
-		default:
-			nodes[i].State = progressStatePending
-		}
-	}
+	applyProgressPosition(nodes, doc, statusResult)
 	return progress
 }
 
-func progressPosition(doc *plan.Document, statusResult contracts.StatusResult) (int, bool) {
+func applyProgressPosition(nodes []ProgressNode, doc *plan.Document, statusResult contracts.StatusResult) {
 	currentNode := strings.TrimSpace(statusResult.State.CurrentNode)
 	finalizeIndex := len(doc.Steps)
 	if currentNode == "land" {
-		return finalizeIndex, true
+		nodes[finalizeIndex].State = progressStateDone
+		return
 	}
 	if currentNode == "idle" {
 		if statusResult.Artifacts != nil && strings.TrimSpace(statusResult.Artifacts.LastLandedAt) != "" {
-			return finalizeIndex, true
+			nodes[finalizeIndex].State = progressStateDone
 		}
-		if statusResult.Facts != nil {
-			if index := stepIndexForTitle(doc, statusResult.Facts.CurrentStep); index >= 0 {
-				return index, false
-			}
-		}
-		return -1, false
+		return
 	}
 	if index, ok := progressIndexFromStepNode(currentNode); ok {
-		return index, false
+		if index >= 0 && index < len(doc.Steps) && !doc.Steps[index].Done {
+			nodes[index].State = progressStateCurrent
+		}
+		return
 	}
 	if strings.HasPrefix(currentNode, "execution/finalize/") {
-		return finalizeIndex, false
+		nodes[finalizeIndex].State = progressStateCurrent
 	}
-	if currentNode == "plan" && statusResult.Facts != nil {
-		if index := stepIndexForTitle(doc, statusResult.Facts.CurrentStep); index >= 0 {
-			return index, false
-		}
-	}
-	return -1, false
 }
 
 func progressIndexFromStepNode(currentNode string) (int, bool) {
@@ -497,19 +472,6 @@ func acceptanceProgress(doc *plan.Document) (int, int) {
 		}
 	}
 	return completed, total
-}
-
-func stepIndexForTitle(doc *plan.Document, title string) int {
-	title = strings.TrimSpace(title)
-	if title == "" || doc == nil {
-		return -1
-	}
-	for index, step := range doc.Steps {
-		if strings.TrimSpace(step.Title) == title {
-			return index
-		}
-	}
-	return -1
 }
 
 func emptyGroups() []Group {

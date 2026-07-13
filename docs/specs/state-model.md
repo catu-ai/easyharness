@@ -10,7 +10,7 @@ canonical runtime node:
 
 ```json
 {
-  "current_node": "execution/step-2/review"
+  "current_node": "execution/step-2/implement"
 }
 ```
 
@@ -324,13 +324,17 @@ handoff facts recorded through `publish`, `ci`, and `sync` evidence. For
 lightweight work, this phase is also where status should remind the controller
 to leave the agreed repo-visible breadcrumb. A PR body can satisfy that
 breadcrumb when it is a readable merge memo that explains what changed, why the
-branch is mergeable, and why the lightweight path was appropriate.
+branch is mergeable, and why the lightweight path was appropriate. Passing
+evidence cannot advance an archived branch whose reviewed-head descendant
+contains anything beyond the mechanical plan/supplement archive move and
+allowed `Closeout` updates; such a branch must reopen and review again.
 
 ### `execution/finalize/await_merge`
 
 The archived candidate is ready for human merge approval. PR existence, CI,
 and sync freshness or conflict checks are already satisfied or explicitly
-marked `not_applied`.
+marked `not_applied`, and the archived branch still matches the reviewed
+candidate boundary.
 
 ### `land`
 
@@ -357,6 +361,8 @@ work remains in `land` until `harness land complete` intentionally restores
   provenance, or aggregate participation.
 - Reviewer submission atomically rechecks captured HEAD, stores the judgment,
   resolves inherited findings, derives the decision, and updates coverage.
+- A completed review round is immutable. A second or concurrent-losing submit
+  cannot replace its submission, findings, decision, or coverage.
 - Blocking findings enter `execution/finalize/fix`; non-blocking findings stay
   visible without forcing repair.
 - After `execution/finalize/fix`, a narrow repair should be reviewed by a linked

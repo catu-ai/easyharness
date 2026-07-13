@@ -173,10 +173,12 @@ func (s Service) Snapshot() Result {
 		evidenceCtx, evidenceWarnings := loadEvidenceContext(s.Workdir, planStem, runstate.CurrentRevision(state))
 		result.Warnings = append(result.Warnings, evidenceWarnings...)
 		applyEvidenceFacts(facts, evidenceCtx)
+		result.State.CurrentNode = "execution/finalize/publish"
 		if archivedCandidateReadyForMerge(evidenceCtx) {
-			result.State.CurrentNode = "execution/finalize/await_merge"
-		} else {
-			result.State.CurrentNode = "execution/finalize/publish"
+			blockers = append(blockers, commandErrorsToStatusErrors(lifecycle.EvaluateArchivedReviewCoverage(s.Workdir, planStem, doc, state))...)
+			if len(blockers) == 0 {
+				result.State.CurrentNode = "execution/finalize/await_merge"
+			}
 		}
 		applyRemoteHandoffFacts(s, facts, evidenceCtx)
 	default:
@@ -764,6 +766,11 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 			{Command: strPtr("harness archive"), Description: "Archive the current plan now that the closeout notes and follow-up links are ready."},
 		}
 	case "execution/finalize/publish":
+		if len(blockers) > 0 {
+			return []NextAction{
+				{Command: nil, Description: "The archived branch no longer matches its reviewed candidate. Reopen with `harness reopen --mode finalize-fix`, review the current candidate, and archive it again before merge handoff."},
+			}
+		}
 		return buildPublishNextActions(facts)
 	case "execution/finalize/await_merge":
 		actions := remoteHandoffNextActions(facts)

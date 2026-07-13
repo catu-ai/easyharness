@@ -42,7 +42,7 @@ the decision and coverage transaction without a controller aggregate action.
 | From | To | Driver | Requirement |
 | --- | --- | --- | --- |
 | `execution/finalize/archive` | `execution/finalize/publish` | `harness archive` | Acceptance, steps, Closeout, and finalize coverage are complete. |
-| `execution/finalize/publish` | `execution/finalize/await_merge` | Evidence | Current publish, CI, and sync evidence supports merge readiness. |
+| `execution/finalize/publish` | `execution/finalize/await_merge` | Evidence | Current publish, CI, and sync evidence supports merge readiness, and the archived branch differs from the reviewed candidate only by the allowed archive move and Closeout update. |
 | `execution/finalize/publish` or `execution/finalize/await_merge` | `execution/finalize/fix` | `harness reopen` with `finalize-fix` or `new-step` | Feedback or remote change invalidates the archived candidate. |
 | `execution/finalize/await_merge` | `land` | `harness land` | Human merge approval exists and the PR has merged. |
 | `land` | `idle` | `harness land complete` | Required post-merge bookkeeping and release verification are complete. |

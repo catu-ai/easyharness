@@ -460,7 +460,7 @@ func TestReadDerivesWorkspaceNamePlanTitleAndProgressFromPlan(t *testing.T) {
 	if entry.Progress == nil || len(entry.Progress.Nodes) != 3 {
 		t.Fatalf("expected one node per step plus finalize, got %#v", entry.Progress)
 	}
-	if entry.Progress.Nodes[0].State != progressStateDone || entry.Progress.Nodes[1].State != progressStateCurrent {
+	if entry.Progress.Nodes[0].State != progressStatePending || entry.Progress.Nodes[1].State != progressStateCurrent {
 		t.Fatalf("expected progress state to reflect current implementation step, got %#v", entry.Progress.Nodes)
 	}
 	if entry.Progress.Nodes[1].Label != "execution/step-2/implement · Step 2: Replace with second step title" {
@@ -471,6 +471,67 @@ func TestReadDerivesWorkspaceNamePlanTitleAndProgressFromPlan(t *testing.T) {
 	}
 	if entry.Progress.StepCompleted != 0 || entry.Progress.StepTotal != 2 || entry.Progress.AcceptanceCompleted != 0 || entry.Progress.AcceptanceTotal != 2 {
 		t.Fatalf("expected plan-derived step and acceptance progress, got %#v", entry.Progress)
+	}
+}
+
+func TestBuildProgressUsesActualDoneMarkersForNonContiguousCompletion(t *testing.T) {
+	doc := &plan.Document{Steps: []plan.DocumentStep{
+		{Title: "Step 1: Still active", UsesDoneMarker: true},
+		{Title: "Step 2: Independently complete", Done: true, UsesDoneMarker: true},
+	}}
+
+	progress := buildProgress(doc, contracts.StatusResult{
+		State: contracts.StatusState{CurrentNode: "execution/step-1/implement"},
+	})
+
+	if progress == nil || len(progress.Nodes) != 3 {
+		t.Fatalf("expected two step nodes plus finalize, got %#v", progress)
+	}
+	if progress.Nodes[0].State != progressStateCurrent ||
+		progress.Nodes[1].State != progressStateDone ||
+		progress.Nodes[2].State != progressStatePending {
+		t.Fatalf("expected actual Done markers with only the active unfinished step current, got %#v", progress.Nodes)
+	}
+	if progress.StepCompleted != 1 || progress.StepTotal != 2 {
+		t.Fatalf("expected plan-derived non-contiguous completion count, got %#v", progress)
+	}
+
+	completedPosition := buildProgress(doc, contracts.StatusResult{
+		State: contracts.StatusState{CurrentNode: "execution/step-2/implement"},
+	})
+	if completedPosition.Nodes[1].State != progressStateDone {
+		t.Fatalf("expected a completed step to remain done instead of becoming current, got %#v", completedPosition.Nodes)
+	}
+	for _, node := range completedPosition.Nodes {
+		if node.State == progressStateCurrent {
+			t.Fatalf("expected no current node when execution points at an already completed step, got %#v", completedPosition.Nodes)
+		}
+	}
+}
+
+func TestBuildProgressLeavesPlanPhaseWithoutCurrentExecutionNode(t *testing.T) {
+	doc := &plan.Document{Steps: []plan.DocumentStep{
+		{Title: "Step 1: Await approval", UsesDoneMarker: true},
+		{Title: "Step 2: Already prepared", Done: true, UsesDoneMarker: true},
+	}}
+
+	progress := buildProgress(doc, contracts.StatusResult{
+		State: contracts.StatusState{CurrentNode: "plan"},
+		Facts: &contracts.StatusFacts{CurrentStep: "Step 1: Await approval", CurrentStepNumber: 1},
+	})
+
+	if progress == nil || len(progress.Nodes) != 3 {
+		t.Fatalf("expected two step nodes plus finalize, got %#v", progress)
+	}
+	if progress.Nodes[0].State != progressStatePending ||
+		progress.Nodes[1].State != progressStateDone ||
+		progress.Nodes[2].State != progressStatePending {
+		t.Fatalf("expected plan phase to show actual completion without an active execution node, got %#v", progress.Nodes)
+	}
+	for _, node := range progress.Nodes {
+		if node.State == progressStateCurrent {
+			t.Fatalf("expected no current node before execution, got %#v", progress.Nodes)
+		}
 	}
 }
 

@@ -670,6 +670,9 @@ Contract:
 - verify under the review mutation lock that the round is active, the payload
   is valid, and current clean committed `HEAD` still equals
   `reviewed_head_sha`
+- reject any second or concurrent-losing submission after the round has a
+  completed decision; completed rounds and their stored artifacts are
+  immutable, and later candidate work requires a new review round
 - for a linked delta, require explicit resolution of every targeted parent
   finding, preserve any unresolved parent findings, add new findings, and
   reject inconsistent anchors, ancestry, revisions, or finding references
@@ -706,6 +709,10 @@ Post-archive merge readiness additionally requires:
 - publish evidence with a PR URL
 - CI good enough or explicit `not_applied`
 - sync freshness or explicit `not_applied`
+- a descendant of the reviewed head whose only candidate changes are the
+  command-owned active-to-archived plan and supplement moves plus allowed
+  `Closeout` updates; any product, contract, test, or other plan change requires
+  reopen and review before `await_merge` or land
 
 The PR URL recorded in publish evidence is the remote handoff anchor for later
 read-only PR and CI observation. Local branch, commit, upstream, and remote
@@ -846,6 +853,9 @@ Important note:
   validation command log
 - after archive, record publish, CI, and sync observations through
   `harness evidence submit` instead of treating missing evidence as success
+- after archive, keep the candidate bound to the reviewed head: only the
+  mechanical plan/supplement archive move and allowed `Closeout` update may
+  differ; any other tracked or untracked change requires reopen and review
 - after archive, correctness should not depend on archived supplements still
   being present; anything the repository must keep relying on should already be
   absorbed into formal tracked locations

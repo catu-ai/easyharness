@@ -217,12 +217,14 @@ cd easyharness_<version>_<goos>_<goarch>
 identity fields such as `version`, `mode`, and `commit`, with optional extra
 metadata such as `go_version` or `build_time` when the binary can report them.
 
-Maintainers cut releases from a dedicated release PR that updates the root
-`VERSION` file plus any related release docs. `VERSION` stores the unprefixed
-release version such as `0.0.0`; after that PR merges to `main`, automation
-creates the matching `v*` tag and dispatches the `Release` workflow, which
-publishes the release assets for that tag and updates the Homebrew formula when
-the tap token is configured.
+Maintainers normally cut releases from a dedicated release PR that updates the
+root `VERSION` file plus any related release docs. An explicitly approved RC
+plan may combine a coherent feature slice and prerelease bump when immediate
+dogfood is the release goal. `VERSION` stores the unprefixed release version
+such as `0.0.0`; after that PR merges to `main`, automation creates the matching
+`v*` tag and dispatches the `Release` workflow, which publishes the release
+assets for that tag and updates the Homebrew formula when the tap token is
+configured. See [Releasing](docs/releasing.md) for the full policy and checks.
 
 ## For Contributors
 

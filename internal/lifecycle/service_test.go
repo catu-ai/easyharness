@@ -1571,11 +1571,6 @@ func TestLandReadsEvidenceArtifactsWhenStateIsSparse(t *testing.T) {
 	if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-landed-plan.md"); err != nil {
 		t.Fatalf("save current plan: %v", err)
 	}
-	if _, err := saveLifecycleState(t, root, "2026-03-18-landed-plan", &runstate.State{
-		Revision: 3,
-	}); err != nil {
-		t.Fatalf("save legacy state: %v", err)
-	}
 	writeMergeReadyEvidenceArtifacts(t, root, "2026-03-18-landed-plan", "docs/plans/archived/2026-03-18-landed-plan.md")
 
 	result := lifecycle.Service{
@@ -1587,6 +1582,26 @@ func TestLandReadsEvidenceArtifactsWhenStateIsSparse(t *testing.T) {
 	if !result.OK {
 		t.Fatalf("expected land success from evidence artifacts, got %#v", result)
 	}
+}
+
+func TestLandRejectsPostArchiveProductCommitOutsideReviewCoverage(t *testing.T) {
+	root := t.TempDir()
+	archivedRelPath := "docs/plans/archived/2026-03-18-landed-plan.md"
+	writeArchivedLandedPlan(t, root, archivedRelPath)
+	if _, err := runstate.SaveCurrentPlan(root, archivedRelPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	commitLifecycleCandidate(t, root)
+	writeFile(t, filepath.Join(root, "product.go"), "package product\n\nconst Unreviewed = true\n")
+	commitLifecycleCandidate(t, root)
+	writeMergeReadyEvidenceArtifacts(t, root, "2026-03-18-landed-plan", archivedRelPath)
+
+	result := lifecycle.Service{Workdir: root}.Land("https://github.com/catu-ai/easyharness/pull/99", "abc123")
+	if result.OK {
+		t.Fatalf("expected unreviewed post-archive product change to block land, got %#v", result)
+	}
+	assertErrorPath(t, result.Errors, "review.coverage")
+	assertErrorContains(t, result.Errors, "review.coverage", "product.go")
 }
 
 func TestLandRejectsOlderRevisionEvidenceAfterReopen(t *testing.T) {
@@ -1807,6 +1822,12 @@ func saveLifecycleState(t *testing.T, root, planStem string, state *runstate.Sta
 	t.Helper()
 	if state != nil && state.ActiveReviewRound != nil && state.ActiveReviewRound.Aggregated && state.ActiveReviewRound.Decision == "pass" {
 		head := commitLifecycleCandidate(t, root)
+		reviewPlanPath := ""
+		if detected, err := plan.DetectCurrentPath(root); err == nil {
+			if rel, relErr := filepath.Rel(root, detected); relErr == nil {
+				reviewPlanPath = filepath.ToSlash(rel)
+			}
+		}
 		revision := runstate.CurrentRevision(state)
 		tipID := state.ActiveReviewRound.RoundID
 		rootID := tipID
@@ -1818,15 +1839,15 @@ func saveLifecycleState(t *testing.T, root, planStem string, state *runstate.Sta
 				rootRevision = 1
 			}
 			writeLifecycleReviewRound(t, root, planStem, contracts.ReviewManifest{
-				RoundID: rootID, Kind: "full", ReviewedHeadSHA: rootHead, Revision: rootRevision,
+				RoundID: rootID, Kind: "full", ReviewedHeadSHA: rootHead, Revision: rootRevision, PlanPath: reviewPlanPath,
 			}, cleanLifecycleAggregate(rootID, "full", rootHead, rootRevision, nil))
 			repair := &contracts.ReviewRepairReference{RoundID: rootID, FindingIDs: []string{}}
 			writeLifecycleReviewRound(t, root, planStem, contracts.ReviewManifest{
-				RoundID: tipID, Kind: "delta", AnchorSHA: rootHead, ReviewedHeadSHA: head, Revision: revision, Repair: repair,
+				RoundID: tipID, Kind: "delta", AnchorSHA: rootHead, ReviewedHeadSHA: head, Revision: revision, Repair: repair, PlanPath: reviewPlanPath,
 			}, cleanLifecycleAggregate(tipID, "delta", head, revision, repair))
 		} else {
 			writeLifecycleReviewRound(t, root, planStem, contracts.ReviewManifest{
-				RoundID: tipID, Kind: "full", ReviewedHeadSHA: head, Revision: revision,
+				RoundID: tipID, Kind: "full", ReviewedHeadSHA: head, Revision: revision, PlanPath: reviewPlanPath,
 			}, cleanLifecycleAggregate(tipID, "full", head, revision, nil))
 		}
 		state.FinalizeCoverage = &runstate.FinalizeCoverage{
@@ -1914,7 +1935,23 @@ func writeArchivedLandedPlan(t *testing.T, root, relPath string) string {
 	rendered = strings.ReplaceAll(rendered, "- [ ]", "- [x]")
 	rendered = strings.Replace(rendered, "## Closeout\n", "## Closeout\n\n- Archived At: 2026-03-18T02:00:00Z\n- Revision: 1", 1)
 	rendered = completeCloseout(rendered)
+	activeRelPath := strings.Replace(relPath, "/archived/", "/active/", 1)
+	activePath := filepath.Join(root, activeRelPath)
+	writeFile(t, activePath, rendered)
+	planStem := strings.TrimSuffix(filepath.Base(relPath), filepath.Ext(relPath))
+	if _, err := saveLifecycleState(t, root, planStem, &runstate.State{
+		Revision:           1,
+		ExecutionStartedAt: "2026-03-18T01:00:00Z",
+		ActiveReviewRound: &runstate.ReviewRound{
+			RoundID: "review-001-full", Kind: "full", Revision: 1, Aggregated: true, Decision: "pass",
+		},
+	}); err != nil {
+		t.Fatalf("seed landed-plan review coverage: %v", err)
+	}
 	writeFile(t, path, rendered)
+	if err := os.Remove(activePath); err != nil {
+		t.Fatalf("remove reviewed active plan after archive fixture move: %v", err)
+	}
 	return path
 }
 

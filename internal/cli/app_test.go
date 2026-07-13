@@ -2958,11 +2958,33 @@ func writeArchivedPlanForCLI(t *testing.T, root, relPath string) string {
 	content = replaceCLI(content, "- Ready: PENDING_UNTIL_ARCHIVE", "- Ready: Ready for merge approval.")
 	content = replaceCLI(content, "- Merge Handoff: PENDING_UNTIL_ARCHIVE", "- Merge Handoff: Commit and push before merge approval.")
 	path := filepath.Join(root, relPath)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	activeRelPath := strings.Replace(relPath, "/archived/", "/active/", 1)
+	activePath := filepath.Join(root, activeRelPath)
+	if err := os.MkdirAll(filepath.Dir(activePath), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("write archived plan: %v", err)
+	if err := os.WriteFile(activePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write reviewed active plan: %v", err)
+	}
+	reviewedHead := commitCLICandidate(t, root, "reviewed CLI archive candidate")
+	planStem := strings.TrimSuffix(filepath.Base(relPath), filepath.Ext(relPath))
+	seedPassingFinalizeReviewForCLI(t, root, planStem, activeRelPath, "review-001-full", reviewedHead)
+	if _, err := runstate.SaveState(root, planStem, &runstate.State{
+		Revision: 1,
+		FinalizeCoverage: &runstate.FinalizeCoverage{
+			RootRoundID: "review-001-full", TipRoundID: "review-001-full", CoveredHeadSHA: reviewedHead, Revision: 1,
+		},
+		ActiveReviewRound: &runstate.ReviewRound{
+			RoundID: "review-001-full", Kind: "full", Revision: 1, Aggregated: true, Decision: "pass",
+		},
+	}); err != nil {
+		t.Fatalf("save CLI reviewed coverage state: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir archived plan: %v", err)
+	}
+	if err := os.Rename(activePath, path); err != nil {
+		t.Fatalf("mechanically archive reviewed CLI plan: %v", err)
 	}
 	return path
 }

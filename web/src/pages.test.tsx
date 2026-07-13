@@ -113,6 +113,40 @@ describe("dashboard helpers and pages", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
+  test("dashboard progress preserves non-contiguous completion before execution", () => {
+    render(
+      <DashboardHome
+        loading={false}
+        error={null}
+        workspaces={[
+          dashboardWorkspace({
+            current_node: "plan",
+            progress: {
+              nodes: [
+                { label: "execution/step-1/implement · Await approval", state: "pending" },
+                { label: "execution/step-2/implement · Independently complete", state: "done" },
+                { label: "execution/finalize", state: "pending" },
+              ],
+              step_completed: 1,
+              step_total: 2,
+              acceptance_completed: 0,
+              acceptance_total: 2,
+            },
+          }),
+        ]}
+        onOpenWorkspace={vi.fn()}
+        onUnwatch={vi.fn()}
+      />,
+    );
+
+    const firstStep = screen.getByRole("img", { name: "execution/step-1/implement · Await approval" });
+    const secondStep = screen.getByRole("img", { name: "execution/step-2/implement · Independently complete" });
+    expect(firstStep.classList.contains("is-pending")).toBe(true);
+    expect(secondStep.classList.contains("is-done")).toBe(true);
+    expect(document.querySelector(".dashboard-progress-node.is-current")).toBeNull();
+    expect(screen.getByText("Steps 1 / 2")).toBeTruthy();
+  });
+
   test("dashboard home offers explicit degraded cleanup when missing or invalid entries exist", () => {
     const onUnwatchDegraded = vi.fn();
     render(

@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/catu-ai/easyharness/tests/support"
@@ -39,6 +40,7 @@ func TestPublishHandoffWithBuiltBinary(t *testing.T) {
 	if archivePayload.Artifacts.ToPlanPath != "docs/plans/archived/2026-03-23-publish-handoff.md" {
 		t.Fatalf("expected archived publish-handoff path, got %#v", archivePayload)
 	}
+	workspace.CommitAll(t, "commit mechanical archive move")
 
 	publish := submitEvidence(t, workspace, "publish", "tmp/publish.json", map[string]any{
 		"status": "recorded",
@@ -89,6 +91,51 @@ func TestPublishHandoffWithBuiltBinary(t *testing.T) {
 		postSyncStatus.Facts.Evidence.Recorded.CI.Status != "success" ||
 		postSyncStatus.Facts.Evidence.Recorded.Sync.Status != "fresh" {
 		t.Fatalf("expected merge-ready evidence facts after sync, got %#v", postSyncStatus)
+	}
+}
+
+func TestPostArchiveProductCommitCannotBecomeMergeReadyWithBuiltBinary(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	planRelPath := "docs/plans/active/2026-03-23-post-archive-coverage.md"
+	planPath := workspace.Path(planRelPath)
+	template := support.Run(
+		t,
+		workspace.Root,
+		"plan", "template",
+		"--title", "Post Archive Coverage Plan",
+		"--timestamp", "2026-03-23T00:00:00Z",
+		"--source-type", "direct_request",
+		"--output", planRelPath,
+	)
+	support.RequireSuccess(t, template)
+	support.RequireNoStderr(t, template)
+	support.RewritePlanPreservingFrontmatter(t, planPath, "Post Archive Coverage Plan", publishHandoffPlanBody())
+
+	drivePlanToArchivedPublishNode(t, workspace, planPath, publishStepOneTitle, publishStepTwoTitle)
+	workspace.CommitAll(t, "commit mechanical archive move")
+	workspace.WriteFile(t, "product.go", []byte("package product\n\nconst Unreviewed = true\n"))
+	workspace.CommitAll(t, "unreviewed post-archive product change")
+
+	submitEvidence(t, workspace, "publish", "tmp/publish.json", map[string]any{
+		"status": "recorded",
+		"pr_url": "https://github.com/catu-ai/easyharness/pull/99",
+		"branch": "codex/post-archive-coverage",
+		"base":   "main",
+	})
+	submitEvidence(t, workspace, "ci", "tmp/ci.json", map[string]any{
+		"status": "success", "provider": "github-actions",
+	})
+	submitEvidence(t, workspace, "sync", "tmp/sync.json", map[string]any{
+		"status": "fresh", "base_ref": "main", "head_ref": "codex/post-archive-coverage",
+	})
+
+	result := runStatus(t, workspace.Root)
+	assertNode(t, result, "execution/finalize/publish")
+	if len(result.Blockers) != 1 || result.Blockers[0].Path != "review.coverage" || !strings.Contains(result.Blockers[0].Message, "product.go") {
+		t.Fatalf("expected post-archive product change coverage blocker, got %#v", result.Blockers)
+	}
+	if len(result.NextAction) != 1 || !strings.Contains(result.NextAction[0].Description, "harness reopen --mode finalize-fix") {
+		t.Fatalf("expected reopen-and-review guidance, got %#v", result.NextAction)
 	}
 }
 

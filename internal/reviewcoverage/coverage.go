@@ -20,6 +20,7 @@ type Chain struct {
 	RootRoundID             string
 	TipRoundID              string
 	CoveredHeadSHA          string
+	ReviewedPlanPath        string
 	Revision                int
 	Decision                string
 	UnresolvedBlockingCount int
@@ -144,6 +145,7 @@ func Resolve(workdir, planStem, tipRoundID string, currentRevision int) (*Chain,
 		RootRoundID:             reverse[0],
 		TipRoundID:              tip.Manifest.RoundID,
 		CoveredHeadSHA:          tip.Manifest.ReviewedHeadSHA,
+		ReviewedPlanPath:        tip.Manifest.PlanPath,
 		Revision:                tip.Manifest.Revision,
 		Decision:                tip.Aggregate.Decision,
 		UnresolvedBlockingCount: len(tip.Aggregate.UnresolvedFindingIDs),

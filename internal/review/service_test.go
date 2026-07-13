@@ -1,11 +1,13 @@
 package review_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -69,6 +71,113 @@ func TestSubmitCompletesReviewAndUpdatesCoverageWithoutAggregateAction(t *testin
 	}
 	if _, err := os.Stat(roundFile(root, stem, start.Artifacts.RoundID, "aggregate.json")); err != nil {
 		t.Fatalf("internal decision artifact missing: %v", err)
+	}
+}
+
+func TestSubmitRejectsCompletedRoundWithoutChangingArtifacts(t *testing.T) {
+	root, stem := writeExecutingPlan(t, true)
+	svc := review.Service{Workdir: root, Now: fixedNow}
+	start := svc.Start(review.StartOptions{})
+	first := svc.Submit(start.Artifacts.RoundID, "reviewer-first", jsonBytes(t, review.SubmissionInput{
+		Summary: "The candidate passes.",
+	}))
+	if !first.OK || first.Review == nil || first.Review.Decision != "pass" {
+		t.Fatalf("first submit failed: %#v", first)
+	}
+
+	manifest := readManifest(t, root, stem, start.Artifacts.RoundID)
+	paths := []string{
+		manifest.Assignments[0].SubmissionPath,
+		manifest.LedgerPath,
+		manifest.Aggregate,
+		filepath.Join(root, ".local", "harness", "plans", stem, "state.json"),
+	}
+	before := make([][]byte, len(paths))
+	for i, path := range paths {
+		var err error
+		before[i], err = os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read artifact before repeated submit: %v", err)
+		}
+	}
+
+	repeated := svc.Submit(start.Artifacts.RoundID, "reviewer-second", jsonBytes(t, review.SubmissionInput{
+		Summary:  "Attempt to replace the completed decision.",
+		Findings: []review.Finding{{Area: "correctness", Severity: "important", Title: "Replacement finding", Details: "Must not be recorded."}},
+	}))
+	if repeated.OK || repeated.Summary != "Review round is already complete." || len(repeated.Errors) != 1 || repeated.Errors[0].Path != "round" || !strings.Contains(repeated.Errors[0].Message, "complete and immutable") {
+		t.Fatalf("expected immutable completed-round rejection: %#v", repeated)
+	}
+	for i, path := range paths {
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read artifact after repeated submit: %v", err)
+		}
+		if !bytes.Equal(after, before[i]) {
+			t.Fatalf("repeated submit changed %s", path)
+		}
+	}
+}
+
+func TestConcurrentSubmitAllowsExactlyOneDecision(t *testing.T) {
+	root, stem := writeExecutingPlan(t, true)
+	svc := review.Service{Workdir: root, Now: fixedNow}
+	start := svc.Start(review.StartOptions{})
+	if !start.OK {
+		t.Fatalf("start failed: %#v", start)
+	}
+
+	inputs := [][]byte{
+		jsonBytes(t, review.SubmissionInput{Summary: "Passing concurrent decision."}),
+		jsonBytes(t, review.SubmissionInput{
+			Summary:  "Blocking concurrent decision.",
+			Findings: []review.Finding{{Area: "correctness", Severity: "important", Title: "Concurrent finding", Details: "Only valid if this submit wins."}},
+		}),
+	}
+	results := make([]review.SubmitResult, len(inputs))
+	ready := make(chan struct{})
+	var workers sync.WaitGroup
+	for i := range inputs {
+		workers.Add(1)
+		go func(i int) {
+			defer workers.Done()
+			<-ready
+			results[i] = svc.Submit(start.Artifacts.RoundID, "reviewer-concurrent-"+string(rune('a'+i)), inputs[i])
+		}(i)
+	}
+	close(ready)
+	workers.Wait()
+
+	successes := 0
+	for _, result := range results {
+		if result.OK {
+			successes++
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("expected exactly one successful concurrent decision, got %#v", results)
+	}
+	state, _, err := runstate.LoadState(root, stem)
+	if err != nil || state == nil || state.ActiveReviewRound == nil || !state.ActiveReviewRound.Aggregated {
+		t.Fatalf("expected one completed round: state=%#v err=%v", state, err)
+	}
+	manifest := readManifest(t, root, stem, start.Artifacts.RoundID)
+	data, err := os.ReadFile(manifest.Assignments[0].SubmissionPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stored review.Submission
+	if err := json.Unmarshal(data, &stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored.Summary == "Passing concurrent decision." && state.ActiveReviewRound.Decision != "pass" {
+		t.Fatalf("stored passing submission and decision disagree: submission=%#v state=%#v", stored, state.ActiveReviewRound)
+	}
+	if stored.Summary == "Blocking concurrent decision." && state.ActiveReviewRound.Decision != "changes_requested" {
+		t.Fatalf("stored blocking submission and decision disagree: submission=%#v state=%#v", stored, state.ActiveReviewRound)
+	}
+	if stored.Summary != "Passing concurrent decision." && stored.Summary != "Blocking concurrent decision." {
+		t.Fatalf("stored submission came from neither concurrent request: %#v", stored)
 	}
 }
 

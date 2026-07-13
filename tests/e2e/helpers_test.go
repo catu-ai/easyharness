@@ -191,6 +191,7 @@ type statusResult struct {
 		ReviewedHeadSHA      string `json:"reviewed_head_sha"`
 		LastLandedAt         string `json:"last_landed_at"`
 	} `json:"artifacts"`
+	Blockers   []commandError `json:"blockers"`
 	NextAction []struct {
 		Command     *string `json:"command"`
 		Description string  `json:"description"`

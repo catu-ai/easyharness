@@ -1,6 +1,8 @@
 package reviewcoverage
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -150,5 +152,65 @@ func TestValidateArchiveWorktreeAllowsCommittedCloseoutOnlyDescendant(t *testing
 	git(t, root, "commit", "-m", "closeout")
 	if err := ValidateArchiveWorktree(root, planPath, covered); err != nil {
 		t.Fatalf("expected committed closeout-only descendant to pass: %v", err)
+	}
+}
+
+func TestValidateArchivedCandidateAllowsMechanicalPlanAndSupplementMove(t *testing.T) {
+	root := t.TempDir()
+	initGit(t, root)
+	activePlan := "docs/plans/active/2026-07-13-test.md"
+	archivedPlan := "docs/plans/archived/2026-07-13-test.md"
+	activeSupplement := "docs/plans/active/supplements/2026-07-13-test/notes.md"
+	archivedSupplement := "docs/plans/archived/supplements/2026-07-13-test/notes.md"
+	writeFile(t, root, activePlan, reviewedPlan)
+	writeFile(t, root, activeSupplement, "reviewed supplement\n")
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "reviewed")
+	covered := git(t, root, "rev-parse", "HEAD")
+
+	archived := strings.ReplaceAll(reviewedPlan, "PENDING_UNTIL_ARCHIVE", "Recorded at archive.")
+	writeFile(t, root, archivedPlan, archived)
+	writeFile(t, root, archivedSupplement, "reviewed supplement\n")
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
+		t.Fatalf("remove active plan: %v", err)
+	}
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activeSupplement))); err != nil {
+		t.Fatalf("remove active supplement: %v", err)
+	}
+
+	chain := &Chain{CoveredHeadSHA: covered, ReviewedPlanPath: activePlan}
+	if err := ValidateArchivedCandidate(root, archivedPlan, chain); err != nil {
+		t.Fatalf("expected mechanical archive move to preserve review coverage: %v", err)
+	}
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "archive plan")
+	if err := ValidateArchivedCandidate(root, archivedPlan, chain); err != nil {
+		t.Fatalf("expected committed archive move to preserve review coverage: %v", err)
+	}
+}
+
+func TestValidateArchivedCandidateRejectsPostArchiveProductChange(t *testing.T) {
+	root := t.TempDir()
+	initGit(t, root)
+	activePlan := "docs/plans/active/2026-07-13-test.md"
+	archivedPlan := "docs/plans/archived/2026-07-13-test.md"
+	writeFile(t, root, activePlan, reviewedPlan)
+	writeFile(t, root, "product.go", "package product\n")
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "reviewed")
+	covered := git(t, root, "rev-parse", "HEAD")
+	writeFile(t, root, archivedPlan, reviewedPlan)
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
+		t.Fatalf("remove active plan: %v", err)
+	}
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "archive plan")
+
+	writeFile(t, root, "product.go", "package product\n\nconst Unreviewed = true\n")
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "unreviewed product change")
+	chain := &Chain{CoveredHeadSHA: covered, ReviewedPlanPath: activePlan}
+	if err := ValidateArchivedCandidate(root, archivedPlan, chain); err == nil || !strings.Contains(err.Error(), "product.go") {
+		t.Fatalf("expected post-archive product change rejection, got %v", err)
 	}
 }

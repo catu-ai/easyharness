@@ -730,6 +730,7 @@ func TestStatusRemoteAssessmentInvalidatesReadyClosedPR(t *testing.T) {
 		return completeAllSteps(content, true)
 	})
 	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	prepareReviewedArchivedStatusCandidate(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
 	svc := evidence.Service{Workdir: root}
 	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("publish evidence: %#v", result)
@@ -821,6 +822,7 @@ func TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode(t *t
 		return completeAllSteps(content, true)
 	})
 	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	prepareReviewedArchivedStatusCandidate(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
 
 	svc := evidence.Service{
 		Workdir: root,
@@ -955,6 +957,7 @@ func TestStatusArchivedPlanReadyForAwaitMerge(t *testing.T) {
 		return completeAllSteps(content, true)
 	})
 	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	prepareReviewedArchivedStatusCandidate(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
 
 	svc := evidence.Service{
 		Workdir: root,
@@ -984,15 +987,50 @@ func TestStatusArchivedPlanReadyForAwaitMerge(t *testing.T) {
 	}
 }
 
+func TestStatusPostArchiveProductCommitCannotReachAwaitMerge(t *testing.T) {
+	root := t.TempDir()
+	archivedRelPath := "docs/plans/archived/2026-03-18-status-plan.md"
+	writePlan(t, root, archivedRelPath, func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, archivedRelPath)
+	prepareReviewedArchivedStatusCandidate(t, root, archivedRelPath)
+	commitStatusCandidate(t, root, "archive reviewed plan")
+	if err := os.WriteFile(filepath.Join(root, "product.go"), []byte("package product\n\nconst Unreviewed = true\n"), 0o644); err != nil {
+		t.Fatalf("write post-archive product change: %v", err)
+	}
+	commitStatusCandidate(t, root, "unreviewed post-archive product change")
+
+	svc := evidence.Service{Workdir: root}
+	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
+		t.Fatalf("ci evidence: %#v", result)
+	}
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+		t.Fatalf("sync evidence: %#v", result)
+	}
+
+	result := status.Service{Workdir: root}.Snapshot()
+	if result.State.CurrentNode != "execution/finalize/publish" {
+		t.Fatalf("unreviewed post-archive change must stay in publish, got %#v", result.State)
+	}
+	if len(result.Blockers) != 1 || result.Blockers[0].Path != "review.coverage" || !strings.Contains(result.Blockers[0].Message, "product.go") {
+		t.Fatalf("expected reviewed-head coverage blocker naming product.go, got %#v", result.Blockers)
+	}
+	if !statusNextActionsContainDescription(result, "harness reopen --mode finalize-fix") {
+		t.Fatalf("expected reopen-and-review guidance, got %#v", result.NextAction)
+	}
+}
+
 func TestStatusArchivedPlanReadyForAwaitMergeFromEvidenceArtifacts(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
 		return completeAllSteps(content, true)
 	})
 	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
-	writeState(t, root, "2026-03-18-status-plan", map[string]any{
-		"revision": 1,
-	})
+	prepareReviewedArchivedStatusCandidate(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
 
 	svc := evidence.Service{
 		Workdir: root,
@@ -1067,6 +1105,7 @@ func TestStatusArchivedPlanReadyForAwaitMergeWithSyncNotApplied(t *testing.T) {
 		return completeAllSteps(content, true)
 	})
 	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	prepareReviewedArchivedStatusCandidate(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
 
 	svc := evidence.Service{
 		Workdir: root,
@@ -1099,6 +1138,7 @@ func TestStatusArchivedPlanReadyForAwaitMergeWhenCIAndSyncAreBothNotApplied(t *t
 		return completeAllSteps(content, true)
 	})
 	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	prepareReviewedArchivedStatusCandidate(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
 
 	svc := evidence.Service{
 		Workdir: root,
@@ -1729,6 +1769,15 @@ func statusNextActionsContain(result status.Result, command string) bool {
 	return false
 }
 
+func statusNextActionsContainDescription(result status.Result, snippet string) bool {
+	for _, action := range result.NextAction {
+		if strings.Contains(action.Description, snippet) {
+			return true
+		}
+	}
+	return false
+}
+
 func recordedPublishURL(result status.Result) string {
 	if result.Facts == nil || result.Facts.Evidence == nil || result.Facts.Evidence.Recorded == nil || result.Facts.Evidence.Recorded.Publish == nil {
 		return ""
@@ -1841,6 +1890,51 @@ func completePassingFinalizeReview(t *testing.T, root string) {
 	}))
 	if !submit.OK || submit.Review == nil || submit.Review.Decision != "pass" {
 		t.Fatalf("submit finalize review: %#v", submit)
+	}
+}
+
+func prepareReviewedArchivedStatusCandidate(t *testing.T, root, archivedRelPath string) {
+	t.Helper()
+	archivedPath := filepath.Join(root, filepath.FromSlash(archivedRelPath))
+	content, err := os.ReadFile(archivedPath)
+	if err != nil {
+		t.Fatalf("read archived status candidate: %v", err)
+	}
+	activeRelPath := strings.Replace(archivedRelPath, "/archived/", "/active/", 1)
+	activePath := filepath.Join(root, filepath.FromSlash(activeRelPath))
+	if err := os.MkdirAll(filepath.Dir(activePath), 0o755); err != nil {
+		t.Fatalf("mkdir active status plan: %v", err)
+	}
+	if err := os.WriteFile(activePath, content, 0o644); err != nil {
+		t.Fatalf("write active status candidate: %v", err)
+	}
+	if err := os.Remove(archivedPath); err != nil {
+		t.Fatalf("remove pre-review archived status plan: %v", err)
+	}
+	writeCurrentPlan(t, root, activeRelPath)
+	planStem := strings.TrimSuffix(filepath.Base(archivedRelPath), filepath.Ext(archivedRelPath))
+	writeState(t, root, planStem, map[string]any{
+		"revision":             1,
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+	})
+	initCommittedGitCandidate(t, root)
+	completePassingFinalizeReview(t, root)
+	if err := os.MkdirAll(filepath.Dir(archivedPath), 0o755); err != nil {
+		t.Fatalf("mkdir archived status plan: %v", err)
+	}
+	if err := os.Rename(activePath, archivedPath); err != nil {
+		t.Fatalf("mechanically archive reviewed status plan: %v", err)
+	}
+	writeCurrentPlan(t, root, archivedRelPath)
+}
+
+func commitStatusCandidate(t *testing.T, root, message string) {
+	t.Helper()
+	for _, args := range [][]string{{"add", "--all"}, {"commit", "-qm", message}} {
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v: %s", strings.Join(args, " "), err, output)
+		}
 	}
 }
 
