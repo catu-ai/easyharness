@@ -1107,6 +1107,15 @@ func EvaluateArchivedReviewCoverage(workdir, planStem string, doc *plan.Document
 			Message: fmt.Sprintf("coverage tip %s still has %d unresolved blocking finding(s)", chain.TipRoundID, chain.UnresolvedBlockingCount),
 		}}
 	}
+	expectedArchivedPath := plan.ArchivedPathFor(workdir, planStem, chain.ReviewedPlanPath, doc.WorkflowProfile())
+	actualArchivedPath, actualErr := filepath.Abs(doc.Path)
+	expectedArchivedPath, expectedErr := filepath.Abs(expectedArchivedPath)
+	if actualErr != nil || expectedErr != nil || filepath.Clean(actualArchivedPath) != filepath.Clean(expectedArchivedPath) {
+		return []CommandError{{
+			Path:    "review.coverage",
+			Message: fmt.Sprintf("archived plan is at %s, expected the configured archive path %s", doc.Path, expectedArchivedPath),
+		}}
+	}
 	if err := reviewcoverage.ValidateArchivedCandidate(workdir, doc.Path, chain); err != nil {
 		return []CommandError{{Path: "review.coverage", Message: err.Error()}}
 	}

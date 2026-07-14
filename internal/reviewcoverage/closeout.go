@@ -113,14 +113,19 @@ func ValidateArchivedCandidate(workdir, archivedPlanPath string, chain *Chain) e
 	if err != nil {
 		return fmt.Errorf("read archived plan content: %w", err)
 	}
-	baselineComparable, err := archiveComparablePlan(baseline)
+	reviewedFrontmatter, canonicalFrontmatter, baselineBody, err := reviewedArchiveBaseline(baseline)
 	if err != nil {
-		return fmt.Errorf("normalize reviewed plan: %w", err)
+		return fmt.Errorf("prepare reviewed plan for archive comparison: %w", err)
 	}
-	currentComparable, err := archiveComparablePlan(current)
+	currentFrontmatter, currentBody, err := archivedPlanParts(current)
 	if err != nil {
-		return fmt.Errorf("normalize archived plan: %w", err)
+		return fmt.Errorf("read archived plan for comparison: %w", err)
 	}
+	if currentFrontmatter != reviewedFrontmatter && currentFrontmatter != canonicalFrontmatter {
+		return fmt.Errorf("archived plan frontmatter differs from the command-rendered reviewed plan outside the allowed Closeout body")
+	}
+	baselineComparable := maskCloseoutBodies(baselineBody)
+	currentComparable := maskCloseoutBodies(currentBody)
 	if !bytes.Equal(baselineComparable, currentComparable) {
 		return fmt.Errorf("archived plan differs from the reviewed plan outside the allowed Closeout body near %s", firstComparableDifference(baselineComparable, currentComparable))
 	}
@@ -147,6 +152,43 @@ func ValidateArchivedCandidate(workdir, archivedPlanPath string, chain *Chain) e
 	return nil
 }
 
+func reviewedArchiveBaseline(content []byte) (string, string, []byte, error) {
+	rawFrontmatter, body, err := splitPlanContent(content)
+	if err != nil {
+		return "", "", nil, err
+	}
+	var frontmatter plan.Frontmatter
+	if err := yaml.Unmarshal([]byte(rawFrontmatter), &frontmatter); err != nil {
+		return "", "", nil, fmt.Errorf("parse reviewed frontmatter: %w", err)
+	}
+	canonical, err := yaml.Marshal(frontmatter)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("render reviewed frontmatter: %w", err)
+	}
+	return rawFrontmatter, strings.TrimSuffix(string(canonical), "\n"), body, nil
+}
+
+func archivedPlanParts(content []byte) (string, []byte, error) {
+	rawFrontmatter, body, err := splitPlanContent(content)
+	if err != nil {
+		return "", nil, err
+	}
+	return rawFrontmatter, body, nil
+}
+
+func splitPlanContent(content []byte) (string, []byte, error) {
+	lines := strings.Split(string(content), "\n")
+	if len(lines) < 3 || strings.TrimSpace(lines[0]) != "---" {
+		return "", nil, fmt.Errorf("missing opening frontmatter delimiter")
+	}
+	for index := 1; index < len(lines); index++ {
+		if strings.TrimSpace(lines[index]) == "---" {
+			return strings.Join(lines[1:index], "\n"), []byte(strings.Join(lines[index+1:], "\n")), nil
+		}
+	}
+	return "", nil, fmt.Errorf("missing closing frontmatter delimiter")
+}
+
 func firstComparableDifference(left, right []byte) string {
 	leftLines := strings.Split(string(left), "\n")
 	rightLines := strings.Split(string(right), "\n")
@@ -160,29 +202,6 @@ func firstComparableDifference(left, right []byte) string {
 		}
 	}
 	return fmt.Sprintf("end of document (%d lines -> %d lines)", len(leftLines), len(rightLines))
-}
-
-func archiveComparablePlan(content []byte) ([]byte, error) {
-	normalized := bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
-	if !bytes.HasPrefix(normalized, []byte("---\n")) {
-		return nil, fmt.Errorf("missing opening frontmatter delimiter")
-	}
-	separator := []byte("\n---\n")
-	end := bytes.Index(normalized[len("---\n"):], separator)
-	if end < 0 {
-		return nil, fmt.Errorf("missing closing frontmatter delimiter")
-	}
-	end += len("---\n")
-	var frontmatter plan.Frontmatter
-	if err := yaml.Unmarshal(normalized[len("---\n"):end], &frontmatter); err != nil {
-		return nil, fmt.Errorf("parse frontmatter: %w", err)
-	}
-	canonicalFrontmatter, err := yaml.Marshal(frontmatter)
-	if err != nil {
-		return nil, fmt.Errorf("render frontmatter: %w", err)
-	}
-	body := normalized[end+len(separator):]
-	return bytes.Join([][]byte{canonicalFrontmatter, maskCloseoutBodies(body)}, []byte("---\n")), nil
 }
 
 func validateArchivedSupplements(workdir, coveredHead, reviewedPlan, archivedPlan string, allowed map[string]bool) error {

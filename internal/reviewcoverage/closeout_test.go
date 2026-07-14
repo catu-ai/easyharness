@@ -168,7 +168,11 @@ func TestValidateArchivedCandidateAllowsMechanicalPlanAndSupplementMove(t *testi
 	git(t, root, "commit", "-m", "reviewed")
 	covered := git(t, root, "rev-parse", "HEAD")
 
-	archived := strings.ReplaceAll(reviewedPlan, "PENDING_UNTIL_ARCHIVE", "Recorded at archive.")
+	_, canonicalFrontmatter, canonicalBody, err := reviewedArchiveBaseline([]byte(reviewedPlan))
+	if err != nil {
+		t.Fatalf("render command-owned archive baseline: %v", err)
+	}
+	archived := "---\n" + canonicalFrontmatter + "\n---\n" + strings.ReplaceAll(string(canonicalBody), "PENDING_UNTIL_ARCHIVE", "Recorded at archive.")
 	writeFile(t, root, archivedPlan, archived)
 	writeFile(t, root, archivedSupplement, "reviewed supplement\n")
 	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
@@ -212,5 +216,39 @@ func TestValidateArchivedCandidateRejectsPostArchiveProductChange(t *testing.T) 
 	chain := &Chain{CoveredHeadSHA: covered, ReviewedPlanPath: activePlan}
 	if err := ValidateArchivedCandidate(root, archivedPlan, chain); err == nil || !strings.Contains(err.Error(), "product.go") {
 		t.Fatalf("expected post-archive product change rejection, got %v", err)
+	}
+}
+
+func TestValidateArchivedCandidateRejectsFrontmatterChangesOutsideCloseout(t *testing.T) {
+	root := t.TempDir()
+	initGit(t, root)
+	activePlan := "docs/plans/active/2026-07-13-test.md"
+	archivedPlan := "docs/plans/archived/2026-07-13-test.md"
+	writeFile(t, root, activePlan, reviewedPlan)
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "reviewed")
+	covered := git(t, root, "rev-parse", "HEAD")
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
+		t.Fatalf("remove active plan: %v", err)
+	}
+
+	chain := &Chain{CoveredHeadSHA: covered, ReviewedPlanPath: activePlan}
+	_, canonicalFrontmatter, canonicalBody, err := reviewedArchiveBaseline([]byte(reviewedPlan))
+	if err != nil {
+		t.Fatalf("render command-owned archive baseline: %v", err)
+	}
+	canonicalPlan := "---\n" + canonicalFrontmatter + "\n---\n" + string(canonicalBody)
+	for name, mutation := range map[string]string{
+		"unknown key in reviewed layout":  strings.Replace(reviewedPlan, "size: S", "size: S\nunreviewed_key: true", 1),
+		"comment in reviewed layout":      strings.Replace(reviewedPlan, "size: S", "size: S\n# unreviewed comment", 1),
+		"unknown key in canonical layout": strings.Replace(canonicalPlan, "size: S", "size: S\nunreviewed_key: true", 1),
+		"comment in canonical layout":     strings.Replace(canonicalPlan, "size: S", "size: S\n# unreviewed comment", 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			writeFile(t, root, archivedPlan, mutation)
+			if err := ValidateArchivedCandidate(root, archivedPlan, chain); err == nil || !strings.Contains(err.Error(), "outside the allowed Closeout body") {
+				t.Fatalf("expected raw frontmatter change rejection, got %v", err)
+			}
+		})
 	}
 }

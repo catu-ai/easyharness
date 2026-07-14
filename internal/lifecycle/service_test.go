@@ -1604,6 +1604,30 @@ func TestLandRejectsPostArchiveProductCommitOutsideReviewCoverage(t *testing.T) 
 	assertErrorContains(t, result.Errors, "review.coverage", "product.go")
 }
 
+func TestEvaluateArchivedReviewCoverageRejectsUnexpectedArchiveDestination(t *testing.T) {
+	root := t.TempDir()
+	canonicalRelPath := "docs/plans/archived/2026-03-18-landed-plan.md"
+	canonicalPath := writeArchivedLandedPlan(t, root, canonicalRelPath)
+	unexpectedPath := filepath.Join(root, "unexpected", "2026-03-18-landed-plan.md")
+	if err := os.MkdirAll(filepath.Dir(unexpectedPath), 0o755); err != nil {
+		t.Fatalf("mkdir unexpected archive root: %v", err)
+	}
+	if err := os.Rename(canonicalPath, unexpectedPath); err != nil {
+		t.Fatalf("move plan to unexpected archive root: %v", err)
+	}
+	doc, err := plan.LoadFile(unexpectedPath)
+	if err != nil {
+		t.Fatalf("load unexpected archived plan: %v", err)
+	}
+	state, _, err := runstate.LoadState(root, "2026-03-18-landed-plan")
+	if err != nil {
+		t.Fatalf("load reviewed coverage state: %v", err)
+	}
+	issues := lifecycle.EvaluateArchivedReviewCoverage(root, "2026-03-18-landed-plan", doc, state)
+	assertErrorPath(t, issues, "review.coverage")
+	assertErrorContains(t, issues, "review.coverage", "expected the configured archive path")
+}
+
 func TestLandRejectsOlderRevisionEvidenceAfterReopen(t *testing.T) {
 	root := t.TempDir()
 	writeArchivedLandedPlan(t, root, "docs/plans/archived/2026-03-18-landed-plan.md")
