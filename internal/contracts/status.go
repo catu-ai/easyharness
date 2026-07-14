@@ -88,12 +88,40 @@ type StatusFacts struct {
 	// observation facts for archived-candidate handoff.
 	Evidence *StatusEvidenceFacts `json:"evidence,omitempty"`
 
+	// ManagedResources summarizes repository-managed bootstrap assets that differ
+	// from the assets packaged in the running binary.
+	ManagedResources *StatusManagedResources `json:"managed_resources,omitempty"`
+
 	// LandPRURL is the pull request URL recorded for the land phase.
 	LandPRURL string `json:"land_pr_url,omitempty"`
 
 	// LandCommit is the merge commit or landed commit recorded for the land
 	// phase.
 	LandCommit string `json:"land_commit,omitempty"`
+}
+
+// StatusManagedResources is a compact read-only projection of stale default
+// repository instructions and skill packages.
+type StatusManagedResources struct {
+	// Status is stale when the installed managed assets differ from the running
+	// binary's packaged assets.
+	Status string `json:"status"`
+
+	// Agent is the default agent profile whose repository assets were inspected.
+	Agent string `json:"agent"`
+
+	// InstructionsStale reports whether the managed instructions block differs.
+	InstructionsStale bool `json:"instructions_stale,omitempty"`
+
+	// StaleSkillPackages lists installed managed packages with changed content.
+	StaleSkillPackages []string `json:"stale_skill_packages,omitempty"`
+
+	// MissingSkillPackages lists packaged managed skills missing from an otherwise
+	// installed managed skill set.
+	MissingSkillPackages []string `json:"missing_skill_packages,omitempty"`
+
+	// ExtraSkillPackages lists installed managed skills no longer packaged.
+	ExtraSkillPackages []string `json:"extra_skill_packages,omitempty"`
 }
 
 // StatusEvidenceFacts groups archived-candidate handoff evidence.

@@ -47,6 +47,31 @@ func TestStartRejectsUnfinishedStepInsteadOfCreatingStepReview(t *testing.T) {
 	}
 }
 
+func TestStartRejectsUncheckedAcceptanceBeforeCreatingReviewState(t *testing.T) {
+	root, stem := writeExecutingPlan(t, true)
+	planPath := filepath.Join(root, "docs", "plans", "active", stem+".md")
+	content, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content = bytes.Replace(content, []byte("- [x] Integrated review completes."), []byte("- [ ] Integrated review completes."), 1)
+	if err := os.WriteFile(planPath, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := (review.Service{Workdir: root}).Start(review.StartOptions{})
+	if result.OK || len(result.Errors) != 1 || result.Errors[0].Path != "plan.acceptance" {
+		t.Fatalf("expected unchecked-acceptance rejection: %#v", result)
+	}
+	state, _, err := runstate.LoadState(root, stem)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != nil && state.ActiveReviewRound != nil {
+		t.Fatalf("rejected review must not create round state: %#v", state.ActiveReviewRound)
+	}
+}
+
 func TestSubmitCompletesReviewAndUpdatesCoverageWithoutAggregateAction(t *testing.T) {
 	root, stem := writeExecutingPlan(t, true)
 	svc := review.Service{Workdir: root, Now: fixedNow}

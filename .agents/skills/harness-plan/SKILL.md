@@ -22,6 +22,10 @@ implementation choices to that agent.
    mandatory final reviewer receives them automatically.
 5. Use the fewest meaningful outcome steps. A step contains only its title,
    `Done`, `Outcome`, `Covers`, and an optional concise `Check`.
+   - steps and acceptance criteria describe candidate outcomes that can be
+     complete before finalize review
+   - do not turn review, archive, publish, merge, or land milestones into plan
+     steps or acceptance criteria; the harness lifecycle already owns them
 6. Name deferred work explicitly and describe whole-plan validation.
 7. Use supplements only for bulky durable approved context. Move normative
    repository behavior into formal code, tests, or specs before archive.

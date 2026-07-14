@@ -602,6 +602,25 @@ func TestInspectRepoBootstrapDriftReportsUnexpectedManagedSkillPackages(t *testi
 	}
 }
 
+func TestInspectRepoBootstrapDriftReportsMissingPackageFromInstalledManagedSet(t *testing.T) {
+	root := t.TempDir()
+	svc := testService(root)
+	if result := svc.InstallSkills(Options{}); !result.OK {
+		t.Fatalf("install skills failed: %#v", result)
+	}
+	if err := os.RemoveAll(filepath.Join(root, ".agents/skills/harness-plan")); err != nil {
+		t.Fatalf("remove managed package: %v", err)
+	}
+
+	drift, err := svc.InspectRepoBootstrapDrift("codex")
+	if err != nil {
+		t.Fatalf("InspectRepoBootstrapDrift: %v", err)
+	}
+	if len(drift.MissingManagedSkillPackages) != 1 || drift.MissingManagedSkillPackages[0] != "harness-plan" {
+		t.Fatalf("expected missing harness-plan package, got %#v", drift)
+	}
+}
+
 func TestInstallSkillsRejectsNonManagedConflicts(t *testing.T) {
 	root := t.TempDir()
 	conflictPath := filepath.Join(root, ".agents/skills/harness-discovery/SKILL.md")

@@ -213,6 +213,7 @@ func (s Service) Snapshot() Result {
 	} else {
 		result.Facts = facts
 	}
+	decorateRepoBootstrapDrift(s.Workdir, &result, false)
 
 	if result.Artifacts != nil && result.Artifacts.ProjectRoot == "" &&
 		result.Artifacts.PlanPath == "" && result.Artifacts.SupplementsPath == "" &&
@@ -466,6 +467,9 @@ func remoteAssessment(facts *Facts, remoteFacts *contracts.StatusRemoteEvidence)
 	if remoteFacts == nil || remoteFacts.Observation == "unavailable" {
 		return "manual_evidence_required"
 	}
+	if mergedRemotePR(remoteFacts) {
+		return "merged_pending_land"
+	}
 	remoteCI := remoteCIStatusFrom(remoteFacts)
 	remoteSync := remoteSyncStatusFrom(remoteFacts)
 	if remoteCI == "" && remoteSync == "" {
@@ -510,6 +514,11 @@ func unusableRemotePR(remoteFacts *contracts.StatusRemoteEvidence) bool {
 	return state != "" && state != "OPEN"
 }
 
+func mergedRemotePR(remoteFacts *contracts.StatusRemoteEvidence) bool {
+	return remoteFacts != nil && remoteFacts.PR != nil &&
+		strings.EqualFold(strings.TrimSpace(remoteFacts.PR.State), "MERGED")
+}
+
 func remoteMessage(remoteFacts *contracts.StatusRemoteEvidence) string {
 	if remoteFacts == nil {
 		return ""
@@ -527,6 +536,8 @@ func remoteMessage(remoteFacts *contracts.StatusRemoteEvidence) string {
 		return "Remote PR facts are unavailable or incomplete; use manual evidence fallback when the facts are known."
 	case "candidate_invalidated":
 		return "Recorded evidence is merge-ready, but live remote facts show the candidate should be repaired or refreshed before merge approval."
+	case "merged_pending_land":
+		return "The recorded PR is already merged; record the merge through harness and finish post-merge bookkeeping."
 	default:
 		return ""
 	}
@@ -676,6 +687,9 @@ func buildSummary(node string, facts *Facts, reviewCtx *reviewContext, blockers 
 		if reviewCtx != nil && reviewCtx.InFlight {
 			return "Plan is in finalize review and waiting for the integrated reviewer to submit its complete judgment."
 		}
+		if acceptanceIncomplete(facts) {
+			return "Plan has finished its tracked steps, but acceptance criteria are still incomplete and finalize review cannot start yet."
+		}
 		return "Plan has finished its tracked steps and needs finalize review before archive."
 	case "execution/finalize/fix":
 		if facts != nil && facts.ReopenMode == "new-step" && facts.CurrentStep == "" {
@@ -735,6 +749,9 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 				{Command: reviewSubmitCommand(reviewCtx), Description: "Have the independent integrated reviewer submit its complete judgment for the active finalize round."},
 			}
 		}
+		if acceptanceIncomplete(facts) {
+			return []NextAction{{Command: nil, Description: "Validate the remaining outcomes and check every acceptance criterion before starting finalize review."}}
+		}
 		return []NextAction{
 			{Command: strPtr("harness review start"), Description: "Start the mandatory integrated full review for the committed complete candidate."},
 		}
@@ -774,18 +791,20 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 		return buildPublishNextActions(facts)
 	case "execution/finalize/await_merge":
 		actions := remoteHandoffNextActions(facts)
-		if remoteBlocksMergeApproval(facts) {
-			actions = append(actions, NextAction{
-				Command:     nil,
-				Description: "Repair or refresh the remote handoff before asking for merge approval.",
-			})
-		} else {
-			actions = append(actions, NextAction{Command: nil, Description: "Wait for explicit human approval before merging the PR."})
-			if facts != nil && strings.TrimSpace(recordedPRURL(facts)) != "" {
+		if !mergedRemotePR(remoteEvidenceFacts(facts)) {
+			if remoteBlocksMergeApproval(facts) {
 				actions = append(actions, NextAction{
-					Command:     strPtr(fmt.Sprintf("harness land --pr %s [--commit <sha>]", recordedPRURL(facts))),
-					Description: "After the PR is merged outside harness and the worktree is synced, record merge confirmation and enter required post-merge bookkeeping.",
+					Command:     nil,
+					Description: "Repair or refresh the remote handoff before asking for merge approval.",
 				})
+			} else {
+				actions = append(actions, NextAction{Command: nil, Description: "Wait for explicit human approval before merging the PR."})
+				if facts != nil && strings.TrimSpace(recordedPRURL(facts)) != "" {
+					actions = append(actions, NextAction{
+						Command:     strPtr(fmt.Sprintf("harness land --pr %s [--commit <sha>]", recordedPRURL(facts))),
+						Description: "After the PR is merged outside harness and the worktree is synced, record merge confirmation and enter required post-merge bookkeeping.",
+					})
+				}
 			}
 		}
 		actions = append(actions, NextAction{
@@ -807,6 +826,10 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 	}
 
 	return nil
+}
+
+func acceptanceIncomplete(facts *Facts) bool {
+	return facts != nil && facts.AcceptanceTotal > 0 && facts.AcceptanceCompleted < facts.AcceptanceTotal
 }
 
 func buildPublishNextActions(facts *Facts) []NextAction {
@@ -886,6 +909,12 @@ func remoteHandoffNextActions(facts *Facts) []NextAction {
 	}
 	remoteFacts := facts.Evidence.Remote
 	actions := make([]NextAction, 0, 2)
+	if mergedRemotePR(remoteFacts) {
+		return append(actions, NextAction{
+			Command:     strPtr(fmt.Sprintf("harness land --pr %s [--commit <sha>]", recordedPRURL(facts))),
+			Description: "The recorded PR is already merged. After confirming the merge was explicitly human-approved, record it and enter required post-merge bookkeeping.",
+		})
+	}
 	if unusableRemotePR(remoteFacts) {
 		actions = append(actions, NextAction{
 			Command:     nil,
@@ -990,22 +1019,44 @@ func idleResult(workdir string, currentPlan *runstate.CurrentPlan) Result {
 		result.Summary = "No current plan is active in this worktree."
 	}
 
+	decorateRepoBootstrapDrift(workdir, &result, true)
+
+	return result
+}
+
+func decorateRepoBootstrapDrift(workdir string, result *Result, prioritizeAction bool) {
+	if result == nil || !result.OK {
+		return
+	}
 	drift, err := install.Service{Workdir: workdir}.InspectRepoBootstrapDrift("codex")
 	if err != nil {
-		result.Warnings = append(result.Warnings, fmt.Sprintf("Unable to inspect the default repo bootstrap assets for the idle reminder: %v", err))
-		return result
+		result.Warnings = append(result.Warnings, fmt.Sprintf("Unable to inspect the default repo bootstrap assets: %v", err))
+		return
 	}
 	if drift.Stale() {
-		result.Warnings = append(result.Warnings, buildIdleBootstrapDriftWarning(drift))
+		result.Warnings = append(result.Warnings, buildBootstrapDriftWarning(drift))
+		if result.Facts == nil {
+			result.Facts = &Facts{}
+		}
+		result.Facts.ManagedResources = &contracts.StatusManagedResources{
+			Status:               "stale",
+			Agent:                "codex",
+			InstructionsStale:    drift.InstructionsStale,
+			StaleSkillPackages:   drift.StaleManagedSkillPackages,
+			MissingSkillPackages: drift.MissingManagedSkillPackages,
+			ExtraSkillPackages:   drift.ExtraManagedSkillPackages,
+		}
 		command := "harness repo init --dry-run"
 		action := NextAction{
 			Command:     &command,
-			Description: "Optionally inspect the default repo resource refresh with harness repo init --dry-run, then rerun harness repo init if you and the human want to update AGENTS.md, the managed skills, and the repo config.",
+			Description: "Optionally inspect the default repo resource refresh without writing files. Keep any refresh out of the current candidate unless it is approved scope; otherwise refresh or rebase separately.",
 		}
-		result.NextAction = append([]NextAction{action}, result.NextAction...)
+		if prioritizeAction {
+			result.NextAction = append([]NextAction{action}, result.NextAction...)
+		} else {
+			result.NextAction = append(result.NextAction, action)
+		}
 	}
-
-	return result
 }
 
 func repoFacingPath(workdir, path string) string {
@@ -1041,7 +1092,7 @@ func repoRelativePointerPath(path string) (string, bool) {
 	return filepath.ToSlash(relPath), true
 }
 
-func buildIdleBootstrapDriftWarning(drift install.RepoBootstrapDrift) string {
+func buildBootstrapDriftWarning(drift install.RepoBootstrapDrift) string {
 	affected := make([]string, 0, 3)
 	if drift.InstructionsStale {
 		affected = append(affected, "the AGENTS.md managed block")
@@ -1053,6 +1104,13 @@ func buildIdleBootstrapDriftWarning(drift install.RepoBootstrapDrift) string {
 			affected = append(affected, fmt.Sprintf("%d managed skill packages", staleCount))
 		}
 	}
+	if missingCount := len(drift.MissingManagedSkillPackages); missingCount > 0 {
+		if missingCount == 1 {
+			affected = append(affected, "1 missing managed skill package")
+		} else {
+			affected = append(affected, fmt.Sprintf("%d missing managed skill packages", missingCount))
+		}
+	}
 	if extraCount := len(drift.ExtraManagedSkillPackages); extraCount > 0 {
 		if extraCount == 1 {
 			affected = append(affected, "1 stale managed skill package that is no longer in the packaged bootstrap set")
@@ -1061,9 +1119,9 @@ func buildIdleBootstrapDriftWarning(drift install.RepoBootstrapDrift) string {
 		}
 	}
 	if len(affected) == 0 {
-		return "The default repo bootstrap assets appear stale relative to the running easyharness binary. This is a non-blocking reminder for the agent and does not affect later execution."
+		return "The default repo bootstrap assets appear stale relative to the running easyharness binary. This is a non-blocking reminder for the agent and does not change workflow state."
 	}
-	return fmt.Sprintf("The default repo bootstrap assets for Codex are stale relative to the running easyharness binary (%s). This is a non-blocking reminder for the agent and does not affect later execution.", strings.Join(affected, ", "))
+	return fmt.Sprintf("The default repo bootstrap assets for Codex are stale relative to the running easyharness binary (%s). This is a non-blocking reminder for the agent and does not change workflow state.", strings.Join(affected, ", "))
 }
 
 func currentStepIndex(doc *plan.Document) int {
@@ -1133,6 +1191,7 @@ func factsEmpty(f *Facts) bool {
 		strings.TrimSpace(f.ReviewedHeadSHA) == "" &&
 		f.ArchiveBlockerCount == 0 &&
 		f.Evidence == nil &&
+		f.ManagedResources == nil &&
 		strings.TrimSpace(f.LandPRURL) == "" &&
 		strings.TrimSpace(f.LandCommit) == ""
 }

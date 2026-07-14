@@ -36,6 +36,114 @@ func TestLintFileAcceptsDoneMarkers(t *testing.T) {
 	}
 }
 
+func TestLintFileAcceptsIndentedStepFieldContinuations(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-multiline-step-plan.md")
+	content := mustRenderTemplate(t, "Multiline Step Plan")
+	content = strings.Replace(content,
+		"- Outcome: Describe the concrete outcome for this step.\n- Covers: Criterion 1\n- Check: Describe the smallest useful validation for this outcome.\n",
+		"- Outcome: Describe the concrete outcome\n  for this step without forcing one long physical line.\n- Covers:\n  Acceptance criteria 1 and 2.\n- Check: Focused lint tests pass,\n    including document parsing.\n",
+		1,
+	)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if !result.OK {
+		t.Fatalf("expected multiline step fields to pass lint, got %#v", result)
+	}
+}
+
+func TestLintFileRejectsMalformedStepFieldContinuations(t *testing.T) {
+	tests := []struct {
+		name        string
+		replacement string
+		wantMessage string
+	}{
+		{
+			name:        "one space",
+			replacement: "- Outcome: First line.\n continuation with one space.\n- Covers: Criterion 1",
+			wantMessage: "at least two spaces",
+		},
+		{
+			name:        "tab",
+			replacement: "- Outcome: First line.\n\tcontinuation with a tab.\n- Covers: Criterion 1",
+			wantMessage: "at least two spaces",
+		},
+		{
+			name:        "blank line",
+			replacement: "- Outcome: First line.\n\n  detached continuation.\n- Covers: Criterion 1",
+			wantMessage: "without a blank line",
+		},
+		{
+			name:        "heading",
+			replacement: "- Outcome: First line.\n  #### Hidden details\n- Covers: Criterion 1",
+			wantMessage: "wrapped text only",
+		},
+		{
+			name:        "fence",
+			replacement: "- Outcome: First line.\n  ```text\n- Covers: Criterion 1",
+			wantMessage: "wrapped text only",
+		},
+		{
+			name:        "indented duplicate field",
+			replacement: "- Outcome: First line.\n  - Outcome: Hidden duplicate.\n- Covers: Criterion 1",
+			wantMessage: "wrapped text only",
+		},
+		{
+			name:        "numbered list",
+			replacement: "- Outcome: First line.\n  1. Hidden detail.\n- Covers: Criterion 1",
+			wantMessage: "wrapped text only",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, "docs/plans/active/2026-03-17-malformed-continuation.md")
+			content := mustRenderTemplate(t, "Malformed Continuation")
+			content = strings.Replace(content,
+				"- Outcome: Describe the concrete outcome for this step.\n- Covers: Criterion 1",
+				tt.replacement,
+				1,
+			)
+			writeFile(t, path, content)
+
+			result := plan.LintFile(path)
+			if result.OK {
+				t.Fatalf("expected malformed continuation to fail lint, got %#v", result)
+			}
+			found := false
+			for _, issue := range result.Errors {
+				if strings.Contains(issue.Message, tt.wantMessage) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("expected error containing %q, got %#v", tt.wantMessage, result.Errors)
+			}
+		})
+	}
+}
+
+func TestLintFileRejectsDuplicateStepFieldWithContinuations(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-duplicate-multiline-field.md")
+	content := mustRenderTemplate(t, "Duplicate Multiline Field")
+	content = strings.Replace(content,
+		"- Outcome: Describe the concrete outcome for this step.\n- Covers: Criterion 1",
+		"- Outcome: First value.\n  Continued first value.\n- Outcome: Duplicate value.\n- Covers: Criterion 1",
+		1,
+	)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected duplicate field to fail lint, got %#v", result)
+	}
+	assertHasError(t, result, "step.Step 1: Replace with first step title.outcome")
+}
+
 func TestLintFileRequiresCompactPlanSectionsAndStepFields(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-compact-contract.md")

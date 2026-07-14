@@ -373,6 +373,10 @@
           "$ref": "#/$defs/StatusEvidenceFacts",
           "description": "Evidence groups durable recorded evidence and compact read-only remote observation facts for archived-candidate handoff."
         },
+        "managed_resources": {
+          "$ref": "#/$defs/StatusManagedResources",
+          "description": "ManagedResources summarizes repository-managed bootstrap assets that differ from the assets packaged in the running binary."
+        },
         "land_pr_url": {
           "type": "string",
           "description": "LandPRURL is the pull request URL recorded for the land phase."
@@ -385,6 +389,50 @@
       "additionalProperties": false,
       "type": "object",
       "description": "StatusFacts carries selected derived details that help interpret a status node without dumping the full local state model."
+    },
+    "StatusManagedResources": {
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Status is stale when the installed managed assets differ from the running binary's packaged assets."
+        },
+        "agent": {
+          "type": "string",
+          "description": "Agent is the default agent profile whose repository assets were inspected."
+        },
+        "instructions_stale": {
+          "type": "boolean",
+          "description": "InstructionsStale reports whether the managed instructions block differs."
+        },
+        "stale_skill_packages": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "StaleSkillPackages lists installed managed packages with changed content."
+        },
+        "missing_skill_packages": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "MissingSkillPackages lists packaged managed skills missing from an otherwise installed managed skill set."
+        },
+        "extra_skill_packages": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "ExtraSkillPackages lists installed managed skills no longer packaged."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "status",
+        "agent"
+      ],
+      "description": "StatusManagedResources is a compact read-only projection of stale default repository instructions and skill packages."
     },
     "StatusRecordedEvidence": {
       "properties": {

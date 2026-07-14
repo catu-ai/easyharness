@@ -125,6 +125,12 @@ Each step contains only:
   outcome
 - an optional non-empty `Check`
 
+`Outcome`, `Covers`, and `Check` may wrap onto immediately following lines
+indented by at least two spaces. Continuations are parsed as newline-separated
+text in the same field. Keep them as ordinary prose: a blank line ends the
+field, and headings, fenced blocks, or nested lists are not accepted as field
+continuations.
+
 The first unfinished `Done` marker is the current step. Steps are meaningful
 progress boundaries, not review units or prescribed implementation sequences.
 Do not add expected-file lists, details, execution notes, review notes, or

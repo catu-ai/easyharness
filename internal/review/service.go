@@ -102,6 +102,14 @@ func (s Service) Start(options StartOptions) StartResult {
 			Errors:  []CommandError{{Path: "plan.steps", Message: "complete every tracked step before starting finalize review"}},
 		}
 	}
+	if !doc.AllAcceptanceChecked() {
+		return StartResult{
+			OK:      false,
+			Command: "review start",
+			Summary: "Finalize review is not ready to start.",
+			Errors:  []CommandError{{Path: "plan.acceptance", Message: "check every acceptance criterion before starting finalize review"}},
+		}
+	}
 	if pendingNewStepReopen(doc, state) {
 		return StartResult{
 			OK:      false,
