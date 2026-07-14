@@ -133,11 +133,14 @@ and an already merged PR should recover into land instead of looking invalid.
 
 ## Closeout
 
-- Validation: PENDING_UNTIL_ARCHIVE
-- Review: PENDING_UNTIL_ARCHIVE
-- Delivered: PENDING_UNTIL_ARCHIVE
-- Not Delivered: PENDING_UNTIL_ARCHIVE
-- Follow-Up Issues: PENDING_UNTIL_ARCHIVE
-- PR: PENDING_UNTIL_ARCHIVE
-- Ready: PENDING_UNTIL_ARCHIVE
-- Merge Handoff: PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-07-14T11:48:18+08:00
+- Revision: 1
+- Validation: Focused plan, review, status, install, CLI, contract-sync, dashboard, and built-binary E2E tests passed; `go test ./...`, `scripts/validate`, `scripts/validate-release`, bootstrap/contract sync checks, plan lint, and diff checks passed on the complete candidate. The installed development binary reports `v0.6.0-rc.2-dev`.
+- Review: Integrated full review `review-001-full` requested two important repairs for the generated reviewer skeleton and ambiguous Markdown continuations. Linked `review-002-delta` exercised the generated skeleton directly, verified the parser boundary repairs, resolved both findings, and passed with no new findings.
+- Delivered: Finalize review now requires completed acceptance criteria; plans support ordinary indented continuation prose and discourage lifecycle milestones as outcomes; status surfaces stale managed assets without writes, distinguishes merged PRs for explicit land recovery, and preserves closed-PR invalidation; the directly editable reviewer skeleton now matches its submit input contract; release metadata is `0.6.0-rc.2`.
+- Not Delivered: Automatic managed-resource refresh/rebase, stable `v0.6.0`, goal-oriented workflow, and repair of the external Grove dogfood worktrees remain outside this candidate.
+- Follow-Up Issues: Continue RC feedback and the stable-release decision in https://github.com/catu-ai/easyharness/issues/293; goal-oriented work remains assigned to milestone `v0.7.0`.
+- PR: To be created after archive from `codex/rc2-workflow-corrections`.
+- Ready: Acceptance, implementation, release-level validation, bootstrap/schema sync, and full-plus-linked-delta review coverage are complete; the candidate is ready to archive and publish.
+- Merge Handoff: Publish a ready PR, record current CI and base-sync evidence, and wait for explicit human merge approval. After merge, verify tag `v0.6.0-rc.2`, GitHub prerelease assets, the default Homebrew formula update, and an installed Homebrew binary reporting the RC version.
+
