@@ -49,112 +49,6 @@
       ],
       "description": "NextAction describes one concrete follow-up action that the caller should consider after reading a command result."
     },
-    "ReviewAssignment": {
-      "properties": {
-        "slot": {
-          "type": "string"
-        },
-        "role": {
-          "type": "string"
-        },
-        "dimensions": {
-          "items": {
-            "$ref": "#/$defs/ReviewResolvedDimension"
-          },
-          "type": "array",
-          "minItems": 1
-        },
-        "instructions": {
-          "type": "string"
-        },
-        "risk_brief": {
-          "$ref": "#/$defs/ReviewRiskBrief"
-        },
-        "submission_path": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "slot",
-        "role",
-        "dimensions",
-        "instructions",
-        "submission_path"
-      ],
-      "description": "ReviewAssignment describes one surfaced reviewer assignment."
-    },
-    "ReviewResolvedDimension": {
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "sources": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "minItems": 1
-        },
-        "description": {
-          "type": "string"
-        },
-        "instructions": {
-          "type": "string"
-        },
-        "plan_path": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "name",
-        "sources",
-        "description",
-        "instructions"
-      ],
-      "description": "ReviewResolvedDimension snapshots one explicitly assigned guidance fragment."
-    },
-    "ReviewRiskBrief": {
-      "properties": {
-        "risk_surfaces": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "minItems": 1
-        },
-        "invariants": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "minItems": 1
-        },
-        "failure_modes": {
-          "oneOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "risk_surfaces",
-        "invariants"
-      ],
-      "description": "ReviewRiskBrief gives a specialist a concrete risk surface to challenge."
-    },
     "StatusArtifacts": {
       "properties": {
         "project_root": {
@@ -179,12 +73,9 @@
           "type": "string",
           "description": "ReviewRoundID is the active review round identifier when review is in flight."
         },
-        "review_assignments": {
-          "items": {
-            "$ref": "#/$defs/ReviewAssignment"
-          },
-          "type": "array",
-          "description": "ReviewAssignments lists the active round's reviewer-owned assignment handles when review is in flight."
+        "review_submission_path": {
+          "type": "string",
+          "description": "ReviewSubmissionPath is the integrated reviewer's owned submission path when finalize review is in flight."
         },
         "last_landed_at": {
           "type": "string",
@@ -216,6 +107,26 @@
           "type": "string",
           "description": "CurrentStep is the first unfinished plan step when one exists."
         },
+        "current_step_number": {
+          "type": "integer",
+          "description": "CurrentStepNumber is the one-based first unfinished plan step number."
+        },
+        "step_completed": {
+          "type": "integer",
+          "description": "StepCompleted is the number of completed plan steps."
+        },
+        "step_total": {
+          "type": "integer",
+          "description": "StepTotal is the total number of plan steps."
+        },
+        "acceptance_completed": {
+          "type": "integer",
+          "description": "AcceptanceCompleted is the number of checked acceptance criteria."
+        },
+        "acceptance_total": {
+          "type": "integer",
+          "description": "AcceptanceTotal is the total number of acceptance criteria."
+        },
         "revision": {
           "type": "integer",
           "description": "Revision is the current plan-local revision number."
@@ -228,17 +139,13 @@
           "type": "string",
           "description": "ReviewKind is the review kind for the active review round."
         },
-        "review_trigger": {
-          "type": "string",
-          "description": "ReviewTrigger is the derived reason label for the active review round."
-        },
-        "review_title": {
-          "type": "string",
-          "description": "ReviewTitle is the human-readable title for the active review round when one exists."
-        },
         "review_status": {
           "type": "string",
-          "description": "ReviewStatus summarizes the aggregate review state for the current node."
+          "description": "ReviewStatus summarizes the integrated finalize review state for the current node."
+        },
+        "reviewed_head_sha": {
+          "type": "string",
+          "description": "ReviewedHeadSHA is the immutable candidate head captured for the active finalize review."
         },
         "archive_blocker_count": {
           "type": "integer",

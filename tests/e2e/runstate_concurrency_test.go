@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/catu-ai/easyharness/internal/runstate"
@@ -54,20 +53,8 @@ func TestArchivedRunstateInterleavingsIgnoreStaleEvidenceAndFailClearlyUnderLock
 	}
 
 	support.RewritePlanPreservingFrontmatter(t, planPath, runstateConcurrencyPlanTitle, runstateConcurrencyPlanBody())
-	support.CompleteStep(
-		t,
-		planPath,
-		1,
-		"Re-established the first completed step after reopen.",
-		"No optional step review was started in the rehydrated reopen fixture.",
-	)
-	support.CompleteStep(
-		t,
-		planPath,
-		2,
-		"Re-established the second completed step after reopen.",
-		"No optional step review was started in the rehydrated reopen fixture.",
-	)
+	support.CompleteStep(t, planPath, 1)
+	support.CompleteStep(t, planPath, 2)
 	support.CheckAllAcceptanceCriteria(t, planPath)
 
 	preFinalizeStatus := runStatus(t, workspace.Root)
@@ -77,6 +64,7 @@ func TestArchivedRunstateInterleavingsIgnoreStaleEvidenceAndFailClearlyUnderLock
 	}
 
 	runPassingFinalizeReview(t, workspace)
+	support.CompleteCloseout(t, planPath)
 
 	postFinalizeStatus := runStatus(t, workspace.Root)
 	assertNode(t, postFinalizeStatus, "execution/finalize/archive")
@@ -157,142 +145,5 @@ func TestArchivedRunstateInterleavingsIgnoreStaleEvidenceAndFailClearlyUnderLock
 }
 
 func runstateConcurrencyPlanBody() string {
-	return strings.TrimSpace(`
-## Goal
-
-Exercise deterministic archive, reopen, evidence, and status interleavings so
-stale archived evidence never masquerades as the current candidate and lock
-contention fails clearly.
-
-## Scope
-
-### In Scope
-
-- Reach ` + "`" + `execution/finalize/await_merge` + "`" + ` with real evidence records.
-- Reopen the archived candidate and archive it again at a new revision.
-- Prove older revision evidence stays ignored until the new revision records its
-  own publish, CI, and sync evidence.
-- Hold the shared state lock while ` + "`" + `status` + "`" + ` and
-  ` + "`" + `evidence submit` + "`" + ` run so the user-facing failure remains
-  clear and deterministic.
-
-### Out of Scope
-
-- Nondeterministic race harnesses.
-- New-step reopen semantics.
-
-## Acceptance Criteria
-
-- [ ] Revision 1 reaches ` + "`" + `execution/finalize/await_merge` + "`" + ` through real publish, CI, and sync evidence.
-- [ ] After ` + "`" + `reopen --mode finalize-fix` + "`" + ` and re-archive, stale revision-1 evidence does not advance revision 2 past ` + "`" + `execution/finalize/publish` + "`" + `.
-- [ ] While the shared state lock is held, ` + "`" + `status` + "`" + ` and
-  ` + "`" + `evidence submit` + "`" + ` fail clearly without creating new evidence records.
-- [ ] Fresh revision-2 evidence advances the candidate back to ` + "`" + `execution/finalize/await_merge` + "`" + `.
-
-## Deferred Items
-
-- None.
-
-## Work Breakdown
-
-### Step 1: Prepare the first archived candidate
-
-- Done: [ ]
-
-#### Objective
-
-Close out the initial tracked step before the first archive.
-
-#### Details
-
-NONE
-
-#### Expected Files
-
-- tests/e2e/runstate_concurrency_test.go
-
-#### Validation
-
-- Run a clean delta review before advancing.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
-
-### Step 2: Reach merge-ready handoff before reopen
-
-- Done: [ ]
-
-#### Objective
-
-Archive the initial candidate, record merge-ready evidence, then reopen for a
-new revision of finalize-scope repair.
-
-#### Details
-
-The scenario should use the same plan stem across both archived revisions so the
-test can prove stale evidence stays revision-scoped rather than bleeding into
-the reopened candidate.
-
-#### Expected Files
-
-- tests/e2e/runstate_concurrency_test.go
-
-#### Validation
-
-- Run a clean finalize review before each archive point.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
-
-## Validation Strategy
-
-- Run ` + "`" + `go test ./tests/e2e -count=1` + "`" + `.
-
-## Risks
-
-- Risk: The test could accidentally re-prove only helper-level lock behavior.
-  - Mitigation: Assert node progression and revision-sensitive evidence
-    selection through the real binary before and after the lock-contention
-    checks.
-
-## Validation Summary
-
-Validated the deterministic archive, reopen, evidence, and status interleaving.
-
-## Review Summary
-
-No unresolved blocking review findings remain in the candidate used for
-concurrency coverage.
-
-## Archive Summary
-
-- PR: NONE
-- Ready: The candidate is ready for archive and later merge handoff.
-- Merge Handoff: Commit and push the archive move before treating the candidate
-  as waiting for merge approval.
-
-## Outcome Summary
-
-### Delivered
-
-Delivered deterministic runstate concurrency coverage.
-
-### Not Delivered
-
-NONE.
-
-### Follow-Up Issues
-
-NONE
-`)
+	return compactPlanFixture(runstateConcurrencyStepOne, runstateConcurrencyStepTwo)
 }

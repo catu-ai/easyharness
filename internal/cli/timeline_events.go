@@ -76,7 +76,7 @@ func lifecycleTimelineHook(workdir string, before *status.Result, recordedAt str
 	}
 }
 
-func reviewStartTimelineHook(workdir string, before *status.Result, recordedAt string, input []byte) func(reviewStartResult) error {
+func reviewStartTimelineHook(workdir string, before *status.Result, recordedAt string, input any) func(reviewStartResult) error {
 	return func(result reviewStartResult) error {
 		return appendTimelineEvent(
 			workdir,
@@ -95,18 +95,6 @@ func reviewSubmitTimelineHook(workdir string, before *status.Result, recordedAt 
 			before,
 			readStatusSnapshot(workdir),
 			attachRawPayloads(timelineEventFromReviewSubmit(result), input, result, result.Artifacts),
-			recordedAt,
-		)
-	}
-}
-
-func reviewAggregateTimelineHook(workdir string, before *status.Result, recordedAt string, input any) func(reviewAggregateResult) error {
-	return func(result reviewAggregateResult) error {
-		return appendTimelineEvent(
-			workdir,
-			before,
-			readStatusSnapshot(workdir),
-			attachRawPayloads(timelineEventFromReviewAggregate(result), input, result, result.Artifacts),
 			recordedAt,
 		)
 	}
@@ -183,13 +171,9 @@ func timelineEventFromReviewStart(result reviewStartResult) timeline.Event {
 			pathRef("plan_path", result.Artifacts.PlanPath),
 			valueRef("round_id", result.Artifacts.RoundID),
 		)
-		for _, assignment := range result.Artifacts.Assignments {
-			event.ArtifactRefs = append(event.ArtifactRefs, pathRef(slotSubmissionPathLabel(assignment.Slot), assignment.SubmissionPath))
+		if result.Artifacts.Reviewer != nil {
+			event.ArtifactRefs = append(event.ArtifactRefs, pathRef("submission_path", result.Artifacts.Reviewer.SubmissionPath))
 		}
-		event.Details = append(event.Details, timeline.Detail{
-			Key:   "assignment_count",
-			Value: strconv.Itoa(len(result.Artifacts.Assignments)),
-		})
 	}
 	return pruneTimelineEvent(event)
 }
@@ -203,23 +187,7 @@ func timelineEventFromReviewSubmit(result reviewSubmitResult) timeline.Event {
 	if result.Artifacts != nil {
 		event.ArtifactRefs = append(event.ArtifactRefs,
 			valueRef("round_id", result.Artifacts.RoundID),
-			valueRef("slot", result.Artifacts.Slot),
-			pathRef(slotSubmissionPathLabel(result.Artifacts.Slot), result.Artifacts.SubmissionPath),
-		)
-		event.Details = append(event.Details, timeline.Detail{Key: "slot", Value: result.Artifacts.Slot})
-	}
-	return pruneTimelineEvent(event)
-}
-
-func timelineEventFromReviewAggregate(result reviewAggregateResult) timeline.Event {
-	event := timeline.Event{
-		Kind:    "review",
-		Command: result.Command,
-		Summary: result.Summary,
-	}
-	if result.Artifacts != nil {
-		event.ArtifactRefs = append(event.ArtifactRefs,
-			valueRef("round_id", result.Artifacts.RoundID),
+			pathRef("submission_path", result.Artifacts.SubmissionPath),
 		)
 	}
 	if result.Review != nil {
@@ -273,7 +241,6 @@ func timelineEventFromEvidenceRefresh(result evidence.RefreshResult) timeline.Ev
 
 type reviewStartResult = contracts.ReviewStartResult
 type reviewSubmitResult = contracts.ReviewSubmitResult
-type reviewAggregateResult = contracts.ReviewAggregateResult
 
 func pathRef(label, path string) timeline.ArtifactRef {
 	if strings.TrimSpace(path) == "" {

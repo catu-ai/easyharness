@@ -1,20 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if ! command -v npx >/dev/null 2>&1; then
-  echo "npx is required to run Playwright browser validation." >&2
-  exit 1
-fi
-
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "python3 is required to run Playwright browser validation." >&2
-  exit 1
-fi
-
-if ! command -v pnpm >/dev/null 2>&1; then
-  echo "pnpm is required to rebuild embedded UI assets before browser validation." >&2
-  exit 1
-fi
+for command in npx python3 pnpm; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    echo "$command is required to run Playwright browser validation." >&2
+    exit 1
+  fi
+done
 
 export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 export PWCLI="$CODEX_HOME/skills/playwright/scripts/playwright_cli.sh"
@@ -27,7 +19,7 @@ port="${HARNESS_UI_PORT:-0}"
 tmp_dir="$(mktemp -d)"
 runtime_workdir="$tmp_dir/runtime-workdir"
 server_log="$tmp_dir/harness-ui.log"
-session_name="ruis-$$-$RANDOM"
+session_name="review-ui-$$-$RANDOM"
 session_dir="$tmp_dir/playwright"
 output_dir="${HARNESS_UI_OUTPUT_DIR:-output/playwright/$session_name}"
 server_pid=""
@@ -36,69 +28,14 @@ log_phase() {
   printf '[review-ui-smoke] %s\n' "$*" >&2
 }
 
-clear_pwcli_socket() {
-  local session="$1"
-  find "${TMPDIR:-/tmp}" -path "*/pw-*/cli/*-${session}.sock" -delete 2>/dev/null || true
-}
-
-pwcli_close() {
-  python3 - "$PWCLI" "$session_name" "$session_dir" <<'PY'
-import subprocess
-import sys
-import os
-import signal
-
-pwcli, session, cwd = sys.argv[1:4]
-proc = subprocess.Popen(
-    [pwcli, "--session", session, "close"],
-    cwd=cwd,
-    stdout=subprocess.DEVNULL,
-    stderr=subprocess.DEVNULL,
-    start_new_session=True,
-)
-try:
-    proc.wait(timeout=5)
-except subprocess.TimeoutExpired:
-    try:
-        os.killpg(proc.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    try:
-        proc.wait(timeout=2)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        proc.wait()
-PY
-}
-
-stop_pid() {
-  local pid="$1"
-  if [[ -z "$pid" ]]; then
-    return
-  fi
-  kill "$pid" >/dev/null 2>&1 || true
-  for _ in $(seq 1 20); do
-    if ! kill -0 "$pid" >/dev/null 2>&1; then
-      wait "$pid" >/dev/null 2>&1 || true
-      return
-    fi
-    sleep 0.1
-  done
-  kill -9 "$pid" >/dev/null 2>&1 || true
-  wait "$pid" >/dev/null 2>&1 || true
-}
-
 cleanup() {
   if [[ -n "$server_pid" ]]; then
-    stop_pid "$server_pid"
+    kill "$server_pid" >/dev/null 2>&1 || true
+    wait "$server_pid" >/dev/null 2>&1 || true
   fi
-  pwcli_close >/dev/null 2>&1 || true
+  "$PWCLI" --session "$session_name" close >/dev/null 2>&1 || true
   rm -rf "$tmp_dir"
 }
-
 trap cleanup EXIT
 
 if [[ ! -x "$harness_bin" ]]; then
@@ -115,628 +52,257 @@ log_phase "refreshing local harness binary"
 "$repo_root/scripts/install-dev-harness" >/dev/null
 harness_bin="${HARNESS_UI_BINARY:-$repo_root/.local/bin/harness}"
 
-log_phase "seeding active-plan review fixture"
-python3 - <<'PY' "$runtime_workdir"
+log_phase "seeding integrated-review read model"
+python3 - "$runtime_workdir" <<'PY'
 import json
 import pathlib
 import sys
 
 root = pathlib.Path(sys.argv[1])
 plan_rel = "docs/plans/active/2026-04-02-review-ui-smoke.md"
-plan_path = root / plan_rel
-plan_path.parent.mkdir(parents=True, exist_ok=True)
-
 plan_stem = "2026-04-02-review-ui-smoke"
-review_root = root / ".local" / "harness" / "plans" / plan_stem / "reviews"
-(review_root / "review-001-delta" / "submissions").mkdir(parents=True, exist_ok=True)
-(review_root / "review-002-delta" / "submissions").mkdir(parents=True, exist_ok=True)
-(review_root / "review-003-full" / "submissions").mkdir(parents=True, exist_ok=True)
-(review_root / "review-004-full" / "submissions").mkdir(parents=True, exist_ok=True)
-(review_root / "review-006-delta" / "submissions").mkdir(parents=True, exist_ok=True)
-(review_root / "review-007-delta" / "submissions").mkdir(parents=True, exist_ok=True)
-(review_root / "review-008-full" / "submissions").mkdir(parents=True, exist_ok=True)
-(review_root / "review-009-delta" / "submissions").mkdir(parents=True, exist_ok=True)
+plan_path = root / plan_rel
+runtime = root / ".local" / "harness"
+reviews = runtime / "plans" / plan_stem / "reviews"
+plan_path.parent.mkdir(parents=True, exist_ok=True)
+reviews.mkdir(parents=True, exist_ok=True)
 
-def dimension(name, instructions):
-    return {
-        "name": name,
-        "sources": ["builtin"],
-        "description": f"{name.replace('-', ' ').title()} review guidance",
-        "instructions": instructions,
-    }
+plan_path.write_text(
+    '''---
+template_version: 0.3.0
+created_at: "2026-04-02T10:00:00Z"
+source_type: direct_request
+source_refs: []
+size: M
+---
 
+# Review UI Smoke
 
-def assignment(slot, role, dimension_name, instructions, submission_path):
-    result = {
-        "slot": slot,
-        "role": role,
-        "dimensions": [dimension(dimension_name, instructions)],
-        "instructions": instructions,
-        "submission_path": str(submission_path),
-    }
-    if role == "specialist":
-        result["risk_brief"] = {
-            "risk_surfaces": [f"{dimension_name} behavior"],
-            "invariants": ["review evidence remains readable and attributable"],
-            "failure_modes": ["the surfaced review state hides a relevant defect"],
-        }
-    return result
+## Goal
 
+Exercise the integrated-review read model in the browser.
 
-def ledger_assignment(slot, role, status, submission_path, submitted_at=None):
-    result = {
-        "slot": slot,
-        "role": role,
-        "status": status,
-        "submission_path": str(submission_path),
-    }
-    if submitted_at:
-        result["submitted_at"] = submitted_at
-    return result
-(root / ".local" / "harness").mkdir(parents=True, exist_ok=True)
+### Decisions and Constraints
 
-(root / ".local" / "harness" / "current-plan.json").write_text(
-    json.dumps({"plan_path": plan_rel}), encoding="utf-8"
+- Show one accountable reviewer and derived decision coverage.
+
+## Scope
+
+### In Scope
+
+- Pending, blocked, and repaired finalize review rounds.
+
+### Out of Scope
+
+- Internal review artifact inspection.
+
+## Acceptance Criteria
+
+- [x] The review page renders reviewer, findings, and coverage state.
+
+## Review Focus
+
+- Verify decision and coverage remain understandable without orchestration detail.
+
+## Deferred Items
+
+- None.
+
+## Work Breakdown
+
+### Step 1: Build the review read model
+
+- Done: [x]
+- Outcome: Render one integrated reviewer with decision, findings, and coverage.
+- Covers: Review page rendering.
+- Check: Run the Playwright review smoke.
+
+## Validation Strategy
+
+- Exercise pending, blocked, and repaired rounds in a real browser.
+
+## Closeout
+
+- Validation: PENDING_UNTIL_ARCHIVE
+- Review: PENDING_UNTIL_ARCHIVE
+- Delivered: PENDING_UNTIL_ARCHIVE
+- Not Delivered: PENDING_UNTIL_ARCHIVE
+- Follow-Up Issues: NONE
+- PR: PENDING_UNTIL_ARCHIVE
+- Ready: PENDING_UNTIL_ARCHIVE
+- Merge Handoff: PENDING_UNTIL_ARCHIVE
+''',
+    encoding="utf-8",
 )
-(root / ".local" / "harness" / "plans" / plan_stem / "state.json").write_text(
+
+runtime.mkdir(parents=True, exist_ok=True)
+(runtime / "current-plan.json").write_text(json.dumps({"plan_path": plan_rel}), encoding="utf-8")
+(runtime / "plans" / plan_stem).mkdir(parents=True, exist_ok=True)
+(runtime / "plans" / plan_stem / "state.json").write_text(
     json.dumps(
         {
-            "execution_started_at": "2026-04-02T12:00:00Z",
+            "execution_started_at": "2026-04-02T10:05:00Z",
             "current_node": "execution/finalize/review",
             "plan_path": plan_rel,
             "plan_stem": plan_stem,
-            "revision": 2,
+            "revision": 1,
             "active_review_round": {
-                "round_id": "review-005-full",
-                "kind": "full",
-                "revision": 2,
+                "round_id": "review-003-delta",
+                "kind": "delta",
+                "revision": 1,
                 "aggregated": False,
                 "decision": "",
             },
-        }
-    ),
-    encoding="utf-8",
-)
-
-review_one = review_root / "review-001-delta"
-sub_one = review_one / "submissions" / "correctness" / "submission.json"
-sub_one.parent.mkdir(parents=True, exist_ok=True)
-(review_one / "manifest.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-001-delta",
-            "kind": "delta",
-            "reviewed_head_sha": "fixture-head-001",
-            "step": 1,
-            "revision": 1,
-            "review_title": "Step 1 closeout",
-            "plan_path": plan_rel,
-            "plan_stem": plan_stem,
-            "created_at": "2026-04-02T10:00:00Z",
-            "ledger_path": str(review_one / "ledger.json"),
-            "aggregate_path": str(review_one / "aggregate.json"),
-            "submissions_dir": str(review_one / "submissions"),
-            "assignments": [
-                assignment("correctness", "integrated", "correctness", "Check correctness and regressions.", sub_one)
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-(review_one / "ledger.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-001-delta",
-            "kind": "delta",
-            "updated_at": "2026-04-02T10:06:00Z",
-            "assignments": [
-                ledger_assignment("correctness", "integrated", "submitted", sub_one, "2026-04-02T10:05:00Z")
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-(review_one / "aggregate.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-001-delta",
-            "kind": "delta",
-            "step": 1,
-            "revision": 1,
-            "review_title": "Step 1 closeout",
-            "reviewed_head_sha": "fixture-head-001",
-            "decision": "pass",
-            "blocking_findings": [],
-            "non_blocking_findings": [],
-            "resolved_finding_ids": [],
-            "unresolved_finding_ids": [],
-            "unresolved_blocking_findings": [],
-            "aggregated_at": "2026-04-02T10:07:00Z",
-        }
-    ),
-    encoding="utf-8",
-)
-sub_one.write_text(
-    json.dumps(
-        {
-            "round_id": "review-001-delta",
-            "slot": "correctness",
-            "role": "integrated",
-            "submitted_at": "2026-04-02T10:05:00Z",
-            "summary": "Looks clean.",
-            "findings": [],
-        }
-    ),
-    encoding="utf-8",
-)
-
-review_two = review_root / "review-002-delta"
-sub_two_a = review_two / "submissions" / "correctness" / "submission.json"
-sub_two_b = review_two / "submissions" / "risk" / "submission.json"
-sub_two_a.parent.mkdir(parents=True, exist_ok=True)
-sub_two_b.parent.mkdir(parents=True, exist_ok=True)
-(review_two / "manifest.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-002-delta",
-            "kind": "delta",
-            "reviewed_head_sha": "fixture-head-002",
-            "step": 2,
-            "revision": 2,
-            "review_title": "Step 2 closeout",
-            "plan_path": plan_rel,
-            "plan_stem": plan_stem,
-            "created_at": "2026-04-02T11:00:00Z",
-            "ledger_path": str(review_two / "ledger.json"),
-            "aggregate_path": str(review_two / "aggregate.json"),
-            "submissions_dir": str(review_two / "submissions"),
-            "assignments": [
-                assignment("correctness", "integrated", "correctness", "Check correctness before the step closes.", sub_two_a),
-                assignment("risk", "specialist", "risk-scan", "Check for hidden workflow or data risks.", sub_two_b),
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-sub_two_a.write_text(
-    json.dumps(
-        {
-            "round_id": "review-002-delta",
-            "slot": "correctness",
-            "role": "integrated",
-            "submitted_at": "2026-04-02T11:07:00Z",
-            "summary": "Recovered while the ledger is malformed.",
-            "findings": [],
-        }
-    ),
-    encoding="utf-8",
-)
-sub_two_b.write_text(
-    json.dumps(
-        {
-            "round_id": "review-002-delta",
-            "slot": "risk",
-            "role": "specialist",
-            "submitted_at": "2026-04-02T11:08:00Z",
-            "summary": "Recovered while the ledger is malformed.",
-            "findings": [],
-        }
-    ),
-    encoding="utf-8",
-)
-(review_two / "ledger.json").write_text("{not-json", encoding="utf-8")
-(review_two / "aggregate.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-002-delta",
-            "kind": "delta",
-            "step": 2,
-            "revision": 2,
-            "review_title": "Step 2 closeout",
-            "reviewed_head_sha": "fixture-head-002",
-            "decision": "pass",
-            "aggregated_at": "2026-04-02T11:12:00Z",
-            "blocking_findings": [],
-            "non_blocking_findings": [],
-            "resolved_finding_ids": [],
-            "unresolved_finding_ids": [],
-            "unresolved_blocking_findings": [],
-        }
-    ),
-    encoding="utf-8",
-)
-
-review_three = review_root / "review-003-full"
-sub_three_a = review_three / "submissions" / "correctness" / "submission.json"
-sub_three_b = review_three / "submissions" / "ux" / "submission.json"
-sub_three_a.parent.mkdir(parents=True, exist_ok=True)
-sub_three_b.parent.mkdir(parents=True, exist_ok=True)
-(review_three / "manifest.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-003-full",
-            "kind": "full",
-            "reviewed_head_sha": "fixture-head-003",
-            "revision": 2,
-            "review_title": "Finalize review",
-            "plan_path": plan_rel,
-            "plan_stem": plan_stem,
-            "created_at": "2026-04-02T12:00:00Z",
-            "ledger_path": str(review_three / "ledger.json"),
-            "aggregate_path": str(review_three / "aggregate.json"),
-            "submissions_dir": str(review_three / "submissions"),
-            "assignments": [
-                assignment("correctness", "integrated", "correctness", "Check correctness and regressions in the final pass.", sub_three_a),
-                assignment("ux", "specialist", "agent-ux", "Check hierarchy, density, and visual polish.", sub_three_b),
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-(review_three / "ledger.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-003-full",
-            "kind": "full",
-            "updated_at": "2026-04-02T12:10:00Z",
-            "assignments": [
-                ledger_assignment("correctness", "integrated", "submitted", sub_three_a, "2026-04-02T12:07:00Z"),
-                ledger_assignment("ux", "specialist", "pending", sub_three_b),
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-sub_three_a.write_text(
-    json.dumps(
-        {
-            "round_id": "review-003-full",
-            "slot": "correctness",
-            "role": "integrated",
-            "submitted_at": "2026-04-02T12:07:00Z",
-            "summary": "Core behavior is stable.",
-            "findings": [
-                {
-                    "area": "status-copy",
-                    "severity": "minor",
-                    "title": "Message clarity",
-                    "details": "One status string could be clearer.",
-                    "locations": ["web/src/main.tsx#L1-L5"],
-                }
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-sub_three_b.write_text(
-    json.dumps(
-        {
-            "round_id": "review-003-full",
-            "slot": "ux",
-            "role": "specialist",
-            "summary": "",
-            "findings": [],
-            "worklog": {
-                "full_plan_read": False,
-                "checked_areas": ["web/src/styles.css"],
-                "open_questions": ["Should the review summary stay unchanged?"],
-                "candidate_findings": [],
-            },
-            "coverage": {
-                "review_kind": "full",
+            "finalize_coverage": {
+                "root_round_id": "review-001-full",
+                "tip_round_id": "review-002-delta",
+                "covered_head_sha": "fixture-head-002",
+                "revision": 1,
+                "unresolved_blocking_count": 0,
             },
         }
     ),
     encoding="utf-8",
 )
 
-review_four = review_root / "review-004-full"
-sub_four = review_four / "submissions" / "correctness" / "submission.json"
-sub_four.parent.mkdir(parents=True, exist_ok=True)
-(review_four / "manifest.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-004-full",
-            "kind": "full",
-            "reviewed_head_sha": "fixture-head-004",
-            "revision": 2,
-            "review_title": "Aggregation wait",
-            "plan_path": plan_rel,
-            "plan_stem": plan_stem,
-            "created_at": "2026-04-02T12:30:00Z",
-            "ledger_path": str(review_four / "ledger.json"),
-            "aggregate_path": str(review_four / "aggregate.json"),
-            "submissions_dir": str(review_four / "submissions"),
-            "assignments": [
-                assignment("correctness", "integrated", "correctness", "Check the final aggregate handoff.", sub_four)
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-(review_four / "ledger.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-004-full",
-            "kind": "full",
-            "updated_at": "2026-04-02T12:35:00Z",
-            "assignments": [
-                ledger_assignment("correctness", "integrated", "submitted", sub_four, "2026-04-02T12:34:00Z")
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-sub_four.write_text(
-    json.dumps(
-        {
-            "round_id": "review-004-full",
-            "slot": "correctness",
-            "role": "integrated",
-            "submitted_at": "2026-04-02T12:34:00Z",
-            "summary": "All submissions are present while aggregation is pending.",
-            "findings": [],
-        }
-    ),
-    encoding="utf-8",
+def seed_round(round_id, kind, title, head, created_at, *, anchor="", repair=None, submitted=True, summary="", aggregate=None):
+    round_dir = reviews / round_id
+    submission = round_dir / "submissions" / "integrated" / "submission.json"
+    submission.parent.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "round_id": round_id,
+        "kind": kind,
+        "reviewed_head_sha": head,
+        "revision": 1,
+        "review_title": title,
+        "review_focus": "Check the complete candidate and its continuous review coverage.",
+        "plan_path": plan_rel,
+        "plan_stem": plan_stem,
+        "created_at": created_at,
+        "ledger_path": str(round_dir / "ledger.json"),
+        "aggregate_path": str(round_dir / "aggregate.json"),
+        "submissions_dir": str(round_dir / "submissions"),
+        "assignments": [
+            {
+                "slot": "integrated",
+                "role": "integrated",
+                "instructions": "Review the complete candidate against the fixed integrated rubric.",
+                "review_focus": "Check the complete candidate and its continuous review coverage.",
+                "submission_path": str(submission),
+            }
+        ],
+    }
+    if anchor:
+        manifest["anchor_sha"] = anchor
+    if repair:
+        manifest["repair"] = repair
+    (round_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    ledger_item = {
+        "slot": "integrated",
+        "role": "integrated",
+        "status": "submitted" if submitted else "pending",
+        "submission_path": str(submission),
+    }
+    if submitted:
+        ledger_item["submitted_at"] = created_at
+    (round_dir / "ledger.json").write_text(
+        json.dumps({"round_id": round_id, "kind": kind, "updated_at": created_at, "assignments": [ledger_item]}),
+        encoding="utf-8",
+    )
+    submission.write_text(
+        json.dumps(
+            {
+                "round_id": round_id,
+                "slot": "integrated",
+                "role": "integrated",
+                "by": "reviewer-integrated" if submitted else "",
+                "submitted_at": created_at if submitted else "",
+                "summary": summary,
+                "resolutions": [],
+                "findings": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    if aggregate is not None:
+        aggregate.setdefault("round_id", round_id)
+        aggregate.setdefault("kind", kind)
+        aggregate.setdefault("revision", 1)
+        aggregate.setdefault("review_title", title)
+        aggregate.setdefault("reviewed_head_sha", head)
+        aggregate.setdefault("blocking_findings", [])
+        aggregate.setdefault("non_blocking_findings", [])
+        aggregate.setdefault("resolved_finding_ids", [])
+        aggregate.setdefault("unresolved_finding_ids", [])
+        aggregate.setdefault("unresolved_blocking_findings", [])
+        aggregate.setdefault("aggregated_at", created_at)
+        if repair:
+            aggregate["repair"] = repair
+        (round_dir / "aggregate.json").write_text(json.dumps(aggregate), encoding="utf-8")
+
+blocking = {
+    "finding_id": "review-001-full/integrated/001",
+    "slot": "integrated",
+    "role": "integrated",
+    "area": "review-coverage",
+    "severity": "important",
+    "title": "Coverage can drift after review",
+    "details": "Archive must reject product changes beyond the reviewed head.",
+    "locations": ["internal/reviewcoverage/closeout.go"],
+}
+seed_round(
+    "review-001-full",
+    "full",
+    "Initial full review",
+    "fixture-head-001",
+    "2026-04-02T11:00:00Z",
+    summary="One blocking coverage defect remains.",
+    aggregate={
+        "decision": "changes_requested",
+        "blocking_findings": [blocking],
+        "unresolved_finding_ids": [blocking["finding_id"]],
+        "unresolved_blocking_findings": [blocking],
+    },
 )
 
-review_six = review_root / "review-006-delta"
-sub_six = review_six / "submissions" / "correctness" / "submission.json"
-sub_six.parent.mkdir(parents=True, exist_ok=True)
-(review_six / "manifest.json").write_text("{not-json", encoding="utf-8")
-(review_six / "ledger.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-006-delta",
-            "kind": "delta",
-            "updated_at": "2026-04-02T12:42:00Z",
-            "assignments": [
-                ledger_assignment("correctness", "integrated", "submitted", sub_six, "2026-04-02T12:41:00Z")
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-sub_six.write_text(
-    json.dumps(
-        {
-            "round_id": "review-006-delta",
-            "slot": "correctness",
-            "role": "integrated",
-            "submitted_at": "2026-04-02T12:41:00Z",
-            "summary": "Recovered while the manifest is malformed.",
-            "findings": [],
-        }
-    ),
-    encoding="utf-8",
+repair = {"round_id": "review-001-full", "finding_ids": [blocking["finding_id"]]}
+minor = {
+    "finding_id": "review-002-delta/integrated/001",
+    "slot": "integrated",
+    "role": "integrated",
+    "area": "docs-consistency",
+    "severity": "minor",
+    "title": "Minor documentation note",
+    "details": "Clarify the reviewed-head wording before stable release.",
+    "locations": ["docs/specs/state-model.md"],
+}
+seed_round(
+    "review-002-delta",
+    "delta",
+    "Linked repair review",
+    "fixture-head-002",
+    "2026-04-02T12:00:00Z",
+    anchor="fixture-head-001",
+    repair=repair,
+    summary="The repair closes the blocking coverage defect.",
+    aggregate={
+        "decision": "pass",
+        "non_blocking_findings": [minor],
+        "resolved_finding_ids": [blocking["finding_id"]],
+    },
 )
 
-review_seven = review_root / "review-007-delta"
-sub_seven = review_seven / "submissions" / "correctness" / "submission.json"
-sub_seven.parent.mkdir(parents=True, exist_ok=True)
-(review_seven / "manifest.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-007-delta",
-            "kind": "delta",
-            "reviewed_head_sha": "fixture-head-007",
-            "step": 4,
-            "revision": 2,
-            "review_title": "Step 4 closeout",
-            "plan_path": plan_rel,
-            "plan_stem": plan_stem,
-            "created_at": "2026-04-02T12:50:00Z",
-            "ledger_path": str(review_seven / "ledger.json"),
-            "aggregate_path": str(review_seven / "aggregate.json"),
-            "submissions_dir": str(review_seven / "submissions"),
-            "assignments": [
-                assignment("correctness", "integrated", "correctness", "Check the aggregate degradation path.", sub_seven)
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-(review_seven / "ledger.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-007-delta",
-            "kind": "delta",
-            "updated_at": "2026-04-02T12:51:00Z",
-            "assignments": [
-                ledger_assignment("correctness", "integrated", "submitted", sub_seven, "2026-04-02T12:50:30Z")
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-sub_seven.write_text(
-    json.dumps(
-        {
-            "round_id": "review-007-delta",
-            "slot": "correctness",
-            "role": "integrated",
-            "submitted_at": "2026-04-02T12:50:30Z",
-            "summary": "Recovered while the aggregate is malformed.",
-            "findings": [],
-        }
-    ),
-    encoding="utf-8",
-)
-(review_seven / "aggregate.json").write_text("{not-json", encoding="utf-8")
-
-review_eight = review_root / "review-008-full"
-sub_eight_correctness = review_eight / "submissions" / "correctness" / "submission.json"
-sub_eight_risk = review_eight / "submissions" / "risk_slot" / "submission.json"
-sub_eight_correctness.parent.mkdir(parents=True, exist_ok=True)
-sub_eight_risk.parent.mkdir(parents=True, exist_ok=True)
-(review_eight / "manifest.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-008-full",
-            "kind": "full",
-            "reviewed_head_sha": "fixture-head-008",
-            "revision": 2,
-            "review_title": "Positive findings round",
-            "plan_path": plan_rel,
-            "plan_stem": plan_stem,
-            "created_at": "2026-04-02T13:00:00Z",
-            "ledger_path": str(review_eight / "ledger.json"),
-            "aggregate_path": str(review_eight / "aggregate.json"),
-            "submissions_dir": str(review_eight / "submissions"),
-            "assignments": [
-                assignment("correctness", "integrated", "correctness", "Check the positive aggregate path.", sub_eight_correctness),
-                assignment("risk_slot", "specialist", "risk-scan", "Check residual workflow risk.", sub_eight_risk),
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-(review_eight / "ledger.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-008-full",
-            "kind": "full",
-            "updated_at": "2026-04-02T13:05:00Z",
-            "assignments": [
-                ledger_assignment("correctness", "integrated", "submitted", sub_eight_correctness, "2026-04-02T13:03:00Z"),
-                ledger_assignment("risk_slot", "specialist", "submitted", sub_eight_risk, "2026-04-02T13:04:00Z"),
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-sub_eight_correctness.write_text(
-    json.dumps(
-        {
-            "round_id": "review-008-full",
-            "slot": "correctness",
-            "role": "integrated",
-            "submitted_at": "2026-04-02T13:03:00Z",
-            "summary": "The positive findings path is exercised.",
-            "findings": [],
-        }
-    ),
-    encoding="utf-8",
-)
-sub_eight_risk.write_text(
-    json.dumps(
-        {
-            "round_id": "review-008-full",
-            "slot": "risk_slot",
-            "role": "specialist",
-            "submitted_at": "2026-04-02T13:04:00Z",
-            "summary": "No additional risk.",
-            "findings": [],
-        }
-    ),
-    encoding="utf-8",
-)
-(review_eight / "aggregate.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-008-full",
-            "kind": "full",
-            "revision": 2,
-            "review_title": "Positive findings round",
-            "reviewed_head_sha": "fixture-head-008",
-            "decision": "changes_requested",
-            "aggregated_at": "2026-04-02T13:06:00Z",
-            "blocking_findings": [
-                {
-                    "finding_id": "review-008-full/correctness/001",
-                    "slot": "correctness",
-                    "role": "integrated",
-                    "area": "finding-provenance",
-                    "severity": "important",
-                    "title": "Blocking provenance",
-                    "details": "This finding should render in the positive aggregate path.",
-                    "locations": ["web/src/main.tsx#L1450-L1487"],
-                }
-            ],
-            "non_blocking_findings": [
-                {
-                    "finding_id": "review-008-full/risk_slot/001",
-                    "slot": "risk_slot",
-                    "role": "specialist",
-                    "area": "residual-risk",
-                    "severity": "minor",
-                    "title": "Minor follow-up",
-                    "details": "This finding should render alongside the blocking one.",
-                }
-            ],
-            "resolved_finding_ids": [],
-            "unresolved_finding_ids": ["review-008-full/correctness/001"],
-            "unresolved_blocking_findings": [
-                {
-                    "finding_id": "review-008-full/correctness/001",
-                    "slot": "correctness",
-                    "role": "integrated",
-                    "area": "finding-provenance",
-                    "severity": "important",
-                    "title": "Blocking provenance",
-                    "details": "This finding should render in the positive aggregate path.",
-                    "locations": ["web/src/main.tsx#L1450-L1487"],
-                }
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-
-review_nine = review_root / "review-009-delta"
-sub_nine = review_nine / "submissions" / "risk" / "submission.json"
-sub_nine.parent.mkdir(parents=True, exist_ok=True)
-(review_nine / "manifest.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-009-delta",
-            "kind": "delta",
-            "reviewed_head_sha": "fixture-head-009",
-            "step": 5,
-            "revision": 2,
-            "review_title": "Submission validation gap",
-            "plan_path": plan_rel,
-            "plan_stem": plan_stem,
-            "created_at": "2026-04-02T13:20:00Z",
-            "ledger_path": str(review_nine / "ledger.json"),
-            "aggregate_path": str(review_nine / "aggregate.json"),
-            "submissions_dir": str(review_nine / "submissions"),
-            "assignments": [
-                assignment("risk", "specialist", "risk-scan", "Check the invalid submission degradation path.", sub_nine)
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-(review_nine / "ledger.json").write_text(
-    json.dumps(
-        {
-            "round_id": "review-009-delta",
-            "kind": "delta",
-            "updated_at": "2026-04-02T13:22:00Z",
-            "assignments": [
-                ledger_assignment("risk", "specialist", "submitted", sub_nine, "2026-04-02T13:21:30Z")
-            ],
-        }
-    ),
-    encoding="utf-8",
-)
-sub_nine.write_text(
-    json.dumps(
-        {
-            "round_id": "review-009-delta",
-            "slot": "risk",
-            "role": "specialist",
-            "submitted_at": "2026-04-02T13:21:30Z",
-            "findings": [],
-        }
-    ),
-    encoding="utf-8",
+seed_round(
+    "review-003-delta",
+    "delta",
+    "Current integrated review",
+    "fixture-head-003",
+    "2026-04-02T13:00:00Z",
+    anchor="fixture-head-002",
+    repair={"round_id": "review-002-delta", "finding_ids": []},
+    submitted=False,
 )
 PY
-
-fixture_reviews_dir="$runtime_workdir/.local/harness/plans/2026-04-02-review-ui-smoke/reviews"
 
 log_phase "starting harness ui on ${host}:${port}"
 (
@@ -748,119 +314,25 @@ server_pid="$!"
 base_url=""
 for _ in $(seq 1 150); do
   base_url="$(sed -n 's/^Harness UI listening at \(http:\/\/[^[:space:]]*\)$/\1/p' "$server_log" | tail -n 1)"
-  if [[ -n "$base_url" ]] && curl -sf "${base_url}/status" >/dev/null; then
+  if [[ -n "$base_url" ]] && curl -sf "${base_url}/review" >/dev/null; then
     break
   fi
   sleep 0.2
 done
-
 if [[ -z "$base_url" ]]; then
   echo "Harness UI failed to start for review smoke." >&2
   cat "$server_log" >&2 || true
   exit 1
 fi
 
-python3 - <<'PY' "$runtime_workdir"
-import json
-import pathlib
-import sys
-
-root = pathlib.Path(sys.argv[1])
-plan_rel = "docs/plans/active/2026-04-02-review-ui-smoke.md"
-(root / ".local" / "harness" / "current-plan.json").write_text(
-    json.dumps({"plan_path": plan_rel}),
-    encoding="utf-8",
-)
-PY
-
 snapshot_to_file() {
   local destination="$1"
-  awk '
+  "$PWCLI" --session "$session_name" snapshot | awk '
     /^```yaml$/ { capture=1; next }
-    capture && /^```$/ { capture=0; exit }
+    capture && /^```$/ { exit }
     capture { print }
   ' >"$destination"
-
   [[ -s "$destination" ]]
-}
-
-screenshot_path_from_output() {
-  sed -n 's/^- \[Screenshot of viewport\](\(.*\))$/\1/p' | head -n 1
-}
-
-resolve_artifact_path() {
-  local base_dir="$1"
-  local path="$2"
-  if [[ "$path" == /* ]]; then
-    printf '%s\n' "$path"
-    return
-  fi
-  printf '%s/%s\n' "$base_dir" "$path"
-}
-
-capture_screenshot() {
-  local session="$1"
-  local destination="$2"
-  local output screenshot_path
-
-  output="$(
-    cd "$session_dir"
-    "$PWCLI" --session "$session" screenshot
-  )"
-  screenshot_path="$(resolve_artifact_path "$session_dir" "$(printf '%s\n' "$output" | screenshot_path_from_output || true)")"
-  if [[ -z "$screenshot_path" || ! -f "$screenshot_path" ]]; then
-    echo "Missing Playwright screenshot for ${destination}" >&2
-    printf '%s\n' "$output" >&2
-    exit 1
-  fi
-  cp "$screenshot_path" "$destination"
-}
-
-run_code_checked() {
-  local session="$1"
-  local code="$2"
-  local output
-  output="$("$PWCLI" --session "$session" run-code "$code")"
-  if printf '%s\n' "$output" | grep -Fq "### Error"; then
-    printf '%s\n' "$output" >&2
-    exit 1
-  fi
-  printf '%s\n' "$output"
-}
-
-capture_locator_screenshot() {
-  local session="$1"
-  local selector="$2"
-  local destination="$3"
-  local resolved_destination selector_js destination_js
-  resolved_destination="$(resolve_artifact_path "$repo_root" "$destination")"
-  selector_js="$(python3 - <<'PY' "$selector"
-import json
-import sys
-print(json.dumps(sys.argv[1]))
-PY
-)"
-  destination_js="$(python3 - <<'PY' "$resolved_destination"
-import json
-import sys
-print(json.dumps(sys.argv[1]))
-PY
-)"
-  run_code_checked "$session" "async (page) => { await page.locator(${selector_js}).first().screenshot({ path: ${destination_js} }); return true; }" >/dev/null
-}
-
-assert_visual_baseline() {
-  local baseline="$1"
-  local candidate="$2"
-  local label="$3"
-  local resolved_baseline resolved_candidate
-  resolved_baseline="$(resolve_artifact_path "$repo_root" "$baseline")"
-  resolved_candidate="$(resolve_artifact_path "$repo_root" "$candidate")"
-  if [[ ! -f "$resolved_baseline" ]]; then
-    echo "Missing review visual baseline: ${resolved_baseline}" >&2
-    exit 1
-  fi
-  pnpm --dir "$repo_root/web" exec node "$repo_root/scripts/compare-review-visual.mjs" "$resolved_baseline" "$resolved_candidate" "$label"
 }
 
 assert_has_text() {
@@ -877,517 +349,82 @@ assert_not_has_text() {
   local file="$1"
   local unexpected="$2"
   if grep -Fq -- "$unexpected" "$file"; then
-    echo "Unexpected text in ${file}: ${unexpected}" >&2
+    echo "Snapshot ${file} unexpectedly contained text: ${unexpected}" >&2
     cat "$file" >&2
     exit 1
   fi
 }
 
-ensure_plan_size() {
-  local file="$1"
-  local size="$2"
-  if grep -q '^size:' "$file"; then
-    perl -0pi -e 's/^size: .*/size: '"$size"'/m' "$file"
-  else
-    perl -0pi -e 's/source_refs: \[\]/source_refs: []\nsize: '"$size"'/m' "$file"
-  fi
-}
-
-run_empty_review_smoke() {
-  local empty_tmp_dir
-  local empty_runtime_workdir
-  local empty_server_log
-  local empty_session_name
-  local empty_session_dir
-  local empty_server_pid
-  local empty_base_url
-
-  empty_tmp_dir="$(mktemp -d)"
-  empty_runtime_workdir="$empty_tmp_dir/runtime-workdir"
-  empty_server_log="$empty_tmp_dir/harness-ui.log"
-  empty_session_name="rue-$RANDOM"
-  empty_session_dir="$empty_tmp_dir/playwright"
-  mkdir -p "$empty_runtime_workdir" "$empty_session_dir"
-
-  "$harness_bin" plan template -title "Review UI Empty" -output "$empty_runtime_workdir/docs/plans/active/2026-04-02-review-ui-empty.md" >/dev/null
-  ensure_plan_size "$empty_runtime_workdir/docs/plans/active/2026-04-02-review-ui-empty.md" "M"
-  mkdir -p "$empty_runtime_workdir/.local/harness"
-  printf '%s' '{"plan_path":"docs/plans/active/2026-04-02-review-ui-empty.md"}' >"$empty_runtime_workdir/.local/harness/current-plan.json"
-
-  (
-    cd "$empty_runtime_workdir"
-    "$harness_bin" ui --no-open --host "$host" --port "$port" >"$empty_server_log" 2>&1
-  ) &
-  empty_server_pid="$!"
-
-  empty_base_url=""
-  for _ in $(seq 1 150); do
-    empty_base_url="$(sed -n 's/^Harness UI listening at \(http:\/\/[^[:space:]]*\)$/\1/p' "$empty_server_log" | tail -n 1)"
-    if [[ -n "$empty_base_url" ]] && curl -sf "${empty_base_url}/review" >/dev/null; then
-      break
-    fi
-    sleep 0.2
-  done
-
-  if [[ -z "$empty_base_url" ]]; then
-    echo "Harness UI failed to start for empty review smoke." >&2
-    cat "$empty_server_log" >&2 || true
-    kill "$empty_server_pid" >/dev/null 2>&1 || true
-    wait "$empty_server_pid" >/dev/null 2>&1 || true
-    rm -rf "$empty_tmp_dir"
-    exit 1
-  fi
-
-  log_phase "opening empty active-plan /review"
-  clear_pwcli_socket "$empty_session_name"
-  "$PWCLI" --session "$empty_session_name" open "${empty_base_url}/review" >/dev/null
-  "$PWCLI" --session "$empty_session_name" snapshot | snapshot_to_file "$empty_tmp_dir/review-empty.yml"
-  assert_has_text "$empty_tmp_dir/review-empty.yml" "No review rounds recorded yet for the current plan."
-  assert_not_has_text "$empty_tmp_dir/review-empty.yml" "WIP"
-
-  python3 - "$PWCLI" "$empty_session_name" "$empty_session_dir" <<'PY'
-import os
-import signal
-import subprocess
-import sys
-
-pwcli, session, cwd = sys.argv[1:4]
-proc = subprocess.Popen(
-    [pwcli, "--session", session, "close"],
-    cwd=cwd,
-    stdout=subprocess.DEVNULL,
-    stderr=subprocess.DEVNULL,
-    start_new_session=True,
-)
-try:
-    proc.wait(timeout=5)
-except subprocess.TimeoutExpired:
-    try:
-        os.killpg(proc.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    try:
-        proc.wait(timeout=2)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        proc.wait()
-PY
-
-  kill "$empty_server_pid" >/dev/null 2>&1 || true
-  wait "$empty_server_pid" >/dev/null 2>&1 || true
-  rm -rf "$empty_tmp_dir"
-}
-
-run_empty_review_smoke
-
-session_name="rum-$RANDOM"
-session_dir="$tmp_dir/playwright-main"
-mkdir -p "$session_dir"
-clear_pwcli_socket "$session_name"
-
-"$harness_bin" plan template -title "Review UI Smoke Fixture" -output "$runtime_workdir/docs/plans/active/2026-04-02-review-ui-smoke.md" >/dev/null
-ensure_plan_size "$runtime_workdir/docs/plans/active/2026-04-02-review-ui-smoke.md" "M"
-
-button_ref_from_snapshot() {
+round_ref() {
   local label="$1"
   local snapshot="$2"
-  local ref
-  ref="$(
-    grep -F "\"$label\"" "$snapshot" | head -n 1 | sed -n 's/.*\[ref=\(e[0-9][0-9]*\)\].*/\1/p' || true
-  )"
-  if [[ -n "$ref" ]]; then
-    printf '%s\n' "$ref"
-    return 0
-  fi
-  ref="$(
-    grep -F "$label" "$snapshot" | grep '\[ref=e' | head -n 1 | sed -n 's/.*\[ref=\(e[0-9][0-9]*\)\].*/\1/p' || true
-  )"
-  printf '%s\n' "$ref"
-  return 0
+  grep -F "$label" "$snapshot" | grep '\[ref=e' | head -n 1 | sed -n 's/.*\[ref=\(e[0-9][0-9]*\)\].*/\1/p' || true
 }
 
-tab_ref_from_snapshot() {
-  local label="$1"
-  local snapshot="$2"
-  local ref
-  ref="$(
-    grep -F "\"$label\"" "$snapshot" | head -n 1 | sed -n 's/.*\[ref=\(e[0-9][0-9]*\)\].*/\1/p' || true
-  )"
-  if [[ -n "$ref" ]]; then
-    printf '%s\n' "$ref"
-    return 0
-  fi
-  ref="$(
-    grep -F "$label" "$snapshot" | grep '\[ref=e' | head -n 1 | sed -n 's/.*\[ref=\(e[0-9][0-9]*\)\].*/\1/p' || true
-  )"
-  printf '%s\n' "$ref"
-  return 0
-}
-
-log_phase "opening /review"
-clear_pwcli_socket "$session_name"
+log_phase "opening integrated review workspace"
 "$PWCLI" --session "$session_name" open "${base_url}/review" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-initial.yml"
-capture_screenshot "$session_name" "${output_dir}/review-initial.png"
-capture_locator_screenshot "$session_name" ".explorer-item.is-active" "${output_dir}/review-row-active.png"
-capture_locator_screenshot "$session_name" ".explorer-item:not(.is-active)" "${output_dir}/review-row-peer.png"
+snapshot_to_file "${output_dir}/review-pending.yml"
+"$PWCLI" --session "$session_name" screenshot >/dev/null
 
-assert_has_text "${output_dir}/review-initial.yml" "Review"
-assert_has_text "${output_dir}/review-initial.yml" "review-005-full"
-assert_has_text "${output_dir}/review-initial.yml" "Core review artifacts are missing."
-assert_has_text "${output_dir}/review-initial.yml" "Degraded"
-assert_has_text "${output_dir}/review-initial.yml" "Summary"
-if grep -Fq -- "WIP" "${output_dir}/review-initial.yml"; then
-  echo "Review snapshot still contains WIP placeholder text." >&2
-  cat "${output_dir}/review-initial.yml" >&2
+assert_has_text "${output_dir}/review-pending.yml" "Current integrated review"
+assert_has_text "${output_dir}/review-pending.yml" "Waiting for review"
+assert_has_text "${output_dir}/review-pending.yml" "Independent reviewer"
+assert_has_text "${output_dir}/review-pending.yml" "Independent review is still in progress."
+assert_has_text "${output_dir}/review-pending.yml" "Coverage"
+assert_not_has_text "${output_dir}/review-pending.yml" "Specialist"
+assert_not_has_text "${output_dir}/review-pending.yml" "Raw JSON"
+assert_not_has_text "${output_dir}/review-pending.yml" "Worklog"
+assert_not_has_text "${output_dir}/review-pending.yml" "Aggregate"
+
+blocked_ref="$(round_ref "Initial full review" "${output_dir}/review-pending.yml")"
+if [[ -z "$blocked_ref" ]]; then
+  echo "Could not find blocked full review round." >&2
+  cat "${output_dir}/review-pending.yml" >&2
   exit 1
 fi
+"$PWCLI" --session "$session_name" click "$blocked_ref" >/dev/null
+snapshot_to_file "${output_dir}/review-blocked.yml"
+assert_has_text "${output_dir}/review-blocked.yml" "Changes requested"
+assert_has_text "${output_dir}/review-blocked.yml" "reviewer-integrated"
+assert_has_text "${output_dir}/review-blocked.yml" "Coverage can drift after review"
+assert_has_text "${output_dir}/review-blocked.yml" "Archive must reject product changes beyond the reviewed head."
+assert_has_text "${output_dir}/review-blocked.yml" "Blocked"
+assert_has_text "${output_dir}/review-blocked.yml" "fixture-head-001"
 
-run_code_checked "$session_name" '
-async (page) => await page.evaluate(() => {
-  const rows = [...document.querySelectorAll(".explorer-item")];
-  if (rows.length < 2) {
-    throw new Error("expected multiple review rounds for explorer validation");
-  }
-  const activeRow = rows.find((candidate) => candidate.classList.contains("is-active"));
-  if (!activeRow) {
-    throw new Error("missing active review round row");
-  }
-  if (activeRow.getAttribute("aria-pressed") !== "true") {
-    throw new Error("active review round is not marked pressed");
-  }
-  const activeMeta = activeRow.querySelector(".review-round-status-text");
-  if (!activeMeta || !/(PASS|CHG|WAIT|AGGR|DEG|WIP|DONE|PART)/.test(activeMeta.textContent || "")) {
-    throw new Error(`active row is missing visible status token: ${(activeMeta && activeMeta.textContent) || ""}`);
-  }
-  const initialSelected = document.querySelector(".inspector-tabs [aria-selected=\"true\"]");
-  if (!initialSelected || (initialSelected.textContent || "").trim() !== "Summary") {
-    throw new Error(`expected Summary to be selected on first load, got ${(initialSelected && initialSelected.textContent) || ""}`);
-  }
-  const row = rows.find((candidate) => !candidate.classList.contains("is-active")) ?? rows[0];
-  const rowStyle = getComputedStyle(row);
-  if (!rowStyle.boxShadow || rowStyle.boxShadow === "none") {
-    throw new Error("missing explorer status rail");
-  }
-  const statusText = row.getAttribute("aria-label") || "";
-  if (!/Pass|Changes requested|Waiting|Degraded|Complete|Aggregated|Incomplete|In progress/.test(statusText)) {
-    throw new Error(`missing readable status text in row label: ${statusText}`);
-  }
-  const peerMeta = row.querySelector(".review-round-status-text");
-  if (!peerMeta || !/(PASS|CHG|WAIT|AGGR|DEG|WIP|DONE|PART)/.test(peerMeta.textContent || "")) {
-    throw new Error(`peer row is missing visible status token: ${(peerMeta && peerMeta.textContent) || ""}`);
-  }
-  return true;
-})
-' >/dev/null
-run_code_checked "$session_name" '
-async (page) => {
+repair_ref="$(round_ref "Linked repair review" "${output_dir}/review-blocked.yml")"
+if [[ -z "$repair_ref" ]]; then
+  echo "Could not find linked repair review round." >&2
+  cat "${output_dir}/review-blocked.yml" >&2
+  exit 1
+fi
+"$PWCLI" --session "$session_name" click "$repair_ref" >/dev/null
+snapshot_to_file "${output_dir}/review-repaired.yml"
+assert_has_text "${output_dir}/review-repaired.yml" "Pass"
+assert_has_text "${output_dir}/review-repaired.yml" "The repair closes the blocking coverage defect."
+assert_has_text "${output_dir}/review-repaired.yml" "Minor documentation note"
+assert_has_text "${output_dir}/review-repaired.yml" "Clean"
+assert_has_text "${output_dir}/review-repaired.yml" "fixture-head-002"
+assert_has_text "${output_dir}/review-repaired.yml" "review-001-full"
+assert_not_has_text "${output_dir}/review-repaired.yml" "slot integrated"
+assert_not_has_text "${output_dir}/review-repaired.yml" "Integrated role"
+
+log_phase "checking responsive review layout"
+"$PWCLI" --session "$session_name" run-code 'async (page) => {
+  await page.setViewportSize({ width: 760, height: 900 });
   const frame = page.locator(".workbench-page");
-  const divider = page.getByRole("separator", { name: /Review width/i });
-  const before = await frame.evaluate((node) => getComputedStyle(node).gridTemplateColumns);
-  const box = await divider.boundingBox();
-  if (!box) {
-    throw new Error("missing review splitter");
+  const explorer = page.locator(".workbench-explorer");
+  const inspector = page.locator(".workbench-inspector");
+  if (!(await frame.count()) || !(await explorer.count()) || !(await inspector.count())) {
+    throw new Error("missing review workbench regions");
   }
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + 64, box.y + box.height / 2, { steps: 6 });
-  await page.mouse.up();
-  await divider.focus();
-  await page.keyboard.press("ArrowLeft");
-  const after = await frame.evaluate((node) => getComputedStyle(node).gridTemplateColumns);
-  const stored = await page.evaluate(() => window.localStorage.getItem("harness-ui:workbench-explorer-width"));
-  if (before === after) {
-    throw new Error(`review splitter width did not change: ${before}`);
-  }
-  if (!stored) {
-    throw new Error("review splitter width was not persisted");
-  }
-  return { before, after, stored };
-}
-' >/dev/null
-
-round_ref="$(button_ref_from_snapshot "Finalize review Waiting for submissions Full · finalize · rev 2 Apr 2, 2026, 8:00 PM 1/2 submitted" "${output_dir}/review-initial.yml")"
-if [[ -z "$round_ref" ]]; then
-  round_ref="$(button_ref_from_snapshot "Finalize review" "${output_dir}/review-initial.yml")"
-fi
-if [[ -z "$round_ref" ]]; then
-  echo "Could not find waiting-for-submissions round." >&2
-  cat "${output_dir}/review-initial.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$round_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-pending-round.yml"
-assert_has_text "${output_dir}/review-pending-round.yml" "Waiting for submissions"
-assert_has_text "${output_dir}/review-pending-round.yml" "Summary"
-run_code_checked "$session_name" '
-async (page) => await page.evaluate(() => {
-  const selected = document.querySelector(".inspector-tabs [aria-selected=\"true\"]");
-  if (!selected) {
-    throw new Error("missing selected review detail tab");
-  }
-  if ((selected.textContent || "").trim() !== "Summary") {
-    throw new Error(`expected Summary to be selected after round switch, got ${(selected.textContent || "").trim()}`);
+  const explorerBox = await explorer.boundingBox();
+  const inspectorBox = await inspector.boundingBox();
+  if (!explorerBox || !inspectorBox || inspectorBox.y < explorerBox.y + explorerBox.height - 1) {
+    throw new Error("review mobile layout did not stack inspector below explorer");
   }
   return true;
-})
-' >/dev/null
-
-ux_ref="$(tab_ref_from_snapshot "Ux · Specialist" "${output_dir}/review-pending-round.yml")"
-if [[ -z "$ux_ref" ]]; then
-  echo "Could not find UX reviewer tab." >&2
-  cat "${output_dir}/review-pending-round.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$ux_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-ux.yml"
-capture_screenshot "$session_name" "${output_dir}/review-ux.png"
-capture_locator_screenshot "$session_name" ".review-tab-panel" "${output_dir}/reviewer-panel.png"
-assert_has_text "${output_dir}/review-ux.yml" "Assigned task"
-assert_has_text "${output_dir}/review-ux.yml" "Review context"
-assert_has_text "${output_dir}/review-ux.yml" "Covered areas"
-assert_has_text "${output_dir}/review-ux.yml" "Open questions"
-assert_has_text "${output_dir}/review-ux.yml" "Returned result"
-assert_has_text "${output_dir}/review-ux.yml" "Check hierarchy, density, and visual polish."
-assert_has_text "${output_dir}/review-ux.yml" "This reviewer has not submitted a result yet."
-assert_has_text "${output_dir}/review-ux.yml" "Raw JSON"
-run_code_checked "$session_name" '
-async (page) => await page.evaluate(() => {
-  const sectionTitles = [...document.querySelectorAll(".review-tab-panel .section-head h2")].map((node) => node.textContent?.trim() || "");
-  const assignedIndex = sectionTitles.indexOf("Assigned task");
-  const resultIndex = sectionTitles.indexOf("Returned result");
-  const processIndex = sectionTitles.indexOf("Review process");
-  if (assignedIndex === -1 || resultIndex === -1 || processIndex === -1) {
-    throw new Error(`missing reviewer section headings: ${sectionTitles.join(" | ")}`);
-  }
-  if (!(assignedIndex < resultIndex && resultIndex < processIndex)) {
-    throw new Error(`unexpected reviewer section order: ${sectionTitles.join(" | ")}`);
-  }
-  const rawButton = [...document.querySelectorAll(".subtle-button")].find((node) => node.textContent?.includes("Raw JSON"));
-  const processHeading = [...document.querySelectorAll(".review-tab-panel .section-head h2")].find((node) => node.textContent?.trim() === "Review process");
-  if (!rawButton || !processHeading) {
-    throw new Error("missing raw JSON button or review process heading");
-  }
-  const rawRect = rawButton.getBoundingClientRect();
-  const processRect = processHeading.getBoundingClientRect();
-  if (rawRect.top >= processRect.top) {
-    throw new Error(`raw JSON control was not promoted above the process section: ${rawRect.top} vs ${processRect.top}`);
-  }
-  return true;
-})
-' >/dev/null
-run_code_checked "$session_name" '
-async (page) => await page.evaluate(() => {
-  const panel = document.querySelector(".review-tab-panel");
-  if (!panel) {
-    throw new Error("missing reviewer detail panel");
-  }
-  const text = panel.textContent || "";
-  for (const expected of [
-    "Not yet confirmed",
-    "web/src/styles.css",
-    "Should the review summary stay unchanged?",
-    "No candidate findings recorded."
-  ]) {
-    if (!text.includes(expected)) {
-      throw new Error(`missing normalized reviewer worklog text: ${expected}`);
-    }
-  }
-  return true;
-})
-' >/dev/null
-
-ux_raw_ref="$(button_ref_from_snapshot "Raw JSON" "${output_dir}/review-ux.yml")"
-if [[ -z "$ux_raw_ref" ]]; then
-  echo "Could not find UX raw JSON button." >&2
-  cat "${output_dir}/review-ux.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$ux_raw_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-ux-raw.yml"
-assert_has_text "${output_dir}/review-ux-raw.yml" "Raw reviewer submission payload"
-assert_has_text "${output_dir}/review-ux-raw.yml" "Should the review summary stay unchanged?"
-ux_raw_close_ref="$(button_ref_from_snapshot "Close" "${output_dir}/review-ux-raw.yml")"
-if [[ -z "$ux_raw_close_ref" ]]; then
-  echo "Could not find UX raw JSON close button." >&2
-  cat "${output_dir}/review-ux-raw.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$ux_raw_close_ref" >/dev/null
-
-positive_ref="$(button_ref_from_snapshot "Positive findings round Changes requested Full · rev 2 Apr 2, 2026, 9:06 PM 2/2 submitted" "${output_dir}/review-ux.yml")"
-if [[ -z "$positive_ref" ]]; then
-  positive_ref="$(button_ref_from_snapshot "Positive findings round" "${output_dir}/review-ux.yml")"
-fi
-if [[ -z "$positive_ref" ]]; then
-  echo "Could not find positive findings round." >&2
-  cat "${output_dir}/review-ux.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$positive_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-positive-round.yml"
-assert_has_text "${output_dir}/review-positive-round.yml" "Minor follow-up"
-run_code_checked "$session_name" '
-async (page) => await page.evaluate(() => {
-  const findings = [...document.querySelectorAll(".review-finding")];
-  const target = findings.find((item) => (item.textContent || "").includes("Minor follow-up"));
-  if (!target) {
-    throw new Error("missing Minor follow-up finding card");
-  }
-  const pills = [...target.querySelectorAll(".provenance-pill")].map((item) => (item.textContent || "").trim());
-  if (!pills.includes("Specialist")) {
-    throw new Error(`expected specialist provenance pill, got ${JSON.stringify(pills)}`);
-  }
-  if (!pills.includes("slot Risk slot")) {
-    throw new Error(`expected slot provenance pill, got ${JSON.stringify(pills)}`);
-  }
-  return true;
-})
-' >/dev/null
-
-submission_gap_ref="$(button_ref_from_snapshot "Submission validation gap Waiting for submissions Delta · step 5 · rev 2 Apr 2, 2026, 9:20 PM 0/1 submitted" "${output_dir}/review-positive-round.yml")"
-if [[ -z "$submission_gap_ref" ]]; then
-  submission_gap_ref="$(button_ref_from_snapshot "Submission validation gap" "${output_dir}/review-positive-round.yml")"
-fi
-if [[ -z "$submission_gap_ref" ]]; then
-  echo "Could not find submission-validation round." >&2
-  cat "${output_dir}/review-positive-round.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$submission_gap_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-invalid-submission.yml"
-assert_has_text "${output_dir}/review-invalid-submission.yml" "Submission validation gap"
-assert_has_text "${output_dir}/review-invalid-submission.yml" "Waiting for aggregation"
-assert_has_text "${output_dir}/review-invalid-submission.yml" "All reviewer submissions are present, but the aggregate artifact is still missing."
-
-invalid_artifacts_ref="$(button_ref_from_snapshot "Artifacts" "${output_dir}/review-invalid-submission.yml")"
-if [[ -z "$invalid_artifacts_ref" ]]; then
-  echo "Could not find invalid-submission Artifacts button." >&2
-  cat "${output_dir}/review-invalid-submission.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$invalid_artifacts_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-invalid-submission-artifacts.yml"
-assert_has_text "${output_dir}/review-invalid-submission-artifacts.yml" "Round artifacts and supporting metadata"
-assert_has_text "${output_dir}/review-invalid-submission-artifacts.yml" "Submission: risk (specialist)"
-
-invalid_submission_ref="$(tab_ref_from_snapshot "Submission: risk (specialist)" "${output_dir}/review-invalid-submission-artifacts.yml")"
-if [[ -z "$invalid_submission_ref" ]]; then
-  echo "Could not find invalid submission artifact tab." >&2
-  cat "${output_dir}/review-invalid-submission-artifacts.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$invalid_submission_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-invalid-submission-artifact.yml"
-assert_has_text "${output_dir}/review-invalid-submission-artifact.yml" "Available"
-assert_has_text "${output_dir}/review-invalid-submission-artifact.yml" "review-009-delta"
-invalid_artifacts_close_ref="$(button_ref_from_snapshot "Close" "${output_dir}/review-invalid-submission-artifact.yml")"
-if [[ -z "$invalid_artifacts_close_ref" ]]; then
-  echo "Could not find invalid-submission Artifacts close button." >&2
-  cat "${output_dir}/review-invalid-submission-artifact.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$invalid_artifacts_close_ref" >/dev/null
-
-damaged_ref="$(button_ref_from_snapshot "Step 2 closeout Degraded Delta · step 2 · rev 2 Apr 2, 2026, 7:00 PM 2/2 submitted" "${output_dir}/review-invalid-submission.yml")"
-if [[ -z "$damaged_ref" ]]; then
-  damaged_ref="$(button_ref_from_snapshot "Step 2 closeout" "${output_dir}/review-invalid-submission.yml")"
-fi
-if [[ -z "$damaged_ref" ]]; then
-  echo "Could not find damaged historical round." >&2
-  cat "${output_dir}/review-invalid-submission.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$damaged_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-damaged-round.yml"
-assert_has_text "${output_dir}/review-damaged-round.yml" "Step 2 closeout"
-assert_has_text "${output_dir}/review-damaged-round.yml" "Degraded"
-assert_has_text "${output_dir}/review-damaged-round.yml" "Ledger is not valid JSON."
-assert_has_text "${output_dir}/review-damaged-round.yml" "malformed"
-assert_not_has_text "${output_dir}/review-damaged-round.yml" "Aggregate review passed cleanly."
-
-damaged_artifacts_ref="$(button_ref_from_snapshot "Artifacts" "${output_dir}/review-damaged-round.yml")"
-if [[ -z "$damaged_artifacts_ref" ]]; then
-  echo "Could not find damaged-round Artifacts button." >&2
-  cat "${output_dir}/review-damaged-round.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$damaged_artifacts_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-damaged-artifacts.yml"
-assert_has_text "${output_dir}/review-damaged-artifacts.yml" "Round artifacts and supporting metadata"
-assert_has_text "${output_dir}/review-damaged-artifacts.yml" "Ledger"
-damaged_ledger_ref="$(tab_ref_from_snapshot "Ledger" "${output_dir}/review-damaged-artifacts.yml")"
-if [[ -z "$damaged_ledger_ref" ]]; then
-  echo "Could not find damaged-round Ledger artifact tab." >&2
-  cat "${output_dir}/review-damaged-artifacts.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$damaged_ledger_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-damaged-ledger-artifact.yml"
-assert_has_text "${output_dir}/review-damaged-ledger-artifact.yml" "Invalid"
-assert_has_text "${output_dir}/review-damaged-ledger-artifact.yml" "Ledger is not valid JSON."
-damaged_artifacts_close_ref="$(button_ref_from_snapshot "Close" "${output_dir}/review-damaged-ledger-artifact.yml")"
-if [[ -z "$damaged_artifacts_close_ref" ]]; then
-  echo "Could not find damaged-round Artifacts close button." >&2
-  cat "${output_dir}/review-damaged-ledger-artifact.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$damaged_artifacts_close_ref" >/dev/null
-
-risk_ref="$(tab_ref_from_snapshot "Risk · Specialist" "${output_dir}/review-damaged-round.yml")"
-if [[ -z "$risk_ref" ]]; then
-  echo "Could not find damaged-round Risk reviewer tab." >&2
-  cat "${output_dir}/review-damaged-round.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$risk_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-damaged-risk.yml"
-assert_has_text "${output_dir}/review-damaged-risk.yml" "Risk"
-assert_has_text "${output_dir}/review-damaged-risk.yml" "Assigned task"
-assert_has_text "${output_dir}/review-damaged-risk.yml" "Returned result"
-assert_has_text "${output_dir}/review-damaged-risk.yml" "Check for hidden workflow or data risks."
-assert_has_text "${output_dir}/review-damaged-risk.yml" "Recovered while the ledger is malformed."
-assert_has_text "${output_dir}/review-damaged-risk.yml" "No findings recorded for this reviewer."
-
-manifest_ref="$(button_ref_from_snapshot "review-006-delta Degraded Delta Apr 2, 2026, 8:42 PM 1/1 submitted" "${output_dir}/review-damaged-round.yml")"
-if [[ -z "$manifest_ref" ]]; then
-  manifest_ref="$(button_ref_from_snapshot "review-006-delta" "${output_dir}/review-damaged-round.yml")"
-fi
-if [[ -z "$manifest_ref" ]]; then
-  echo "Could not find manifest-damaged round." >&2
-  cat "${output_dir}/review-damaged-round.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$manifest_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-manifest-damaged.yml"
-assert_has_text "${output_dir}/review-manifest-damaged.yml" "Degraded"
-assert_has_text "${output_dir}/review-manifest-damaged.yml" "Manifest is not valid JSON."
-
-aggregate_ref="$(button_ref_from_snapshot "Step 4 closeout Degraded Delta · step 4 · rev 2 Apr 2, 2026, 8:50 PM 1/1 submitted" "${output_dir}/review-manifest-damaged.yml")"
-if [[ -z "$aggregate_ref" ]]; then
-  aggregate_ref="$(button_ref_from_snapshot "Step 4 closeout" "${output_dir}/review-manifest-damaged.yml")"
-fi
-if [[ -z "$aggregate_ref" ]]; then
-  echo "Could not find aggregate-damaged round." >&2
-  cat "${output_dir}/review-manifest-damaged.yml" >&2
-  exit 1
-fi
-"$PWCLI" --session "$session_name" click "$aggregate_ref" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-aggregate-damaged.yml"
-assert_has_text "${output_dir}/review-aggregate-damaged.yml" "Degraded"
-assert_has_text "${output_dir}/review-aggregate-damaged.yml" "Aggregate is not valid JSON."
-
-rm -rf "$fixture_reviews_dir"
-printf 'not-a-directory\n' > "$fixture_reviews_dir"
-"$PWCLI" --session "$session_name" run-code "async (page) => { await page.goto('${base_url}/review?failure=1'); }" >/dev/null
-"$PWCLI" --session "$session_name" snapshot | snapshot_to_file "${output_dir}/review-error.yml"
-assert_has_text "${output_dir}/review-error.yml" "Unable to enumerate review rounds for the current plan."
-assert_has_text "${output_dir}/review-error.yml" "reviews:"
-assert_has_text "${output_dir}/review-error.yml" "not a directory"
+}' >/dev/null
 
 log_phase "review UI smoke validation passed"
 echo "Playwright review UI smoke validation passed for ${base_url}"
-log_phase "review smoke snapshots written to ${output_dir}"
+echo "Review smoke snapshots written to ${output_dir}"

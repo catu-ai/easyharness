@@ -16,7 +16,6 @@ import (
 var quotedPropertyPattern = regexp.MustCompile(`'([^']+)'`)
 
 const (
-	SchemaReviewSpec       = "inputs.review.spec"
 	SchemaReviewSubmission = "inputs.review.submission"
 	SchemaEvidenceCI       = "inputs.evidence.ci"
 	SchemaEvidencePublish  = "inputs.evidence.publish"

@@ -47,6 +47,21 @@ type StatusFacts struct {
 	// CurrentStep is the first unfinished plan step when one exists.
 	CurrentStep string `json:"current_step,omitempty"`
 
+	// CurrentStepNumber is the one-based first unfinished plan step number.
+	CurrentStepNumber int `json:"current_step_number,omitempty"`
+
+	// StepCompleted is the number of completed plan steps.
+	StepCompleted int `json:"step_completed,omitempty"`
+
+	// StepTotal is the total number of plan steps.
+	StepTotal int `json:"step_total,omitempty"`
+
+	// AcceptanceCompleted is the number of checked acceptance criteria.
+	AcceptanceCompleted int `json:"acceptance_completed,omitempty"`
+
+	// AcceptanceTotal is the total number of acceptance criteria.
+	AcceptanceTotal int `json:"acceptance_total,omitempty"`
+
 	// Revision is the current plan-local revision number.
 	Revision int `json:"revision,omitempty"`
 
@@ -57,15 +72,13 @@ type StatusFacts struct {
 	// ReviewKind is the review kind for the active review round.
 	ReviewKind string `json:"review_kind,omitempty"`
 
-	// ReviewTrigger is the derived reason label for the active review round.
-	ReviewTrigger string `json:"review_trigger,omitempty"`
-
-	// ReviewTitle is the human-readable title for the active review round when
-	// one exists.
-	ReviewTitle string `json:"review_title,omitempty"`
-
-	// ReviewStatus summarizes the aggregate review state for the current node.
+	// ReviewStatus summarizes the integrated finalize review state for the
+	// current node.
 	ReviewStatus string `json:"review_status,omitempty"`
+
+	// ReviewedHeadSHA is the immutable candidate head captured for the active
+	// finalize review.
+	ReviewedHeadSHA string `json:"reviewed_head_sha,omitempty"`
 
 	// ArchiveBlockerCount reports how many archive-readiness blockers are still
 	// present.
@@ -198,9 +211,9 @@ type StatusArtifacts struct {
 	// flight.
 	ReviewRoundID string `json:"review_round_id,omitempty"`
 
-	// ReviewAssignments lists the active round's reviewer-owned assignment
-	// handles when review is in flight.
-	ReviewAssignments []ReviewAssignment `json:"review_assignments,omitempty"`
+	// ReviewSubmissionPath is the integrated reviewer's owned submission path
+	// when finalize review is in flight.
+	ReviewSubmissionPath string `json:"review_submission_path,omitempty"`
 
 	// LastLandedAt is the timestamp of the most recent landed plan.
 	LastLandedAt string `json:"last_landed_at,omitempty"`

@@ -2,110 +2,67 @@
 
 ## Purpose
 
-This document enumerates every allowed `current_node` transition in the v0.2
-state model.
+This is the normative transition matrix. If a move is absent, it is not a
+supported workflow transition. Exact command payloads live in the CLI contract.
 
-If a transition is not listed here, it is not a supported workflow move.
-Command names and exact payload schemas live in the CLI contract; this file is
-the normative transition matrix.
+`step-<n>` is the current unfinished tracked step and `step-<m>` is the next
+unfinished step. A step is complete when its `Done` marker is checked.
 
-## Conventions
+## Entering and Executing Work
 
-- `step-<n>` means the current unfinished step in the ordinary forward loop.
-- `step-<m>` means the next unfinished step after `step-<n>`.
-- `step-<i>` means an explicitly targeted step whose optional review is being
-  run or repaired intentionally.
-- "Durably complete" means the step `Done` marker is checked and the plan
-  satisfies the required step-local closeout notes.
+| From | To | Driver | Requirement |
+| --- | --- | --- | --- |
+| `idle` | `plan` | Active plan presence | Exactly one tracked active plan exists. |
+| `plan` | `execution/step-<n>/implement` | `harness execute start` | The plan has explicit human approval and an unfinished step. |
+| `execution/step-<n>/implement` | `execution/step-<m>/implement` | Plan edit | Step `<n>` becomes complete and another unfinished step exists. |
+| `execution/step-<n>/implement` | `execution/finalize/review` | Plan edit | Every step is complete. Formal review has not yet established clean coverage for the candidate. |
 
-## Entering Work
+Steps are human-visible implementation and validation boundaries. They never
+create formal review nodes. Intermediate uncertainty uses focused validation or
+ordinary advisor subagents; the independent harness review belongs to the
+complete finalize candidate.
 
-| From | To | Driver | Required inputs | Notes |
-| --- | --- | --- | --- | --- |
-| `idle` | `plan` | Derived from current plan presence | Execution-start is absent, and exactly one active tracked plan exists under the active plan root resolved by `harness repo config get paths.plans.active` | The current-plan pointer under the local runtime root resolved by `harness repo config get paths.local_runtime` may resume or confirm the sole active plan, but it must not bypass the one-active-plan invariant. Lightweight local archives under the resolved local runtime root are not active-plan candidates. |
-| `plan` | `execution/step-<n>/implement` | `harness execute start` | Current plan is approved for execution and has at least one unfinished step | The CLI records the execution-start milestone; the first unfinished step becomes current. |
+## Finalize
 
-## Step Execution Loop
+| From | To | Driver | Requirement |
+| --- | --- | --- | --- |
+| `execution/finalize/review` | `execution/finalize/fix` | `harness review submit` | The integrated reviewer reports blocking findings or a conservative failure. |
+| `execution/finalize/review` | `execution/finalize/archive` | `harness review submit` or derived status | A clean full root, optionally extended by clean linked deltas, covers current candidate HEAD. |
+| `execution/finalize/fix` | `execution/finalize/review` | `harness review start` | A committed repair starts an inferred linked delta, or `--full` explicitly resets materially invalidated coverage. |
+| `execution/finalize/fix` | `execution/step-<m>/implement` | Plan edit after `reopen --mode new-step` | The first new unfinished step is added. |
 
-| From | To | Driver | Required inputs | Notes |
-| --- | --- | --- | --- | --- |
-| `execution/step-<n>/implement` | `execution/step-<n>/review` | `harness review start` | The command binds the new round to the current step | Review nodes require real review artifacts. |
-| `execution/step-<n>/implement` | `execution/step-<i>/review` | `harness review start` with explicit `step=<i>` | Step `<i>` intentionally needs an optional risk-boundary review or repair | Explicit binding enters the targeted step's review loop instead of creating review debt for every other step. |
-| `execution/step-<n>/implement` | `execution/step-<m>/implement` | Derived from current plan edits | Step `<n>` becomes durably complete, no intentionally started step review is unresolved, and another unfinished step exists | Absence of a step review is normal and does not block advancement. |
-| `execution/step-<n>/implement` | `execution/finalize/review` | Derived from current plan edits | Step `<n>` becomes durably complete, no intentionally started step review is unresolved, and no unfinished steps remain | Finalize full review is the default formal review gate for every plan size. |
-| `execution/step-<n>/review` | `execution/step-<n>/implement` | `harness review aggregate` | Latest aggregate has no blocking findings | Review is no longer in flight; the controller may continue implementation or mark the step done. Non-blocking findings remain visible. |
-| `execution/step-<n>/review` | `execution/step-<n>/implement` | `harness review aggregate` | Latest aggregate has blocking findings or an unrecoverable conservative outcome | The step remains current and must be repaired plus rerun through review before it may advance. |
-| `execution/step-<i>/review` | `execution/step-<i>/implement` | `harness review aggregate` | The explicit step review has blocking findings or an unrecoverable conservative outcome | A non-clean review keeps the reviewed step current and requires repair. |
-| `execution/step-<i>/review` | `execution/step-<m>/implement` or `execution/finalize/...` | `harness review aggregate` | The explicit step review has no blocking findings | Status falls back to the ordinary unfinished-step or finalize resolution for the same candidate. |
+`review start` is finalize-only. The first round is full. When prior coverage
+and unresolved findings exist, the ordinary next round is an inferred linked
+delta; another full root is reserved for a material design, scope, or risk
+change. The sole reviewer submission verifies the captured HEAD and completes
+the decision and coverage transaction without a controller aggregate action.
 
-## Finalize Loop
+## Archive, Publish, and Land
 
-| From | To | Driver | Required inputs | Notes |
-| --- | --- | --- | --- | --- |
-| `execution/finalize/review` | `execution/step-<i>/review` | `harness review start` with explicit `step=<i>` | A concrete intermediate risk boundary intentionally needs a step-bound review before finalize can be trusted | This is exceptional; missing routine step reviews do not justify the transition. |
-| `execution/finalize/review` | `execution/finalize/fix` | `harness review aggregate` | Latest finalize review aggregate has blocking findings or an unrecoverable conservative outcome | Finalize review findings stay distinct from step-local findings. |
-| `execution/finalize/review` | `execution/finalize/archive` | Derived from finalize review with no blocking findings | Finalize review is satisfied and archive closeout work remains | Non-blocking findings remain visible but do not require repair. Archive closeout includes summary refresh and placeholder replacement. |
-| `execution/finalize/fix` | `execution/step-<i>/review` | `harness review start` with explicit `step=<i>` | Finalize repair intentionally needs a bounded step-risk review | This does not retroactively require reviews for other completed steps. |
-| `execution/finalize/fix` | `execution/finalize/review` | `harness review start` | A linked repair delta or materially necessary new full finalize round is started after repair | Narrow repairs extend the full review with delta; broad repairs may establish a new full root. |
-| `execution/finalize/fix` | `execution/step-<m>/implement` | Derived from current plan edits | Reopen mode is `new-step`, the first new unfinished step has been added, and that new step is now current | Once the first reopened step exists, the special `new-step` requirement is consumed and ordinary step execution resumes. |
+| From | To | Driver | Requirement |
+| --- | --- | --- | --- |
+| `execution/finalize/archive` | `execution/finalize/publish` | `harness archive` | Acceptance, steps, Closeout, and finalize coverage are complete. |
+| `execution/finalize/publish` | `execution/finalize/await_merge` | Evidence | Current publish, CI, and sync evidence supports merge readiness, and the archived branch differs from the reviewed candidate only by the allowed archive move and Closeout update. |
+| `execution/finalize/publish` or `execution/finalize/await_merge` | `execution/finalize/fix` | `harness reopen` with `finalize-fix` or `new-step` | Feedback or remote change invalidates the archived candidate. |
+| `execution/finalize/await_merge` | `land` | `harness land` | Human merge approval exists and the PR has merged. |
+| `land` | `idle` | `harness land complete` | Required post-merge bookkeeping and release verification are complete. |
 
-## Archive and Publish Handoff
+## State-Preserving Work
 
-| From | To | Driver | Required inputs | Notes |
-| --- | --- | --- | --- | --- |
-| `execution/finalize/archive` | `execution/finalize/publish` | `harness archive` | Finalize review is satisfied, archive closeout is ready, and no intentionally started review remains unresolved | `archive` moves the active tracked plan to the archived plan root resolved by `harness repo config get paths.plans.archived` for `standard` plans or snapshots it under the local runtime root resolved by `harness repo config get paths.local_runtime` for `lightweight` plans, then records archive metadata. |
-| `execution/finalize/publish` | `execution/finalize/await_merge` | Derived from latest publish, CI, and sync evidence | Publish evidence identifies the candidate, CI is good enough or explicit `not_applied`, sync is acceptable or explicit `not_applied`, and no unresolved fix condition remains | `await_merge` is a merge-ready state, not merely an archived state. |
-| `execution/finalize/publish` | `execution/finalize/fix` | `harness reopen --mode finalize-fix` | Archived candidate has been invalidated but does not justify a new step | Reopen is the command-owned reversal of archive-time assumptions for either profile. |
-| `execution/finalize/publish` | `execution/finalize/fix` | `harness reopen --mode new-step` | Archived candidate has been invalidated and the change deserves a new unfinished step | Status stays in finalize-scope repair until the first new unfinished step is actually added. |
-
-## Await-Merge and Land
-
-| From | To | Driver | Required inputs | Notes |
-| --- | --- | --- | --- | --- |
-| `execution/finalize/await_merge` | `land` | `harness land --pr <url> [--commit <sha>]` | Human approval exists, merge happened outside harness, and land entry records the PR URL | Optional commit SHA enriches the record but is not required because merge strategies vary. |
-| `execution/finalize/await_merge` | `execution/finalize/fix` | `harness reopen --mode finalize-fix` | Merge-ready archived candidate has been invalidated without justifying a new step | Reopen preserves audit history instead of blanking archive-time text. |
-| `execution/finalize/await_merge` | `execution/finalize/fix` | `harness reopen --mode new-step` | Merge-ready archived candidate has been invalidated and the change deserves a new unfinished step | Status stays in finalize-scope repair until the first new unfinished step is actually added. |
-| `land` | `idle` | `harness land complete` | Required post-merge bookkeeping is done and land completion is intentionally recorded | `idle` is restored only by an explicit command-owned completion. |
-
-## State-Preserving Updates
-
-The following operations are allowed to preserve the current node instead of
-advancing it:
-
-- `plan -> plan`
-  - plan edits, scope refinement, or approval discussion before
-    `harness execute start`
-- `execution/step-<n>/implement -> execution/step-<n>/implement`
-  - continued implementation, validation, or note updates that do not start
-    review or complete the step
-- `execution/step-<n>/review -> execution/step-<n>/review`
-  - reviewer submissions or aggregation are still pending
-- `execution/finalize/review -> execution/finalize/review`
-  - reviewer submissions continue arriving before finalize review is resolved
-- `execution/finalize/fix -> execution/finalize/fix`
-  - finalize-scope repair continues, or a `new-step` reopen is still waiting
-    for the first new unfinished step to be added
-- `execution/finalize/archive -> execution/finalize/archive`
-  - archive summaries and placeholders are being refreshed before
-    `harness archive`
-- `execution/finalize/publish -> execution/finalize/publish`
-  - new publish, CI, or sync evidence arrives but the archived candidate is
-    still not merge-ready
-- `land -> land`
-  - required post-merge bookkeeping continues before `harness land complete`
+Implementation, validation, plan refinement, reviewer investigation, repair,
+Closeout preparation, evidence refresh, and land bookkeeping preserve their
+current node until the corresponding durable condition above changes. Review
+start and advisor progress do not create extra public nodes.
 
 ## Invalid Shortcuts
 
-The following are intentionally invalid in v0.2:
-
-- direct `plan -> execution/finalize/...` jumps
-- direct step-implement jumps that skip the finalize review gate once all
-  steps are complete
-- step advancement while an intentionally started step review still has
-  unresolved blocking findings
-- direct `execution/finalize/fix -> execution/finalize/archive` jumps without a
-  clean linked repair delta or a clean replacement full review
-- direct `execution/finalize/archive -> execution/finalize/await_merge`
-  jumps without publish, CI, and sync evidence
-- direct `execution/finalize/await_merge -> idle` jumps without explicit land
-  entry and completion
+- execution without explicit plan approval
+- skipping unfinished steps or the mandatory finalize review
+- archiving with unresolved findings, moved or uncovered HEAD, incomplete
+  acceptance, incomplete steps, or Closeout placeholders
+- treating an advisor as the formal reviewer or controller
+- replacing a narrow linked delta with a ceremonial full review without a
+  material coverage invalidation
+- reaching `await_merge` without current remote evidence
+- merging without explicit human approval or returning to `idle` without land
+  completion

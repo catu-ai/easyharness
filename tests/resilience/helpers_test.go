@@ -155,23 +155,25 @@ func writeActiveArchiveCandidate(t *testing.T, workspace *support.Workspace, rel
 }
 
 func completeFirstStep(content string) string {
-	content = strings.Replace(content, "- Done: [ ]", "- Done: [x]", 1)
-	content = strings.Replace(content, "PENDING_STEP_EXECUTION", "Done.", 1)
-	content = strings.Replace(content, "PENDING_STEP_REVIEW", "Reviewed.", 1)
-	return content
+	return strings.Replace(content, "- Done: [ ]", "- Done: [x]", 1)
 }
 
 func completeAllSteps(content string, archiveReady bool) string {
 	content = strings.ReplaceAll(content, "- Done: [ ]", "- Done: [x]")
 	content = strings.ReplaceAll(content, "- [ ]", "- [x]")
-	content = strings.ReplaceAll(content, "PENDING_STEP_EXECUTION", "Done.")
-	content = strings.ReplaceAll(content, "PENDING_STEP_REVIEW", "NO_STEP_REVIEW_NEEDED: Fixture relies on explicit review artifacts.")
 	if archiveReady {
-		content = strings.Replace(content, "## Validation Summary\n\nPENDING_UNTIL_ARCHIVE", "## Validation Summary\n\nValidated the candidate through deterministic repository-level fixtures.", 1)
-		content = strings.Replace(content, "## Review Summary\n\nPENDING_UNTIL_ARCHIVE", "## Review Summary\n\nNo unresolved blocking review findings remain.", 1)
-		content = strings.Replace(content, "## Archive Summary\n\nPENDING_UNTIL_ARCHIVE", "## Archive Summary\n\n- PR: NONE\n- Ready: The candidate is ready for archive.\n- Merge Handoff: Commit and push the archive move before merge approval.", 1)
-		content = strings.Replace(content, "### Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Delivered\n\nDelivered the planned resilience fixture.", 1)
-		content = strings.Replace(content, "### Not Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Not Delivered\n\nNONE.", 1)
+		replacements := map[string]string{
+			"- Validation: PENDING_UNTIL_ARCHIVE":    "- Validation: Validated through deterministic repository-level fixtures.",
+			"- Review: PENDING_UNTIL_ARCHIVE":        "- Review: No unresolved blocking review findings remain.",
+			"- Delivered: PENDING_UNTIL_ARCHIVE":     "- Delivered: Delivered the planned resilience fixture.",
+			"- Not Delivered: PENDING_UNTIL_ARCHIVE": "- Not Delivered: None.",
+			"- PR: PENDING_UNTIL_ARCHIVE":            "- PR: NONE",
+			"- Ready: PENDING_UNTIL_ARCHIVE":         "- Ready: The candidate is ready for archive.",
+			"- Merge Handoff: PENDING_UNTIL_ARCHIVE": "- Merge Handoff: Commit and publish the archive move before merge approval.",
+		}
+		for old, replacement := range replacements {
+			content = strings.Replace(content, old, replacement, 1)
+		}
 	}
 	return content
 }

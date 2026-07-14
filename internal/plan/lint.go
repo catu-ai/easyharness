@@ -12,7 +12,6 @@ import (
 	"time"
 
 	templateassets "github.com/catu-ai/easyharness/assets/templates"
-	"github.com/catu-ai/easyharness/internal/reviewguidance"
 	"gopkg.in/yaml.v3"
 )
 
@@ -22,7 +21,6 @@ var (
 	templateVersionPattern = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)$`)
 	checkboxPattern        = regexp.MustCompile(`^- \[( |x|X)\] .+`)
 	donePattern            = regexp.MustCompile(`^- Done:\s*\[( |x|X)\]\s*$`)
-	statusPattern          = regexp.MustCompile(`^- Status:\s*(\S+)\s*$`)
 )
 
 var (
@@ -30,34 +28,13 @@ var (
 		"Goal",
 		"Scope",
 		"Acceptance Criteria",
+		"Review Focus",
 		"Deferred Items",
 		"Work Breakdown",
 		"Validation Strategy",
-		"Risks",
-		"Validation Summary",
-		"Review Summary",
-		"Archive Summary",
-		"Outcome Summary",
+		"Closeout",
 	}
-	requiredStepSections = []string{
-		"Objective",
-		"Details",
-		"Expected Files",
-		"Validation",
-		"Execution Notes",
-		"Review Notes",
-	}
-	stepSectionOrder = map[string]int{
-		"Objective":                0,
-		"Details":                  1,
-		"Step Acceptance Criteria": 2,
-		"Expected Files":           3,
-		"Validation":               4,
-		"Checkpoint Reports":       5,
-		"Execution Notes":          6,
-		"Review Notes":             7,
-	}
-	allowedStepStatuses = []string{"pending", "in_progress", "completed", "blocked"}
+	closeoutLabels = []string{"Validation", "Review", "Delivered", "Not Delivered", "Follow-Up Issues", "PR", "Ready", "Merge Handoff"}
 )
 
 type Frontmatter struct {
@@ -105,13 +82,13 @@ type section struct {
 }
 
 type step struct {
-	title                  string
-	done                   bool
-	usesDoneMarker         bool
-	status                 string
-	sections               map[string]*section
-	sectionOrder           []string
-	stepAcceptanceCriteria []checkboxItem
+	title          string
+	done           bool
+	usesDoneMarker bool
+	status         string
+	outcome        string
+	covers         string
+	check          string
 }
 
 type checkboxItem struct {
@@ -178,9 +155,11 @@ func parseAndValidate(path string) (*lintContext, []LintIssue) {
 
 	issues = append(issues, validateFrontmatter(ctx)...)
 	issues = append(issues, validateSectionOrder(ctx)...)
+	issues = append(issues, validateGoal(ctx)...)
 	issues = append(issues, validateScope(ctx)...)
 	issues = append(issues, validateAcceptanceCriteria(ctx)...)
-	issues = append(issues, validateOutcomeSummary(ctx)...)
+	issues = append(issues, validateReviewFocus(ctx)...)
+	issues = append(issues, validateCloseout(ctx)...)
 
 	steps, stepIssues := parseSteps(ctx)
 	ctx.steps = steps
@@ -283,10 +262,10 @@ func validateFrontmatter(ctx *lintContext) []LintIssue {
 	}
 	if rawProfile, ok := ctx.rawFrontmatter["workflow_profile"]; ok {
 		value, ok := rawProfile.(string)
-		if !ok || !isSupportedWorkflowProfile(strings.TrimSpace(value)) {
+		if !ok || !slices.Contains([]string{WorkflowProfileStandard, WorkflowProfileLightweight}, strings.TrimSpace(value)) {
 			issues = append(issues, LintIssue{
 				Path:    "frontmatter.workflow_profile",
-				Message: "must be standard, lightweight, or goal_oriented when provided",
+				Message: "must be standard or lightweight when provided",
 			})
 		}
 	}
@@ -318,6 +297,19 @@ func validateSectionOrder(ctx *lintContext) []LintIssue {
 		})
 	}
 	return issues
+}
+
+func validateGoal(ctx *lintContext) []LintIssue {
+	goal := ctx.sections["Goal"]
+	if goal == nil {
+		return []LintIssue{{Path: "section.Goal", Message: "missing Goal section"}}
+	}
+	for _, line := range goal.lines {
+		if strings.TrimSpace(line) == "### Decisions and Constraints" {
+			return nil
+		}
+	}
+	return []LintIssue{{Path: "section.Goal", Message: "missing ### Decisions and Constraints"}}
 }
 
 func validateStepMarkers(ctx *lintContext) []LintIssue {
@@ -375,26 +367,23 @@ func validateAcceptanceCriteria(ctx *lintContext) []LintIssue {
 	return issues
 }
 
-func validateOutcomeSummary(ctx *lintContext) []LintIssue {
-	section := ctx.sections["Outcome Summary"]
+func validateReviewFocus(ctx *lintContext) []LintIssue {
+	section := ctx.sections["Review Focus"]
 	if section == nil {
-		return []LintIssue{{Path: "section.Outcome Summary", Message: "missing Outcome Summary section"}}
+		return []LintIssue{{Path: "section.Review Focus", Message: "missing Review Focus section"}}
 	}
+	if strings.TrimSpace(strings.Join(section.lines, "\n")) == "" {
+		return []LintIssue{{Path: "section.Review Focus", Message: "must not be empty"}}
+	}
+	return nil
+}
 
-	subsections, order := parseLevelThreeSections(section.lines)
-	required := []string{"Delivered", "Not Delivered", "Follow-Up Issues"}
-	issues := make([]LintIssue, 0)
-	if !slices.Equal(order, required) {
-		issues = append(issues, LintIssue{
-			Path:    "section.Outcome Summary",
-			Message: "Outcome Summary must contain Delivered, Not Delivered, and Follow-Up Issues in order",
-		})
+func validateCloseout(ctx *lintContext) []LintIssue {
+	section := ctx.sections["Closeout"]
+	if section == nil {
+		return []LintIssue{{Path: "section.Closeout", Message: "missing Closeout section"}}
 	}
-	for _, name := range required {
-		if subsection := subsections[name]; subsection == nil || strings.TrimSpace(strings.Join(subsection.lines, "\n")) == "" {
-			issues = append(issues, LintIssue{Path: "section.Outcome Summary." + name, Message: "must not be empty"})
-		}
-	}
+	_, issues := parseLabeledBullets("section.Closeout", section.lines, closeoutLabels)
 	return issues
 }
 
@@ -458,70 +447,62 @@ func finalizeStep(base step, lines []string) (step, []LintIssue) {
 	if trimmedIndex == -1 {
 		return base, []LintIssue{{Path: stepPath, Message: "step body is empty"}}
 	}
-	matches := statusPattern.FindStringSubmatch(strings.TrimSpace(lines[trimmedIndex]))
 	if doneMatches := donePattern.FindStringSubmatch(strings.TrimSpace(lines[trimmedIndex])); len(doneMatches) == 2 {
 		base.done = strings.EqualFold(doneMatches[1], "x")
 		base.usesDoneMarker = true
 		base.status = stepStatusFromDone(base.done)
-	} else if len(matches) == 2 {
-		base.status = matches[1]
-		base.done = base.status == "completed"
-		if !slices.Contains(allowedStepStatuses, base.status) {
-			issues = append(issues, LintIssue{Path: stepPath + ".status", Message: "invalid step status"})
-		}
 	} else {
-		return base, []LintIssue{{Path: stepPath, Message: "step must start with '- Done: [ ]' or legacy '- Status: ...' during migration"}}
+		return base, []LintIssue{{Path: stepPath, Message: "step must start with '- Done: [ ]' or '- Done: [x]'"}}
 	}
 
-	base.sections = map[string]*section{}
-	base.sectionOrder = make([]string, 0)
-
-	var current *section
+	seen := map[string]bool{}
 	previousOrder := -1
+	fieldOrder := map[string]int{"Outcome": 0, "Covers": 1, "Check": 2}
 	for _, rawLine := range lines[trimmedIndex+1:] {
-		line := strings.TrimRight(rawLine, "\r")
-		if strings.HasPrefix(line, "#### ") {
-			name := strings.TrimSpace(strings.TrimPrefix(line, "#### "))
-			order, ok := stepSectionOrder[name]
-			if !ok {
-				issues = append(issues, LintIssue{Path: stepPath, Message: fmt.Sprintf("unknown step subsection %q", name)})
-				current = nil
-				continue
-			}
-			if order < previousOrder {
-				issues = append(issues, LintIssue{Path: stepPath, Message: "step subsections are out of order"})
-			}
-			previousOrder = order
-			current = &section{name: name}
-			base.sections[name] = current
-			base.sectionOrder = append(base.sectionOrder, name)
+		line := strings.TrimSpace(strings.TrimRight(rawLine, "\r"))
+		if line == "" {
 			continue
 		}
-		if current != nil {
-			current.lines = append(current.lines, line)
-		} else if strings.TrimSpace(line) != "" {
-			issues = append(issues, LintIssue{Path: stepPath, Message: "content before first required step subsection"})
+		if !strings.HasPrefix(line, "- ") || !strings.Contains(line, ":") {
+			issues = append(issues, LintIssue{Path: stepPath, Message: "steps may contain only Outcome, Covers, and optional Check fields"})
+			continue
+		}
+		parts := strings.SplitN(strings.TrimPrefix(line, "- "), ":", 2)
+		name := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		order, ok := fieldOrder[name]
+		if !ok {
+			issues = append(issues, LintIssue{Path: stepPath, Message: fmt.Sprintf("unknown step field %q", name)})
+			continue
+		}
+		if order < previousOrder {
+			issues = append(issues, LintIssue{Path: stepPath, Message: "step fields must appear in Outcome, Covers, Check order"})
+		}
+		previousOrder = order
+		if seen[name] {
+			issues = append(issues, LintIssue{Path: stepPath + "." + strings.ToLower(name), Message: "must appear only once"})
+			continue
+		}
+		seen[name] = true
+		if value == "" {
+			issues = append(issues, LintIssue{Path: stepPath + "." + strings.ToLower(name), Message: "must not be empty"})
+			continue
+		}
+		switch name {
+		case "Outcome":
+			base.outcome = value
+		case "Covers":
+			base.covers = value
+		case "Check":
+			base.check = value
 		}
 	}
 
-	for _, name := range requiredStepSections {
-		section := base.sections[name]
-		if section == nil {
-			issues = append(issues, LintIssue{Path: stepPath, Message: fmt.Sprintf("missing #### %s", name)})
-			continue
-		}
-		if strings.TrimSpace(strings.Join(section.lines, "\n")) == "" {
-			issues = append(issues, LintIssue{Path: stepPath + "." + name, Message: "must not be empty"})
-		}
+	if base.outcome == "" && !seen["Outcome"] {
+		issues = append(issues, LintIssue{Path: stepPath + ".outcome", Message: "missing Outcome field"})
 	}
-
-	if section := base.sections["Step Acceptance Criteria"]; section != nil {
-		items, err := parseCheckboxList(section.lines)
-		if err != nil {
-			issues = append(issues, LintIssue{Path: stepPath + ".Step Acceptance Criteria", Message: err.Error()})
-		} else {
-			base.stepAcceptanceCriteria = items
-		}
+	if base.covers == "" && !seen["Covers"] {
+		issues = append(issues, LintIssue{Path: stepPath + ".covers", Message: "missing Covers field"})
 	}
 
 	return base, issues
@@ -547,36 +528,25 @@ func validatePathRules(ctx *lintContext) []LintIssue {
 	pathProfile := inferWorkflowProfileFromPath(ctx.path)
 	declaredProfile := strings.TrimSpace(ctx.frontmatter.WorkflowProfile)
 	if declaredProfile == WorkflowProfileStandard {
-		issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "omit workflow_profile for standard plans; only lightweight plans or the goal_oriented authoring preview should declare it"})
+		issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "omit workflow_profile for standard plans; only lightweight plans should declare it"})
 	}
 	switch pathProfile {
 	case WorkflowProfileStandard:
 		switch declaredProfile {
 		case WorkflowProfileLightweight:
 			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "standard archived paths must omit workflow_profile"})
-		case WorkflowProfileGoalOriented:
-			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "goal_oriented is a recognized preview workflow profile for active-plan authoring; archive support is still being completed"})
 		}
 	case WorkflowProfileLightweight:
 		if declaredProfile != WorkflowProfileLightweight {
 			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "lightweight archived paths require workflow_profile: lightweight"})
 		}
 	default:
-		if ctx.pathKind == "active" && declaredProfile != "" && declaredProfile != WorkflowProfileLightweight && declaredProfile != WorkflowProfileGoalOriented {
-			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "tracked active plans must omit workflow_profile unless they explicitly use lightweight or the goal_oriented authoring preview"})
+		if ctx.pathKind == "active" && declaredProfile != "" && declaredProfile != WorkflowProfileLightweight {
+			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "tracked active plans must omit workflow_profile unless they explicitly use lightweight"})
 		}
 	}
 	issues = append(issues, validateSupplementsRules(ctx)...)
 	return issues
-}
-
-func isSupportedWorkflowProfile(value string) bool {
-	switch value {
-	case WorkflowProfileStandard, WorkflowProfileLightweight, WorkflowProfileGoalOriented:
-		return true
-	default:
-		return false
-	}
 }
 
 func validateSupplementsRules(ctx *lintContext) []LintIssue {
@@ -612,7 +582,6 @@ func validateSupplementsRules(ctx *lintContext) []LintIssue {
 			return []LintIssue{{Path: "supplements", Message: "supplements directory name must match the markdown plan stem"}}
 		}
 	}
-	issues = append(issues, validatePlanReviewGuidance(supplementsPath)...)
 	for _, alternate := range AlternateSupplementsDirsForPlanPath(ctx.path) {
 		if _, err := os.Stat(alternate); err == nil {
 			return []LintIssue{{
@@ -624,42 +593,6 @@ func validateSupplementsRules(ctx *lintContext) []LintIssue {
 		}
 	}
 
-	return issues
-}
-
-func validatePlanReviewGuidance(supplementsPath string) []LintIssue {
-	root := filepath.Join(supplementsPath, ReviewGuidanceDirName)
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return []LintIssue{{Path: "supplements.review-guidance", Message: err.Error()}}
-	}
-	seen := map[string]string{}
-	issues := make([]LintIssue, 0)
-	for _, entry := range entries {
-		path := filepath.Join(root, entry.Name())
-		lintPath := "supplements.review-guidance." + entry.Name()
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
-			issues = append(issues, LintIssue{Path: lintPath, Message: "accepts only Markdown files directly under review-guidance"})
-			continue
-		}
-		definition, err := reviewguidance.ParseFile(path)
-		if err != nil {
-			issues = append(issues, LintIssue{Path: lintPath, Message: err.Error()})
-			continue
-		}
-		if strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name())) != definition.Name {
-			issues = append(issues, LintIssue{Path: lintPath, Message: fmt.Sprintf("filename must match review guidance name %q", definition.Name)})
-			continue
-		}
-		if previous, ok := seen[definition.Name]; ok {
-			issues = append(issues, LintIssue{Path: lintPath, Message: fmt.Sprintf("duplicates review guidance name %q already defined in %s", definition.Name, previous)})
-			continue
-		}
-		seen[definition.Name] = entry.Name()
-	}
 	return issues
 }
 
@@ -681,56 +614,58 @@ func validateArchivedRules(ctx *lintContext) []LintIssue {
 		if !step.done {
 			issues = append(issues, LintIssue{Path: "step." + step.title + ".done", Message: "archived plans require every step to be done"})
 		}
-		for _, item := range step.stepAcceptanceCriteria {
-			if !item.Checked {
-				issues = append(issues, LintIssue{Path: "step." + step.title + ".Step Acceptance Criteria", Message: "archived plans require checked step-local acceptance criteria"})
-				break
-			}
-		}
-		if hasPlaceholder(step.sections["Execution Notes"], "PENDING_STEP_EXECUTION") {
-			issues = append(issues, LintIssue{Path: "step." + step.title + ".Execution Notes", Message: "archived completed steps must not keep PENDING_STEP_EXECUTION"})
-		}
-		if hasPlaceholder(step.sections["Review Notes"], "PENDING_STEP_REVIEW") {
-			issues = append(issues, LintIssue{Path: "step." + step.title + ".Review Notes", Message: "archived completed steps must not keep PENDING_STEP_REVIEW"})
-		}
 	}
 
-	for _, sectionName := range []string{"Validation Summary", "Review Summary", "Archive Summary", "Outcome Summary"} {
-		section := ctx.sections[sectionName]
-		if section != nil && containsArchivePlaceholderToken(strings.Join(section.lines, "\n")) {
-			issues = append(issues, LintIssue{Path: "section." + sectionName, Message: "archived plans must not keep archive-time placeholder tokens"})
-		}
-	}
-
-	archiveSummary := ctx.sections["Archive Summary"]
-	if archiveSummary == nil {
-		issues = append(issues, LintIssue{Path: "section.Archive Summary", Message: "missing Archive Summary section"})
+	closeout := ctx.sections["Closeout"]
+	if closeout == nil {
+		issues = append(issues, LintIssue{Path: "section.Closeout", Message: "missing Closeout section"})
 	} else {
-		requiredLabels := []string{"Archived At", "Revision", "PR", "Ready", "Merge Handoff"}
-		content := strings.Join(archiveSummary.lines, "\n")
-		for _, label := range requiredLabels {
-			if !strings.Contains(content, "- "+label+":") {
-				issues = append(issues, LintIssue{Path: "section.Archive Summary", Message: fmt.Sprintf("archived plans must include - %s:", label)})
-			}
+		content := strings.Join(closeout.lines, "\n")
+		if containsArchivePlaceholderToken(content) {
+			issues = append(issues, LintIssue{Path: "section.Closeout", Message: "archived plans must not keep archive-time placeholder tokens"})
 		}
-	}
-
-	if deferredItemsSection := ctx.sections["Deferred Items"]; deferredItemsSection != nil {
-		if hasRealDeferredItems(strings.Join(deferredItemsSection.lines, "\n")) {
-			outcomeSummary := ctx.sections["Outcome Summary"]
-			if outcomeSummary == nil {
-				issues = append(issues, LintIssue{Path: "section.Outcome Summary", Message: "missing Outcome Summary section"})
-				return issues
-			}
-			outcomeSubsections, _ := parseLevelThreeSections(outcomeSummary.lines)
-			followUp := outcomeSubsections["Follow-Up Issues"]
-			if followUp == nil || strings.EqualFold(strings.TrimSpace(strings.Join(followUp.lines, "\n")), "NONE") {
-				issues = append(issues, LintIssue{Path: "section.Outcome Summary.Follow-Up Issues", Message: "archived plans with deferred items must include follow-up issue references"})
+		values, parseIssues := parseLabeledBullets("section.Closeout", closeout.lines, append([]string{"Archived At", "Revision"}, closeoutLabels...))
+		issues = append(issues, parseIssues...)
+		if deferredItemsSection := ctx.sections["Deferred Items"]; deferredItemsSection != nil && hasRealDeferredItems(strings.Join(deferredItemsSection.lines, "\n")) {
+			if strings.EqualFold(strings.TrimSpace(values["Follow-Up Issues"]), "NONE") {
+				issues = append(issues, LintIssue{Path: "section.Closeout.Follow-Up Issues", Message: "archived plans with deferred items must include follow-up issue references"})
 			}
 		}
 	}
 
 	return issues
+}
+
+func parseLabeledBullets(path string, lines, required []string) (map[string]string, []LintIssue) {
+	values := map[string]string{}
+	issues := make([]LintIssue, 0)
+	for _, rawLine := range lines {
+		line := strings.TrimSpace(rawLine)
+		if line == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, "- ") || !strings.Contains(line, ":") {
+			issues = append(issues, LintIssue{Path: path, Message: "must contain only labeled bullet lines"})
+			continue
+		}
+		parts := strings.SplitN(strings.TrimPrefix(line, "- "), ":", 2)
+		label := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		if _, exists := values[label]; exists {
+			issues = append(issues, LintIssue{Path: path + "." + label, Message: "must appear only once"})
+			continue
+		}
+		values[label] = value
+		if value == "" {
+			issues = append(issues, LintIssue{Path: path + "." + label, Message: "must not be empty"})
+		}
+	}
+	for _, label := range required {
+		if _, ok := values[label]; !ok {
+			issues = append(issues, LintIssue{Path: path + "." + label, Message: "missing required closeout field"})
+		}
+	}
+	return values, issues
 }
 
 func parseCheckboxList(lines []string) ([]checkboxItem, error) {

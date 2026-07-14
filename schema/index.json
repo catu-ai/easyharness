@@ -103,16 +103,6 @@
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.EvidenceSyncInput"
     },
     {
-      "key": "inputs.review.spec",
-      "group": "command_inputs",
-      "surface": "public",
-      "title": "Review start input",
-      "description": "JSON input consumed by `harness review start`.",
-      "path": "schema/inputs/review.spec.schema.json",
-      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/inputs/review.spec.schema.json",
-      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewSpec"
-    },
-    {
       "key": "inputs.review.submission",
       "group": "command_inputs",
       "surface": "public",
@@ -161,26 +151,6 @@
       "path": "schema/commands/lifecycle.result.schema.json",
       "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/lifecycle.result.schema.json",
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.LifecycleResult"
-    },
-    {
-      "key": "commands.review.aggregate.result",
-      "group": "command_results",
-      "surface": "public",
-      "title": "Review aggregate command result",
-      "description": "JSON output for `harness review aggregate`.",
-      "path": "schema/commands/review.aggregate.result.schema.json",
-      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/review.aggregate.result.schema.json",
-      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewAggregateResult"
-    },
-    {
-      "key": "commands.review.dimensions.list.result",
-      "group": "command_results",
-      "surface": "public",
-      "title": "Review dimensions list command result",
-      "description": "JSON output for `harness review dimensions list`.",
-      "path": "schema/commands/review.dimensions.list.result.schema.json",
-      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/review.dimensions.list.result.schema.json",
-      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewDimensionsListResult"
     },
     {
       "key": "commands.review.start.result",

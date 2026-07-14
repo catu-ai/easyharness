@@ -58,13 +58,14 @@ func TestLightweightWorkflowWithBuiltBinary(t *testing.T) {
 		t.Fatalf("expected current step %q, got %#v", trackedStepTitle(1, lightweightStepTitle), initialStatus)
 	}
 
-	support.CompleteStep(t, planPath, 1, "Completed the lightweight tracked change.", "No optional step review was started; final review is the formal gate.")
+	support.CompleteStep(t, planPath, 1)
 	support.CheckAllAcceptanceCriteria(t, planPath)
 
 	preFinalizeStatus := runStatus(t, workspace.Root)
 	assertNode(t, preFinalizeStatus, "execution/finalize/review")
 
 	runPassingFinalizeReview(t, workspace)
+	support.CompleteCloseout(t, planPath)
 
 	postFinalizeStatus := runStatus(t, workspace.Root)
 	assertNode(t, postFinalizeStatus, "execution/finalize/archive")
@@ -115,104 +116,5 @@ func TestLightweightWorkflowWithBuiltBinary(t *testing.T) {
 }
 
 func lightweightWorkflowPlanBody() string {
-	return strings.TrimSpace(`
-## Goal
-
-Exercise the lightweight workflow through the built binary so a tracked active
-lightweight plan remains steerable, archives to the local lightweight archive
-path, and still reminds the controller to leave a repo-visible breadcrumb
-before waiting for merge approval.
-
-## Scope
-
-### In Scope
-
-- Create a tracked lightweight plan from harness plan template --lightweight.
-- Execute and close out the one lightweight step.
-- Run finalize review, archive to the local archived path, and record publish,
-  CI, and sync evidence until status reaches execution/finalize/await_merge.
-
-### Out of Scope
-
-- Land entry and cleanup.
-
-## Acceptance Criteria
-
-- [ ] A tracked active lightweight plan under docs/plans/active resolves to plan before execution starts.
-- [ ] Archive moves the plan into .local/harness/plans/archived/<plan-stem>.md and status surfaces breadcrumb guidance.
-- [ ] Publish, CI, and sync evidence still move the lightweight candidate to execution/finalize/await_merge.
-
-## Deferred Items
-
-- None.
-
-## Work Breakdown
-
-### Step 1: Update the lightweight workflow docs
-
-- Done: [ ]
-
-#### Objective
-
-Close out one bounded lightweight step before finalize review.
-
-#### Details
-
-This fixture uses a tracked active lightweight plan to prove the profile
-reuses the standard workflow shape while changing only archive storage and
-publish handoff behavior.
-
-#### Expected Files
-
-- tests/e2e/lightweight_workflow_test.go
-
-#### Validation
-
-- Enter final review without routine step-review debt.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
-
-## Validation Strategy
-
-- Run repo-level E2E coverage with the built binary.
-
-## Risks
-
-- Risk: The scenario could prove only template rendering but miss local archive or breadcrumb behavior.
-  - Mitigation: Assert both the archived local path and the publish/await-merge breadcrumb guidance.
-
-## Validation Summary
-
-Validated the tracked-active lightweight flow through local archive and merge-ready handoff.
-
-## Review Summary
-
-No unresolved review findings remain in the lightweight candidate used for the E2E.
-
-## Archive Summary
-
-- PR: NONE
-- Ready: The lightweight candidate satisfies the acceptance criteria and is ready for merge approval once the breadcrumb is updated.
-- Merge Handoff: Leave the agreed repo-visible breadcrumb before treating this candidate as awaiting merge approval.
-
-## Outcome Summary
-
-### Delivered
-
-Delivered the tracked-active lightweight E2E scenario.
-
-### Not Delivered
-
-NONE.
-
-### Follow-Up Issues
-
-NONE
-`)
+	return compactPlanFixture(lightweightStepTitle)
 }

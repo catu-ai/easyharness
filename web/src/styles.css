@@ -479,12 +479,25 @@ code {
   cursor: default;
 }
 
+.dashboard-progress-block {
+  display: grid;
+  gap: 0.28rem;
+  width: min(100%, 46rem);
+}
+
+.dashboard-progress-copy {
+  display: flex;
+  gap: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.66rem;
+}
+
 .dashboard-progress {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: min(100%, 46rem);
+  width: 100%;
   min-height: 1.1rem;
   padding: 0 0.08rem;
 }

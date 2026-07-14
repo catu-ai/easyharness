@@ -431,7 +431,7 @@ func TestExecuteStartRollsBackWhenCurrentPlanWriteFails(t *testing.T) {
 	}
 }
 
-func TestArchiveRejectsMissingArchiveSummaryFields(t *testing.T) {
+func TestArchiveRejectsMissingCloseoutFields(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-18-archive-smoke.md")
 	content := buildActiveArchiveCandidate(t)
@@ -455,7 +455,7 @@ func TestArchiveRejectsMissingArchiveSummaryFields(t *testing.T) {
 	if result.OK {
 		t.Fatalf("expected archive failure, got %#v", result)
 	}
-	assertErrorPath(t, result.Errors, "section.Archive Summary")
+	assertErrorPath(t, result.Errors, "section.Closeout")
 }
 
 func TestArchivePreflightFailureLeavesPlanAndPointersUntouched(t *testing.T) {
@@ -486,8 +486,8 @@ func TestArchivePreflightFailureLeavesPlanAndPointersUntouched(t *testing.T) {
 	if result.OK {
 		t.Fatalf("expected archive failure, got %#v", result)
 	}
-	assertErrorPath(t, result.Errors, "section.Archive Summary")
-	assertErrorPath(t, result.Errors, "section.Outcome Summary.Follow-Up Issues")
+	assertErrorPath(t, result.Errors, "section.Closeout")
+	assertErrorPath(t, result.Errors, "section.Closeout.Follow-Up Issues")
 
 	if _, err := os.Stat(activePath); err != nil {
 		t.Fatalf("expected active plan to remain after failed archive, got %v", err)
@@ -508,48 +508,6 @@ func TestArchivePreflightFailureLeavesPlanAndPointersUntouched(t *testing.T) {
 	}
 	if state == nil {
 		t.Fatalf("expected state to remain after failed archive, got %#v", state)
-	}
-}
-
-func TestArchiveRejectsGoalOrientedPreviewBeforeWritingArchive(t *testing.T) {
-	root := t.TempDir()
-	activeRelPath := "docs/plans/active/2026-03-18-goal-oriented.md"
-	activePath := filepath.Join(root, activeRelPath)
-	content := strings.Replace(buildActiveArchiveCandidate(t), "source_refs: []", "source_refs: []\nworkflow_profile: goal_oriented", 1)
-	writeFile(t, activePath, content)
-	if _, err := runstate.SaveCurrentPlan(root, activeRelPath); err != nil {
-		t.Fatalf("save current plan: %v", err)
-	}
-	if _, err := saveLifecycleState(t, root, "2026-03-18-goal-oriented", &runstate.State{
-		ExecutionStartedAt: "2026-03-18T01:55:00Z",
-		ActiveReviewRound: &runstate.ReviewRound{
-			RoundID:    "review-001-full",
-			Kind:       "full",
-			Revision:   1,
-			Aggregated: true,
-			Decision:   "pass",
-		},
-	}); err != nil {
-		t.Fatalf("save state: %v", err)
-	}
-
-	result := lifecycle.Service{Workdir: root}.Archive()
-	if result.OK {
-		t.Fatalf("expected archive failure, got %#v", result)
-	}
-	assertErrorPath(t, result.Errors, "frontmatter.workflow_profile")
-	if _, err := os.Stat(activePath); err != nil {
-		t.Fatalf("expected active plan to remain after failed archive, got %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(root, "docs/plans/archived/2026-03-18-goal-oriented.md")); !os.IsNotExist(err) {
-		t.Fatalf("expected no archived goal-oriented plan to be written, got %v", err)
-	}
-	current, err := runstate.LoadCurrentPlan(root)
-	if err != nil {
-		t.Fatalf("load current plan: %v", err)
-	}
-	if current == nil || current.PlanPath != activeRelPath {
-		t.Fatalf("expected current plan pointer to remain on active plan, got %#v", current)
 	}
 }
 
@@ -690,7 +648,7 @@ func TestArchiveRejectsUnresolvedLocalState(t *testing.T) {
 				ActiveReviewRound: &runstate.ReviewRound{RoundID: "review-001-full", Kind: "full", Aggregated: false},
 			},
 			errorPath:  "state.active_review_round",
-			errorMatch: "aggregate or supersede",
+			errorMatch: "complete or replace",
 		},
 	}
 
@@ -1383,14 +1341,14 @@ func TestReopenMarkersMustBeClearedBeforeRearchive(t *testing.T) {
 	if rearchive.OK {
 		t.Fatalf("expected rearchive to fail while reopen markers remain, got %#v", rearchive)
 	}
-	assertErrorPath(t, rearchive.Errors, "section.Validation Summary")
+	assertErrorPath(t, rearchive.Errors, "section.Closeout")
 
 	activePath := filepath.Join(root, activeRelPath)
 	data, err := os.ReadFile(activePath)
 	if err != nil {
 		t.Fatalf("read reopened plan: %v", err)
 	}
-	cleared := strings.ReplaceAll(string(data), "UPDATE_REQUIRED_AFTER_REOPEN\n\n", "")
+	cleared := strings.ReplaceAll(string(data), "UPDATE_REQUIRED_AFTER_REOPEN — ", "")
 	writeFile(t, activePath, cleared)
 
 	svc.Now = func() time.Time {
@@ -1613,11 +1571,6 @@ func TestLandReadsEvidenceArtifactsWhenStateIsSparse(t *testing.T) {
 	if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-landed-plan.md"); err != nil {
 		t.Fatalf("save current plan: %v", err)
 	}
-	if _, err := saveLifecycleState(t, root, "2026-03-18-landed-plan", &runstate.State{
-		Revision: 3,
-	}); err != nil {
-		t.Fatalf("save legacy state: %v", err)
-	}
 	writeMergeReadyEvidenceArtifacts(t, root, "2026-03-18-landed-plan", "docs/plans/archived/2026-03-18-landed-plan.md")
 
 	result := lifecycle.Service{
@@ -1629,6 +1582,50 @@ func TestLandReadsEvidenceArtifactsWhenStateIsSparse(t *testing.T) {
 	if !result.OK {
 		t.Fatalf("expected land success from evidence artifacts, got %#v", result)
 	}
+}
+
+func TestLandRejectsPostArchiveProductCommitOutsideReviewCoverage(t *testing.T) {
+	root := t.TempDir()
+	archivedRelPath := "docs/plans/archived/2026-03-18-landed-plan.md"
+	writeArchivedLandedPlan(t, root, archivedRelPath)
+	if _, err := runstate.SaveCurrentPlan(root, archivedRelPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	commitLifecycleCandidate(t, root)
+	writeFile(t, filepath.Join(root, "product.go"), "package product\n\nconst Unreviewed = true\n")
+	commitLifecycleCandidate(t, root)
+	writeMergeReadyEvidenceArtifacts(t, root, "2026-03-18-landed-plan", archivedRelPath)
+
+	result := lifecycle.Service{Workdir: root}.Land("https://github.com/catu-ai/easyharness/pull/99", "abc123")
+	if result.OK {
+		t.Fatalf("expected unreviewed post-archive product change to block land, got %#v", result)
+	}
+	assertErrorPath(t, result.Errors, "review.coverage")
+	assertErrorContains(t, result.Errors, "review.coverage", "product.go")
+}
+
+func TestEvaluateArchivedReviewCoverageRejectsUnexpectedArchiveDestination(t *testing.T) {
+	root := t.TempDir()
+	canonicalRelPath := "docs/plans/archived/2026-03-18-landed-plan.md"
+	canonicalPath := writeArchivedLandedPlan(t, root, canonicalRelPath)
+	unexpectedPath := filepath.Join(root, "unexpected", "2026-03-18-landed-plan.md")
+	if err := os.MkdirAll(filepath.Dir(unexpectedPath), 0o755); err != nil {
+		t.Fatalf("mkdir unexpected archive root: %v", err)
+	}
+	if err := os.Rename(canonicalPath, unexpectedPath); err != nil {
+		t.Fatalf("move plan to unexpected archive root: %v", err)
+	}
+	doc, err := plan.LoadFile(unexpectedPath)
+	if err != nil {
+		t.Fatalf("load unexpected archived plan: %v", err)
+	}
+	state, _, err := runstate.LoadState(root, "2026-03-18-landed-plan")
+	if err != nil {
+		t.Fatalf("load reviewed coverage state: %v", err)
+	}
+	issues := lifecycle.EvaluateArchivedReviewCoverage(root, "2026-03-18-landed-plan", doc, state)
+	assertErrorPath(t, issues, "review.coverage")
+	assertErrorContains(t, issues, "review.coverage", "expected the configured archive path")
 }
 
 func TestLandRejectsOlderRevisionEvidenceAfterReopen(t *testing.T) {
@@ -1849,6 +1846,12 @@ func saveLifecycleState(t *testing.T, root, planStem string, state *runstate.Sta
 	t.Helper()
 	if state != nil && state.ActiveReviewRound != nil && state.ActiveReviewRound.Aggregated && state.ActiveReviewRound.Decision == "pass" {
 		head := commitLifecycleCandidate(t, root)
+		reviewPlanPath := ""
+		if detected, err := plan.DetectCurrentPath(root); err == nil {
+			if rel, relErr := filepath.Rel(root, detected); relErr == nil {
+				reviewPlanPath = filepath.ToSlash(rel)
+			}
+		}
 		revision := runstate.CurrentRevision(state)
 		tipID := state.ActiveReviewRound.RoundID
 		rootID := tipID
@@ -1860,15 +1863,15 @@ func saveLifecycleState(t *testing.T, root, planStem string, state *runstate.Sta
 				rootRevision = 1
 			}
 			writeLifecycleReviewRound(t, root, planStem, contracts.ReviewManifest{
-				RoundID: rootID, Kind: "full", ReviewedHeadSHA: rootHead, Revision: rootRevision,
+				RoundID: rootID, Kind: "full", ReviewedHeadSHA: rootHead, Revision: rootRevision, PlanPath: reviewPlanPath,
 			}, cleanLifecycleAggregate(rootID, "full", rootHead, rootRevision, nil))
 			repair := &contracts.ReviewRepairReference{RoundID: rootID, FindingIDs: []string{}}
 			writeLifecycleReviewRound(t, root, planStem, contracts.ReviewManifest{
-				RoundID: tipID, Kind: "delta", AnchorSHA: rootHead, ReviewedHeadSHA: head, Revision: revision, Repair: repair,
+				RoundID: tipID, Kind: "delta", AnchorSHA: rootHead, ReviewedHeadSHA: head, Revision: revision, Repair: repair, PlanPath: reviewPlanPath,
 			}, cleanLifecycleAggregate(tipID, "delta", head, revision, repair))
 		} else {
 			writeLifecycleReviewRound(t, root, planStem, contracts.ReviewManifest{
-				RoundID: tipID, Kind: "full", ReviewedHeadSHA: head, Revision: revision,
+				RoundID: tipID, Kind: "full", ReviewedHeadSHA: head, Revision: revision, PlanPath: reviewPlanPath,
 			}, cleanLifecycleAggregate(tipID, "full", head, revision, nil))
 		}
 		state.FinalizeCoverage = &runstate.FinalizeCoverage{
@@ -1954,14 +1957,25 @@ func writeArchivedLandedPlan(t *testing.T, root, relPath string) string {
 	rendered = strings.Replace(rendered, "size: REPLACE_WITH_PLAN_SIZE", "size: M", 1)
 	rendered = strings.ReplaceAll(rendered, "- Done: [ ]", "- Done: [x]")
 	rendered = strings.ReplaceAll(rendered, "- [ ]", "- [x]")
-	rendered = strings.ReplaceAll(rendered, "PENDING_STEP_EXECUTION", "Done.")
-	rendered = strings.ReplaceAll(rendered, "PENDING_STEP_REVIEW", "Reviewed.")
-	rendered = strings.Replace(rendered, "## Validation Summary\n\nPENDING_UNTIL_ARCHIVE", "## Validation Summary\n\nValidated the slice.", 1)
-	rendered = strings.Replace(rendered, "## Review Summary\n\nPENDING_UNTIL_ARCHIVE", "## Review Summary\n\nFull review passed.", 1)
-	rendered = strings.Replace(rendered, "## Archive Summary\n\nPENDING_UNTIL_ARCHIVE", "## Archive Summary\n\n- Archived At: 2026-03-18T02:00:00Z\n- Revision: 1\n- PR: NONE\n- Ready: Ready for merge approval.\n- Merge Handoff: Commit and push before merge approval.", 1)
-	rendered = strings.Replace(rendered, "### Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Delivered\n\nDelivered the slice.", 1)
-	rendered = strings.Replace(rendered, "### Not Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Not Delivered\n\nNONE.", 1)
+	rendered = strings.Replace(rendered, "## Closeout\n", "## Closeout\n\n- Archived At: 2026-03-18T02:00:00Z\n- Revision: 1", 1)
+	rendered = completeCloseout(rendered)
+	activeRelPath := strings.Replace(relPath, "/archived/", "/active/", 1)
+	activePath := filepath.Join(root, activeRelPath)
+	writeFile(t, activePath, rendered)
+	planStem := strings.TrimSuffix(filepath.Base(relPath), filepath.Ext(relPath))
+	if _, err := saveLifecycleState(t, root, planStem, &runstate.State{
+		Revision:           1,
+		ExecutionStartedAt: "2026-03-18T01:00:00Z",
+		ActiveReviewRound: &runstate.ReviewRound{
+			RoundID: "review-001-full", Kind: "full", Revision: 1, Aggregated: true, Decision: "pass",
+		},
+	}); err != nil {
+		t.Fatalf("seed landed-plan review coverage: %v", err)
+	}
 	writeFile(t, path, rendered)
+	if err := os.Remove(activePath); err != nil {
+		t.Fatalf("remove reviewed active plan after archive fixture move: %v", err)
+	}
 	return path
 }
 
@@ -1970,18 +1984,7 @@ func buildActiveArchiveCandidate(t *testing.T) string {
 	rendered := buildAwaitingPlan(t, "Archive Smoke")
 	rendered = strings.ReplaceAll(rendered, "- Done: [ ]", "- Done: [x]")
 	rendered = strings.ReplaceAll(rendered, "- [ ]", "- [x]")
-	rendered = strings.ReplaceAll(rendered, "PENDING_STEP_EXECUTION", "Completed execution notes.")
-	rendered = strings.ReplaceAll(
-		rendered,
-		"#### Review Notes\n\nPENDING_STEP_REVIEW",
-		"#### Review Notes\n\nNO_STEP_REVIEW_NEEDED: Test fixture uses explicit review-complete closeout.",
-	)
-	rendered = strings.Replace(rendered, "## Validation Summary\n\nPENDING_UNTIL_ARCHIVE", "## Validation Summary\n\nValidated the implementation and command surfaces.", 1)
-	rendered = strings.Replace(rendered, "## Review Summary\n\nPENDING_UNTIL_ARCHIVE", "## Review Summary\n\nNo unresolved blocking review findings remain.", 1)
-	rendered = strings.Replace(rendered, "## Archive Summary\n\nPENDING_UNTIL_ARCHIVE", "## Archive Summary\n\n- PR: NONE\n- Ready: The candidate satisfies the acceptance criteria and is ready for merge approval.\n- Merge Handoff: Commit and push the archive move before treating this candidate as awaiting merge approval.", 1)
-	rendered = strings.Replace(rendered, "### Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Delivered\n\nDelivered the planned CLI slice.", 1)
-	rendered = strings.Replace(rendered, "### Not Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Not Delivered\n\nNONE.", 1)
-	return rendered
+	return completeCloseout(rendered)
 }
 
 func writeActiveArchiveCandidateWithCloseoutDebt(t *testing.T, root, relPath string) string {
@@ -1990,19 +1993,25 @@ func writeActiveArchiveCandidateWithCloseoutDebt(t *testing.T, root, relPath str
 	rendered := buildAwaitingPlan(t, "Archive Smoke")
 	rendered = strings.ReplaceAll(rendered, "- Done: [ ]", "- Done: [x]")
 	rendered = strings.ReplaceAll(rendered, "- [ ]", "- [x]")
-	rendered = strings.ReplaceAll(rendered, "PENDING_STEP_EXECUTION", "Completed execution notes.")
-	rendered = strings.ReplaceAll(
-		rendered,
-		"#### Review Notes\n\nPENDING_STEP_REVIEW",
-		"#### Review Notes\n\nCompleted review notes.",
-	)
-	rendered = strings.Replace(rendered, "## Validation Summary\n\nPENDING_UNTIL_ARCHIVE", "## Validation Summary\n\nValidated the implementation and command surfaces.", 1)
-	rendered = strings.Replace(rendered, "## Review Summary\n\nPENDING_UNTIL_ARCHIVE", "## Review Summary\n\nNo unresolved blocking review findings remain.", 1)
-	rendered = strings.Replace(rendered, "## Archive Summary\n\nPENDING_UNTIL_ARCHIVE", "## Archive Summary\n\n- PR: NONE\n- Ready: The candidate satisfies the acceptance criteria and is ready for merge approval.\n- Merge Handoff: Commit and push the archive move before treating this candidate as awaiting merge approval.", 1)
-	rendered = strings.Replace(rendered, "### Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Delivered\n\nDelivered the planned CLI slice.", 1)
-	rendered = strings.Replace(rendered, "### Not Delivered\n\nPENDING_UNTIL_ARCHIVE", "### Not Delivered\n\nNONE.", 1)
+	rendered = completeCloseout(rendered)
 	writeFile(t, path, rendered)
 	return path
+}
+
+func completeCloseout(rendered string) string {
+	replacements := map[string]string{
+		"- Validation: PENDING_UNTIL_ARCHIVE":    "- Validation: Validated the implementation and command surfaces.",
+		"- Review: PENDING_UNTIL_ARCHIVE":        "- Review: No unresolved blocking review findings remain.",
+		"- Delivered: PENDING_UNTIL_ARCHIVE":     "- Delivered: Delivered the planned CLI slice.",
+		"- Not Delivered: PENDING_UNTIL_ARCHIVE": "- Not Delivered: NONE.",
+		"- PR: PENDING_UNTIL_ARCHIVE":            "- PR: NONE",
+		"- Ready: PENDING_UNTIL_ARCHIVE":         "- Ready: The candidate satisfies the acceptance criteria and is ready for merge approval.",
+		"- Merge Handoff: PENDING_UNTIL_ARCHIVE": "- Merge Handoff: Commit and push the archive move before treating this candidate as awaiting merge approval.",
+	}
+	for old, replacement := range replacements {
+		rendered = strings.Replace(rendered, old, replacement, 1)
+	}
+	return rendered
 }
 
 func buildAwaitingPlan(t *testing.T, title string) string {

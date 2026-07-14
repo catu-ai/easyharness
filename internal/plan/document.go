@@ -20,17 +20,13 @@ type Document struct {
 }
 
 type DocumentStep struct {
-	Title                  string
-	Done                   bool
-	UsesDoneMarker         bool
-	Status                 string
-	SectionOrder           []string
-	Sections               map[string]string
-	StepAcceptanceCriteria []DocumentCheckbox
-}
-
-type DocumentCheckbox struct {
-	Checked bool
+	Title          string
+	Done           bool
+	UsesDoneMarker bool
+	Status         string
+	Outcome        string
+	Covers         string
+	Check          string
 }
 
 type DocumentIssue struct {
@@ -82,14 +78,9 @@ func LoadFile(path string) (*Document, error) {
 			Done:           parsedStep.done,
 			UsesDoneMarker: parsedStep.usesDoneMarker,
 			Status:         parsedStep.status,
-			SectionOrder:   append([]string(nil), parsedStep.sectionOrder...),
-			Sections:       map[string]string{},
-		}
-		for name, section := range parsedStep.sections {
-			stepDoc.Sections[name] = strings.TrimSpace(strings.Join(section.lines, "\n"))
-		}
-		for _, item := range parsedStep.stepAcceptanceCriteria {
-			stepDoc.StepAcceptanceCriteria = append(stepDoc.StepAcceptanceCriteria, DocumentCheckbox{Checked: item.Checked})
+			Outcome:        parsedStep.outcome,
+			Covers:         parsedStep.covers,
+			Check:          parsedStep.check,
 		}
 		doc.Steps = append(doc.Steps, stepDoc)
 	}
@@ -160,28 +151,8 @@ func (d *Document) AllStepsCompleted() bool {
 }
 
 func (d *Document) HasPendingArchivePlaceholders() bool {
-	for _, sectionName := range []string{"Validation Summary", "Review Summary", "Archive Summary", "Outcome Summary"} {
-		section := d.Sections[sectionName]
-		if section != nil && containsArchivePlaceholderToken(strings.Join(section.lines, "\n")) {
-			return true
-		}
-	}
-	return false
-}
-
-func (d *Document) CompletedStepsHavePendingPlaceholders() bool {
-	for _, step := range d.Steps {
-		if !step.Done {
-			continue
-		}
-		if step.Sections["Execution Notes"] == PlaceholderPendingStepExecution {
-			return true
-		}
-		if step.Sections["Review Notes"] == PlaceholderPendingStepReview {
-			return true
-		}
-	}
-	return false
+	section := d.Sections["Closeout"]
+	return section != nil && containsArchivePlaceholderToken(strings.Join(section.lines, "\n"))
 }
 
 func (d *Document) ArchiveReadinessIssues() []DocumentIssue {
@@ -199,47 +170,26 @@ func (d *Document) ArchiveReadinessIssues() []DocumentIssue {
 		})
 	}
 
-	for _, sectionName := range []string{"Validation Summary", "Review Summary", "Archive Summary", "Outcome Summary"} {
-		section := d.Sections[sectionName]
-		if section != nil && containsArchivePlaceholderToken(strings.Join(section.lines, "\n")) {
-			issues = append(issues, DocumentIssue{
-				Path:    "section." + sectionName,
-				Message: "replace archive-time placeholder tokens before archive",
-			})
-		}
+	if d.HasPendingArchivePlaceholders() {
+		issues = append(issues, DocumentIssue{
+			Path:    "section.Closeout",
+			Message: "replace archive-time placeholder tokens before archive",
+		})
 	}
 
-	for _, step := range d.Steps {
-		if !step.Done {
-			continue
-		}
-		if step.Sections["Execution Notes"] == PlaceholderPendingStepExecution {
+	closeout := d.SectionText("Closeout")
+	for _, label := range []string{"Validation", "Review", "Delivered", "Not Delivered", "Follow-Up Issues", "PR", "Ready", "Merge Handoff"} {
+		if !strings.Contains(closeout, "- "+label+":") {
 			issues = append(issues, DocumentIssue{
-				Path:    "step." + step.Title + ".Execution Notes",
-				Message: "replace PENDING_STEP_EXECUTION before archive",
-			})
-		}
-		if step.Sections["Review Notes"] == PlaceholderPendingStepReview {
-			issues = append(issues, DocumentIssue{
-				Path:    "step." + step.Title + ".Review Notes",
-				Message: "replace PENDING_STEP_REVIEW before archive",
-			})
-		}
-	}
-
-	archiveSummary := d.SectionText("Archive Summary")
-	for _, label := range []string{"PR", "Ready", "Merge Handoff"} {
-		if !strings.Contains(archiveSummary, "- "+label+":") {
-			issues = append(issues, DocumentIssue{
-				Path:    "section.Archive Summary",
-				Message: fmt.Sprintf("add archive summary line for: %s", label),
+				Path:    "section.Closeout",
+				Message: fmt.Sprintf("add closeout line for: %s", label),
 			})
 		}
 	}
 
 	if d.DeferredItems && d.followUpIssuesUnset() {
 		issues = append(issues, DocumentIssue{
-			Path:    "section.Outcome Summary.Follow-Up Issues",
+			Path:    "section.Closeout.Follow-Up Issues",
 			Message: "replace NONE with follow-up information before archive when deferred items remain",
 		})
 	}
@@ -256,14 +206,15 @@ func (d *Document) SectionText(name string) string {
 }
 
 func (d *Document) followUpIssuesUnset() bool {
-	section := d.Sections["Outcome Summary"]
+	section := d.Sections["Closeout"]
 	if section == nil {
 		return true
 	}
-	subsections, _ := parseLevelThreeSections(section.lines)
-	followUp := subsections["Follow-Up Issues"]
-	if followUp == nil {
-		return true
+	for _, rawLine := range section.lines {
+		line := strings.TrimSpace(rawLine)
+		if strings.HasPrefix(line, "- Follow-Up Issues:") {
+			return strings.EqualFold(strings.TrimSpace(strings.TrimPrefix(line, "- Follow-Up Issues:")), "NONE")
+		}
 	}
-	return strings.EqualFold(strings.TrimSpace(strings.Join(followUp.lines, "\n")), "NONE")
+	return true
 }

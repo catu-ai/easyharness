@@ -10,7 +10,7 @@ canonical runtime node:
 
 ```json
 {
-  "current_node": "execution/step-2/review"
+  "current_node": "execution/step-2/implement"
 }
 ```
 
@@ -92,18 +92,15 @@ resolving the snapshot.
 
 ### Durable Plan, Disposable Runtime
 
-Tracked active plans remain the durable source of scope, step closeout,
-plan-scoped review guidance, and archive summaries for all workflow profiles.
+Tracked active plans remain the durable source of decisions, scope, acceptance,
+Review Focus, step progress, and Closeout for all workflow profiles.
 Lightweight work uses the same
 schema and the same active-plan root resolved by
 `harness repo config get paths.plans.active`, but its archived snapshot moves
 under the local runtime root resolved by
 `harness repo config get paths.local_runtime` so the workflow can stay
-lightweight for narrow low-risk changes. The goal-oriented profile is
-recognized for active-plan authoring preview and uses the same canonical node
-tree while adding adaptive plan semantics for checkpoint reports, challenge,
-evidence, and synthesis. Full structural lint, archive, status, and reopen
-support belongs to follow-up implementation work. Runtime trajectory,
+lightweight for narrow low-risk changes. Goal-oriented work is deferred to
+v0.7.0 and is not a current workflow profile. Runtime trajectory,
 milestone timestamps, and external-fact capture also belong in the resolved
 local runtime root. There is no separate local active lightweight plan path in
 this model.
@@ -122,8 +119,7 @@ root
 ├── plan
 ├── execution
 │   ├── step-<n>
-│   │   ├── implement
-│   │   └── review
+│   │   └── implement
 │   └── finalize
 │       ├── review
 │       ├── fix
@@ -138,11 +134,10 @@ root
 ### Plan Artifact Owns
 
 - durable scope and non-goals
+- durable decisions and Review Focus
 - acceptance criteria
-- step list and step `Done` markers
-- step-local `Execution Notes`
-- step-local `Review Notes`
-- archive-time summaries and outcome notes
+- outcome-based step list and step `Done` markers
+- archive-time `Closeout`
 
 For active work in the currently implemented workflow profiles, this plan
 artifact is a tracked file under the active plan root resolved by
@@ -235,21 +230,22 @@ inputs that do not already live in a more specific artifact:
 - `reopen`
 - `land`
 
-`active_review_round` is the mutable orchestration pointer for the round that
-is currently in flight or most recently aggregated. It is not, by itself, the
+`active_review_round` is the mutable pointer for the round that is currently in
+flight or most recently completed. It is not, by itself, the
 archive verdict. `finalize_coverage` is a compact command-validated cache of a
 durable coverage chain: the full root round, current tip round, covered Git
-head, revision, and unresolved blocking count. The manifests and aggregates
-remain the source of truth, so archive must resolve and validate that chain
-rather than trusting the cache alone. Reopen preserves the prior coverage tip
+head, revision, and unresolved blocking count. Round manifests, the sole
+reviewer submission, and the command-owned decision artifact remain the source
+of truth, so archive must validate that chain rather than trusting the cache
+alone. Reopen preserves the prior coverage tip
 so a narrow later revision can extend it with a linked delta; a new full review
 may replace the root when broader work invalidates the earlier judgment.
 
 The mutation surfaces around those runtime artifacts stay split on purpose:
 
 - `.state-mutation.lock` serializes rewrites of plan-local `state.json`
-- `.review-mutation.lock` serializes review-artifact mutation such as round
-  creation, submission, ledger updates, and aggregation
+- `.review-mutation.lock` serializes review round creation and the atomic
+  submission/decision/coverage transaction
 - `.timeline-mutation.lock` serializes appends to the plan-local
   `events.jsonl` index
 
@@ -281,10 +277,8 @@ The exact transition matrix is normative in
 
 Workflow profiles do not add a second node tree. Lightweight reuses the same
 canonical nodes while changing where the archived snapshot lives and what
-closeout guidance `harness status` should emphasize. The goal-oriented
-authoring preview reuses the same canonical nodes; checkpoint reports and
-challenge notes may inform guidance, but they must not derive, mutate, or
-override `current_node`.
+closeout guidance `harness status` should emphasize. Goal-oriented execution is
+deferred to v0.7.0 and is not a current profile.
 
 ## Node Semantics
 
@@ -301,23 +295,13 @@ profiles.
 ### `execution/step-<n>/implement`
 
 Execution has started, step `<n>` is the first unfinished step, and no active
-review round is currently in flight for that step. This node covers both
-ordinary implementation work and post-review repair work at step scope.
-
-### `execution/step-<n>/review`
-
-Step `<n>` is in an intentionally started review loop backed by review
-artifacts. Step review is an optional risk-boundary tool, not an ordinary
-closeout requirement. This node means review is actively in flight: reviewer
-submissions or aggregation are still pending. Once the review outcome is
-known, resolution returns to `execution/step-<n>/implement`.
+review round is relevant yet. Steps are human-visible outcome and validation
+boundaries; formal review belongs to finalize.
 
 ### `execution/finalize/review`
 
-All intended steps are durably complete, and the whole-branch candidate still
-needs the default formal review gate. Finalize review is distinct from the last
-step's review and is required regardless of whether any optional step review
-occurred.
+All intended steps are complete, and the whole-branch candidate still needs the
+mandatory formal review gate.
 
 ### `execution/finalize/fix`
 
@@ -329,9 +313,9 @@ can be claimed again.
 
 ### `execution/finalize/archive`
 
-Finalize review is satisfied and the remaining work is archive-closeout:
-refreshing required summaries, resolving placeholders, and preparing for the
-appropriate archive move or snapshot update.
+Finalize review is satisfied and the remaining work is archive closeout:
+replacing the plan's `Closeout` placeholders and preparing the archive move or
+snapshot update.
 
 ### `execution/finalize/publish`
 
@@ -340,13 +324,17 @@ handoff facts recorded through `publish`, `ci`, and `sync` evidence. For
 lightweight work, this phase is also where status should remind the controller
 to leave the agreed repo-visible breadcrumb. A PR body can satisfy that
 breadcrumb when it is a readable merge memo that explains what changed, why the
-branch is mergeable, and why the lightweight path was appropriate.
+branch is mergeable, and why the lightweight path was appropriate. Passing
+evidence cannot advance an archived branch whose reviewed-head descendant
+contains anything beyond the mechanical plan/supplement archive move and
+allowed `Closeout` updates; such a branch must reopen and review again.
 
 ### `execution/finalize/await_merge`
 
 The archived candidate is ready for human merge approval. PR existence, CI,
 and sync freshness or conflict checks are already satisfied or explicitly
-marked `not_applied`.
+marked `not_applied`, and the archived branch still matches the reviewed
+candidate boundary.
 
 ### `land`
 
@@ -357,65 +345,30 @@ work remains in `land` until `harness land complete` intentionally restores
 ## Step and Review Rules
 
 - The first unfinished step determines the current execution step.
-- Plan steps are execution, validation, and durable-note boundaries. They are
-  not review boundaries by default, regardless of plan size.
-- A step should not be marked done until its implementation, validation,
-  execution notes, and review notes are complete. `Review Notes` may say that
-  no formal step review ran, but no magic no-review marker or justification is
-  required.
-- Step review is optional. A controller may start one deliberately when an
-  intermediate artifact crosses a concrete risk boundary, such as an API or
-  schema contract consumed by later steps, a migration or security boundary,
-  an external or irreversible side effect, or a long-running decision that
-  needs to be frozen before more work proceeds. Plan size, step count, and file
-  count alone do not trigger it.
-- In the ordinary loop, `execution/step-<k>/...` names the current execution
-  frontier. An explicit step review may temporarily keep or re-enter the
-  reviewed step's `review` or `implement` node until that review is resolved.
-- Review nodes require real review artifacts created by `harness review`.
-- `execution/step-<n>/review` means review is still in progress.
-- Once a step review aggregate exists, the state returns to
-  `execution/step-<n>/implement`.
-- If an intentionally started step review has unresolved blocking findings,
-  the step stays current and must not advance until a later review resolves
-  them. Non-blocking findings remain visible but do not create step debt.
-- While that explicit gate is in flight, another review cannot replace it. If
-  it requests changes, only a follow-up review bound to the same step may
-  supersede the active pointer until the gate passes.
-- A clean step review does not automatically mark the step done; it only
-  clears the review gate so the controller can either continue the step or mark
-  it durably complete.
-- Status facts and next actions must make unresolved failed step reviews
-  explicit when `execution/step-<n>/implement` is being used for repair work.
-- A completed step with no review artifacts has no missing-review debt. Status,
-  finalize review start, and archive must not demand a retrospective step
-  review or a `NO_STEP_REVIEW_NEEDED` note.
-- Finalize review remains a distinct whole-candidate gate even if an earlier
-  step review used a full recipe.
-- Finalize review defaults to one `integrated` reviewer assignment covering the
-  complete candidate and all selected standard guidance. The controller may
-  add a `specialist` assignment only for a concrete high-risk surface identified
-  from the completed candidate immediately before review.
-- Plan-time risks and invariants inform the pre-finalize choice but do not
-  freeze reviewer topology. Ordinary candidates use no specialist; normally at
-  most one is used, with more than one reserved for multiple independent
-  high-risk surfaces. Plan size alone never triggers a specialist.
-- Integrated and specialist reviewers share the same severity, evidence,
-  submission, and no-edit contract. The integrated reviewer remains responsible
-  for whole-candidate correctness, tests, risk, and documentation. A specialist
-  receives explicit non-empty assignment instructions and a bounded risk brief
-  with non-empty risk surfaces and invariants plus relevant failure modes to
-  challenge; it does not replace integrated coverage.
+- Plan steps are execution and validation boundaries, not review boundaries.
+  Each carries a title, `Done`, outcome, covered acceptance criteria, and an
+  optional concise check.
+- Step and acceptance progress are derived from the tracked plan. The agent
+  updates them only when evidence establishes a meaningful boundary; no
+  per-tool status writes are required.
+- Intermediate uncertainty may use focused validation or bounded advisor
+  subagents without creating review state.
+- Finalize review always creates one integrated reviewer for the complete
+  candidate. The fixed standard rubric and plan `Review Focus` are automatic;
+  the controller cannot omit or select them.
+- The reviewer may create bounded advisor subagents but remains the sole
+  reviewer and submission owner. Advisors have no harness slot, role, finding
+  provenance, or aggregate participation.
+- Reviewer submission atomically rechecks captured HEAD, stores the judgment,
+  resolves inherited findings, derives the decision, and updates coverage.
+- A completed review round is immutable. A second or concurrent-losing submit
+  cannot replace its submission, findings, decision, or coverage.
+- Blocking findings enter `execution/finalize/fix`; non-blocking findings stay
+  visible without forcing repair.
 - After `execution/finalize/fix`, a narrow repair should be reviewed by a linked
   repair delta that extends the existing full coverage. A new full review is
   required only when the repair materially changes the design, scope, or risk
   model enough to invalidate the earlier whole-candidate judgment.
-
-This plan dogfoods the target contract: its implementation steps must not start
-formal step reviews. Its finalize round uses one integrated reviewer plus the
-approved `review-state-and-coverage` specialist. Any narrow review-driven repair
-uses a repair delta unless the controller records why the candidate changed
-materially enough to require a new full review.
 
 ## Publish, CI, and Sync Evidence Rules
 

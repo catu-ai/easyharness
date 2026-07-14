@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode"
 
 	"github.com/catu-ai/easyharness/internal/contracts"
 	"github.com/catu-ai/easyharness/internal/evidence"
@@ -36,14 +35,12 @@ type reviewContext struct {
 	RoundID         string
 	Kind            string
 	Revision        int
-	Trigger         string
-	ReviewTitle     string
+	ReviewedHeadSHA string
+	SubmissionPath  string
 	Aggregated      bool
 	InFlight        bool
 	Decision        string
 	DecisionKnown   bool
-	TargetStepIndex int
-	UnsafeFallback  bool
 }
 
 type evidenceContext struct {
@@ -120,31 +117,27 @@ func (s Service) Snapshot() Result {
 		result.Warnings = append(result.Warnings, fmt.Sprintf("supplements path is not a directory: %s", repoFacingPath(s.Workdir, supplementsPath)))
 	}
 
-	reviewCtx, reviewWarnings := loadReviewContext(s.Workdir, planStem, doc, state)
+	reviewCtx, reviewWarnings := loadReviewContext(s.Workdir, planStem, state)
 	result.Warnings = append(result.Warnings, reviewWarnings...)
 	planApproved := doc.ExplicitlyApproved()
-	if reviewCtx != nil && isStructuralReviewTrigger(reviewCtx.Trigger) && strings.TrimSpace(reviewCtx.RoundID) != "" {
+	if reviewCtx != nil && strings.TrimSpace(reviewCtx.RoundID) != "" {
 		result.Artifacts.ReviewRoundID = reviewCtx.RoundID
-		if reviewCtx.InFlight {
-			reviewAssignments, assignmentWarnings := loadReviewAssignments(s.Workdir, planStem, reviewCtx.RoundID)
-			result.Warnings = append(result.Warnings, assignmentWarnings...)
-			if len(reviewAssignments) > 0 {
-				result.Artifacts.ReviewAssignments = reviewAssignments
-			}
+		if reviewCtx.InFlight && strings.TrimSpace(reviewCtx.SubmissionPath) != "" {
+			result.Artifacts.ReviewSubmissionPath = repoFacingPath(s.Workdir, reviewCtx.SubmissionPath)
 		}
 	}
 
 	facts := &Facts{}
+	applyPlanProgressFacts(facts, doc)
 	if state != nil && state.Revision > 0 {
 		facts.Revision = state.Revision
 	}
 	if reopenMode := effectiveReopenMode(doc, state); reopenMode != "" {
 		facts.ReopenMode = reopenMode
 	}
-	if reviewCtx != nil && isStructuralReviewTrigger(reviewCtx.Trigger) && !reviewCtx.UnsafeFallback {
+	if reviewCtx != nil {
 		facts.ReviewKind = reviewCtx.Kind
-		facts.ReviewTrigger = reviewCtx.Trigger
-		facts.ReviewTitle = reviewCtx.ReviewTitle
+		facts.ReviewedHeadSHA = reviewCtx.ReviewedHeadSHA
 		switch {
 		case reviewCtx.InFlight:
 			facts.ReviewStatus = "in_progress"
@@ -166,7 +159,7 @@ func (s Service) Snapshot() Result {
 	case doc.DerivedPlanStatus() == "active" && !doc.ExecutionStarted(state):
 		result.State.CurrentNode = "plan"
 	case doc.DerivedPlanStatus() == "active":
-		stepIdx, stepNode := resolveStepNode(doc, reviewCtx)
+		stepIdx, stepNode := resolveStepNode(doc)
 		if stepNode != "" {
 			result.State.CurrentNode = stepNode
 			facts.CurrentStep = doc.Steps[stepIdx].Title
@@ -180,10 +173,12 @@ func (s Service) Snapshot() Result {
 		evidenceCtx, evidenceWarnings := loadEvidenceContext(s.Workdir, planStem, runstate.CurrentRevision(state))
 		result.Warnings = append(result.Warnings, evidenceWarnings...)
 		applyEvidenceFacts(facts, evidenceCtx)
+		result.State.CurrentNode = "execution/finalize/publish"
 		if archivedCandidateReadyForMerge(evidenceCtx) {
-			result.State.CurrentNode = "execution/finalize/await_merge"
-		} else {
-			result.State.CurrentNode = "execution/finalize/publish"
+			blockers = append(blockers, commandErrorsToStatusErrors(lifecycle.EvaluateArchivedReviewCoverage(s.Workdir, planStem, doc, state))...)
+			if len(blockers) == 0 {
+				result.State.CurrentNode = "execution/finalize/await_merge"
+			}
 		}
 		applyRemoteHandoffFacts(s, facts, evidenceCtx)
 	default:
@@ -200,9 +195,6 @@ func (s Service) Snapshot() Result {
 	}
 
 	result.Blockers = blockers
-	if strings.HasPrefix(result.State.CurrentNode, "execution/finalize/") && reviewCtx != nil && reviewCtx.Trigger == "step_closeout" {
-		clearStepCloseoutReviewMetadata(facts, result.Artifacts)
-	}
 	result.Summary = buildSummary(result.State.CurrentNode, facts, reviewCtx, blockers, currentPlan, planApproved)
 	result.NextAction = buildNextActions(result.State.CurrentNode, facts, reviewCtx, blockers, planApproved)
 	if doc.UsesLightweightProfile() &&
@@ -224,7 +216,7 @@ func (s Service) Snapshot() Result {
 
 	if result.Artifacts != nil && result.Artifacts.ProjectRoot == "" &&
 		result.Artifacts.PlanPath == "" && result.Artifacts.SupplementsPath == "" &&
-		result.Artifacts.ReviewRoundID == "" && len(result.Artifacts.ReviewAssignments) == 0 &&
+		result.Artifacts.ReviewRoundID == "" && result.Artifacts.ReviewSubmissionPath == "" &&
 		result.Artifacts.LastLandedAt == "" {
 		result.Artifacts = nil
 	}
@@ -232,40 +224,43 @@ func (s Service) Snapshot() Result {
 	return result
 }
 
-func clearStepCloseoutReviewMetadata(facts *Facts, artifacts *Artifacts) {
-	if facts != nil {
-		facts.ReviewKind = ""
-		facts.ReviewTrigger = ""
-		facts.ReviewTitle = ""
-		facts.ReviewStatus = ""
-	}
-	if artifacts != nil {
-		artifacts.ReviewRoundID = ""
-		artifacts.ReviewAssignments = nil
-	}
-}
-
-func resolveStepNode(doc *plan.Document, reviewCtx *reviewContext) (int, string) {
-	if reviewCtx != nil && reviewCtx.TargetStepIndex >= 0 && reviewCtx.UnsafeFallback {
-		return reviewCtx.TargetStepIndex, stepNode(reviewCtx.TargetStepIndex, "implement")
-	}
-	if reviewCtx != nil && reviewCtx.Trigger == "step_closeout" &&
-		(reviewCtx.InFlight || !reviewCtx.DecisionKnown || reviewCtx.Decision != "pass") &&
-		reviewCtx.TargetStepIndex >= 0 {
-		if reviewCtx.InFlight {
-			return reviewCtx.TargetStepIndex, stepNode(reviewCtx.TargetStepIndex, "review")
-		}
-		return reviewCtx.TargetStepIndex, stepNode(reviewCtx.TargetStepIndex, "implement")
-	}
-
+func resolveStepNode(doc *plan.Document) (int, string) {
 	currentStepIndex := currentStepIndex(doc)
 	if currentStepIndex < 0 {
 		return -1, ""
 	}
-	if reviewCtx != nil && reviewCtx.Trigger == "step_closeout" && reviewCtx.InFlight && reviewCtx.TargetStepIndex == currentStepIndex {
-		return currentStepIndex, stepNode(currentStepIndex, "review")
+	return currentStepIndex, stepNode(currentStepIndex)
+}
+
+func applyPlanProgressFacts(facts *Facts, doc *plan.Document) {
+	if facts == nil || doc == nil {
+		return
 	}
-	return currentStepIndex, stepNode(currentStepIndex, "implement")
+	facts.StepTotal = len(doc.Steps)
+	for index, step := range doc.Steps {
+		if step.Done {
+			facts.StepCompleted++
+			continue
+		}
+		if facts.CurrentStepNumber == 0 {
+			facts.CurrentStepNumber = index + 1
+			facts.CurrentStep = step.Title
+		}
+	}
+	for _, rawLine := range strings.Split(doc.SectionText("Acceptance Criteria"), "\n") {
+		line := strings.TrimSpace(rawLine)
+		if len(line) < 6 || !strings.HasPrefix(line, "- [") || line[4] != ']' {
+			continue
+		}
+		marker := line[3]
+		if marker != ' ' && marker != 'x' && marker != 'X' {
+			continue
+		}
+		facts.AcceptanceTotal++
+		if marker == 'x' || marker == 'X' {
+			facts.AcceptanceCompleted++
+		}
+	}
 }
 
 func resolveFinalizeNode(workdir, planStem string, doc *plan.Document, state *runstate.State, reviewCtx *reviewContext) (string, []StatusError) {
@@ -277,7 +272,7 @@ func resolveFinalizeNode(workdir, planStem string, doc *plan.Document, state *ru
 		doc.CurrentStep() == nil &&
 		doc.AllStepsCompleted()
 
-	if reviewCtx != nil && reviewCtx.Trigger == "pre_archive" && reviewCtx.InFlight {
+	if reviewCtx != nil && reviewCtx.InFlight {
 		return "execution/finalize/review", nil
 	}
 	if reopenedNewStepPending {
@@ -288,7 +283,7 @@ func resolveFinalizeNode(workdir, planStem string, doc *plan.Document, state *ru
 			return "execution/finalize/fix", nil
 		}
 	}
-	if reviewCtx != nil && reviewCtx.Trigger == "pre_archive" && reviewCtx.Aggregated &&
+	if reviewCtx != nil && reviewCtx.Aggregated &&
 		(!reviewCtx.DecisionKnown || reviewCtx.Decision != "pass") {
 		return "execution/finalize/fix", nil
 	}
@@ -322,18 +317,17 @@ func effectiveReopenMode(doc *plan.Document, state *runstate.State) string {
 	return state.Reopen.Mode
 }
 
-func loadReviewContext(workdir, planStem string, doc *plan.Document, state *runstate.State) (*reviewContext, []string) {
+func loadReviewContext(workdir, planStem string, state *runstate.State) (*reviewContext, []string) {
 	if state == nil || state.ActiveReviewRound == nil {
 		return nil, nil
 	}
 
 	round := state.ActiveReviewRound
 	ctx := &reviewContext{
-		RoundID:         round.RoundID,
-		Kind:            round.Kind,
-		Aggregated:      round.Aggregated,
-		InFlight:        !round.Aggregated,
-		TargetStepIndex: -1,
+		RoundID:    round.RoundID,
+		Kind:       round.Kind,
+		Aggregated: round.Aggregated,
+		InFlight:   !round.Aggregated,
 	}
 	warnings := make([]string, 0)
 
@@ -344,76 +338,35 @@ func loadReviewContext(workdir, planStem string, doc *plan.Document, state *runs
 		ctx.Revision = revision
 	}
 
-	stepIndex, stepKnown, err := runstate.EffectiveReviewStep(workdir, planStem, round)
-	if err != nil {
-		warnings = append(warnings, fmt.Sprintf("Unable to read the review step binding for %s; status may be conservative.", round.RoundID))
-	}
-
-	if reviewTitle, known, err := runstate.EffectiveReviewTitle(workdir, planStem, round); err != nil {
-		warnings = append(warnings, fmt.Sprintf("Unable to read the review title for %s; status may be conservative.", round.RoundID))
-	} else if known {
-		ctx.ReviewTitle = reviewTitle
+	manifestPath := filepath.Join(runstate.ReviewRoundDir(workdir, planStem, round.RoundID), "manifest.json")
+	if data, err := os.ReadFile(manifestPath); err != nil {
+		warnings = append(warnings, fmt.Sprintf("Unable to read the review handoff for %s; status may be incomplete.", round.RoundID))
+	} else {
+		var manifest contracts.ReviewManifest
+		if err := json.Unmarshal(data, &manifest); err != nil {
+			warnings = append(warnings, fmt.Sprintf("Unable to parse the review handoff for %s; status may be incomplete.", round.RoundID))
+		} else {
+			ctx.ReviewedHeadSHA = manifest.ReviewedHeadSHA
+			if len(manifest.Assignments) == 1 {
+				ctx.SubmissionPath = manifest.Assignments[0].SubmissionPath
+			}
+		}
 	}
 
 	if round.Aggregated {
 		decision, known, err := runstate.EffectiveReviewDecision(workdir, planStem, round)
 		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("Unable to read the aggregate artifact for %s; review status may be stale.", round.RoundID))
+			warnings = append(warnings, fmt.Sprintf("Unable to read the completed review decision for %s; review status may be stale.", round.RoundID))
 		} else {
 			ctx.Decision = decision
 			ctx.DecisionKnown = known
 		}
 		if !ctx.DecisionKnown {
-			warnings = append(warnings, fmt.Sprintf("The latest aggregated review outcome for %s could not be recovered; status is staying conservative.", round.RoundID))
-		}
-	}
-
-	if revisionKnown {
-		if stepKnown {
-			ctx.Trigger = "step_closeout"
-			ctx.TargetStepIndex = stepIndex - 1
-			if ctx.TargetStepIndex >= 0 && ctx.TargetStepIndex < len(doc.Steps) && strings.TrimSpace(ctx.ReviewTitle) == "" {
-				ctx.ReviewTitle = doc.Steps[ctx.TargetStepIndex].Title
-			}
-		} else {
-			ctx.Trigger = "pre_archive"
-			if strings.TrimSpace(ctx.ReviewTitle) == "" {
-				ctx.ReviewTitle = defaultFinalizeReviewTitle(ctx.Kind)
-			}
+			warnings = append(warnings, fmt.Sprintf("The latest review outcome for %s could not be recovered; status is staying conservative.", round.RoundID))
 		}
 	}
 
 	return ctx, warnings
-}
-
-func loadReviewAssignments(workdir, planStem, roundID string) ([]contracts.ReviewAssignment, []string) {
-	if strings.TrimSpace(roundID) == "" {
-		return nil, nil
-	}
-	path := filepath.Join(runstate.ReviewRoundDir(workdir, planStem, roundID), "manifest.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, []string{fmt.Sprintf("Unable to read reviewer slot handles for %s because the review manifest is missing.", roundID)}
-		}
-		return nil, []string{fmt.Sprintf("Unable to read reviewer slot handles for %s; review status may be incomplete.", roundID)}
-	}
-
-	var manifest contracts.ReviewManifest
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		return nil, []string{fmt.Sprintf("Unable to parse reviewer slot handles for %s: %v", roundID, err)}
-	}
-	if len(manifest.Assignments) == 0 {
-		return nil, nil
-	}
-
-	assignments := make([]contracts.ReviewAssignment, 0, len(manifest.Assignments))
-	for _, assignment := range manifest.Assignments {
-		next := assignment
-		next.SubmissionPath = repoFacingPath(workdir, assignment.SubmissionPath)
-		assignments = append(assignments, next)
-	}
-	return assignments, nil
 }
 
 func loadEvidenceContext(workdir, planStem string, revision int) (*evidenceContext, []string) {
@@ -721,7 +674,7 @@ func buildSummary(node string, facts *Facts, reviewCtx *reviewContext, blockers 
 		return "Current plan exists, but execution is still waiting for explicit human approval."
 	case "execution/finalize/review":
 		if reviewCtx != nil && reviewCtx.InFlight {
-			return "Plan is in finalize review and waiting for the active review round to be aggregated."
+			return "Plan is in finalize review and waiting for the integrated reviewer to submit its complete judgment."
 		}
 		return "Plan has finished its tracked steps and needs finalize review before archive."
 	case "execution/finalize/fix":
@@ -732,7 +685,7 @@ func buildSummary(node string, facts *Facts, reviewCtx *reviewContext, blockers 
 			return "Plan was reopened into finalize-scope repair and needs follow-up fixes plus a fresh finalize review before archive."
 		}
 		if facts != nil && facts.ReviewStatus == "unknown" && reviewCtx != nil {
-			return fmt.Sprintf("Plan needs finalize follow-up because the latest aggregated review (%s) could not be recovered from local state.", reviewCtx.RoundID)
+			return fmt.Sprintf("Plan needs finalize follow-up because the latest review decision (%s) could not be recovered from local state.", reviewCtx.RoundID)
 		}
 		if reviewCtx != nil && facts != nil && facts.ReviewStatus != "" && facts.ReviewStatus != "pass" {
 			return fmt.Sprintf("Plan needs finalize-scope repair because the latest finalize review (%s) requested changes.", reviewCtx.RoundID)
@@ -751,19 +704,7 @@ func buildSummary(node string, facts *Facts, reviewCtx *reviewContext, blockers 
 		return "Merge has been recorded and required post-merge bookkeeping is still in progress."
 	}
 
-	if strings.HasSuffix(node, "/review") {
-		return fmt.Sprintf("Plan is reviewing %s.", facts.CurrentStep)
-	}
 	if strings.HasSuffix(node, "/implement") {
-		if facts != nil && facts.ReviewStatus == "unknown" && reviewCtx != nil {
-			return fmt.Sprintf("Plan is executing %s, but the latest aggregated review (%s) could not be recovered and should be rerun conservatively.", facts.CurrentStep, reviewCtx.RoundID)
-		}
-		if facts != nil && facts.ReviewStatus != "" && facts.ReviewStatus != "pass" && facts.ReviewStatus != "in_progress" && reviewCtx != nil {
-			return fmt.Sprintf("Plan is executing %s and the latest aggregated review (%s) requested changes.", facts.CurrentStep, reviewCtx.RoundID)
-		}
-		if facts != nil && facts.ReviewStatus == "pass" {
-			return fmt.Sprintf("Plan is executing %s after a clean review and can continue or be marked done.", facts.CurrentStep)
-		}
 		return fmt.Sprintf("Plan is executing %s.", facts.CurrentStep)
 	}
 
@@ -791,11 +732,11 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 	case "execution/finalize/review":
 		if reviewCtx != nil && reviewCtx.InFlight {
 			return []NextAction{
-				{Command: aggregateCommand(reviewCtx.RoundID), Description: "Aggregate the active finalize review round once the expected reviewer submissions are ready."},
+				{Command: reviewSubmitCommand(reviewCtx), Description: "Have the independent integrated reviewer submit its complete judgment for the active finalize round."},
 			}
 		}
 		return []NextAction{
-			{Command: strPtr("harness review start --spec <path>"), Description: "Start a fresh finalize review for the full candidate before archive."},
+			{Command: strPtr("harness review start"), Description: "Start the mandatory integrated full review for the committed complete candidate."},
 		}
 	case "execution/finalize/fix":
 		if facts != nil && facts.ReopenMode == "new-step" && facts.CurrentStep == "" {
@@ -803,16 +744,16 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 				{Command: nil, Description: "Add a new unfinished step for the reopened scope before continuing implementation; do not fold the new work into already completed steps."},
 			}
 		}
-		description := "Repair the finalize-scope issues, refresh durable summaries as needed, rerun focused validation, and start a fresh finalize review before archive."
+		description := "Repair the finalize-scope issues, refresh the Closeout as needed, rerun focused validation, and start the linked finalize review before archive."
 		if reviewCtx != nil && facts != nil && facts.ReviewStatus == "unknown" {
-			description = fmt.Sprintf("Recover or rerun %s before continuing. The latest aggregated finalize review outcome could not be recovered from local state, so archive-sensitive guidance is intentionally blocked.", reviewCtx.RoundID)
+			description = fmt.Sprintf("Recover or replace %s before continuing. Its finalize review decision could not be recovered, so archive-sensitive guidance is intentionally blocked.", reviewCtx.RoundID)
 		}
 		if reviewCtx != nil && facts != nil && facts.ReviewStatus != "" && facts.ReviewStatus != "pass" && facts.ReviewStatus != "unknown" {
-			description = fmt.Sprintf("Address the findings from %s, refresh durable summaries as needed, rerun focused validation, and start a fresh finalize review once the repair is ready.", reviewCtx.RoundID)
+			description = fmt.Sprintf("Address the findings from %s, refresh the Closeout as needed, rerun focused validation, and start the linked delta once the narrow repair is committed.", reviewCtx.RoundID)
 		}
 		return []NextAction{
 			{Command: nil, Description: description},
-			{Command: strPtr("harness review start --spec <path>"), Description: "Start a fresh finalize review once the repaired candidate is ready."},
+			{Command: strPtr("harness review start"), Description: "Start the inferred linked delta for a narrow repair; use `harness review start --full` only after a material design, scope, or risk change."},
 		}
 	case "execution/finalize/archive":
 		if len(blockers) > 0 {
@@ -825,6 +766,11 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 			{Command: strPtr("harness archive"), Description: "Archive the current plan now that the closeout notes and follow-up links are ready."},
 		}
 	case "execution/finalize/publish":
+		if len(blockers) > 0 {
+			return []NextAction{
+				{Command: nil, Description: "The archived branch no longer matches its reviewed candidate. Reopen with `harness reopen --mode finalize-fix`, review the current candidate, and archive it again before merge handoff."},
+			}
+		}
 		return buildPublishNextActions(facts)
 	case "execution/finalize/await_merge":
 		actions := remoteHandoffNextActions(facts)
@@ -854,44 +800,9 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 		}
 	}
 
-	if strings.HasSuffix(node, "/review") {
-		return []NextAction{
-			{Command: aggregateCommand(reviewCtx.RoundID), Description: "Aggregate the active review round once the expected reviewer submissions are ready."},
-		}
-	}
 	if strings.HasSuffix(node, "/implement") {
-		if reviewCtx != nil && reviewCtx.InFlight {
-			return []NextAction{
-				{Command: aggregateCommand(reviewCtx.RoundID), Description: "Aggregate the active review round once the expected reviewer submissions are ready."},
-			}
-		}
-		if facts != nil && facts.ReviewStatus == "unknown" {
-			description := "Recover the latest aggregated review result or rerun review conservatively before advancing this step."
-			if reviewCtx != nil && strings.TrimSpace(reviewCtx.RoundID) != "" {
-				description = fmt.Sprintf("Recover or rerun %s before continuing. The latest aggregated review outcome could not be recovered from local state, so advancement is intentionally blocked.", reviewCtx.RoundID)
-			}
-			return []NextAction{
-				{Command: nil, Description: description},
-				{Command: strPtr("harness review start --spec <path>"), Description: "Start a fresh review round once the repair is ready."},
-			}
-		}
-		if facts != nil && facts.ReviewStatus != "" && facts.ReviewStatus != "pass" && facts.ReviewStatus != "in_progress" {
-			description := "Address the latest review findings, update the step-local notes, rerun focused validation, and start a fresh review round once the slice is ready."
-			if reviewCtx != nil && strings.TrimSpace(reviewCtx.RoundID) != "" {
-				description = fmt.Sprintf("Address the findings from %s, update step-local notes, rerun focused validation, and start a fresh review round once the slice is ready.", reviewCtx.RoundID)
-			}
-			return []NextAction{
-				{Command: nil, Description: description},
-				{Command: strPtr("harness review start --spec <path>"), Description: "Start a fresh delta or full review after the fixes are in place."},
-			}
-		}
-		if facts != nil && facts.ReviewStatus == "pass" {
-			return []NextAction{
-				{Command: nil, Description: "Continue the current step or mark it done, then keep the step's Execution Notes and Review Notes up to date."},
-			}
-		}
 		return []NextAction{
-			{Command: nil, Description: "Continue the current step and keep step-local Execution Notes and Review Notes up to date."},
+			{Command: nil, Description: "Continue the current outcome and mark the step done after its concise check passes."},
 		}
 	}
 
@@ -1168,37 +1079,6 @@ func currentStepIndex(doc *plan.Document) int {
 	return -1
 }
 
-func resolveReviewTitleStep(doc *plan.Document, reviewTitle string) (int, bool) {
-	reviewTitle = normalizeReviewTitle(reviewTitle)
-	if reviewTitle == "" {
-		return -1, false
-	}
-	for index, step := range doc.Steps {
-		if normalizeReviewTitle(step.Title) == reviewTitle {
-			return index, true
-		}
-	}
-	return -1, false
-}
-
-func normalizeReviewTitle(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
-	value = strings.Map(func(r rune) rune {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsSpace(r) {
-			return r
-		}
-		return ' '
-	}, value)
-	return strings.Join(strings.Fields(value), " ")
-}
-
-func defaultFinalizeReviewTitle(kind string) string {
-	if kind == "full" {
-		return "Full branch candidate before archive"
-	}
-	return "Branch candidate before archive"
-}
-
 func landInProgress(state *runstate.State) bool {
 	return state != nil &&
 		state.Land != nil &&
@@ -1206,8 +1086,8 @@ func landInProgress(state *runstate.State) bool {
 		strings.TrimSpace(state.Land.CompletedAt) == ""
 }
 
-func stepNode(index int, phase string) string {
-	return fmt.Sprintf("execution/step-%d/%s", index+1, phase)
+func stepNode(index int) string {
+	return fmt.Sprintf("execution/step-%d/implement", index+1)
 }
 
 func commandErrorsToStatusErrors(errors []lifecycle.CommandError) []StatusError {
@@ -1221,19 +1101,19 @@ func commandErrorsToStatusErrors(errors []lifecycle.CommandError) []StatusError 
 	return out
 }
 
-func aggregateCommand(roundID string) *string {
-	if strings.TrimSpace(roundID) == "" {
-		return strPtr("harness review aggregate --round <round-id>")
+func reviewSubmitCommand(reviewCtx *reviewContext) *string {
+	if reviewCtx == nil || strings.TrimSpace(reviewCtx.RoundID) == "" {
+		return strPtr("harness review submit --round <round-id> --by integrated --input <path>")
 	}
-	return strPtr(fmt.Sprintf("harness review aggregate --round %s", roundID))
+	inputPath := strings.TrimSpace(reviewCtx.SubmissionPath)
+	if inputPath == "" {
+		inputPath = "<path>"
+	}
+	return strPtr(fmt.Sprintf("harness review submit --round %s --by integrated --input %s", reviewCtx.RoundID, inputPath))
 }
 
 func strPtr(value string) *string {
 	return &value
-}
-
-func isStructuralReviewTrigger(trigger string) bool {
-	return trigger == "step_closeout" || trigger == "pre_archive"
 }
 
 func factsEmpty(f *Facts) bool {
@@ -1241,12 +1121,16 @@ func factsEmpty(f *Facts) bool {
 		return true
 	}
 	return strings.TrimSpace(f.CurrentStep) == "" &&
+		f.CurrentStepNumber == 0 &&
+		f.StepCompleted == 0 &&
+		f.StepTotal == 0 &&
+		f.AcceptanceCompleted == 0 &&
+		f.AcceptanceTotal == 0 &&
 		f.Revision == 0 &&
 		strings.TrimSpace(f.ReopenMode) == "" &&
 		strings.TrimSpace(f.ReviewKind) == "" &&
-		strings.TrimSpace(f.ReviewTrigger) == "" &&
-		strings.TrimSpace(f.ReviewTitle) == "" &&
 		strings.TrimSpace(f.ReviewStatus) == "" &&
+		strings.TrimSpace(f.ReviewedHeadSHA) == "" &&
 		f.ArchiveBlockerCount == 0 &&
 		f.Evidence == nil &&
 		strings.TrimSpace(f.LandPRURL) == "" &&

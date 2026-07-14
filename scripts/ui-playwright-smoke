@@ -966,7 +966,7 @@ assert_has_text "timeline" "land"
 assert_lacks_text "timeline" "WIP"
 capture_snapshot "/timeline#events" "timeline-events"
 assert_lacks_text "timeline-events" "WIP"
-assert_snapshot_contains "timeline-events" "No timeline events recorded yet|plan|implement|execute start|review start|review aggregate|archive|reopen|evidence submit|land"
+assert_snapshot_contains "timeline-events" "No timeline events recorded yet|plan|implement|execute start|review start|review submit|archive|reopen|evidence submit|land"
 
 timeline_inspector_session="$(session_name timeline-inspector)"
 navigate_browser_to "$timeline_inspector_session" "${base_url}/timeline"

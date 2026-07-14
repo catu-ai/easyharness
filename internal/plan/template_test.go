@@ -23,11 +23,37 @@ func TestRenderTemplateSeedsFields(t *testing.T) {
 		"source_type: issue",
 		`source_refs: ["#12","https://example.com/item"]`,
 		"size: M",
-		"template_version: 0.2.0",
+		"template_version: 0.3.0",
 		"- Done: [ ]",
+		"### Decisions and Constraints",
+		"## Review Focus",
+		"- Outcome:",
+		"- Covers:",
+		"## Closeout",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("rendered template missing %q\n%s", want, rendered)
+		}
+	}
+}
+
+func TestRenderTemplateOmitsPrescriptiveStepAndLegacyCloseoutSections(t *testing.T) {
+	rendered := renderTemplateWithSize(t, plan.TemplateOptions{Title: "Lean Plan"}, "M")
+	for _, unwanted := range []string{
+		"#### Objective",
+		"#### Details",
+		"#### Expected Files",
+		"#### Execution Notes",
+		"#### Review Notes",
+		"PENDING_STEP_EXECUTION",
+		"PENDING_STEP_REVIEW",
+		"## Validation Summary",
+		"## Review Summary",
+		"## Archive Summary",
+		"## Outcome Summary",
+	} {
+		if strings.Contains(rendered, unwanted) {
+			t.Fatalf("rendered compact template unexpectedly contains %q\n%s", unwanted, rendered)
 		}
 	}
 }
@@ -97,7 +123,7 @@ func TestRenderTemplateLightweightSeedsWorkflowProfileAndSingleStep(t *testing.T
 		"workflow_profile: lightweight",
 		"size: XXS",
 		"### Step 1: Describe the low-risk change",
-		"Describe the narrow low-risk change to make.",
+		"- Outcome: Describe the narrow low-risk change to make.",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("rendered lightweight template missing %q\n%s", want, rendered)
@@ -108,33 +134,13 @@ func TestRenderTemplateLightweightSeedsWorkflowProfileAndSingleStep(t *testing.T
 	}
 }
 
-func TestRenderTemplateGoalOrientedSeedsPreviewAuthoringShape(t *testing.T) {
-	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
+func TestRenderTemplateRejectsGoalOrientedProfile(t *testing.T) {
+	_, err := plan.RenderTemplate(plan.TemplateOptions{
 		Title:           "Goal-Oriented Plan",
 		WorkflowProfile: plan.WorkflowProfileGoalOriented,
 	})
-	if err != nil {
-		t.Fatalf("RenderTemplate returned error: %v", err)
-	}
-	for _, want := range []string{
-		"workflow_profile: goal_oriented",
-		"recognized preview workflow profile",
-		"full execution support is still being completed",
-		"### Step 1: Frame objective and scorecard",
-		"### Step 2: Run adaptive exploration",
-		"### Step 3: Synthesize and close out",
-		"#### Checkpoint Reports",
-		"##### CP1 - Replace with checkpoint title",
-		"Scorecard Movement:",
-		"Checkpoint reports stay inside adaptive steps",
-		"Final Synthesis:",
-	} {
-		if !strings.Contains(rendered, want) {
-			t.Fatalf("rendered goal-oriented template missing %q\n%s", want, rendered)
-		}
-	}
-	if strings.Contains(rendered, "### Step 4:") {
-		t.Fatalf("expected goal-oriented template to use three stable steps\n%s", rendered)
+	if err == nil {
+		t.Fatal("expected deferred goal-oriented profile to be rejected")
 	}
 }
 
@@ -166,10 +172,9 @@ func TestRenderTemplateIncludesSupplementsArchiveGuidance(t *testing.T) {
 	}, "M")
 	for _, want := range []string{
 		"supplements/<plan-stem>/",
-		"supplement absorption in Archive",
-		"Summary or Outcome Summary",
+		"supplement absorption in Closeout",
 		"formal tracked locations",
-		"Lightweight plans should normally avoid",
+		"Lightweight plans should\nnormally avoid",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("expected supplements archive guidance %q in rendered template, got:\n%s", want, rendered)

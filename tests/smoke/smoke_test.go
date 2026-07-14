@@ -1,7 +1,6 @@
 package smoke_test
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -64,9 +63,7 @@ func TestHelpShowsTopLevelUsage(t *testing.T) {
 	support.RequireContains(t, result.CombinedOutput(), "execute start   Record the execution-start milestone")
 	support.RequireContains(t, result.CombinedOutput(), "evidence submit Record append-only CI, publish, or sync evidence")
 	support.RequireContains(t, result.CombinedOutput(), "review start    Create a deterministic review round")
-	support.RequireContains(t, result.CombinedOutput(), "review submit   Record one reviewer submission")
-	support.RequireContains(t, result.CombinedOutput(), "review aggregate Aggregate reviewer submissions")
-	support.RequireContains(t, result.CombinedOutput(), "review dimensions List and read recommended review dimensions")
+	support.RequireContains(t, result.CombinedOutput(), "review submit   Record the integrated reviewer decision")
 	support.RequireContains(t, result.CombinedOutput(), "land            Record merge confirmation and start required post-merge bookkeeping")
 	support.RequireContains(t, result.CombinedOutput(), "land complete   Record required post-merge bookkeeping completion")
 	support.RequireContains(t, result.CombinedOutput(), "archive         Freeze the current active plan")
@@ -480,7 +477,6 @@ paths:
 		"paths.plans.active=workflow/plans/open",
 		"paths.plans.archived=docs/plans/archived",
 		"paths.local_runtime=tmp/harness-runtime",
-		"paths.review.dimensions=.harness/review/dimensions",
 		"",
 	}, "\n")
 	if list.Stdout != wantList {
@@ -517,7 +513,6 @@ func TestRepoConfigQueryInvalidConfigWarnsOnStderr(t *testing.T) {
 		"paths.plans.active=docs/plans/active",
 		"paths.plans.archived=docs/plans/archived",
 		"paths.local_runtime=.local/harness",
-		"paths.review.dimensions=.harness/review/dimensions",
 		"",
 	}, "\n")
 	if result.Stdout != want {
@@ -525,128 +520,6 @@ func TestRepoConfigQueryInvalidConfigWarnsOnStderr(t *testing.T) {
 	}
 	support.RequireContains(t, result.Stderr, "Ignoring")
 	support.RequireContains(t, result.Stderr, "using built-in defaults")
-}
-
-func TestReviewDimensionsCatalogViaCLI(t *testing.T) {
-	workspace := support.NewWorkspace(t)
-	workspace.WriteFile(t, ".harness/config.yaml", []byte(`version: 1
-paths:
-  review:
-    dimensions: custom/review-dimensions
-`))
-	workspace.WriteFile(t, "custom/review-dimensions/api-contract.md", []byte(`---
-name: api-contract
-description: Use when checking public API contracts.
----
-
-# API Contract
-
-Check the public contract.
-`))
-
-	list := support.Run(t, workspace.Root, "review", "dimensions", "list")
-	support.RequireSuccess(t, list)
-	support.RequireNoStderr(t, list)
-	var payload struct {
-		OK         bool   `json:"ok"`
-		Command    string `json:"command"`
-		Dimensions []struct {
-			Name         string   `json:"name"`
-			Sources      []string `json:"sources"`
-			Description  string   `json:"description"`
-			Instructions string   `json:"instructions"`
-		} `json:"dimensions"`
-	}
-	if err := json.Unmarshal([]byte(list.Stdout), &payload); err != nil {
-		t.Fatalf("decode dimensions list: %v\n%s", err, list.Stdout)
-	}
-	if !payload.OK || payload.Command != "review dimensions list" {
-		t.Fatalf("unexpected list payload: %#v", payload)
-	}
-	seen := map[string][]string{}
-	for _, dimension := range payload.Dimensions {
-		seen[dimension.Name] = dimension.Sources
-		if dimension.Instructions != "" {
-			t.Fatalf("list leaked instruction body: %#v", dimension)
-		}
-	}
-	if strings.Join(seen["correctness"], ",") != "builtin" || strings.Join(seen["api-contract"], ",") != "repo" {
-		t.Fatalf("expected builtin and repo dimensions, got %#v", payload.Dimensions)
-	}
-
-	instructions := support.Run(t, workspace.Root, "review", "dimensions", "instructions", "api-contract")
-	support.RequireSuccess(t, instructions)
-	support.RequireNoStderr(t, instructions)
-	if instructions.Stdout != "# API Contract\n\nCheck the public contract.\n" {
-		t.Fatalf("unexpected raw instructions:\n%s", instructions.Stdout)
-	}
-
-	planPath := workspace.Path("docs/plans/active/2026-06-11-review-dimensions-smoke.md")
-	template := support.Run(t, workspace.Root, "plan", "template", "--title", "Review Dimensions Smoke", "--output", planPath)
-	support.RequireSuccess(t, template)
-	support.RequireNoStderr(t, template)
-	support.ApprovePlan(t, planPath, "2026-06-11T00:00:00+08:00")
-
-	startExecution := support.Run(t, workspace.Root, "execute", "start")
-	support.RequireSuccess(t, startExecution)
-	support.RequireNoStderr(t, startExecution)
-	workspace.CommitAll(t, "review candidate")
-
-	specPath := workspace.WriteJSON(t, "tmp/review-spec.json", map[string]any{
-		"kind":         "full",
-		"review_title": "Catalog-managed review dimension smoke",
-		"assignments": []map[string]any{
-			{
-				"slot":         "integrated",
-				"role":         "integrated",
-				"dimensions":   []string{"api-contract"},
-				"instructions": "Review the complete candidate using the API contract guidance.",
-			},
-		},
-	})
-	reviewStart := support.Run(t, workspace.Root, "review", "start", "--spec", specPath)
-	support.RequireSuccess(t, reviewStart)
-	support.RequireNoStderr(t, reviewStart)
-	var reviewStartPayload struct {
-		OK        bool   `json:"ok"`
-		Command   string `json:"command"`
-		Artifacts struct {
-			RoundID     string `json:"round_id"`
-			Assignments []struct {
-				Slot           string `json:"slot"`
-				Role           string `json:"role"`
-				Instructions   string `json:"instructions"`
-				SubmissionPath string `json:"submission_path"`
-			} `json:"assignments"`
-		} `json:"artifacts"`
-	}
-	if err := json.Unmarshal([]byte(reviewStart.Stdout), &reviewStartPayload); err != nil {
-		t.Fatalf("decode review start: %v\n%s", err, reviewStart.Stdout)
-	}
-	if !reviewStartPayload.OK || reviewStartPayload.Command != "review start" || reviewStartPayload.Artifacts.RoundID != "review-001-full" {
-		t.Fatalf("unexpected review start payload: %#v", reviewStartPayload)
-	}
-	if len(reviewStartPayload.Artifacts.Assignments) != 1 {
-		t.Fatalf("expected one assignment, got %#v", reviewStartPayload.Artifacts.Assignments)
-	}
-	assignment := reviewStartPayload.Artifacts.Assignments[0]
-	if assignment.Slot != "integrated" || assignment.Role != "integrated" {
-		t.Fatalf("expected integrated catalog-guided assignment, got %#v", assignment)
-	}
-	support.RequireFileExists(t, workspace.Path(assignment.SubmissionPath))
-
-	submit := support.RunWithOptions(t, support.RunOptions{
-		Workdir: workspace.Root,
-		Args: []string{
-			"review", "submit",
-			"--round", reviewStartPayload.Artifacts.RoundID,
-			"--slot", assignment.Slot,
-			"--by", "reviewer-api-contract",
-		},
-		Stdin: `{"summary":"Catalog-managed dimension submission path works.","findings":[]}`,
-	})
-	support.RequireSuccess(t, submit)
-	support.RequireNoStderr(t, submit)
 }
 
 func TestSkillsInstallRejectsInvalidScopeViaCLI(t *testing.T) {

@@ -40,6 +40,7 @@ func TestPublishHandoffWithBuiltBinary(t *testing.T) {
 	if archivePayload.Artifacts.ToPlanPath != "docs/plans/archived/2026-03-23-publish-handoff.md" {
 		t.Fatalf("expected archived publish-handoff path, got %#v", archivePayload)
 	}
+	workspace.CommitAll(t, "commit mechanical archive move")
 
 	publish := submitEvidence(t, workspace, "publish", "tmp/publish.json", map[string]any{
 		"status": "recorded",
@@ -93,130 +94,51 @@ func TestPublishHandoffWithBuiltBinary(t *testing.T) {
 	}
 }
 
+func TestPostArchiveProductCommitCannotBecomeMergeReadyWithBuiltBinary(t *testing.T) {
+	workspace := support.NewWorkspace(t)
+	planRelPath := "docs/plans/active/2026-03-23-post-archive-coverage.md"
+	planPath := workspace.Path(planRelPath)
+	template := support.Run(
+		t,
+		workspace.Root,
+		"plan", "template",
+		"--title", "Post Archive Coverage Plan",
+		"--timestamp", "2026-03-23T00:00:00Z",
+		"--source-type", "direct_request",
+		"--output", planRelPath,
+	)
+	support.RequireSuccess(t, template)
+	support.RequireNoStderr(t, template)
+	support.RewritePlanPreservingFrontmatter(t, planPath, "Post Archive Coverage Plan", publishHandoffPlanBody())
+
+	drivePlanToArchivedPublishNode(t, workspace, planPath, publishStepOneTitle, publishStepTwoTitle)
+	workspace.CommitAll(t, "commit mechanical archive move")
+	workspace.WriteFile(t, "product.go", []byte("package product\n\nconst Unreviewed = true\n"))
+	workspace.CommitAll(t, "unreviewed post-archive product change")
+
+	submitEvidence(t, workspace, "publish", "tmp/publish.json", map[string]any{
+		"status": "recorded",
+		"pr_url": "https://github.com/catu-ai/easyharness/pull/99",
+		"branch": "codex/post-archive-coverage",
+		"base":   "main",
+	})
+	submitEvidence(t, workspace, "ci", "tmp/ci.json", map[string]any{
+		"status": "success", "provider": "github-actions",
+	})
+	submitEvidence(t, workspace, "sync", "tmp/sync.json", map[string]any{
+		"status": "fresh", "base_ref": "main", "head_ref": "codex/post-archive-coverage",
+	})
+
+	result := runStatus(t, workspace.Root)
+	assertNode(t, result, "execution/finalize/publish")
+	if len(result.Blockers) != 1 || result.Blockers[0].Path != "review.coverage" || !strings.Contains(result.Blockers[0].Message, "product.go") {
+		t.Fatalf("expected post-archive product change coverage blocker, got %#v", result.Blockers)
+	}
+	if len(result.NextAction) != 1 || !strings.Contains(result.NextAction[0].Description, "harness reopen --mode finalize-fix") {
+		t.Fatalf("expected reopen-and-review guidance, got %#v", result.NextAction)
+	}
+}
+
 func publishHandoffPlanBody() string {
-	return strings.TrimSpace(`
-## Goal
-
-Exercise the archived publish handoff through the real built binary so status
-stays at execution/finalize/publish until publish, CI, and sync evidence are
-all recorded.
-
-## Scope
-
-### In Scope
-
-- Archive a clean candidate.
-- Record publish, CI, and sync evidence one domain at a time.
-- Assert the publish self-loop and the later transition to await_merge.
-
-### Out of Scope
-
-- Land entry and cleanup.
-
-## Acceptance Criteria
-
-- [ ] Publish evidence alone keeps the candidate in execution/finalize/publish.
-- [ ] CI evidence alone still keeps the candidate in execution/finalize/publish until sync is recorded.
-- [ ] The full publish, CI, and sync evidence set moves status to execution/finalize/await_merge.
-
-## Deferred Items
-
-- None.
-
-## Work Breakdown
-
-### Step 1: Prepare the archived candidate
-
-- Done: [ ]
-
-#### Objective
-
-Close out the first tracked step before archive.
-
-#### Details
-
-NONE
-
-#### Expected Files
-
-- tests/e2e/publish_handoff_test.go
-
-#### Validation
-
-- Advance without starting an optional step review.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
-
-### Step 2: Finish the branch before publish handoff
-
-- Done: [ ]
-
-#### Objective
-
-Close out the final pre-archive step and enter publish handoff.
-
-#### Details
-
-Archive-ready top-level summaries are prefilled so the scenario can reach the
-evidence phase without extra tracked-plan editing.
-
-#### Expected Files
-
-- tests/e2e/publish_handoff_test.go
-
-#### Validation
-
-- Enter final review without routine step-review debt.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
-
-## Validation Strategy
-
-- Run repo-level E2E coverage with the built binary.
-
-## Risks
-
-- Risk: The scenario could accidentally assert only the final merge-ready state and miss the publish self-loop.
-  - Mitigation: Check status after each evidence domain separately.
-
-## Validation Summary
-
-Validated the archived candidate and the evidence-driven publish handoff.
-
-## Review Summary
-
-No unresolved blocking review findings remain in the archived candidate used for evidence handoff.
-
-## Archive Summary
-
-- PR: NONE
-- Ready: The candidate satisfies the acceptance criteria and is ready for merge approval.
-- Merge Handoff: Commit and push the archive move before treating this candidate as awaiting merge approval.
-
-## Outcome Summary
-
-### Delivered
-
-Delivered the archived candidate and evidence handoff scenario.
-
-### Not Delivered
-
-NONE.
-
-### Follow-Up Issues
-
-NONE
-`)
+	return compactPlanFixture(publishStepOneTitle, publishStepTwoTitle)
 }

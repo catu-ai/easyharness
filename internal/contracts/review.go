@@ -2,59 +2,17 @@ package contracts
 
 import "encoding/json"
 
-// ReviewSpec is the JSON input consumed by `harness review start`.
-type ReviewSpec struct {
-	// Step is the tracked plan step number when the review is step-scoped.
-	Step *int `json:"step,omitempty"`
-
-	// Kind is the review kind, such as delta or full.
-	Kind string `json:"kind"`
-
-	// AnchorSHA is the controller-chosen git commit anchor for delta review.
-	// Delta review expects this to resolve to a real commit.
-	AnchorSHA string `json:"anchor_sha,omitempty"`
-
-	// ReviewTitle is the human-readable title for finalize or custom review
-	// rounds.
-	ReviewTitle string `json:"review_title,omitempty"`
-
-	// Repair identifies an earlier round and findings that this delta review
-	// intends to resolve.
-	Repair *ReviewRepairReference `json:"repair,omitempty"`
-
-	// Assignments lists the explicit reviewer-owned submission assignments.
-	Assignments []ReviewAssignmentSpec `json:"assignments" jsonschema:"minItems=1" easyharness:"no_null"`
+// ReviewStartOptions contains the only controller choice accepted by
+// `harness review start`. The ordinary path infers a full root or linked delta
+// from current finalize coverage; ForceFull deliberately resets that coverage.
+type ReviewStartOptions struct {
+	ForceFull bool
 }
 
 // ReviewRepairReference identifies the findings targeted by a repair delta.
 type ReviewRepairReference struct {
 	RoundID    string   `json:"round_id"`
 	FindingIDs []string `json:"finding_ids" jsonschema:"minItems=0" easyharness:"no_null"`
-}
-
-// ReviewAssignmentSpec is one controller-selected reviewer assignment.
-type ReviewAssignmentSpec struct {
-	Slot         string           `json:"slot"`
-	Role         string           `json:"role"`
-	Dimensions   []string         `json:"dimensions" jsonschema:"minItems=1" easyharness:"no_null"`
-	Instructions string           `json:"instructions"`
-	RiskBrief    *ReviewRiskBrief `json:"risk_brief,omitempty"`
-}
-
-// ReviewRiskBrief gives a specialist a concrete risk surface to challenge.
-type ReviewRiskBrief struct {
-	RiskSurfaces []string `json:"risk_surfaces" jsonschema:"minItems=1" easyharness:"no_null"`
-	Invariants   []string `json:"invariants" jsonschema:"minItems=1" easyharness:"no_null"`
-	FailureModes []string `json:"failure_modes,omitempty" easyharness:"allow_null"`
-}
-
-// ReviewResolvedDimension snapshots one explicitly assigned guidance fragment.
-type ReviewResolvedDimension struct {
-	Name         string   `json:"name"`
-	Sources      []string `json:"sources" jsonschema:"minItems=1" easyharness:"no_null"`
-	Description  string   `json:"description"`
-	Instructions string   `json:"instructions"`
-	PlanPath     string   `json:"plan_path,omitempty"`
 }
 
 // ReviewManifest is the command-owned review manifest artifact for one review
@@ -83,6 +41,9 @@ type ReviewManifest struct {
 	// ReviewTitle is the human-readable title for the round when one exists.
 	ReviewTitle string `json:"review_title,omitempty"`
 
+	// ReviewFocus snapshots the plan's reviewer-specific focus for this round.
+	ReviewFocus string `json:"review_focus,omitempty"`
+
 	// Repair identifies the prior round and findings targeted by this delta.
 	Repair *ReviewRepairReference `json:"repair,omitempty"`
 
@@ -110,12 +71,20 @@ type ReviewManifest struct {
 
 // ReviewAssignment describes one surfaced reviewer assignment.
 type ReviewAssignment struct {
-	Slot           string                    `json:"slot"`
-	Role           string                    `json:"role"`
-	Dimensions     []ReviewResolvedDimension `json:"dimensions" jsonschema:"minItems=1" easyharness:"no_null"`
-	Instructions   string                    `json:"instructions"`
-	RiskBrief      *ReviewRiskBrief          `json:"risk_brief,omitempty"`
-	SubmissionPath string                    `json:"submission_path"`
+	Slot           string `json:"slot"`
+	Role           string `json:"role"`
+	Instructions   string `json:"instructions"`
+	ReviewFocus    string `json:"review_focus,omitempty"`
+	SubmissionPath string `json:"submission_path"`
+}
+
+// ReviewHandle is the sole integrated reviewer handoff returned by
+// `harness review start`. Reviewer topology is fixed rather than selected by
+// the controller.
+type ReviewHandle struct {
+	Instructions   string `json:"instructions"`
+	ReviewFocus    string `json:"review_focus,omitempty"`
+	SubmissionPath string `json:"submission_path"`
 }
 
 // ReviewLedger is the command-owned ledger artifact tracking submission status
@@ -160,10 +129,6 @@ type ReviewSubmissionInput struct {
 
 	// Findings lists the review findings for the slot.
 	Findings []ReviewFinding `json:"findings,omitempty" easyharness:"allow_null"`
-
-	// ExtraFields preserves reviewer-owned progressive worklog fields that are
-	// not part of the canonical aggregate contract.
-	ExtraFields map[string]json.RawMessage `json:"-"`
 }
 
 // ReviewSubmission is the command-owned submission artifact for one reviewer
@@ -191,10 +156,6 @@ type ReviewSubmission struct {
 
 	// Findings lists the review findings for the slot.
 	Findings []ReviewFinding `json:"findings,omitempty"`
-
-	// ExtraFields preserves reviewer-owned progressive worklog fields that are
-	// not part of the canonical aggregate contract.
-	ExtraFields map[string]json.RawMessage `json:"-"`
 }
 
 // ReviewFinding is one review finding in a submission or aggregate.
@@ -441,66 +402,6 @@ func (f *ReviewAggregateFinding) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (s ReviewSubmissionInput) MarshalJSON() ([]byte, error) {
-	payload := reviewSubmissionInputPayload{
-		Summary:     s.Summary,
-		Resolutions: s.Resolutions,
-		Findings:    s.Findings,
-	}
-	return marshalWithExtraFields(payload, s.ExtraFields)
-}
-
-func (s *ReviewSubmissionInput) UnmarshalJSON(data []byte) error {
-	var payload reviewSubmissionInputPayload
-	extraFields, err := unmarshalWithExtraFields(data, &payload, reviewSubmissionInputKnownFields)
-	if err != nil {
-		return err
-	}
-	s.Summary = payload.Summary
-	s.Resolutions = payload.Resolutions
-	s.Findings = payload.Findings
-	for key := range reviewSubmissionInputIgnoredExtraFields {
-		delete(extraFields, key)
-	}
-	if len(extraFields) == 0 {
-		extraFields = nil
-	}
-	s.ExtraFields = extraFields
-	return nil
-}
-
-func (s ReviewSubmission) MarshalJSON() ([]byte, error) {
-	payload := reviewSubmissionPayload{
-		RoundID:     s.RoundID,
-		Slot:        s.Slot,
-		Role:        s.Role,
-		By:          s.By,
-		SubmittedAt: s.SubmittedAt,
-		Summary:     s.Summary,
-		Resolutions: s.Resolutions,
-		Findings:    s.Findings,
-	}
-	return marshalWithExtraFields(payload, s.ExtraFields)
-}
-
-func (s *ReviewSubmission) UnmarshalJSON(data []byte) error {
-	var payload reviewSubmissionPayload
-	extraFields, err := unmarshalWithExtraFields(data, &payload, reviewSubmissionKnownFields)
-	if err != nil {
-		return err
-	}
-	s.RoundID = payload.RoundID
-	s.Slot = payload.Slot
-	s.Role = payload.Role
-	s.By = payload.By
-	s.SubmittedAt = payload.SubmittedAt
-	s.Summary = payload.Summary
-	s.Resolutions = payload.Resolutions
-	s.Findings = payload.Findings
-	s.ExtraFields = extraFields
-	return nil
-}
-
 // ReviewStartResult is the JSON result returned by `harness review start`.
 type ReviewStartResult struct {
 	// OK reports whether the command succeeded.
@@ -539,8 +440,8 @@ type ReviewStartArtifacts struct {
 	// command and recorded in the review manifest.
 	ReviewedHeadSHA string `json:"reviewed_head_sha"`
 
-	// Assignments lists the materialized reviewer assignments created for the round.
-	Assignments []ReviewAssignment `json:"assignments"`
+	// Reviewer is the sole integrated reviewer handle for the round.
+	Reviewer *ReviewHandle `json:"reviewer,omitempty"`
 }
 
 // ReviewSubmitResult is the JSON result returned by `harness review submit`.
@@ -556,6 +457,9 @@ type ReviewSubmitResult struct {
 
 	// Artifacts points to the created submission artifacts.
 	Artifacts *ReviewSubmitArtifacts `json:"artifacts,omitempty"`
+
+	// Review is the completed review decision derived from the sole submission.
+	Review *ReviewAggregate `json:"review,omitempty"`
 
 	// NextAction lists the most relevant follow-up steps in priority order.
 	NextAction []NextAction `json:"next_actions"`
@@ -573,126 +477,6 @@ type ReviewSubmitArtifacts struct {
 	// RoundID is the stable identifier for the review round.
 	RoundID string `json:"round_id"`
 
-	// Slot is the stable reviewer slot identifier.
-	Slot string `json:"slot"`
-
 	// SubmissionPath is the path to the created submission artifact.
 	SubmissionPath string `json:"submission_path"`
-}
-
-// ReviewAggregateResult is the JSON result returned by
-// `harness review aggregate`.
-type ReviewAggregateResult struct {
-	// OK reports whether the command succeeded.
-	OK bool `json:"ok"`
-
-	// Command is the stable command identifier for the result payload.
-	Command string `json:"command"`
-
-	// Summary is the concise human-readable outcome description.
-	Summary string `json:"summary"`
-
-	// Artifacts points to the updated aggregate artifacts.
-	Artifacts *ReviewAggregateArtifacts `json:"artifacts,omitempty"`
-
-	// Review is the aggregate decision payload when aggregation succeeded.
-	Review *ReviewAggregate `json:"review,omitempty"`
-
-	// NextAction lists the most relevant follow-up steps in priority order.
-	NextAction []NextAction `json:"next_actions"`
-
-	// Errors lists hard failures that prevented the command from succeeding.
-	Errors []ErrorDetail `json:"errors,omitempty"`
-}
-
-// ReviewAggregateArtifacts lists the artifacts touched by
-// `harness review aggregate`.
-type ReviewAggregateArtifacts struct {
-	// ProjectRoot is the repository root that anchors surfaced repo-facing
-	// paths.
-	ProjectRoot string `json:"project_root"`
-
-	// RoundID is the stable identifier for the review round.
-	RoundID string `json:"round_id"`
-}
-
-type reviewSubmissionInputPayload struct {
-	Summary     string                    `json:"summary"`
-	Resolutions []ReviewFindingResolution `json:"resolutions,omitempty"`
-	Findings    []ReviewFinding           `json:"findings,omitempty"`
-}
-
-type reviewSubmissionPayload struct {
-	RoundID     string                    `json:"round_id"`
-	Slot        string                    `json:"slot"`
-	Role        string                    `json:"role"`
-	By          string                    `json:"by,omitempty"`
-	SubmittedAt string                    `json:"submitted_at,omitempty"`
-	Summary     string                    `json:"summary,omitempty"`
-	Resolutions []ReviewFindingResolution `json:"resolutions,omitempty"`
-	Findings    []ReviewFinding           `json:"findings,omitempty"`
-}
-
-var reviewSubmissionInputKnownFields = map[string]bool{
-	"summary":     true,
-	"resolutions": true,
-	"findings":    true,
-}
-
-var reviewSubmissionInputIgnoredExtraFields = map[string]bool{
-	"round_id":     true,
-	"slot":         true,
-	"role":         true,
-	"by":           true,
-	"submitted_at": true,
-}
-
-var reviewSubmissionKnownFields = map[string]bool{
-	"round_id":     true,
-	"slot":         true,
-	"role":         true,
-	"by":           true,
-	"submitted_at": true,
-	"summary":      true,
-	"resolutions":  true,
-	"findings":     true,
-}
-
-func unmarshalWithExtraFields(data []byte, payload any, knownFields map[string]bool) (map[string]json.RawMessage, error) {
-	if err := json.Unmarshal(data, payload); err != nil {
-		return nil, err
-	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-	extraFields := make(map[string]json.RawMessage)
-	for key, value := range raw {
-		if knownFields[key] {
-			continue
-		}
-		extraFields[key] = append(json.RawMessage(nil), value...)
-	}
-	if len(extraFields) == 0 {
-		return nil, nil
-	}
-	return extraFields, nil
-}
-
-func marshalWithExtraFields(payload any, extraFields map[string]json.RawMessage) ([]byte, error) {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	if len(extraFields) == 0 {
-		return data, nil
-	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-	for key, value := range extraFields {
-		raw[key] = append(json.RawMessage(nil), value...)
-	}
-	return json.Marshal(raw)
 }

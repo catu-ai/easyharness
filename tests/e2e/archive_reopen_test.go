@@ -74,148 +74,17 @@ func TestArchiveReopenFinalizeFixWithBuiltBinary(t *testing.T) {
 	}
 
 	workspace.WriteFile(t, "candidate/reopened-narrow-fix.txt", []byte("narrow revision-two repair\n"))
-	start := startReviewRound(t, workspace, "tmp/reopened-narrow-delta.json", map[string]any{
-		"kind":       "delta",
-		"anchor_sha": state.FinalizeCoverage.CoveredHeadSHA,
-		"repair": map[string]any{
-			"round_id":    state.FinalizeCoverage.TipRoundID,
-			"finding_ids": []string{},
-		},
-		"assignments": []map[string]any{
-			integratedAssignment("integrated", "Review only the narrow revision-two repair.", "correctness", "tests"),
-		},
-	})
-	submitReviewSlot(t, workspace, start.Artifacts.RoundID, start.Artifacts.Slots[0], "The reopened narrow delta is clean.", nil)
-	aggregate := aggregateReviewRound(t, workspace, start.Artifacts.RoundID)
-	if aggregate.Review.Decision != "pass" {
-		t.Fatalf("expected reopened narrow delta to extend prior full coverage, got %#v", aggregate)
+	start := startReviewRound(t, workspace, false)
+	if !strings.HasSuffix(start.Artifacts.RoundID, "-delta") {
+		t.Fatalf("expected reopen repair to infer a linked delta, got %#v", start)
+	}
+	submission := submitReview(t, workspace, start.Artifacts.RoundID, "integrated-reviewer", "The reopened narrow delta is clean.", nil, nil)
+	if submission.Review.Decision != "pass" {
+		t.Fatalf("expected reopened narrow delta to extend prior full coverage, got %#v", submission)
 	}
 	assertNode(t, runStatus(t, workspace.Root), "execution/finalize/archive")
 }
 
 func archiveReopenPlanBody() string {
-	return strings.TrimSpace(`
-## Goal
-
-Exercise archive plus ` + "`" + `reopen --mode finalize-fix` + "`" + ` through the
-real built binary so the archived publish handoff can return to active
-finalize repair without adding a new step.
-
-## Scope
-
-### In Scope
-
-- Archive a clean candidate.
-- Reopen that archived candidate with ` + "`" + `finalize-fix` + "`" + `.
-- Assert the active path, revision bump, and finalize-fix status cue.
-
-### Out of Scope
-
-- Publish evidence, merge approval, and required post-merge bookkeeping.
-
-## Acceptance Criteria
-
-- [ ] Archive moves the candidate to the archived plan path and status resolves to execution/finalize/publish.
-- [ ] ` + "`" + `reopen --mode finalize-fix` + "`" + ` restores the active tracked plan path and bumps the revision.
-- [ ] Status resolves to execution/finalize/fix with finalize-scope repair guidance after reopen.
-
-## Deferred Items
-
-- None.
-
-## Work Breakdown
-
-### Step 1: Prepare the archived candidate
-
-- Done: [ ]
-
-#### Objective
-
-Close out the first tracked step before archive.
-
-#### Details
-
-NONE
-
-#### Expected Files
-
-- tests/e2e/archive_reopen_test.go
-
-#### Validation
-
-- Advance without starting an optional step review.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
-
-### Step 2: Finish the original branch candidate
-
-- Done: [ ]
-
-#### Objective
-
-Close out the final pre-archive step and reach publish handoff.
-
-#### Details
-
-Archive-ready top-level summaries are prefilled so the scenario can reach archive without extra tracked-plan editing.
-
-#### Expected Files
-
-- tests/e2e/archive_reopen_test.go
-
-#### Validation
-
-- Enter final review without routine step-review debt.
-
-#### Execution Notes
-
-PENDING_STEP_EXECUTION
-
-#### Review Notes
-
-PENDING_STEP_REVIEW
-
-## Validation Strategy
-
-- Run repo-level E2E coverage with the built binary.
-
-## Risks
-
-- Risk: The scenario could prove archive success without proving the reopen rollback path.
-  - Mitigation: Assert the archived path first, then the active path and finalize-fix status after reopen.
-
-## Validation Summary
-
-Validated archive and finalize-fix reopen through the built binary.
-
-## Review Summary
-
-No unresolved blocking review findings remain in the candidate used for archive and reopen.
-
-## Archive Summary
-
-- PR: NONE
-- Ready: The candidate satisfies the acceptance criteria and is ready for merge approval.
-- Merge Handoff: Commit and push the archive move before treating this candidate as awaiting merge approval.
-
-## Outcome Summary
-
-### Delivered
-
-Delivered the archive and finalize-fix reopen scenario.
-
-### Not Delivered
-
-NONE.
-
-### Follow-Up Issues
-
-NONE
-`)
+	return compactPlanFixture(archiveReopenStepOne, archiveReopenStepTwo)
 }

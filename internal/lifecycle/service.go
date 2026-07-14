@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -111,7 +110,7 @@ func (s Service) ExecuteStart() Result {
 			CurrentPlanPath: currentPlanPath,
 		},
 		NextAction: []NextAction{
-			{Command: nil, Description: "Continue the current step and keep step-local Execution Notes and Review Notes up to date."},
+			{Command: nil, Description: "Continue the current outcome and mark the step done after its concise check passes."},
 		},
 	}
 	return s.finalizeMutation(result, func() []CommandError {
@@ -233,18 +232,18 @@ func (s Service) Archive() Result {
 		return errorResult("archive", "Current plan is not archive-ready.", issues)
 	}
 
-	archiveSummary := doc.SectionText("Archive Summary")
-	archiveSummary = stripArchiveSummaryLines(archiveSummary, []string{"Archived At", "Revision"})
+	closeout := doc.SectionText("Closeout")
+	closeout = stripLabeledLines(closeout, []string{"Archived At", "Revision"})
 	revision := runstate.CurrentRevision(state)
-	archiveSummary = strings.TrimSpace(strings.Join([]string{
+	closeout = strings.TrimSpace(strings.Join([]string{
 		fmt.Sprintf("- Archived At: %s", now.Format(time.RFC3339)),
 		fmt.Sprintf("- Revision: %d", revision),
-		archiveSummary,
+		closeout,
 	}, "\n"))
 
-	body, err := replaceTopLevelSection(editable.Body, "Archive Summary", archiveSummary)
+	body, err := replaceTopLevelSection(editable.Body, "Closeout", closeout)
 	if err != nil {
-		return errorResult("archive", "Unable to update Archive Summary.", []CommandError{{Path: "section.Archive Summary", Message: err.Error()}})
+		return errorResult("archive", "Unable to update Closeout.", []CommandError{{Path: "section.Closeout", Message: err.Error()}})
 	}
 
 	targetPath := plan.ArchivedPathFor(s.Workdir, planStem, currentPath, doc.WorkflowProfile())
@@ -377,21 +376,9 @@ func (s Service) Reopen(mode string) Result {
 		}})
 	}
 
-	body, err := markTopLevelSectionUpdateRequired(editable.Body, "Validation Summary")
+	body, err := markCloseoutUpdateRequired(editable.Body)
 	if err != nil {
-		return errorResult("reopen", "Unable to refresh Validation Summary.", []CommandError{{Path: "section.Validation Summary", Message: err.Error()}})
-	}
-	body, err = markTopLevelSectionUpdateRequired(body, "Review Summary")
-	if err != nil {
-		return errorResult("reopen", "Unable to refresh Review Summary.", []CommandError{{Path: "section.Review Summary", Message: err.Error()}})
-	}
-	body, err = markTopLevelSectionUpdateRequired(body, "Archive Summary")
-	if err != nil {
-		return errorResult("reopen", "Unable to refresh Archive Summary.", []CommandError{{Path: "section.Archive Summary", Message: err.Error()}})
-	}
-	body, err = markOutcomeSummaryUpdateRequired(body)
-	if err != nil {
-		return errorResult("reopen", "Unable to refresh Outcome Summary.", []CommandError{{Path: "section.Outcome Summary", Message: err.Error()}})
+		return errorResult("reopen", "Unable to refresh Closeout.", []CommandError{{Path: "section.Closeout", Message: err.Error()}})
 	}
 
 	targetPath := plan.ActivePathFor(s.Workdir, planStem, currentPath, doc.WorkflowProfile())
@@ -579,7 +566,7 @@ func (s Service) Land(prURL, commit string) Result {
 			},
 		}, nil)
 	}
-	if issues := s.landReadinessIssues(planStem, state, prURL); len(issues) > 0 {
+	if issues := s.landReadinessIssues(planStem, doc, state, prURL); len(issues) > 0 {
 		return errorResult("land", "Archived candidate is not ready to enter required post-merge bookkeeping.", issues)
 	}
 	originalState := cloneState(state)
@@ -809,51 +796,29 @@ func replaceTopLevelSection(body, sectionName, newContent string) (string, error
 	return body[:start] + replacement + strings.TrimLeft(body[end:], "\n"), nil
 }
 
-func markTopLevelSectionUpdateRequired(body, sectionName string) (string, error) {
-	currentBody, err := topLevelSectionBody(body, sectionName)
+func markCloseoutUpdateRequired(body string) (string, error) {
+	currentBody, err := topLevelSectionBody(body, "Closeout")
 	if err != nil {
 		return "", err
 	}
-	content := strings.TrimSpace(currentBody)
-	if !strings.Contains(content, plan.PlaceholderUpdateRequiredAfterReopen) {
-		content = strings.TrimSpace(strings.Join([]string{
-			plan.PlaceholderUpdateRequiredAfterReopen,
-			"",
-			content,
-		}, "\n"))
-	}
-	return replaceTopLevelSection(body, sectionName, content)
-}
-
-func markOutcomeSummaryUpdateRequired(body string) (string, error) {
-	content, err := topLevelSectionBody(body, "Outcome Summary")
-	if err != nil {
-		return "", err
-	}
-	subsections, order := parseLevelThreeSections(strings.Split(content, "\n"))
-	required := []string{"Delivered", "Not Delivered", "Follow-Up Issues"}
-	if !slices.Equal(order, required) {
-		return "", fmt.Errorf("Outcome Summary must contain Delivered, Not Delivered, and Follow-Up Issues in order")
-	}
-
-	rendered := make([]string, 0, 12)
-	for _, name := range required {
-		subsection := subsections[name]
-		if subsection == nil {
-			return "", fmt.Errorf("missing Outcome Summary subsection %q", name)
+	lines := strings.Split(stripLabeledLines(currentBody, []string{"Archived At", "Revision"}), "\n")
+	for index, rawLine := range lines {
+		line := strings.TrimSpace(rawLine)
+		if !strings.HasPrefix(line, "- ") || !strings.Contains(line, ":") {
+			continue
 		}
-		subcontent := strings.TrimSpace(strings.Join(subsection, "\n"))
-		if !strings.Contains(subcontent, plan.PlaceholderUpdateRequiredAfterReopen) {
-			subcontent = strings.TrimSpace(strings.Join([]string{
-				plan.PlaceholderUpdateRequiredAfterReopen,
-				"",
-				subcontent,
-			}, "\n"))
+		label, value, _ := strings.Cut(strings.TrimPrefix(line, "- "), ":")
+		value = strings.TrimSpace(value)
+		if strings.Contains(value, plan.PlaceholderUpdateRequiredAfterReopen) {
+			continue
 		}
-		rendered = append(rendered, "### "+name, "", subcontent, "")
+		if value == "" {
+			lines[index] = fmt.Sprintf("- %s: %s", strings.TrimSpace(label), plan.PlaceholderUpdateRequiredAfterReopen)
+		} else {
+			lines[index] = fmt.Sprintf("- %s: %s — %s", strings.TrimSpace(label), plan.PlaceholderUpdateRequiredAfterReopen, value)
+		}
 	}
-
-	return replaceTopLevelSection(body, "Outcome Summary", strings.TrimSpace(strings.Join(rendered, "\n")))
+	return replaceTopLevelSection(body, "Closeout", strings.TrimSpace(strings.Join(lines, "\n")))
 }
 
 func topLevelSectionBody(body, sectionName string) (string, error) {
@@ -909,7 +874,7 @@ func missingArchiveSummaryLabels(content string, labels []string) []string {
 	return missing
 }
 
-func stripArchiveSummaryLines(content string, labels []string) string {
+func stripLabeledLines(content string, labels []string) string {
 	lines := strings.Split(content, "\n")
 	filtered := make([]string, 0, len(lines))
 	for _, line := range lines {
@@ -1112,12 +1077,6 @@ func restoreStateSnapshot(workdir, planStem string, originalState *runstate.Stat
 
 func EvaluateArchiveReadiness(workdir, planStem string, doc *plan.Document, state *runstate.State) []CommandError {
 	issues := make([]CommandError, 0)
-	if doc.WorkflowProfile() == plan.WorkflowProfileGoalOriented {
-		issues = append(issues, CommandError{
-			Path:    "frontmatter.workflow_profile",
-			Message: "goal_oriented is a recognized preview workflow profile for active-plan authoring; archive support is still being completed",
-		})
-	}
 	for _, issue := range doc.ArchiveReadinessIssues() {
 		issues = append(issues, CommandError{Path: issue.Path, Message: issue.Message})
 	}
@@ -1125,19 +1084,50 @@ func EvaluateArchiveReadiness(workdir, planStem string, doc *plan.Document, stat
 	return issues
 }
 
+// EvaluateArchivedReviewCoverage verifies that the archived worktree is still
+// the candidate accepted by finalize review, apart from the command-owned plan
+// archive move and allowed Closeout updates.
+func EvaluateArchivedReviewCoverage(workdir, planStem string, doc *plan.Document, state *runstate.State) []CommandError {
+	if state == nil || state.FinalizeCoverage == nil || strings.TrimSpace(state.FinalizeCoverage.TipRoundID) == "" {
+		return []CommandError{{
+			Path:    "state.finalize_coverage",
+			Message: "merge handoff requires a finalize review coverage chain rooted in a full review",
+		}}
+	}
+	chain, err := reviewcoverage.Resolve(workdir, planStem, state.FinalizeCoverage.TipRoundID, runstate.CurrentRevision(state))
+	if err != nil {
+		return []CommandError{{
+			Path:    "state.finalize_coverage",
+			Message: fmt.Sprintf("finalize review coverage is invalid: %v", err),
+		}}
+	}
+	if chain.Decision != "pass" || chain.UnresolvedBlockingCount > 0 {
+		return []CommandError{{
+			Path:    "state.finalize_coverage",
+			Message: fmt.Sprintf("coverage tip %s still has %d unresolved blocking finding(s)", chain.TipRoundID, chain.UnresolvedBlockingCount),
+		}}
+	}
+	expectedArchivedPath := plan.ArchivedPathFor(workdir, planStem, chain.ReviewedPlanPath, doc.WorkflowProfile())
+	actualArchivedPath, actualErr := filepath.Abs(doc.Path)
+	expectedArchivedPath, expectedErr := filepath.Abs(expectedArchivedPath)
+	if actualErr != nil || expectedErr != nil || filepath.Clean(actualArchivedPath) != filepath.Clean(expectedArchivedPath) {
+		return []CommandError{{
+			Path:    "review.coverage",
+			Message: fmt.Sprintf("archived plan is at %s, expected the configured archive path %s", doc.Path, expectedArchivedPath),
+		}}
+	}
+	if err := reviewcoverage.ValidateArchivedCandidate(workdir, doc.Path, chain); err != nil {
+		return []CommandError{{Path: "review.coverage", Message: err.Error()}}
+	}
+	return nil
+}
+
 func archiveStateIssues(workdir, planStem string, doc *plan.Document, revision int, state *runstate.State) []CommandError {
 	issues := make([]CommandError, 0)
 	if state != nil && state.ActiveReviewRound != nil && !state.ActiveReviewRound.Aggregated {
 		issues = append(issues, CommandError{
 			Path:    "state.active_review_round",
-			Message: "aggregate or supersede the active review round before archive",
-		})
-		return issues
-	}
-	if state != nil && state.ActiveReviewRound != nil && state.ActiveReviewRound.Step != nil && state.ActiveReviewRound.Decision != "pass" {
-		issues = append(issues, CommandError{
-			Path:    "state.active_review_round",
-			Message: fmt.Sprintf("intentional step review %s still has unresolved findings", state.ActiveReviewRound.RoundID),
+			Message: "complete or replace the active finalize review before archive",
 		})
 		return issues
 	}
@@ -1169,8 +1159,8 @@ func archiveStateIssues(workdir, planStem string, doc *plan.Document, revision i
 	return issues
 }
 
-func (s Service) landReadinessIssues(planStem string, state *runstate.State, prURL string) []CommandError {
-	issues := make([]CommandError, 0)
+func (s Service) landReadinessIssues(planStem string, doc *plan.Document, state *runstate.State, prURL string) []CommandError {
+	issues := EvaluateArchivedReviewCoverage(s.Workdir, planStem, doc, state)
 
 	publish, err := evidence.LoadLatestPublish(s.Workdir, planStem, runstate.CurrentRevision(state))
 	if err != nil {

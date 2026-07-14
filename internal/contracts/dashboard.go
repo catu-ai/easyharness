@@ -96,8 +96,17 @@ type DashboardWorkspace struct {
 // home.
 type DashboardProgress struct {
 	// Nodes are the ordered progress nodes for this workspace. The node count
-	// varies with the underlying tracked plan and workflow phase structure.
+	// is one per plan step plus one finalize node.
 	Nodes []DashboardProgressNode `json:"nodes,omitempty"`
+
+	// StepCompleted and StepTotal summarize plan-step progress.
+	StepCompleted int `json:"step_completed,omitempty"`
+	StepTotal     int `json:"step_total,omitempty"`
+
+	// AcceptanceCompleted and AcceptanceTotal summarize checked acceptance
+	// criteria without requiring a plan-state write.
+	AcceptanceCompleted int `json:"acceptance_completed,omitempty"`
+	AcceptanceTotal     int `json:"acceptance_total,omitempty"`
 }
 
 // DashboardProgressNode is one progress node in the dashboard progress signal.

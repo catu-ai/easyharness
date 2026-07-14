@@ -265,14 +265,6 @@ func TestSupplementsDirForPlanPath(t *testing.T) {
 	}
 }
 
-func TestReviewGuidanceDirForPlanPath(t *testing.T) {
-	planPath := filepath.Join("docs", "plans", "active", "2026-03-18-first.md")
-	want := filepath.Join("docs", "plans", "active", "supplements", "2026-03-18-first", "review-guidance")
-	if got := ReviewGuidanceDirForPlanPath(planPath); got != want {
-		t.Fatalf("expected %q, got %q", want, got)
-	}
-}
-
 func writeTestFile(t *testing.T, path string) {
 	t.Helper()
 	writeTestFileContent(t, path, "# test\n")

@@ -97,6 +97,7 @@
           "description": "Findings lists the review findings for the slot."
         }
       },
+      "additionalProperties": false,
       "type": "object",
       "required": [
         "summary"
