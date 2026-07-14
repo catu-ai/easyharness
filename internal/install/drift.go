@@ -10,14 +10,15 @@ import (
 // RepoBootstrapDrift summarizes whether the default repo bootstrap assets for an
 // agent appear stale relative to the currently packaged bootstrap assets.
 type RepoBootstrapDrift struct {
-	ManagedAssetsPresent      bool
-	InstructionsStale         bool
-	StaleManagedSkillPackages []string
-	ExtraManagedSkillPackages []string
+	ManagedAssetsPresent        bool
+	InstructionsStale           bool
+	StaleManagedSkillPackages   []string
+	MissingManagedSkillPackages []string
+	ExtraManagedSkillPackages   []string
 }
 
 func (d RepoBootstrapDrift) Stale() bool {
-	return d.InstructionsStale || len(d.StaleManagedSkillPackages) > 0 || len(d.ExtraManagedSkillPackages) > 0
+	return d.InstructionsStale || len(d.StaleManagedSkillPackages) > 0 || len(d.MissingManagedSkillPackages) > 0 || len(d.ExtraManagedSkillPackages) > 0
 }
 
 // InspectRepoBootstrapDrift checks the default repo bootstrap targets for the
@@ -37,18 +38,20 @@ func (s Service) InspectRepoBootstrapDrift(agent string) (RepoBootstrapDrift, er
 	if err != nil {
 		return RepoBootstrapDrift{}, err
 	}
-	skillPresent, staleSkills, extraSkills, err := s.inspectManagedSkillsDrift(skillsDir)
+	skillPresent, staleSkills, missingSkills, extraSkills, err := s.inspectManagedSkillsDrift(skillsDir)
 	if err != nil {
 		return RepoBootstrapDrift{}, err
 	}
 
 	sort.Strings(staleSkills)
+	sort.Strings(missingSkills)
 	sort.Strings(extraSkills)
 	return RepoBootstrapDrift{
-		ManagedAssetsPresent:      instructionsPresent || skillPresent,
-		InstructionsStale:         instructionsStale,
-		StaleManagedSkillPackages: staleSkills,
-		ExtraManagedSkillPackages: extraSkills,
+		ManagedAssetsPresent:        instructionsPresent || skillPresent,
+		InstructionsStale:           instructionsStale,
+		StaleManagedSkillPackages:   staleSkills,
+		MissingManagedSkillPackages: missingSkills,
+		ExtraManagedSkillPackages:   extraSkills,
 	}, nil
 }
 
@@ -77,14 +80,14 @@ func (s Service) inspectManagedInstructionsDrift(targetFile, skillsDir string) (
 	return true, normalizeText(current) != normalizeText(expected), nil
 }
 
-func (s Service) inspectManagedSkillsDrift(targetDir string) (present bool, stale []string, extra []string, err error) {
+func (s Service) inspectManagedSkillsDrift(targetDir string) (present bool, stale []string, missing []string, extra []string, err error) {
 	installed, err := discoverInstalledSkills(targetDir)
 	if err != nil {
-		return false, nil, nil, err
+		return false, nil, nil, nil, err
 	}
 	canonical, err := s.renderCanonicalSkillFiles()
 	if err != nil {
-		return false, nil, nil, err
+		return false, nil, nil, nil, err
 	}
 
 	for skillName, state := range installed {
@@ -99,14 +102,26 @@ func (s Service) inspectManagedSkillsDrift(targetDir string) (present bool, stal
 		}
 		match, err := managedSkillPackageMatches(state.Root, expectedFiles)
 		if err != nil {
-			return false, nil, nil, err
+			return false, nil, nil, nil, err
 		}
 		if !match {
 			stale = append(stale, skillName)
 		}
 	}
+	// A completely absent managed skill surface is allowed because skills and
+	// instructions can be installed independently. Once any managed skill is
+	// present, however, the packaged set is atomic and a missing package is
+	// drift just like a stale or obsolete package.
+	if present {
+		for skillName := range canonical {
+			state, ok := installed[skillName]
+			if !ok || !state.Managed {
+				missing = append(missing, skillName)
+			}
+		}
+	}
 
-	return present, stale, extra, nil
+	return present, stale, missing, extra, nil
 }
 
 func managedSkillPackageMatches(root string, expectedFiles map[string]string) (bool, error) {

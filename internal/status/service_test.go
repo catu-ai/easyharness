@@ -286,6 +286,27 @@ func TestStatusFinalizeReviewNode(t *testing.T) {
 	}
 }
 
+func TestStatusFinalizeReviewBlocksUncheckedAcceptance(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
+		return stringsReplaceAll(content, "- Done: [ ]", "- Done: [x]")
+	})
+	writeState(t, root, "2026-03-18-status-plan", map[string]any{
+		"execution_started_at": "2026-03-18T10:05:00+08:00",
+	})
+
+	result := status.Service{Workdir: root}.Snapshot()
+	if result.State.CurrentNode != "execution/finalize/review" {
+		t.Fatalf("unexpected node: %#v", result.State)
+	}
+	if result.Summary == "" || !strings.Contains(result.Summary, "acceptance criteria are still incomplete") {
+		t.Fatalf("expected acceptance blocker summary: %#v", result)
+	}
+	if len(result.NextAction) != 1 || result.NextAction[0].Command != nil || !strings.Contains(result.NextAction[0].Description, "check every acceptance criterion") {
+		t.Fatalf("unexpected next actions: %#v", result.NextAction)
+	}
+}
+
 func TestStatusFinalizeReviewInFlightIncludesReviewFacts(t *testing.T) {
 	root := t.TempDir()
 	writePlan(t, root, "docs/plans/active/2026-03-18-status-plan.md", func(content string) string {
@@ -756,6 +777,48 @@ func TestStatusRemoteAssessmentInvalidatesReadyClosedPR(t *testing.T) {
 	}
 	if statusNextActionsContain(result, "harness land --pr https://github.com/catu-ai/easyharness/pull/13 [--commit <sha>]") {
 		t.Fatalf("closed PR must not suggest land guidance, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusRemoteAssessmentRecoversReadyMergedPRIntoLand(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	prepareReviewedArchivedStatusCandidate(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+	svc := evidence.Service{Workdir: root}
+	if result := svc.Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
+		t.Fatalf("publish evidence: %#v", result)
+	}
+	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
+		t.Fatalf("ci evidence: %#v", result)
+	}
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+		t.Fatalf("sync evidence: %#v", result)
+	}
+
+	result := status.Service{
+		Workdir:       root,
+		ObserveRemote: true,
+		RunCommand:    fakeStatusRemoteCommandsWithPRState(`"MERGED"`, false, `"UNKNOWN"`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+	}.Snapshot()
+	if result.State.CurrentNode != "execution/finalize/await_merge" {
+		t.Fatalf("remote merge observation must not mutate the durable node, got %#v", result.State)
+	}
+	remoteEvidence := requireRemoteEvidence(t, result)
+	if remoteEvidence.Assessment != "merged_pending_land" {
+		t.Fatalf("merged PR should guide land recovery, got %#v", remoteEvidence)
+	}
+	if !statusNextActionsContain(result, "harness land --pr https://github.com/catu-ai/easyharness/pull/13 [--commit <sha>]") {
+		t.Fatalf("merged PR should suggest explicit land recovery, got %#v", result.NextAction)
+	}
+	for _, action := range result.NextAction {
+		if strings.Contains(action.Description, "repair or replace the publish handoff") ||
+			strings.Contains(action.Description, "Wait for explicit human approval before merging") ||
+			(action.Command != nil && *action.Command == "harness evidence refresh") {
+			t.Fatalf("merged PR must not suggest publish repair, another merge, or evidence refresh, got %#v", result.NextAction)
+		}
 	}
 }
 
@@ -1463,7 +1526,7 @@ func TestStatusIdleSkipsBootstrapReminderWhenManagedAssetsAreFresh(t *testing.T)
 	}
 }
 
-func TestStatusActivePlanDoesNotSurfaceIdleBootstrapReminder(t *testing.T) {
+func TestStatusActivePlanSurfacesBootstrapDriftWithoutDisplacingWorkflowGuidance(t *testing.T) {
 	root := t.TempDir()
 	svc := install.Service{Workdir: root}
 	if result := svc.Init(install.Options{}); !result.OK {
@@ -1483,14 +1546,22 @@ func TestStatusActivePlanDoesNotSurfaceIdleBootstrapReminder(t *testing.T) {
 	if result.State.CurrentNode != "plan" {
 		t.Fatalf("expected plan node, got %#v", result.State)
 	}
-	for _, warning := range result.Warnings {
-		if strings.Contains(warning, "bootstrap assets for Codex") {
-			t.Fatalf("did not expect idle-only bootstrap reminder during active work, got %#v", result.Warnings)
-		}
+	if len(result.Warnings) == 0 || !strings.Contains(strings.Join(result.Warnings, "\n"), "bootstrap assets for Codex") {
+		t.Fatalf("expected active-plan bootstrap warning, got %#v", result.Warnings)
+	}
+	if result.Facts == nil || result.Facts.ManagedResources == nil || result.Facts.ManagedResources.Status != "stale" || !result.Facts.ManagedResources.InstructionsStale {
+		t.Fatalf("expected compact managed-resource facts, got %#v", result.Facts)
+	}
+	if len(result.NextAction) < 2 || result.NextAction[0].Command != nil {
+		t.Fatalf("expected ordinary plan guidance to remain first, got %#v", result.NextAction)
+	}
+	last := result.NextAction[len(result.NextAction)-1]
+	if last.Command == nil || *last.Command != "harness repo init --dry-run" {
+		t.Fatalf("expected read-only refresh inspection after workflow guidance, got %#v", result.NextAction)
 	}
 }
 
-func TestStatusActiveExecutionDoesNotSurfaceIdleBootstrapReminder(t *testing.T) {
+func TestStatusActiveExecutionSurfacesBootstrapDriftWithoutChangingNode(t *testing.T) {
 	root := t.TempDir()
 	svc := install.Service{Workdir: root}
 	if result := svc.Init(install.Options{}); !result.OK {
@@ -1513,10 +1584,84 @@ func TestStatusActiveExecutionDoesNotSurfaceIdleBootstrapReminder(t *testing.T) 
 	if result.State.CurrentNode != "execution/step-1/implement" {
 		t.Fatalf("expected execution node, got %#v", result.State)
 	}
-	for _, warning := range result.Warnings {
-		if strings.Contains(warning, "bootstrap assets for Codex") {
-			t.Fatalf("did not expect idle-only bootstrap reminder during execution, got %#v", result.Warnings)
+	if len(result.Warnings) == 0 || !strings.Contains(strings.Join(result.Warnings, "\n"), "bootstrap assets for Codex") {
+		t.Fatalf("expected active-execution bootstrap warning, got %#v", result.Warnings)
+	}
+	if result.Facts == nil || result.Facts.ManagedResources == nil || result.Facts.ManagedResources.Status != "stale" {
+		t.Fatalf("expected managed-resource facts, got %#v", result.Facts)
+	}
+}
+
+func TestStatusArchivedPlanSurfacesBootstrapDriftWithoutDisplacingPublishGuidance(t *testing.T) {
+	root := t.TempDir()
+	svc := install.Service{Workdir: root}
+	if result := svc.Init(install.Options{}); !result.OK {
+		t.Fatalf("init failed: %#v", result)
+	}
+	staleManagedSkill(t, root, "harness-discovery")
+	writePlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md", func(content string) string {
+		return completeAllSteps(content, true)
+	})
+	writeCurrentPlan(t, root, "docs/plans/archived/2026-03-18-status-plan.md")
+
+	result := status.Service{Workdir: root}.Snapshot()
+	if !result.OK || result.State.CurrentNode != "execution/finalize/publish" {
+		t.Fatalf("expected archived publish node, got %#v", result)
+	}
+	if result.Facts == nil || result.Facts.ManagedResources == nil || len(result.Facts.ManagedResources.StaleSkillPackages) != 1 {
+		t.Fatalf("expected archived managed-resource facts, got %#v", result.Facts)
+	}
+	foundPublish := false
+	for _, action := range result.NextAction[:len(result.NextAction)-1] {
+		if action.Command != nil && *action.Command == "harness evidence submit --kind publish --input <json>" {
+			foundPublish = true
 		}
+	}
+	last := result.NextAction[len(result.NextAction)-1]
+	if !foundPublish || last.Command == nil || *last.Command != "harness repo init --dry-run" {
+		t.Fatalf("expected publish guidance before the optional drift action, got %#v", result.NextAction)
+	}
+}
+
+func TestStatusBootstrapInspectionFailureStaysNonBlocking(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "AGENTS.md"), 0o755); err != nil {
+		t.Fatalf("create unavailable instructions target: %v", err)
+	}
+
+	result := status.Service{Workdir: root}.Snapshot()
+	if !result.OK || result.State.CurrentNode != "idle" {
+		t.Fatalf("expected idle status despite inspection failure, got %#v", result)
+	}
+	if len(result.Warnings) == 0 || !strings.Contains(strings.Join(result.Warnings, "\n"), "Unable to inspect") {
+		t.Fatalf("expected nonblocking inspection warning, got %#v", result.Warnings)
+	}
+	for _, action := range result.NextAction {
+		if action.Command != nil && *action.Command == "harness repo init --dry-run" {
+			t.Fatalf("did not expect a drift action when inspection was unavailable, got %#v", result.NextAction)
+		}
+	}
+}
+
+func TestStatusBootstrapDriftInspectionWorksInDirtyDetachedWorktree(t *testing.T) {
+	root := t.TempDir()
+	svc := install.Service{Workdir: root}
+	if result := svc.Init(install.Options{}); !result.OK {
+		t.Fatalf("init failed: %#v", result)
+	}
+	head := initCommittedGitCandidate(t, root)
+	cmd := exec.Command("git", "-C", root, "checkout", "--detach", "-q", head)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("detach worktree: %v: %s", err, output)
+	}
+	staleManagedSkill(t, root, "harness-discovery")
+
+	result := status.Service{Workdir: root}.Snapshot()
+	if !result.OK || result.State.CurrentNode != "idle" {
+		t.Fatalf("expected idle status in detached dirty worktree, got %#v", result)
+	}
+	if result.Facts == nil || result.Facts.ManagedResources == nil || result.Facts.ManagedResources.Status != "stale" {
+		t.Fatalf("expected filesystem drift facts independent of git state, got %#v", result.Facts)
 	}
 }
 

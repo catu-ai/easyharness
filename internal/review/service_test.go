@@ -47,6 +47,31 @@ func TestStartRejectsUnfinishedStepInsteadOfCreatingStepReview(t *testing.T) {
 	}
 }
 
+func TestStartRejectsUncheckedAcceptanceBeforeCreatingReviewState(t *testing.T) {
+	root, stem := writeExecutingPlan(t, true)
+	planPath := filepath.Join(root, "docs", "plans", "active", stem+".md")
+	content, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content = bytes.Replace(content, []byte("- [x] Integrated review completes."), []byte("- [ ] Integrated review completes."), 1)
+	if err := os.WriteFile(planPath, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := (review.Service{Workdir: root}).Start(review.StartOptions{})
+	if result.OK || len(result.Errors) != 1 || result.Errors[0].Path != "plan.acceptance" {
+		t.Fatalf("expected unchecked-acceptance rejection: %#v", result)
+	}
+	state, _, err := runstate.LoadState(root, stem)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != nil && state.ActiveReviewRound != nil {
+		t.Fatalf("rejected review must not create round state: %#v", state.ActiveReviewRound)
+	}
+}
+
 func TestSubmitCompletesReviewAndUpdatesCoverageWithoutAggregateAction(t *testing.T) {
 	root, stem := writeExecutingPlan(t, true)
 	svc := review.Service{Workdir: root, Now: fixedNow}
@@ -71,6 +96,50 @@ func TestSubmitCompletesReviewAndUpdatesCoverageWithoutAggregateAction(t *testin
 	}
 	if _, err := os.Stat(roundFile(root, stem, start.Artifacts.RoundID, "aggregate.json")); err != nil {
 		t.Fatalf("internal decision artifact missing: %v", err)
+	}
+}
+
+func TestGeneratedSubmissionSkeletonIsValidSubmitInput(t *testing.T) {
+	root, stem := writeExecutingPlan(t, true)
+	svc := review.Service{Workdir: root, Now: fixedNow}
+	start := svc.Start(review.StartOptions{})
+	if !start.OK {
+		t.Fatalf("start failed: %#v", start)
+	}
+
+	manifest := readManifest(t, root, stem, start.Artifacts.RoundID)
+	submissionPath := manifest.Assignments[0].SubmissionPath
+	data, err := os.ReadFile(submissionPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var editable map[string]any
+	if err := json.Unmarshal(data, &editable); err != nil {
+		t.Fatalf("generated submission skeleton is not reviewer input: %v\n%s", err, data)
+	}
+	if len(editable) != 3 {
+		t.Fatalf("generated skeleton must contain only reviewer input fields: %#v", editable)
+	}
+	editable["summary"] = "The generated skeleton can be edited and submitted directly."
+	edited := jsonBytes(t, editable)
+	if err := os.WriteFile(submissionPath, edited, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	submit := svc.Submit(start.Artifacts.RoundID, "reviewer-integrated", edited)
+	if !submit.OK || submit.Review == nil || submit.Review.Decision != "pass" {
+		t.Fatalf("edited generated skeleton did not submit: %#v", submit)
+	}
+	storedData, err := os.ReadFile(submissionPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stored review.Submission
+	if err := json.Unmarshal(storedData, &stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored.RoundID != start.Artifacts.RoundID || stored.Slot != "integrated" || stored.Role != "integrated" || stored.By != "reviewer-integrated" || stored.SubmittedAt == "" {
+		t.Fatalf("command-owned metadata was not added after validation: %#v", stored)
 	}
 }
 

@@ -50,6 +50,36 @@ func TestLoadFileParsesDoneMarkers(t *testing.T) {
 	}
 }
 
+func TestLoadFilePreservesMultilineStepFields(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-18-multiline-step-plan.md")
+	content := mustRenderTemplate(t, "Multiline Step Plan")
+	content = strings.Replace(content,
+		"- Outcome: Describe the concrete outcome for this step.\n- Covers: Criterion 1\n- Check: Describe the smallest useful validation for this outcome.\n",
+		"- Outcome: First outcome line.\n  Second outcome line.\n- Covers:\n  Acceptance criteria 1 and 2.\n- Check: First check line.\n    Second check line.\n",
+		1,
+	)
+	writeFile(t, path, content)
+
+	doc, err := plan.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile returned error: %v", err)
+	}
+	if len(doc.Steps) == 0 {
+		t.Fatal("expected parsed steps")
+	}
+	step := doc.Steps[0]
+	if step.Outcome != "First outcome line.\nSecond outcome line." {
+		t.Fatalf("unexpected multiline outcome: %q", step.Outcome)
+	}
+	if step.Covers != "Acceptance criteria 1 and 2." {
+		t.Fatalf("unexpected multiline covers: %q", step.Covers)
+	}
+	if step.Check != "First check line.\nSecond check line." {
+		t.Fatalf("unexpected multiline check: %q", step.Check)
+	}
+}
+
 func TestDocumentReadyForArchiveSignals(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-18-ready-plan.md")

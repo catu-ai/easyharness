@@ -73,7 +73,8 @@ Contract:
   non-default layouts
 - allow other commands such as `harness status` to reuse the same managed-asset
   comparison logic for non-blocking reminders about stale default repo
-  bootstrap assets
+  bootstrap assets; inspection is read-only and applies during idle, active,
+  archived, and land states without changing the lifecycle node
 
 ### `harness repo skills install|uninstall`
 

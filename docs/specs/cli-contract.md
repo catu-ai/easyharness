@@ -239,10 +239,11 @@ For `harness status` specifically:
   round to its integrated reviewer
 - use `warnings` for recoverable ambiguity or workflow-discipline reminders
   that should not by themselves change `state.current_node`
-- when the worktree is `idle`, `warnings` plus an optional `next_action` may
-  also carry a non-blocking agent reminder that the default repo bootstrap
-  assets are stale relative to the running binary; this reminder must not alter
-  workflow state or block later execution
+- in active, archived, and idle workflow states, `facts.managed_resources`,
+  `warnings`, and an optional `next_action` may carry a non-blocking agent
+  reminder that the default repo bootstrap assets are stale relative to the
+  running binary; inspection must be read-only and must not alter workflow
+  state, displace the active workflow action, or block later execution
 - avoid heuristic warnings for "the current slice may now be reviewable"; keep
   that kind of prompt in ordinary `next_actions`
 
@@ -279,10 +280,16 @@ help explain the node:
     - `observation`: `complete`, `partial`, or `unavailable`
     - `assessment`: workflow meaning such as `matches_recorded`,
       `refresh_available`, `wait_for_remote`, `repair_remote`,
-      `manual_evidence_required`, or `candidate_invalidated`
+      `manual_evidence_required`, `candidate_invalidated`, or
+      `merged_pending_land`
     - `message`: concise human-readable explanation
     - optional minimal `pr.state`/`pr.draft`, `ci.status`, `sync.status`, and
       degradation codes
+- `managed_resources`
+  - present only when default repo managed assets are stale relative to the
+    running binary
+  - reports the `codex` agent, stale instructions, and stale, missing, or extra
+    managed skill package names without changing lifecycle state
 - `land_pr_url`
 - `land_commit`
 
@@ -611,6 +618,8 @@ Contract:
 
 - run only in finalize review or finalize repair; steps are execution progress
   boundaries and cannot bind formal review rounds
+- require every tracked step and acceptance criterion to be complete before
+  creating review state
 - require a Git-backed candidate with a clean worktree and committed `HEAD`,
   ignoring only command-owned runtime artifacts, and capture that immutable
   commit as `reviewed_head_sha`
@@ -658,7 +667,13 @@ This command belongs to the independent reviewer subagent, not the controller.
 Contract:
 
 - require the active round ID and a non-empty reviewer name
-- accept the structured submission through `--input <path>` or stdin
+- create the returned submission path as a directly editable input skeleton
+  containing only reviewer-owned input fields; round, slot, role, reviewer, and
+  submission-time metadata are command-owned and must not appear in that
+  pre-submit skeleton
+- accept the edited generated skeleton directly through `--input <path>`, or
+  accept an equivalent structured submission through another path or stdin;
+  validate the reviewer input before adding command-owned artifact metadata
 - accept one complete integrated judgment containing a concise summary,
   findings, fixed-rubric and plan-focus coverage, and linked-finding
   resolutions when the round is a repair delta

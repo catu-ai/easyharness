@@ -21,6 +21,11 @@ var (
 	templateVersionPattern = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)$`)
 	checkboxPattern        = regexp.MustCompile(`^- \[( |x|X)\] .+`)
 	donePattern            = regexp.MustCompile(`^- Done:\s*\[( |x|X)\]\s*$`)
+	stepContinuationHeader = regexp.MustCompile(`^#{1,6}(?:[ \t]|$)`)
+	stepContinuationNumber = regexp.MustCompile(`^[0-9]+[.)][ \t]`)
+	stepContinuationBullet = regexp.MustCompile(`^[-+*][ \t]`)
+	stepContinuationSetext = regexp.MustCompile(`^[=-]+[ \t]*$`)
+	stepContinuationRule   = regexp.MustCompile(`^(?:\*[ \t]*){3,}$|^(?:_[ \t]*){3,}$|^(?:-[ \t]*){3,}$`)
 )
 
 var (
@@ -456,18 +461,50 @@ func finalizeStep(base step, lines []string) (step, []LintIssue) {
 	}
 
 	seen := map[string]bool{}
+	values := map[string][]string{}
 	previousOrder := -1
 	fieldOrder := map[string]int{"Outcome": 0, "Covers": 1, "Check": 2}
+	currentField := ""
+	separatedFromField := false
 	for _, rawLine := range lines[trimmedIndex+1:] {
-		line := strings.TrimSpace(strings.TrimRight(rawLine, "\r"))
-		if line == "" {
+		line := strings.TrimRight(rawLine, "\r")
+		if strings.TrimSpace(line) == "" {
+			if currentField != "" {
+				separatedFromField = true
+			}
 			continue
 		}
-		if !strings.HasPrefix(line, "- ") || !strings.Contains(line, ":") {
-			issues = append(issues, LintIssue{Path: stepPath, Message: "steps may contain only Outcome, Covers, and optional Check fields"})
+
+		if len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
+			if !strings.HasPrefix(line, "  ") {
+				issues = append(issues, LintIssue{Path: stepPath, Message: "step field continuation lines must be indented by at least two spaces"})
+				continue
+			}
+			continuation := strings.TrimSpace(line)
+			if currentField == "" {
+				issues = append(issues, LintIssue{Path: stepPath, Message: "step field continuation line must follow Outcome, Covers, or Check"})
+				continue
+			}
+			if separatedFromField {
+				issues = append(issues, LintIssue{Path: stepPath + "." + strings.ToLower(currentField), Message: "continuation lines must directly follow the field without a blank line"})
+				continue
+			}
+			if isUnsupportedStepContinuation(continuation) {
+				issues = append(issues, LintIssue{Path: stepPath + "." + strings.ToLower(currentField), Message: "continuation lines may contain ordinary wrapped prose only, not headings, thematic breaks, blockquotes, fences, or nested lists"})
+				continue
+			}
+			values[currentField] = append(values[currentField], continuation)
 			continue
 		}
-		parts := strings.SplitN(strings.TrimPrefix(line, "- "), ":", 2)
+
+		currentField = ""
+		separatedFromField = false
+		trimmedLine := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmedLine, "- ") || !strings.Contains(trimmedLine, ":") {
+			issues = append(issues, LintIssue{Path: stepPath, Message: "steps may contain only Outcome, Covers, optional Check, and their indented continuation lines"})
+			continue
+		}
+		parts := strings.SplitN(strings.TrimPrefix(trimmedLine, "- "), ":", 2)
 		name := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 		order, ok := fieldOrder[name]
@@ -484,17 +521,18 @@ func finalizeStep(base step, lines []string) (step, []LintIssue) {
 			continue
 		}
 		seen[name] = true
-		if value == "" {
-			issues = append(issues, LintIssue{Path: stepPath + "." + strings.ToLower(name), Message: "must not be empty"})
-			continue
+		currentField = name
+		if value != "" {
+			values[name] = append(values[name], value)
 		}
-		switch name {
-		case "Outcome":
-			base.outcome = value
-		case "Covers":
-			base.covers = value
-		case "Check":
-			base.check = value
+	}
+
+	base.outcome = strings.Join(values["Outcome"], "\n")
+	base.covers = strings.Join(values["Covers"], "\n")
+	base.check = strings.Join(values["Check"], "\n")
+	for _, name := range []string{"Outcome", "Covers", "Check"} {
+		if seen[name] && len(values[name]) == 0 {
+			issues = append(issues, LintIssue{Path: stepPath + "." + strings.ToLower(name), Message: "must not be empty"})
 		}
 	}
 
@@ -506,6 +544,18 @@ func finalizeStep(base step, lines []string) (step, []LintIssue) {
 	}
 
 	return base, issues
+}
+
+func isUnsupportedStepContinuation(line string) bool {
+	if stepContinuationHeader.MatchString(line) ||
+		stepContinuationSetext.MatchString(line) ||
+		stepContinuationRule.MatchString(line) ||
+		strings.HasPrefix(line, ">") ||
+		strings.HasPrefix(line, "```") ||
+		strings.HasPrefix(line, "~~~") {
+		return true
+	}
+	return stepContinuationBullet.MatchString(line) || stepContinuationNumber.MatchString(line)
 }
 
 func validatePathRules(ctx *lintContext) []LintIssue {

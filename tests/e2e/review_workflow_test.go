@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -34,10 +35,24 @@ func TestReviewWorkflowWithBuiltBinary(t *testing.T) {
 	if manifest.Kind != "full" || manifest.ReviewedHeadSHA != full.Artifacts.ReviewedHeadSHA || manifest.ReviewFocus == "" {
 		t.Fatalf("unexpected full review manifest: %#v", manifest)
 	}
-
-	blocked := submitReview(t, workspace, full.Artifacts.RoundID, "integrated-reviewer", "One candidate defect remains.", []map[string]any{{
+	generatedSubmissionPath := resolveRepoPath(workspace.Root, full.Artifacts.Reviewer.SubmissionPath)
+	generatedSubmission := support.ReadJSONFile[map[string]any](t, generatedSubmissionPath)
+	generatedSubmission["summary"] = "One candidate defect remains."
+	generatedSubmission["findings"] = []map[string]any{{
 		"area": "review-lifecycle", "severity": "important", "title": "Repair the candidate", "details": "The complete candidate needs a narrow repair.",
-	}}, nil)
+	}}
+	editedSubmission, err := json.MarshalIndent(generatedSubmission, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	editedSubmission = append(editedSubmission, '\n')
+	if err := os.WriteFile(generatedSubmissionPath, editedSubmission, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	blockedCommand := support.Run(t, workspace.Root, "review", "submit", "--round", full.Artifacts.RoundID, "--by", "integrated-reviewer", "--input", generatedSubmissionPath)
+	support.RequireSuccess(t, blockedCommand)
+	blocked := support.RequireJSONResult[submitResult](t, blockedCommand)
 	if blocked.Review.Decision != "changes_requested" || len(blocked.Review.BlockingFindings) != 1 {
 		t.Fatalf("expected blocking submission to decide the round immediately, got %#v", blocked)
 	}
