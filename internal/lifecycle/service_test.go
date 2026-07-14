@@ -1650,8 +1650,8 @@ func TestEvaluateArchivedReviewCoverageAllowsUnrelatedBaseSynchronization(t *tes
 	candidateHead := runGit("rev-parse", "HEAD")
 
 	writeMergeReadyEvidenceArtifacts(t, root, "2026-03-18-landed-plan", archivedRelPath)
-	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "publish", map[string]any{"commit": candidateHead})
-	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "sync", map[string]any{"base_commit": currentBase, "head_commit": candidateHead})
+	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "publish", map[string]any{"commit": publishedHead})
+	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "sync", map[string]any{"status": "fresh", "pr_url": "https://github.com/catu-ai/easyharness/pull/99", "base_commit": currentBase, "head_commit": candidateHead})
 	doc, err := plan.LoadFile(filepath.Join(root, archivedRelPath))
 	if err != nil {
 		t.Fatalf("load synchronized archived plan: %v", err)
@@ -1659,6 +1659,11 @@ func TestEvaluateArchivedReviewCoverageAllowsUnrelatedBaseSynchronization(t *tes
 	issues := lifecycle.EvaluateArchivedReviewCoverage(root, "2026-03-18-landed-plan", doc, state)
 	if len(issues) != 0 {
 		t.Fatalf("expected unrelated base synchronization to preserve review coverage, got %#v", issues)
+	}
+	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "sync", map[string]any{"pr_url": "https://github.com/catu-ai/easyharness/pull/100"})
+	issues = lifecycle.EvaluateArchivedReviewCoverage(root, "2026-03-18-landed-plan", doc, state)
+	if len(issues) == 0 {
+		t.Fatal("expected mismatched sync PR identity to fail closed")
 	}
 }
 
@@ -1728,8 +1733,8 @@ func TestLandUsesPublishedRebasedCandidateAfterSquashMerge(t *testing.T) {
 	}
 
 	writeMergeReadyEvidenceArtifacts(t, root, "2026-03-18-landed-plan", archivedRelPath)
-	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "publish", map[string]any{"commit": publishedHead})
-	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "sync", map[string]any{"base_commit": baseHead, "head_commit": publishedHead})
+	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "publish", map[string]any{"commit": reviewedArchiveHead})
+	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "sync", map[string]any{"status": "fresh", "pr_url": "https://github.com/catu-ai/easyharness/pull/99", "base_commit": baseHead, "head_commit": publishedHead})
 
 	result := lifecycle.Service{Workdir: root}.Land("https://github.com/catu-ai/easyharness/pull/99", runGit("rev-parse", "HEAD"))
 	if !result.OK {
@@ -1950,9 +1955,8 @@ func writeMergeReadyEvidenceArtifacts(t *testing.T, root, planStem, planPath str
 				"plan_stem":   planStem,
 				"revision":    revision,
 				"recorded_at": recordedAt,
-				"status":      "fresh",
-				"base_ref":    "main",
-				"head_ref":    "codex/test",
+				"status":      "not_applied",
+				"reason":      "generic lifecycle fixture does not model a remote base comparison",
 			},
 		},
 	}

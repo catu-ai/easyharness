@@ -49,9 +49,8 @@ func TestLandWorkflowWithBuiltBinary(t *testing.T) {
 		"url":      "https://ci.example/build/2",
 	})
 	submitEvidence(t, workspace, "sync", "tmp/sync.json", map[string]any{
-		"status":   "fresh",
-		"base_ref": "main",
-		"head_ref": "codex/e2e-lifecycle-handoff-coverage",
+		"status": "not_applied",
+		"reason": "fixture does not model a remote base comparison",
 	})
 
 	preLandStatus := runStatus(t, workspace.Root)

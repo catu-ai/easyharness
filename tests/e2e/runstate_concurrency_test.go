@@ -76,6 +76,8 @@ func TestArchivedRunstateInterleavingsIgnoreStaleEvidenceAndFailClearlyUnderLock
 	if !archivePayload.OK || archivePayload.Command != "archive" || archivePayload.Facts.Revision != 2 {
 		t.Fatalf("expected second archive to preserve revision 2, got %#v", archivePayload)
 	}
+	rearchivedHead := workspace.CommitAll(t, "commit revision-2 archive move")
+	rearchivedBase := resolveWorkspaceRevision(t, workspace.Root, rearchivedHead+"^")
 
 	postRearchiveStatus := runStatus(t, workspace.Root)
 	assertNode(t, postRearchiveStatus, "execution/finalize/publish")
@@ -130,9 +132,12 @@ func TestArchivedRunstateInterleavingsIgnoreStaleEvidenceAndFailClearlyUnderLock
 		"url":      "https://ci.example/build/rev2",
 	})
 	submitEvidence(t, workspace, "sync", "tmp/rev2-sync.json", map[string]any{
-		"status":   "fresh",
-		"base_ref": "main",
-		"head_ref": "codex/runstate-concurrency-coverage",
+		"status":      "fresh",
+		"base_ref":    "main",
+		"head_ref":    "codex/runstate-concurrency-coverage",
+		"base_commit": rearchivedBase,
+		"head_commit": rearchivedHead,
+		"pr_url":      "https://github.com/catu-ai/easyharness/pull/156",
 	})
 
 	finalStatus := runStatus(t, workspace.Root)

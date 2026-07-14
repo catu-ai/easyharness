@@ -971,6 +971,10 @@ Contract:
 - record the compared immutable `base_commit` and `head_commit` with refreshed
   sync evidence so later base-aware coverage and post-merge land validation do
   not depend on mutable branch names
+- bind those commits to the same `pr_url` recorded by publish evidence. For a
+  fresh record, the sync `head_commit` is the current remote candidate identity
+  and supersedes an older publish-time commit after branch synchronization;
+  mismatched PR identity or incomplete commit identity fails closed
 - surface provider approvals or merge-rule blocking separately from `sync`;
   `UNSTABLE` with pending checks does not make a current branch stale, while
   `BLOCKED` may leave sync fresh and still prevent merge approval

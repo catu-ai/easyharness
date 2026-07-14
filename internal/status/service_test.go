@@ -670,7 +670,7 @@ func TestStatusRemoteAssessmentMatchesRecordedEvidence(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -784,7 +784,7 @@ func TestStatusRemoteAssessmentInvalidatesReadyClosedPR(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -819,7 +819,7 @@ func TestStatusRemoteAssessmentRecoversReadyMergedPRIntoLand(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"not_applied","reason":"this remote-merge status fixture does not model immutable git commits"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -856,12 +856,12 @@ func TestStatusSuggestsRefreshWhenCleanRemoteCanReplaceNonReadyEvidence(t *testi
 		{
 			name:      "failed CI evidence",
 			ciInput:   `{"status":"failed","provider":"github-actions","url":"https://ci.example/run"}`,
-			syncInput: `{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`,
+			syncInput: `{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`,
 		},
 		{
 			name:      "conflicted sync evidence",
 			ciInput:   `{"status":"success","provider":"github-actions","url":"https://ci.example/run"}`,
-			syncInput: `{"status":"conflicted","base_ref":"main","head_ref":"codex/test"}`,
+			syncInput: `{"status":"conflicted","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`,
 		},
 	}
 
@@ -924,7 +924,7 @@ func TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode(t *t
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -993,14 +993,14 @@ func TestStatusArchivedPlanKeepsEvidenceRefreshForNonReadyRecordedPR(t *testing.
 		{
 			name:            "pending CI",
 			ciInput:         `{"status":"pending","provider":"github-actions","url":"https://ci.example/run"}`,
-			syncInput:       `{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`,
+			syncInput:       `{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`,
 			wantStatus:      "pending",
 			fallbackCommand: "harness evidence submit --kind ci --input <json>",
 		},
 		{
 			name:            "stale sync",
 			ciInput:         `{"status":"success","provider":"github-actions","url":"https://ci.example/run"}`,
-			syncInput:       `{"status":"stale","base_ref":"main","head_ref":"codex/test"}`,
+			syncInput:       `{"status":"stale","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`,
 			wantStatus:      "stale",
 			fallbackCommand: "harness evidence submit --kind sync --input <json>",
 		},
@@ -1059,7 +1059,7 @@ func TestStatusArchivedPlanReadyForAwaitMerge(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"not_applied","reason":"repository has no hosted CI in this test"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -1096,7 +1096,7 @@ func TestStatusPostArchiveProductCommitCannotReachAwaitMerge(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -1132,7 +1132,7 @@ func TestStatusArchivedPlanReadyForAwaitMergeFromEvidenceArtifacts(t *testing.T)
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -1171,7 +1171,7 @@ func TestStatusArchivedPlanIgnoresOlderRevisionEvidenceArtifacts(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 	writeState(t, root, "2026-03-18-status-plan", map[string]any{
@@ -1275,7 +1275,7 @@ func TestStatusArchivedPlanStaysInPublishFromEvidenceArtifactsWhenDirty(t *testi
 	if result := svc.Submit("ci", []byte(`{"status":"failed","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -1318,7 +1318,7 @@ func TestStatusArchivedPlanStaysInPublishWhenEvidenceIsDirty(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"pending","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -1360,7 +1360,7 @@ func TestStatusArchivedPlanStaysInPublishWhenSyncIsDirty(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"conflicted","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"conflicted","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -2041,6 +2041,8 @@ func initCommittedGitCandidate(t *testing.T, root string) string {
 		{"init", "-q"},
 		{"config", "user.name", "Status Test"},
 		{"config", "user.email", "status-test@example.com"},
+		{"config", "gc.auto", "0"},
+		{"config", "maintenance.auto", "false"},
 		{"add", "."},
 		{"commit", "-qm", "candidate"},
 	} {

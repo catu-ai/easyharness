@@ -40,7 +40,8 @@ func TestPublishHandoffWithBuiltBinary(t *testing.T) {
 	if archivePayload.Artifacts.ToPlanPath != "docs/plans/archived/2026-03-23-publish-handoff.md" {
 		t.Fatalf("expected archived publish-handoff path, got %#v", archivePayload)
 	}
-	workspace.CommitAll(t, "commit mechanical archive move")
+	archivedHead := workspace.CommitAll(t, "commit mechanical archive move")
+	archivedBase := resolveWorkspaceRevision(t, workspace.Root, archivedHead+"^")
 
 	publish := submitEvidence(t, workspace, "publish", "tmp/publish.json", map[string]any{
 		"status": "recorded",
@@ -77,9 +78,12 @@ func TestPublishHandoffWithBuiltBinary(t *testing.T) {
 	}
 
 	sync := submitEvidence(t, workspace, "sync", "tmp/sync.json", map[string]any{
-		"status":   "fresh",
-		"base_ref": "main",
-		"head_ref": "codex/e2e-lifecycle-handoff-coverage",
+		"status":      "fresh",
+		"base_ref":    "main",
+		"head_ref":    "codex/e2e-lifecycle-handoff-coverage",
+		"base_commit": archivedBase,
+		"head_commit": archivedHead,
+		"pr_url":      "https://github.com/catu-ai/easyharness/pull/99",
 	})
 	if sync.Artifacts.Kind != "sync" {
 		t.Fatalf("expected sync evidence artifacts, got %#v", sync)
@@ -114,7 +118,8 @@ func TestPostArchiveProductCommitCannotBecomeMergeReadyWithBuiltBinary(t *testin
 	drivePlanToArchivedPublishNode(t, workspace, planPath, publishStepOneTitle, publishStepTwoTitle)
 	workspace.CommitAll(t, "commit mechanical archive move")
 	workspace.WriteFile(t, "product.go", []byte("package product\n\nconst Unreviewed = true\n"))
-	workspace.CommitAll(t, "unreviewed post-archive product change")
+	unreviewedHead := workspace.CommitAll(t, "unreviewed post-archive product change")
+	reviewedBase := resolveWorkspaceRevision(t, workspace.Root, unreviewedHead+"^^")
 
 	submitEvidence(t, workspace, "publish", "tmp/publish.json", map[string]any{
 		"status": "recorded",
@@ -127,6 +132,8 @@ func TestPostArchiveProductCommitCannotBecomeMergeReadyWithBuiltBinary(t *testin
 	})
 	submitEvidence(t, workspace, "sync", "tmp/sync.json", map[string]any{
 		"status": "fresh", "base_ref": "main", "head_ref": "codex/post-archive-coverage",
+		"base_commit": reviewedBase, "head_commit": unreviewedHead,
+		"pr_url": "https://github.com/catu-ai/easyharness/pull/99",
 	})
 
 	result := runStatus(t, workspace.Root)

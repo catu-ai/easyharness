@@ -1089,7 +1089,7 @@ func EvaluateArchiveReadiness(workdir, planStem string, doc *plan.Document, stat
 // the candidate accepted by finalize review, apart from the command-owned plan
 // archive move and allowed Closeout updates.
 func EvaluateArchivedReviewCoverage(workdir, planStem string, doc *plan.Document, state *runstate.State) []CommandError {
-	return evaluateArchivedReviewCoverage(workdir, planStem, doc, state, "")
+	return evaluateArchivedReviewCoverage(workdir, planStem, doc, state, "", "")
 }
 
 // EvaluatePublishedReviewCoverage verifies the immutable published candidate
@@ -1101,13 +1101,29 @@ func EvaluatePublishedReviewCoverage(workdir, planStem string, doc *plan.Documen
 	if err != nil {
 		return []CommandError{{Path: "evidence.publish", Message: err.Error()}}
 	}
-	if publish == nil || strings.TrimSpace(publish.Commit) == "" {
+	if publish == nil {
 		return EvaluateArchivedReviewCoverage(workdir, planStem, doc, state)
 	}
-	return evaluateArchivedReviewCoverage(workdir, planStem, doc, state, strings.TrimSpace(publish.Commit))
+	publishedRevision := strings.TrimSpace(publish.Commit)
+	baseRevision := ""
+	syncRecord, err := evidence.LoadLatestSync(workdir, planStem, runstate.CurrentRevision(state))
+	if err != nil {
+		return []CommandError{{Path: "evidence.sync", Message: err.Error()}}
+	}
+	if syncRecord != nil && syncRecord.Status == "fresh" {
+		if err := validateSyncCandidateIdentity(publish, syncRecord); err != nil {
+			return []CommandError{{Path: "evidence.sync", Message: err.Error()}}
+		}
+		publishedRevision = strings.TrimSpace(syncRecord.HeadCommit)
+		baseRevision = strings.TrimSpace(syncRecord.BaseCommit)
+	}
+	if publishedRevision == "" {
+		return EvaluateArchivedReviewCoverage(workdir, planStem, doc, state)
+	}
+	return evaluateArchivedReviewCoverage(workdir, planStem, doc, state, publishedRevision, baseRevision)
 }
 
-func evaluateArchivedReviewCoverage(workdir, planStem string, doc *plan.Document, state *runstate.State, publishedRevision string) []CommandError {
+func evaluateArchivedReviewCoverage(workdir, planStem string, doc *plan.Document, state *runstate.State, publishedRevision, publishedBaseRevision string) []CommandError {
 	if state == nil || state.FinalizeCoverage == nil || strings.TrimSpace(state.FinalizeCoverage.TipRoundID) == "" {
 		return []CommandError{{
 			Path:    "state.finalize_coverage",
@@ -1138,8 +1154,8 @@ func evaluateArchivedReviewCoverage(workdir, planStem string, doc *plan.Document
 	}
 	var validationErr error
 	if publishedRevision != "" {
-		if baseRevision := publishedCandidateBaseRevision(workdir, planStem, state, publishedRevision); baseRevision != "" {
-			validationErr = reviewcoverage.ValidatePublishedCandidateAgainstBase(workdir, doc.Path, chain, publishedRevision, baseRevision)
+		if publishedBaseRevision != "" {
+			validationErr = reviewcoverage.ValidatePublishedCandidateAgainstBase(workdir, doc.Path, chain, publishedRevision, publishedBaseRevision)
 		} else {
 			validationErr = reviewcoverage.ValidatePublishedCandidate(workdir, doc.Path, chain, publishedRevision)
 		}
@@ -1164,11 +1180,11 @@ func archivedCandidateBaseRevision(workdir, planStem string, state *runstate.Sta
 	if err != nil || syncRecord == nil || syncRecord.Status != "fresh" {
 		return ""
 	}
-	currentHead, err := reviewcoverage.ResolveCommit(workdir, "HEAD")
-	if err != nil || strings.TrimSpace(syncRecord.HeadCommit) == "" || currentHead != strings.TrimSpace(syncRecord.HeadCommit) {
+	if err := validateSyncCandidateIdentity(publish, syncRecord); err != nil {
 		return ""
 	}
-	if strings.TrimSpace(publish.Commit) != "" && strings.TrimSpace(publish.Commit) != strings.TrimSpace(syncRecord.HeadCommit) {
+	currentHead, err := reviewcoverage.ResolveCommit(workdir, "HEAD")
+	if err != nil || strings.TrimSpace(syncRecord.HeadCommit) == "" || currentHead != strings.TrimSpace(syncRecord.HeadCommit) {
 		return ""
 	}
 	if strings.TrimSpace(syncRecord.BaseCommit) != "" {
@@ -1177,16 +1193,17 @@ func archivedCandidateBaseRevision(workdir, planStem string, state *runstate.Sta
 	return ""
 }
 
-func publishedCandidateBaseRevision(workdir, planStem string, state *runstate.State, publishedRevision string) string {
-	syncRecord, err := evidence.LoadLatestSync(workdir, planStem, runstate.CurrentRevision(state))
-	if err != nil || syncRecord == nil || syncRecord.Status != "fresh" {
-		return ""
+func validateSyncCandidateIdentity(publish *evidence.PublishRecord, syncRecord *evidence.SyncRecord) error {
+	if publish == nil || syncRecord == nil {
+		return fmt.Errorf("fresh sync evidence requires publish and sync candidate identity")
 	}
-	publishedHead, err := reviewcoverage.ResolveCommit(workdir, publishedRevision)
-	if err != nil || strings.TrimSpace(syncRecord.HeadCommit) == "" || publishedHead != strings.TrimSpace(syncRecord.HeadCommit) {
-		return ""
+	if strings.TrimSpace(syncRecord.PRURL) == "" || strings.TrimSpace(syncRecord.PRURL) != strings.TrimSpace(publish.PRURL) {
+		return fmt.Errorf("fresh sync evidence PR URL does not match publish evidence")
 	}
-	return strings.TrimSpace(syncRecord.BaseCommit)
+	if strings.TrimSpace(syncRecord.BaseCommit) == "" || strings.TrimSpace(syncRecord.HeadCommit) == "" {
+		return fmt.Errorf("fresh sync evidence must record immutable base_commit and head_commit")
+	}
+	return nil
 }
 
 func archiveStateIssues(workdir, planStem string, doc *plan.Document, revision int, state *runstate.State) []CommandError {

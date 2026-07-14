@@ -95,7 +95,7 @@ func TestRefreshWritesCIAndSyncEvidenceFromRecordedPR(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load sync: %v", err)
 	}
-	if sync == nil || sync.Status != "fresh" || sync.BaseRef != "main" || sync.HeadRef != "codex/test" || sync.BaseCommit != "def456" || sync.HeadCommit != "abc123" {
+	if sync == nil || sync.Status != "fresh" || sync.BaseRef != "main" || sync.HeadRef != "codex/test" || sync.BaseCommit != "def456" || sync.HeadCommit != "abc123" || sync.PRURL != "https://github.com/catu-ai/easyharness/pull/99" {
 		t.Fatalf("unexpected sync record: %#v", sync)
 	}
 }
@@ -620,7 +620,7 @@ func TestSubmitSyncFreshWritesArtifactWithoutStateCache(t *testing.T) {
 		Now: func() time.Time {
 			return time.Date(2026, 3, 21, 10, 7, 0, 0, time.UTC)
 		},
-	}.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123"}`))
+	}.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`))
 	if !result.OK {
 		t.Fatalf("expected success, got %#v", result)
 	}
@@ -638,7 +638,7 @@ func TestSubmitSyncFreshWritesArtifactWithoutStateCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load latest sync record: %v", err)
 	}
-	if record == nil || record.Status != "fresh" || record.BaseRef != "main" || record.BaseCommit != "def456" || record.HeadCommit != "abc123" {
+	if record == nil || record.Status != "fresh" || record.BaseRef != "main" || record.BaseCommit != "def456" || record.HeadCommit != "abc123" || record.PRURL != "https://github.com/catu-ai/easyharness/pull/99" {
 		t.Fatalf("unexpected sync record: %#v", record)
 	}
 }
@@ -784,7 +784,7 @@ func TestLoadLatestSyncPrefersNewestRecord(t *testing.T) {
 		Now: func() time.Time {
 			return time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC)
 		},
-	}.Submit("sync", []byte(`{"status":"stale","base_ref":"main","head_ref":"codex/test"}`))
+	}.Submit("sync", []byte(`{"status":"stale","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`))
 	if !first.OK {
 		t.Fatalf("expected first sync submit success, got %#v", first)
 	}
@@ -793,7 +793,7 @@ func TestLoadLatestSyncPrefersNewestRecord(t *testing.T) {
 		Now: func() time.Time {
 			return time.Date(2026, 3, 21, 10, 3, 0, 0, time.UTC)
 		},
-	}.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test-2"}`))
+	}.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test-2","base_commit":"def456","head_commit":"abc789","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`))
 	if !second.OK {
 		t.Fatalf("expected second sync submit success, got %#v", second)
 	}

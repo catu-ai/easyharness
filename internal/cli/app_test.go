@@ -2791,7 +2791,7 @@ func seedMergeReadyEvidenceForCLI(t *testing.T, root string) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("seed ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"not_applied","reason":"CLI land fixture does not model immutable git commits"}`)); !result.OK {
 		t.Fatalf("seed sync evidence: %#v", result)
 	}
 }

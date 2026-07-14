@@ -140,6 +140,7 @@ func (s Service) Submit(kind string, inputBytes []byte) Result {
 			HeadRef:    strings.TrimSpace(input.HeadRef),
 			BaseCommit: strings.TrimSpace(input.BaseCommit),
 			HeadCommit: strings.TrimSpace(input.HeadCommit),
+			PRURL:      strings.TrimSpace(input.PRURL),
 			Reason:     strings.TrimSpace(input.Reason),
 		}
 		if err := writeJSONFile(recordPath, record); err != nil {
@@ -242,6 +243,7 @@ func (s Service) Refresh() RefreshResult {
 			HeadRef:    observation.PR.HeadRefName,
 			BaseCommit: observation.PR.BaseRefOID,
 			HeadCommit: observation.PR.HeadRefOID,
+			PRURL:      identity.URL,
 			Reason:     "Refreshed from the recorded pull request base comparison and conflict state.",
 		}
 		syncRecordPath = recordPath
@@ -427,7 +429,17 @@ func validateSyncInput(input SyncInput) []CommandError {
 	status := strings.ToLower(strings.TrimSpace(input.Status))
 	switch status {
 	case "fresh", "stale", "conflicted":
-		return nil
+		issues := make([]CommandError, 0, 3)
+		if baseCommit == "" {
+			issues = append(issues, CommandError{Path: "input.base_commit", Message: "base_commit is required for sync evidence"})
+		}
+		if headCommit == "" {
+			issues = append(issues, CommandError{Path: "input.head_commit", Message: "head_commit is required for sync evidence"})
+		}
+		if strings.TrimSpace(input.PRURL) == "" {
+			issues = append(issues, CommandError{Path: "input.pr_url", Message: "pr_url is required for sync evidence"})
+		}
+		return issues
 	case "not_applied":
 		if strings.TrimSpace(input.Reason) == "" {
 			return []CommandError{{Path: "input.reason", Message: "reason is required when status=not_applied"}}

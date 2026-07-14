@@ -428,9 +428,12 @@ rerun checks, comment, label, review, merge, or perform other GitHub writes.
 
 Refresh writes evidence only for domains whose remote facts are clear enough.
 Fresh sync evidence records the immutable compared base and head commit IDs as
-well as their human-facing refs. Those IDs bind base-aware review preservation
-and post-merge recovery to the exact observed candidate rather than a branch
-name that may move after squash or rebase land.
+well as their human-facing refs and the publish-recorded PR URL. The sync head
+is the current remote candidate identity and may supersede an older
+publish-time commit after branch synchronization. Those IDs bind base-aware
+review preservation and post-merge recovery to the exact observed candidate
+rather than a branch name that may move after squash or rebase land; mismatched
+PR identity fails closed.
 If checks are unreadable but merge state is clear, refresh may write `sync`
 evidence while degrading `ci`; the reverse is also allowed. If a domain is
 unavailable, ambiguous, or unsupported, refresh should leave that evidence
