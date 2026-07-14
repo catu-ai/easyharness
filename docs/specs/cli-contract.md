@@ -1001,8 +1001,9 @@ Contract:
 - require `--pr <url>` and optionally accept `--commit <sha>`
 - validate that publish, CI, and sync evidence make the candidate merge-ready
 - when the current checkout is already the squash- or rebase-landed result,
-  validate the immutable commit recorded by publish evidence instead of
-  requiring the landed commit to descend from the feature head
+  validate the latest fresh sync evidence's immutable base/head candidate,
+  bound to the PR identity recorded by publish evidence, instead of requiring
+  the landed commit to descend from the feature head
 - record merge confirmation in plan-local runtime state
 - leave archived plan content untouched; this is a local-state milestone only
 - return the shared v0.2 envelope with the `land` post-command node and any

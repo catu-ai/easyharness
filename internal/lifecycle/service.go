@@ -1173,7 +1173,7 @@ func evaluateArchivedReviewCoverage(workdir, planStem string, doc *plan.Document
 func archivedCandidateBaseRevision(workdir, planStem string, state *runstate.State) string {
 	revision := runstate.CurrentRevision(state)
 	publish, err := evidence.LoadLatestPublish(workdir, planStem, revision)
-	if err != nil || publish == nil || strings.TrimSpace(publish.Base) == "" {
+	if err != nil || publish == nil {
 		return ""
 	}
 	syncRecord, err := evidence.LoadLatestSync(workdir, planStem, revision)

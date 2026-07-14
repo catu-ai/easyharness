@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/catu-ai/easyharness/internal/contracts"
+	"github.com/catu-ai/easyharness/internal/evidence"
 	"github.com/catu-ai/easyharness/internal/lifecycle"
 	"github.com/catu-ai/easyharness/internal/plan"
 	"github.com/catu-ai/easyharness/internal/runstate"
@@ -1615,7 +1616,7 @@ func TestLandRejectsPostArchiveProductCommitOutsideReviewCoverage(t *testing.T) 
 	assertErrorContains(t, result.Errors, "review.coverage", "product.go")
 }
 
-func TestEvaluateArchivedReviewCoverageAllowsUnrelatedBaseSynchronization(t *testing.T) {
+func TestEvaluateArchivedReviewCoverageAllowsUnrelatedBaseSynchronizationWithoutPublishBase(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "base.txt"), "base\n")
 	commitLifecycleCandidate(t, root)
@@ -1652,6 +1653,10 @@ func TestEvaluateArchivedReviewCoverageAllowsUnrelatedBaseSynchronization(t *tes
 	writeMergeReadyEvidenceArtifacts(t, root, "2026-03-18-landed-plan", archivedRelPath)
 	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "publish", map[string]any{"commit": publishedHead})
 	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "sync", map[string]any{"status": "fresh", "pr_url": "https://github.com/catu-ai/easyharness/pull/99", "base_commit": currentBase, "head_commit": candidateHead})
+	publish, err := evidence.LoadLatestPublish(root, "2026-03-18-landed-plan", 1)
+	if err != nil || publish == nil || publish.Base != "" {
+		t.Fatalf("expected contract-valid publish evidence without optional base: publish=%#v err=%v", publish, err)
+	}
 	doc, err := plan.LoadFile(filepath.Join(root, archivedRelPath))
 	if err != nil {
 		t.Fatalf("load synchronized archived plan: %v", err)
@@ -1928,7 +1933,6 @@ func writeMergeReadyEvidenceArtifacts(t *testing.T, root, planStem, planPath str
 				"status":      "recorded",
 				"pr_url":      "https://github.com/catu-ai/easyharness/pull/99",
 				"branch":      "codex/test",
-				"base":        "main",
 			},
 		},
 		{
