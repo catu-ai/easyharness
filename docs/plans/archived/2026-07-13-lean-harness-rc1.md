@@ -240,11 +240,14 @@ more workflow machinery.
 
 ## Closeout
 
-- Validation: PENDING_UNTIL_ARCHIVE
-- Review: PENDING_UNTIL_ARCHIVE
-- Delivered: PENDING_UNTIL_ARCHIVE
-- Not Delivered: PENDING_UNTIL_ARCHIVE
-- Follow-Up Issues: NONE
-- PR: PENDING_UNTIL_ARCHIVE
-- Ready: PENDING_UNTIL_ARCHIVE
-- Merge Handoff: PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-07-14T09:43:55+08:00
+- Revision: 1
+- Validation: Managed instruction sources fell from 77,314 to 21,159 bytes (72.6%); final `scripts/validate-release`, full Go, focused race, real-binary lifecycle E2E, UI build, and diff checks pass.
+- Review: One integrated full review plus reviewer-owned linked deltas resolved round immutability, progress derivation, documentation consistency, and the complete post-archive reviewed-head boundary; the reviewer personally submitted every judgment, nested advisors proved usable, and `review-005-delta` passes with no unresolved blockers.
+- Delivered: Compact plans and prompts, preauthorized bounded/nested delegation, outcome and acceptance progress, one mandatory integrated reviewer with automatic plan focus and optional advisors, direct submission, full-plus-delta coverage, simplified CLI/state/contracts/UI, issue consolidation, and `VERSION=0.6.0-rc.1`.
+- Not Delivered: RC-feedback-driven private artifact cleanup, goal-oriented execution, model/reasoning configuration, risk scoring, and permanent telemetry remain outside this candidate.
+- Follow-Up Issues: [#293](https://github.com/catu-ai/easyharness/issues/293) tracks RC publication, Homebrew verification, feedback, and the stable `v0.6.0` decision; goal-oriented work remains under `v0.7.0`.
+- PR: Publish `codex/lean-harness-rc1` as the ready RC implementation PR after the archive commit and record its URL in harness publish evidence.
+- Ready: All 13 acceptance criteria and four outcome steps are complete, final release validation passes, and integrated full-plus-delta coverage reaches the final candidate.
+- Merge Handoff: Wait for explicit human merge approval after current PR CI and base sync pass; after merge, verify tag `v0.6.0-rc.1`, GitHub prerelease assets, the default Homebrew formula update, and an installed Homebrew binary reporting the RC version.
+
