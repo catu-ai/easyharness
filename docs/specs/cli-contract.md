@@ -667,7 +667,13 @@ This command belongs to the independent reviewer subagent, not the controller.
 Contract:
 
 - require the active round ID and a non-empty reviewer name
-- accept the structured submission through `--input <path>` or stdin
+- create the returned submission path as a directly editable input skeleton
+  containing only reviewer-owned input fields; round, slot, role, reviewer, and
+  submission-time metadata are command-owned and must not appear in that
+  pre-submit skeleton
+- accept the edited generated skeleton directly through `--input <path>`, or
+  accept an equivalent structured submission through another path or stdin;
+  validate the reviewer input before adding command-owned artifact metadata
 - accept one complete integrated judgment containing a concise summary,
   findings, fixed-rubric and plan-focus coverage, and linked-finding
   resolutions when the round is a repair delta

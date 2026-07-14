@@ -204,7 +204,7 @@ func (s Service) Start(options StartOptions) StartResult {
 		})
 	}
 	for _, assignment := range assignments {
-		if err := writeJSON(assignment.SubmissionPath, newSubmissionSkeleton(roundID, assignment)); err != nil {
+		if err := writeJSON(assignment.SubmissionPath, newSubmissionSkeleton()); err != nil {
 			_ = os.RemoveAll(roundDir)
 			return StartResult{
 				OK:      false,
@@ -1182,11 +1182,8 @@ func cloneLocations(locations []string, present bool) []string {
 	return append([]string(nil), locations...)
 }
 
-func newSubmissionSkeleton(roundID string, assignment ManifestAssignment) map[string]any {
+func newSubmissionSkeleton() map[string]any {
 	return map[string]any{
-		"round_id":    roundID,
-		"slot":        assignment.Slot,
-		"role":        assignment.Role,
 		"summary":     "",
 		"resolutions": []FindingResolution{},
 		"findings":    []Finding{},

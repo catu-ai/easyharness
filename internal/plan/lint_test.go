@@ -77,22 +77,52 @@ func TestLintFileRejectsMalformedStepFieldContinuations(t *testing.T) {
 		{
 			name:        "heading",
 			replacement: "- Outcome: First line.\n  #### Hidden details\n- Covers: Criterion 1",
-			wantMessage: "wrapped text only",
+			wantMessage: "ordinary wrapped prose only",
 		},
 		{
 			name:        "fence",
 			replacement: "- Outcome: First line.\n  ```text\n- Covers: Criterion 1",
-			wantMessage: "wrapped text only",
+			wantMessage: "ordinary wrapped prose only",
 		},
 		{
 			name:        "indented duplicate field",
 			replacement: "- Outcome: First line.\n  - Outcome: Hidden duplicate.\n- Covers: Criterion 1",
-			wantMessage: "wrapped text only",
+			wantMessage: "ordinary wrapped prose only",
 		},
 		{
 			name:        "numbered list",
 			replacement: "- Outcome: First line.\n  1. Hidden detail.\n- Covers: Criterion 1",
-			wantMessage: "wrapped text only",
+			wantMessage: "ordinary wrapped prose only",
+		},
+		{
+			name:        "tab-separated bullet",
+			replacement: "- Outcome: First line.\n  -\tHidden detail.\n- Covers: Criterion 1",
+			wantMessage: "ordinary wrapped prose only",
+		},
+		{
+			name:        "tab-separated numbered list",
+			replacement: "- Outcome: First line.\n  1.\tHidden detail.\n- Covers: Criterion 1",
+			wantMessage: "ordinary wrapped prose only",
+		},
+		{
+			name:        "setext heading",
+			replacement: "- Outcome: First line.\n  =====\n- Covers: Criterion 1",
+			wantMessage: "thematic breaks",
+		},
+		{
+			name:        "dash setext heading",
+			replacement: "- Outcome: First line.\n  --\n- Covers: Criterion 1",
+			wantMessage: "thematic breaks",
+		},
+		{
+			name:        "thematic break",
+			replacement: "- Outcome: First line.\n  * * *\n- Covers: Criterion 1",
+			wantMessage: "thematic breaks",
+		},
+		{
+			name:        "blockquote",
+			replacement: "- Outcome: First line.\n  > Quoted detail.\n- Covers: Criterion 1",
+			wantMessage: "blockquotes",
 		},
 	}
 

@@ -23,6 +23,9 @@ var (
 	donePattern            = regexp.MustCompile(`^- Done:\s*\[( |x|X)\]\s*$`)
 	stepContinuationHeader = regexp.MustCompile(`^#{1,6}(?:[ \t]|$)`)
 	stepContinuationNumber = regexp.MustCompile(`^[0-9]+[.)][ \t]`)
+	stepContinuationBullet = regexp.MustCompile(`^[-+*][ \t]`)
+	stepContinuationSetext = regexp.MustCompile(`^[=-]+[ \t]*$`)
+	stepContinuationRule   = regexp.MustCompile(`^(?:\*[ \t]*){3,}$|^(?:_[ \t]*){3,}$|^(?:-[ \t]*){3,}$`)
 )
 
 var (
@@ -487,7 +490,7 @@ func finalizeStep(base step, lines []string) (step, []LintIssue) {
 				continue
 			}
 			if isUnsupportedStepContinuation(continuation) {
-				issues = append(issues, LintIssue{Path: stepPath + "." + strings.ToLower(currentField), Message: "continuation lines may contain wrapped text only, not headings, fences, or nested lists"})
+				issues = append(issues, LintIssue{Path: stepPath + "." + strings.ToLower(currentField), Message: "continuation lines may contain ordinary wrapped prose only, not headings, thematic breaks, blockquotes, fences, or nested lists"})
 				continue
 			}
 			values[currentField] = append(values[currentField], continuation)
@@ -544,10 +547,15 @@ func finalizeStep(base step, lines []string) (step, []LintIssue) {
 }
 
 func isUnsupportedStepContinuation(line string) bool {
-	if stepContinuationHeader.MatchString(line) || strings.HasPrefix(line, "```") || strings.HasPrefix(line, "~~~") {
+	if stepContinuationHeader.MatchString(line) ||
+		stepContinuationSetext.MatchString(line) ||
+		stepContinuationRule.MatchString(line) ||
+		strings.HasPrefix(line, ">") ||
+		strings.HasPrefix(line, "```") ||
+		strings.HasPrefix(line, "~~~") {
 		return true
 	}
-	return strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") || strings.HasPrefix(line, "+ ") || stepContinuationNumber.MatchString(line)
+	return stepContinuationBullet.MatchString(line) || stepContinuationNumber.MatchString(line)
 }
 
 func validatePathRules(ctx *lintContext) []LintIssue {

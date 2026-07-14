@@ -128,8 +128,10 @@ Each step contains only:
 `Outcome`, `Covers`, and `Check` may wrap onto immediately following lines
 indented by at least two spaces. Continuations are parsed as newline-separated
 text in the same field. Keep them as ordinary prose: a blank line ends the
-field, and headings, fenced blocks, or nested lists are not accepted as field
-continuations.
+field, and ATX or Setext headings, thematic breaks, blockquotes, fenced blocks,
+or nested lists are not accepted as field continuations. List markers separated
+from their content by either spaces or tabs are rejected consistently with
+CommonMark parsing.
 
 The first unfinished `Done` marker is the current step. Steps are meaningful
 progress boundaries, not review units or prescribed implementation sequences.
