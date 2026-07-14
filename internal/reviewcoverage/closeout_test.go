@@ -168,11 +168,11 @@ func TestValidateArchivedCandidateAllowsMechanicalPlanAndSupplementMove(t *testi
 	git(t, root, "commit", "-m", "reviewed")
 	covered := git(t, root, "rev-parse", "HEAD")
 
-	_, canonicalFrontmatter, canonicalBody, err := reviewedArchiveBaseline([]byte(reviewedPlan))
+	commandRendered, err := commandRenderedArchivePlan([]byte(reviewedPlan))
 	if err != nil {
 		t.Fatalf("render command-owned archive baseline: %v", err)
 	}
-	archived := "---\n" + canonicalFrontmatter + "\n---\n" + strings.ReplaceAll(string(canonicalBody), "PENDING_UNTIL_ARCHIVE", "Recorded at archive.")
+	archived := strings.ReplaceAll(string(commandRendered), "PENDING_UNTIL_ARCHIVE", "Recorded at archive.")
 	writeFile(t, root, archivedPlan, archived)
 	writeFile(t, root, archivedSupplement, "reviewed supplement\n")
 	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
@@ -203,7 +203,11 @@ func TestValidateArchivedCandidateRejectsPostArchiveProductChange(t *testing.T) 
 	git(t, root, "add", ".")
 	git(t, root, "commit", "-m", "reviewed")
 	covered := git(t, root, "rev-parse", "HEAD")
-	writeFile(t, root, archivedPlan, reviewedPlan)
+	commandRendered, err := commandRenderedArchivePlan([]byte(reviewedPlan))
+	if err != nil {
+		t.Fatalf("render command-owned archive baseline: %v", err)
+	}
+	writeFile(t, root, archivedPlan, string(commandRendered))
 	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
 		t.Fatalf("remove active plan: %v", err)
 	}
@@ -233,21 +237,187 @@ func TestValidateArchivedCandidateRejectsFrontmatterChangesOutsideCloseout(t *te
 	}
 
 	chain := &Chain{CoveredHeadSHA: covered, ReviewedPlanPath: activePlan}
-	_, canonicalFrontmatter, canonicalBody, err := reviewedArchiveBaseline([]byte(reviewedPlan))
+	commandRendered, err := commandRenderedArchivePlan([]byte(reviewedPlan))
 	if err != nil {
 		t.Fatalf("render command-owned archive baseline: %v", err)
 	}
-	canonicalPlan := "---\n" + canonicalFrontmatter + "\n---\n" + string(canonicalBody)
+	canonicalPlan := string(commandRendered)
 	for name, mutation := range map[string]string{
-		"unknown key in reviewed layout":  strings.Replace(reviewedPlan, "size: S", "size: S\nunreviewed_key: true", 1),
-		"comment in reviewed layout":      strings.Replace(reviewedPlan, "size: S", "size: S\n# unreviewed comment", 1),
-		"unknown key in canonical layout": strings.Replace(canonicalPlan, "size: S", "size: S\nunreviewed_key: true", 1),
-		"comment in canonical layout":     strings.Replace(canonicalPlan, "size: S", "size: S\n# unreviewed comment", 1),
+		"unknown key":       strings.Replace(canonicalPlan, "size: S", "size: S\nunreviewed_key: true", 1),
+		"comment":           strings.Replace(canonicalPlan, "size: S", "size: S\n# unreviewed comment", 1),
+		"opening delimiter": strings.Replace(canonicalPlan, "---\n", " --- \n", 1),
+		"closing delimiter": strings.Replace(canonicalPlan, "\n---\n\n# Plan", "\n --- \n\n# Plan", 1),
 	} {
 		t.Run(name, func(t *testing.T) {
 			writeFile(t, root, archivedPlan, mutation)
 			if err := ValidateArchivedCandidate(root, archivedPlan, chain); err == nil || !strings.Contains(err.Error(), "outside the allowed Closeout body") {
 				t.Fatalf("expected raw frontmatter change rejection, got %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateArchivedCandidateModelsCommandBodyNormalization(t *testing.T) {
+	for name, separator := range map[string]string{
+		"no leading newline":       "---\n# Plan",
+		"several leading newlines": "---\n\n\n\n# Plan",
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			initGit(t, root)
+			activePlan := "docs/plans/active/2026-07-13-test.md"
+			archivedPlan := "docs/plans/archived/2026-07-13-test.md"
+			reviewed := strings.Replace(reviewedPlan, "---\n\n# Plan", separator, 1)
+			writeFile(t, root, activePlan, reviewed)
+			git(t, root, "add", ".")
+			git(t, root, "commit", "-m", "reviewed")
+			covered := git(t, root, "rev-parse", "HEAD")
+			commandRendered, err := commandRenderedArchivePlan([]byte(reviewed))
+			if err != nil {
+				t.Fatalf("render command-owned archive baseline: %v", err)
+			}
+			writeFile(t, root, archivedPlan, string(commandRendered))
+			if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
+				t.Fatalf("remove active plan: %v", err)
+			}
+			chain := &Chain{CoveredHeadSHA: covered, ReviewedPlanPath: activePlan}
+			if err := ValidateArchivedCandidate(root, archivedPlan, chain); err != nil {
+				t.Fatalf("expected command-normalized archive to pass: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateArchivedCandidateRejectsPlanModeOrTypeChange(t *testing.T) {
+	for _, mutation := range []string{"executable", "symlink"} {
+		t.Run(mutation, func(t *testing.T) {
+			root := t.TempDir()
+			initGit(t, root)
+			activePlan := "docs/plans/active/2026-07-13-test.md"
+			archivedPlan := "docs/plans/archived/2026-07-13-test.md"
+			writeFile(t, root, activePlan, reviewedPlan)
+			git(t, root, "add", ".")
+			git(t, root, "commit", "-m", "reviewed")
+			covered := git(t, root, "rev-parse", "HEAD")
+			commandRendered, err := commandRenderedArchivePlan([]byte(reviewedPlan))
+			if err != nil {
+				t.Fatalf("render command-owned archive baseline: %v", err)
+			}
+			archivedPath := writeFile(t, root, archivedPlan, string(commandRendered))
+			if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
+				t.Fatalf("remove active plan: %v", err)
+			}
+			if mutation == "executable" {
+				if err := os.Chmod(archivedPath, 0o755); err != nil {
+					t.Fatalf("chmod archived plan: %v", err)
+				}
+			} else {
+				target := archivedPath + ".target"
+				if err := os.Rename(archivedPath, target); err != nil {
+					t.Fatalf("move archived plan target: %v", err)
+				}
+				if err := os.Symlink(filepath.Base(target), archivedPath); err != nil {
+					t.Fatalf("symlink archived plan: %v", err)
+				}
+			}
+			chain := &Chain{CoveredHeadSHA: covered, ReviewedPlanPath: activePlan}
+			if err := ValidateArchivedCandidate(root, archivedPlan, chain); err == nil || !strings.Contains(err.Error(), "git mode") {
+				t.Fatalf("expected archived plan mode rejection, got %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateArchivedCandidateRejectsSupplementModeOrTypeChange(t *testing.T) {
+	for _, mutation := range []string{"executable", "symlink"} {
+		t.Run(mutation, func(t *testing.T) {
+			root := t.TempDir()
+			initGit(t, root)
+			activePlan := "docs/plans/active/2026-07-13-test.md"
+			archivedPlan := "docs/plans/archived/2026-07-13-test.md"
+			activeSupplement := "docs/plans/active/supplements/2026-07-13-test/notes.md"
+			archivedSupplement := "docs/plans/archived/supplements/2026-07-13-test/notes.md"
+			writeFile(t, root, activePlan, reviewedPlan)
+			writeFile(t, root, activeSupplement, "reviewed supplement\n")
+			git(t, root, "add", ".")
+			git(t, root, "commit", "-m", "reviewed")
+			covered := git(t, root, "rev-parse", "HEAD")
+			commandRendered, err := commandRenderedArchivePlan([]byte(reviewedPlan))
+			if err != nil {
+				t.Fatalf("render command-owned archive baseline: %v", err)
+			}
+			writeFile(t, root, archivedPlan, string(commandRendered))
+			archivedSupplementPath := writeFile(t, root, archivedSupplement, "reviewed supplement\n")
+			if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
+				t.Fatalf("remove active plan: %v", err)
+			}
+			if err := os.Remove(filepath.Join(root, filepath.FromSlash(activeSupplement))); err != nil {
+				t.Fatalf("remove active supplement: %v", err)
+			}
+			if mutation == "executable" {
+				if err := os.Chmod(archivedSupplementPath, 0o755); err != nil {
+					t.Fatalf("chmod archived supplement: %v", err)
+				}
+			} else {
+				target := archivedSupplementPath + ".target"
+				if err := os.Rename(archivedSupplementPath, target); err != nil {
+					t.Fatalf("move archived supplement target: %v", err)
+				}
+				if err := os.Symlink(filepath.Base(target), archivedSupplementPath); err != nil {
+					t.Fatalf("symlink archived supplement: %v", err)
+				}
+			}
+			chain := &Chain{CoveredHeadSHA: covered, ReviewedPlanPath: activePlan}
+			if err := ValidateArchivedCandidate(root, archivedPlan, chain); err == nil || !strings.Contains(err.Error(), "git mode") {
+				t.Fatalf("expected archived supplement mode rejection, got %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateArchivedCandidateAllowsModePreservingSupplementMove(t *testing.T) {
+	for _, mode := range []string{"executable", "symlink"} {
+		t.Run(mode, func(t *testing.T) {
+			root := t.TempDir()
+			initGit(t, root)
+			activePlan := "docs/plans/active/2026-07-13-test.md"
+			archivedPlan := "docs/plans/archived/2026-07-13-test.md"
+			activeSupplement := "docs/plans/active/supplements/2026-07-13-test/notes"
+			archivedSupplement := "docs/plans/archived/supplements/2026-07-13-test/notes"
+			writeFile(t, root, activePlan, reviewedPlan)
+			activeSupplementPath := filepath.Join(root, filepath.FromSlash(activeSupplement))
+			if err := os.MkdirAll(filepath.Dir(activeSupplementPath), 0o755); err != nil {
+				t.Fatalf("mkdir active supplement: %v", err)
+			}
+			if mode == "executable" {
+				writeFile(t, root, activeSupplement, "#!/bin/sh\nexit 0\n")
+				if err := os.Chmod(activeSupplementPath, 0o755); err != nil {
+					t.Fatalf("chmod active supplement: %v", err)
+				}
+			} else if err := os.Symlink("shared-notes.md", activeSupplementPath); err != nil {
+				t.Fatalf("create active supplement symlink: %v", err)
+			}
+			git(t, root, "add", ".")
+			git(t, root, "commit", "-m", "reviewed")
+			covered := git(t, root, "rev-parse", "HEAD")
+			commandRendered, err := commandRenderedArchivePlan([]byte(reviewedPlan))
+			if err != nil {
+				t.Fatalf("render command-owned archive baseline: %v", err)
+			}
+			writeFile(t, root, archivedPlan, string(commandRendered))
+			archivedSupplementPath := filepath.Join(root, filepath.FromSlash(archivedSupplement))
+			if err := os.MkdirAll(filepath.Dir(archivedSupplementPath), 0o755); err != nil {
+				t.Fatalf("mkdir archived supplement: %v", err)
+			}
+			if err := os.Rename(activeSupplementPath, archivedSupplementPath); err != nil {
+				t.Fatalf("move supplement: %v", err)
+			}
+			if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
+				t.Fatalf("remove active plan: %v", err)
+			}
+			chain := &Chain{CoveredHeadSHA: covered, ReviewedPlanPath: activePlan}
+			if err := ValidateArchivedCandidate(root, archivedPlan, chain); err != nil {
+				t.Fatalf("expected mode-preserving supplement move to pass: %v", err)
 			}
 		})
 	}

@@ -109,27 +109,25 @@ func ValidateArchivedCandidate(workdir, archivedPlanPath string, chain *Chain) e
 	if err != nil {
 		return fmt.Errorf("read reviewed plan content: %w", err)
 	}
-	current, err := os.ReadFile(filepath.Join(workdir, filepath.FromSlash(archivedPlan)))
+	archivedPlanFSPath := filepath.Join(workdir, filepath.FromSlash(archivedPlan))
+	currentMode, current, err := readGitWorktreeFile(archivedPlanFSPath)
 	if err != nil {
 		return fmt.Errorf("read archived plan content: %w", err)
 	}
-	reviewedFrontmatter, canonicalFrontmatter, baselineBody, err := reviewedArchiveBaseline(baseline)
+	if currentMode != "100644" {
+		return fmt.Errorf("archived plan has git mode %s, expected command-rendered regular file mode 100644", currentMode)
+	}
+	expected, err := commandRenderedArchivePlan(baseline)
 	if err != nil {
 		return fmt.Errorf("prepare reviewed plan for archive comparison: %w", err)
 	}
-	currentFrontmatter, currentBody, err := archivedPlanParts(current)
-	if err != nil {
-		return fmt.Errorf("read archived plan for comparison: %w", err)
+	expectedComparable := maskCloseoutBodies(expected)
+	reviewedComparable := maskCloseoutBodies(baseline)
+	currentComparable := maskCloseoutBodies(current)
+	if !bytes.Equal(expectedComparable, currentComparable) && !bytes.Equal(reviewedComparable, currentComparable) {
+		return fmt.Errorf("archived plan differs from the command-rendered reviewed plan outside the allowed Closeout body near %s", firstComparableDifference(expectedComparable, currentComparable))
 	}
-	if currentFrontmatter != reviewedFrontmatter && currentFrontmatter != canonicalFrontmatter {
-		return fmt.Errorf("archived plan frontmatter differs from the command-rendered reviewed plan outside the allowed Closeout body")
-	}
-	baselineComparable := maskCloseoutBodies(baselineBody)
-	currentComparable := maskCloseoutBodies(currentBody)
-	if !bytes.Equal(baselineComparable, currentComparable) {
-		return fmt.Errorf("archived plan differs from the reviewed plan outside the allowed Closeout body near %s", firstComparableDifference(baselineComparable, currentComparable))
-	}
-	if _, err := os.Stat(filepath.Join(workdir, filepath.FromSlash(reviewedPlan))); !os.IsNotExist(err) {
+	if _, err := os.Lstat(filepath.Join(workdir, filepath.FromSlash(reviewedPlan))); !os.IsNotExist(err) {
 		if err != nil {
 			return fmt.Errorf("inspect reviewed active plan path: %w", err)
 		}
@@ -152,28 +150,20 @@ func ValidateArchivedCandidate(workdir, archivedPlanPath string, chain *Chain) e
 	return nil
 }
 
-func reviewedArchiveBaseline(content []byte) (string, string, []byte, error) {
+func commandRenderedArchivePlan(content []byte) ([]byte, error) {
 	rawFrontmatter, body, err := splitPlanContent(content)
 	if err != nil {
-		return "", "", nil, err
+		return nil, err
 	}
 	var frontmatter plan.Frontmatter
 	if err := yaml.Unmarshal([]byte(rawFrontmatter), &frontmatter); err != nil {
-		return "", "", nil, fmt.Errorf("parse reviewed frontmatter: %w", err)
+		return nil, fmt.Errorf("parse reviewed frontmatter: %w", err)
 	}
 	canonical, err := yaml.Marshal(frontmatter)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("render reviewed frontmatter: %w", err)
+		return nil, fmt.Errorf("render reviewed frontmatter: %w", err)
 	}
-	return rawFrontmatter, strings.TrimSuffix(string(canonical), "\n"), body, nil
-}
-
-func archivedPlanParts(content []byte) (string, []byte, error) {
-	rawFrontmatter, body, err := splitPlanContent(content)
-	if err != nil {
-		return "", nil, err
-	}
-	return rawFrontmatter, body, nil
+	return []byte(fmt.Sprintf("---\n%s---\n\n%s", string(canonical), strings.TrimLeft(string(body), "\n"))), nil
 }
 
 func splitPlanContent(content []byte) (string, []byte, error) {
@@ -207,15 +197,22 @@ func firstComparableDifference(left, right []byte) string {
 func validateArchivedSupplements(workdir, coveredHead, reviewedPlan, archivedPlan string, allowed map[string]bool) error {
 	reviewedDir := repoSlashPath(plan.SupplementsDirForPlanPath(filepath.FromSlash(reviewedPlan)))
 	archivedDir := repoSlashPath(plan.SupplementsDirForPlanPath(filepath.FromSlash(archivedPlan)))
-	data, err := gitBytes(workdir, "ls-tree", "-r", "--name-only", "-z", coveredHead, "--", reviewedDir)
+	data, err := gitBytes(workdir, "ls-tree", "-r", "-z", coveredHead, "--", reviewedDir)
 	if err != nil {
 		return fmt.Errorf("inspect reviewed plan supplements: %w", err)
 	}
 	for _, raw := range bytes.Split(data, []byte{0}) {
-		source := filepath.ToSlash(string(raw))
-		if source == "" {
+		entry := string(raw)
+		if entry == "" {
 			continue
 		}
+		metadata, source, ok := strings.Cut(entry, "\t")
+		fields := strings.Fields(metadata)
+		if !ok || len(fields) < 1 || source == "" {
+			return fmt.Errorf("parse reviewed supplement tree entry %q", entry)
+		}
+		expectedMode := fields[0]
+		source = filepath.ToSlash(source)
 		rel, err := filepath.Rel(filepath.FromSlash(reviewedDir), filepath.FromSlash(source))
 		if err != nil || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
 			return fmt.Errorf("reviewed supplement escaped its expected directory: %s", source)
@@ -225,14 +222,17 @@ func validateArchivedSupplements(workdir, coveredHead, reviewedPlan, archivedPla
 		if err != nil {
 			return fmt.Errorf("read reviewed supplement %s: %w", source, err)
 		}
-		current, err := os.ReadFile(filepath.Join(workdir, filepath.FromSlash(target)))
+		currentMode, current, err := readGitWorktreeFile(filepath.Join(workdir, filepath.FromSlash(target)))
 		if err != nil {
 			return fmt.Errorf("read archived supplement %s: %w", target, err)
+		}
+		if currentMode != expectedMode {
+			return fmt.Errorf("archived supplement git mode differs from reviewed content: %s (%s -> %s)", target, expectedMode, currentMode)
 		}
 		if !bytes.Equal(baseline, current) {
 			return fmt.Errorf("archived supplement differs from reviewed content: %s", target)
 		}
-		if _, err := os.Stat(filepath.Join(workdir, filepath.FromSlash(source))); !os.IsNotExist(err) {
+		if _, err := os.Lstat(filepath.Join(workdir, filepath.FromSlash(source))); !os.IsNotExist(err) {
 			if err != nil {
 				return fmt.Errorf("inspect reviewed supplement path %s: %w", source, err)
 			}
@@ -242,6 +242,32 @@ func validateArchivedSupplements(workdir, coveredHead, reviewedPlan, archivedPla
 		allowed[target] = true
 	}
 	return nil
+}
+
+func readGitWorktreeFile(path string) (string, []byte, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return "", nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(path)
+		if err != nil {
+			return "", nil, err
+		}
+		return "120000", []byte(target), nil
+	}
+	if !info.Mode().IsRegular() {
+		return "", nil, fmt.Errorf("unsupported file type %s", info.Mode().Type())
+	}
+	mode := "100644"
+	if info.Mode().Perm()&0o111 != 0 {
+		mode = "100755"
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", nil, err
+	}
+	return mode, content, nil
 }
 
 func repoRelativePath(workdir, path string) (string, error) {
