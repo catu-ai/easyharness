@@ -171,8 +171,10 @@ ceremony. Package the corrected managed resources and CLI behavior as the
 
 ## Closeout
 
-- Validation: PENDING_UNTIL_ARCHIVE
-- Review: PENDING_UNTIL_ARCHIVE
-- Delivered: PENDING_UNTIL_ARCHIVE
-- Not Delivered: PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-07-14T20:16:54+08:00
+- Revision: 1
+- Validation: Full `go test ./... -count=1`, `scripts/validate-release`, contract and bootstrap synchronization checks, `git diff --check`, and repeated detached-worktree fixture checks passed for the final candidate.
+- Review: `review-001-full` requested immutable current-PR sync identity; `review-002-delta` resolved it and found the optional publish-base edge; `review-003-delta` closed both remaining findings and passed with no new findings.
+- Delivered: RC3 preserves review coverage across unchanged upstream-only syncs, binds fresh sync evidence to immutable PR base/head identity, separates remote states, simplifies durable plan/land ceremony, stabilizes archive output, and packages synchronized `v0.6.0-rc.3` CLI, contracts, schemas, and managed resources.
+- Not Delivered: No stable `v0.6.0` release, GitHub release, automatic merge, new forge integration, or change to explicit human plan and merge approval.
 - Follow-Up Issues: NONE
