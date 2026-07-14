@@ -476,7 +476,7 @@ func compactPlanFixture(stepTitles ...string) string {
 		fmt.Fprintf(&body, "\n### Step %d: %s\n\n- Done: [ ]\n- Outcome: Complete %s.\n- Covers: Criterion %d\n- Check: Verify the step through the built binary.\n", index+1, title, title, index+1)
 	}
 	body.WriteString("\n## Validation Strategy\n\n- Run the built-binary end-to-end scenario.\n\n## Closeout\n\n")
-	body.WriteString("- Validation: PENDING_UNTIL_ARCHIVE\n- Review: PENDING_UNTIL_ARCHIVE\n- Delivered: PENDING_UNTIL_ARCHIVE\n- Not Delivered: PENDING_UNTIL_ARCHIVE\n- Follow-Up Issues: NONE\n- PR: PENDING_UNTIL_ARCHIVE\n- Ready: PENDING_UNTIL_ARCHIVE\n- Merge Handoff: PENDING_UNTIL_ARCHIVE\n")
+	body.WriteString("- Validation: PENDING_UNTIL_ARCHIVE\n- Review: PENDING_UNTIL_ARCHIVE\n- Delivered: PENDING_UNTIL_ARCHIVE\n- Not Delivered: PENDING_UNTIL_ARCHIVE\n- Follow-Up Issues: NONE\n")
 	return body.String()
 }
 

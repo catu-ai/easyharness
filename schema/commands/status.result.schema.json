@@ -305,6 +305,10 @@
           "$ref": "#/$defs/StatusRemoteEvidenceStatus",
           "description": "Sync reports the sync evidence status that refresh would record when it can be observed."
         },
+        "merge_policy": {
+          "$ref": "#/$defs/StatusRemoteEvidenceStatus",
+          "description": "MergePolicy reports whether provider-side approvals or merge rules currently block merge independently of branch freshness and CI."
+        },
         "degraded": {
           "items": {
             "$ref": "#/$defs/StatusRemoteDegradation"

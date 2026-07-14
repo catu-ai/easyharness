@@ -325,9 +325,12 @@ lightweight work, this phase is also where status should remind the controller
 to leave the agreed repo-visible breadcrumb. A PR body can satisfy that
 breadcrumb when it is a readable merge memo that explains what changed, why the
 branch is mergeable, and why the lightweight path was appropriate. Passing
-evidence cannot advance an archived branch whose reviewed-head descendant
-contains anything beyond the mechanical plan/supplement archive move and
-allowed `Closeout` updates; such a branch must reopen and review again.
+evidence cannot advance an archived branch whose candidate-owned delta differs
+from review beyond the mechanical plan/supplement archive move and allowed
+`Closeout` updates. Unrelated upstream base advancement may preserve coverage
+when fresh sync evidence and the remote-tracking base prove that delta stayed
+identical; overlap, conflict resolution, or candidate drift must reopen and
+review again.
 
 ### `execution/finalize/await_merge`
 
@@ -416,11 +419,18 @@ mapping, but the core model stays evidence-first.
 
 `harness evidence refresh` is the explicit mutating bridge from remote
 observation to local evidence. It may use `gh` to read the PR recorded in
-publish evidence, classify PR checks as `ci` evidence, and classify merge
-freshness or conflicts as `sync` evidence. It must not create or update PRs,
+publish evidence, classify PR checks as `ci` evidence, and compare the PR's
+base and head commits for `sync` freshness or conflicts. Provider approvals and
+merge-policy blocking remain separate live facts: pending checks or an
+`UNSTABLE` provider state do not make a current branch stale. Refresh must not
+create or update PRs,
 rerun checks, comment, label, review, merge, or perform other GitHub writes.
 
 Refresh writes evidence only for domains whose remote facts are clear enough.
+Fresh sync evidence records the immutable compared base and head commit IDs as
+well as their human-facing refs. Those IDs bind base-aware review preservation
+and post-merge recovery to the exact observed candidate rather than a branch
+name that may move after squash or rebase land.
 If checks are unreadable but merge state is clear, refresh may write `sync`
 evidence while degrading `ci`; the reverse is also allowed. If a domain is
 unavailable, ambiguous, or unsupported, refresh should leave that evidence
@@ -484,7 +494,10 @@ Land is explicit and two-stage:
 
 The PR URL is required for land entry in v0.2. Commit SHA is optional because
 merge strategy may produce a different landed commit shape across merge-commit,
-squash, or rebase flows.
+squash, or rebase flows. Publish evidence should retain the immutable feature
+commit so land can validate that reviewed candidate directly after squash or
+rebase changes ancestry. Merge confirmation is recorded before local checkout
+or branch cleanup.
 
 ## Status Rendering
 

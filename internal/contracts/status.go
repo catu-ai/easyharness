@@ -189,6 +189,10 @@ type StatusRemoteEvidence struct {
 	// be observed.
 	Sync *StatusRemoteEvidenceStatus `json:"sync,omitempty"`
 
+	// MergePolicy reports whether provider-side approvals or merge rules
+	// currently block merge independently of branch freshness and CI.
+	MergePolicy *StatusRemoteEvidenceStatus `json:"merge_policy,omitempty"`
+
 	// Degraded lists compact non-fatal remote observation failures.
 	Degraded []StatusRemoteDegradation `json:"degraded,omitempty"`
 }

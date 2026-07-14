@@ -178,7 +178,7 @@ func (d *Document) ArchiveReadinessIssues() []DocumentIssue {
 	}
 
 	closeout := d.SectionText("Closeout")
-	for _, label := range []string{"Validation", "Review", "Delivered", "Not Delivered", "Follow-Up Issues", "PR", "Ready", "Merge Handoff"} {
+	for _, label := range closeoutLabels {
 		if !strings.Contains(closeout, "- "+label+":") {
 			issues = append(issues, DocumentIssue{
 				Path:    "section.Closeout",
@@ -187,10 +187,10 @@ func (d *Document) ArchiveReadinessIssues() []DocumentIssue {
 		}
 	}
 
-	if d.DeferredItems && d.followUpIssuesUnset() {
+	if d.DeferredItems && !d.hasConcreteFollowUpIssue() {
 		issues = append(issues, DocumentIssue{
 			Path:    "section.Closeout.Follow-Up Issues",
-			Message: "replace NONE with follow-up information before archive when deferred items remain",
+			Message: "add a concrete issue URL or #number reference before archive when deferred items remain",
 		})
 	}
 
@@ -205,16 +205,14 @@ func (d *Document) SectionText(name string) string {
 	return strings.TrimSpace(strings.Join(section.lines, "\n"))
 }
 
-func (d *Document) followUpIssuesUnset() bool {
+func (d *Document) hasConcreteFollowUpIssue() bool {
 	section := d.Sections["Closeout"]
 	if section == nil {
-		return true
+		return false
 	}
-	for _, rawLine := range section.lines {
-		line := strings.TrimSpace(rawLine)
-		if strings.HasPrefix(line, "- Follow-Up Issues:") {
-			return strings.EqualFold(strings.TrimSpace(strings.TrimPrefix(line, "- Follow-Up Issues:")), "NONE")
-		}
+	values, issues := parseLabeledBullets("section.Closeout", section.lines, closeoutLabels)
+	if len(issues) > 0 {
+		return false
 	}
-	return true
+	return hasConcreteFollowUpIssueReference(values["Follow-Up Issues"])
 }

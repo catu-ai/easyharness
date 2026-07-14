@@ -21,6 +21,13 @@ func TestArchiveMovesPlanAndUpdatesPointers(t *testing.T) {
 	root := t.TempDir()
 	activeRelPath := "docs/plans/active/2026-03-18-archive-smoke.md"
 	activePath := writeActiveArchiveCandidate(t, root, activeRelPath)
+	activeBytes, err := os.ReadFile(activePath)
+	if err != nil {
+		t.Fatalf("read active plan: %v", err)
+	}
+	writeFile(t, activePath, strings.Replace(string(activeBytes),
+		"- Validation: Validated the implementation and command surfaces.",
+		"- Validation: Validated the implementation,\n  including command and archive surfaces.", 1))
 	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
 		ActiveReviewRound: &runstate.ReviewRound{
@@ -61,6 +68,12 @@ func TestArchiveMovesPlanAndUpdatesPointers(t *testing.T) {
 	}
 	if !strings.Contains(string(archivedBytes), "size: M") {
 		t.Fatalf("expected archived plan to preserve size frontmatter, got:\n%s", archivedBytes)
+	}
+	if !strings.Contains(string(archivedBytes), "- Validation: Validated the implementation,\n  including command and archive surfaces.") {
+		t.Fatalf("expected archive to preserve Closeout continuation prose, got:\n%s", archivedBytes)
+	}
+	if !strings.HasSuffix(string(archivedBytes), "\n") || strings.HasSuffix(string(archivedBytes), "\n\n") {
+		t.Fatalf("expected archived plan to end with exactly one newline, got %q", archivedBytes[len(archivedBytes)-4:])
 	}
 	current, err := runstate.LoadCurrentPlan(root)
 	if err != nil {
@@ -435,7 +448,7 @@ func TestArchiveRejectsMissingCloseoutFields(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-18-archive-smoke.md")
 	content := buildActiveArchiveCandidate(t)
-	content = strings.Replace(content, "- PR: NONE\n", "", 1)
+	content = strings.Replace(content, "- Validation: Validated the implementation and command surfaces.\n", "", 1)
 	writeFile(t, path, content)
 	if _, err := saveLifecycleState(t, root, "2026-03-18-archive-smoke", &runstate.State{
 		ExecutionStartedAt: "2026-03-18T01:55:00Z",
@@ -464,7 +477,6 @@ func TestArchivePreflightFailureLeavesPlanAndPointersUntouched(t *testing.T) {
 	activePath := filepath.Join(root, activeRelPath)
 	content := buildActiveArchiveCandidate(t)
 	content = strings.Replace(content, "## Deferred Items\n\n- None.\n", "## Deferred Items\n\n- Deferred follow-up still needs to be written down.\n", 1)
-	content = strings.Replace(content, "- PR: NONE\n", "", 1)
 	writeFile(t, activePath, content)
 	if _, err := runstate.SaveCurrentPlan(root, activeRelPath); err != nil {
 		t.Fatalf("save current plan: %v", err)
@@ -486,7 +498,6 @@ func TestArchivePreflightFailureLeavesPlanAndPointersUntouched(t *testing.T) {
 	if result.OK {
 		t.Fatalf("expected archive failure, got %#v", result)
 	}
-	assertErrorPath(t, result.Errors, "section.Closeout")
 	assertErrorPath(t, result.Errors, "section.Closeout.Follow-Up Issues")
 
 	if _, err := os.Stat(activePath); err != nil {
@@ -1506,7 +1517,7 @@ func TestLandCompleteWritesIdleMarkerForStatus(t *testing.T) {
 	}
 }
 
-func TestLandGuidanceRequiresPRAndIssueBookkeeping(t *testing.T) {
+func TestLandGuidanceMakesPRAndIssueBookkeepingConditional(t *testing.T) {
 	root := t.TempDir()
 	writeArchivedLandedPlan(t, root, "docs/plans/archived/2026-03-18-landed-plan.md")
 	if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-landed-plan.md"); err != nil {
@@ -1532,13 +1543,13 @@ func TestLandGuidanceRequiresPRAndIssueBookkeeping(t *testing.T) {
 	if !strings.Contains(result.NextAction[0].Description, "required post-merge bookkeeping") {
 		t.Fatalf("expected bookkeeping guidance, got %#v", result.NextAction)
 	}
-	if !strings.Contains(result.NextAction[0].Description, "final PR comment") {
-		t.Fatalf("expected final PR comment guidance, got %#v", result.NextAction)
+	if !strings.Contains(result.NextAction[0].Description, "rely on the forge merge record") {
+		t.Fatalf("expected forge-record guidance, got %#v", result.NextAction)
 	}
-	if !strings.Contains(result.NextAction[0].Description, "follow-up references") {
-		t.Fatalf("expected linked issue follow-up guidance, got %#v", result.NextAction)
+	if !strings.Contains(result.NextAction[0].Description, "only for material") {
+		t.Fatalf("expected conditional handoff guidance, got %#v", result.NextAction)
 	}
-	if !strings.Contains(result.NextAction[1].Description, "only after the required PR and issue bookkeeping is done") {
+	if !strings.Contains(result.NextAction[1].Description, "only after any necessary durable handoff") {
 		t.Fatalf("expected land complete gate guidance, got %#v", result.NextAction)
 	}
 	if !strings.Contains(result.NextAction[1].Description, "required post-merge bookkeeping completion") {
@@ -1602,6 +1613,128 @@ func TestLandRejectsPostArchiveProductCommitOutsideReviewCoverage(t *testing.T) 
 	}
 	assertErrorPath(t, result.Errors, "review.coverage")
 	assertErrorContains(t, result.Errors, "review.coverage", "product.go")
+}
+
+func TestEvaluateArchivedReviewCoverageAllowsUnrelatedBaseSynchronization(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "base.txt"), "base\n")
+	commitLifecycleCandidate(t, root)
+	archivedRelPath := "docs/plans/archived/2026-03-18-landed-plan.md"
+	writeArchivedLandedPlan(t, root, archivedRelPath)
+	publishedHead := commitLifecycleCandidate(t, root)
+	state, _, err := runstate.LoadState(root, "2026-03-18-landed-plan")
+	if err != nil || state == nil || state.FinalizeCoverage == nil {
+		t.Fatalf("load reviewed coverage state: state=%#v err=%v", state, err)
+	}
+
+	runGit := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		output, runErr := cmd.CombinedOutput()
+		if runErr != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), runErr, output)
+		}
+		return strings.TrimSpace(string(output))
+	}
+	base := runGit("rev-parse", state.FinalizeCoverage.CoveredHeadSHA+"^")
+	runGit("branch", "candidate", publishedHead)
+	runGit("checkout", "-q", "main")
+	runGit("reset", "-q", "--hard", base)
+	writeFile(t, filepath.Join(root, "upstream.txt"), "unrelated upstream work\n")
+	runGit("add", "upstream.txt")
+	runGit("commit", "-q", "-m", "upstream advance")
+	currentBase := runGit("rev-parse", "HEAD")
+	runGit("update-ref", "refs/remotes/origin/main", currentBase)
+	runGit("checkout", "-q", "candidate")
+	runGit("merge", "-q", "--no-edit", "main")
+	candidateHead := runGit("rev-parse", "HEAD")
+
+	writeMergeReadyEvidenceArtifacts(t, root, "2026-03-18-landed-plan", archivedRelPath)
+	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "publish", map[string]any{"commit": candidateHead})
+	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "sync", map[string]any{"base_commit": currentBase, "head_commit": candidateHead})
+	doc, err := plan.LoadFile(filepath.Join(root, archivedRelPath))
+	if err != nil {
+		t.Fatalf("load synchronized archived plan: %v", err)
+	}
+	issues := lifecycle.EvaluateArchivedReviewCoverage(root, "2026-03-18-landed-plan", doc, state)
+	if len(issues) != 0 {
+		t.Fatalf("expected unrelated base synchronization to preserve review coverage, got %#v", issues)
+	}
+}
+
+func patchLifecycleEvidenceRecord(t *testing.T, root, planStem, kind string, updates map[string]any) {
+	t.Helper()
+	path := filepath.Join(root, ".local", "harness", "plans", planStem, "evidence", kind, kind+"-001.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s evidence: %v", kind, err)
+	}
+	var record map[string]any
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatalf("parse %s evidence: %v", kind, err)
+	}
+	for key, value := range updates {
+		record[key] = value
+	}
+	data, err = json.Marshal(record)
+	if err != nil {
+		t.Fatalf("marshal %s evidence: %v", kind, err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write %s evidence: %v", kind, err)
+	}
+}
+
+func TestLandUsesPublishedRebasedCandidateAfterSquashMerge(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "base.txt"), "base\n")
+	commitLifecycleCandidate(t, root)
+	archivedRelPath := "docs/plans/archived/2026-03-18-landed-plan.md"
+	writeArchivedLandedPlan(t, root, archivedRelPath)
+	if _, err := runstate.SaveCurrentPlan(root, archivedRelPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	reviewedArchiveHead := commitLifecycleCandidate(t, root)
+	state, _, err := runstate.LoadState(root, "2026-03-18-landed-plan")
+	if err != nil || state == nil || state.FinalizeCoverage == nil {
+		t.Fatalf("load reviewed coverage state: state=%#v err=%v", state, err)
+	}
+
+	runGit := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		output, runErr := cmd.CombinedOutput()
+		if runErr != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), runErr, output)
+		}
+		return strings.TrimSpace(string(output))
+	}
+	base := runGit("rev-parse", state.FinalizeCoverage.CoveredHeadSHA+"^")
+	runGit("branch", "candidate", reviewedArchiveHead)
+	runGit("checkout", "-q", "main")
+	runGit("reset", "-q", "--hard", base)
+	writeFile(t, filepath.Join(root, "upstream.txt"), "unrelated upstream work\n")
+	runGit("add", "upstream.txt")
+	runGit("commit", "-q", "-m", "upstream advance")
+	baseHead := runGit("rev-parse", "HEAD")
+	runGit("checkout", "-q", "candidate")
+	runGit("rebase", "main")
+	publishedHead := runGit("rev-parse", "HEAD")
+	runGit("checkout", "-q", "main")
+	runGit("merge", "-q", "--squash", publishedHead)
+	runGit("commit", "-q", "-m", "squash candidate")
+	if ancestor := exec.Command("git", "-C", root, "merge-base", "--is-ancestor", publishedHead, "HEAD").Run(); ancestor == nil {
+		t.Fatal("test setup expected squash merge not to retain feature ancestry")
+	}
+
+	writeMergeReadyEvidenceArtifacts(t, root, "2026-03-18-landed-plan", archivedRelPath)
+	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "publish", map[string]any{"commit": publishedHead})
+	patchLifecycleEvidenceRecord(t, root, "2026-03-18-landed-plan", "sync", map[string]any{"base_commit": baseHead, "head_commit": publishedHead})
+
+	result := lifecycle.Service{Workdir: root}.Land("https://github.com/catu-ai/easyharness/pull/99", runGit("rev-parse", "HEAD"))
+	if !result.OK {
+		t.Fatalf("expected squash-land recovery from immutable publish evidence, got %#v", result)
+	}
 }
 
 func TestEvaluateArchivedReviewCoverageRejectsUnexpectedArchiveDestination(t *testing.T) {
@@ -1789,6 +1922,8 @@ func writeMergeReadyEvidenceArtifacts(t *testing.T, root, planStem, planPath str
 				"recorded_at": recordedAt,
 				"status":      "recorded",
 				"pr_url":      "https://github.com/catu-ai/easyharness/pull/99",
+				"branch":      "codex/test",
+				"base":        "main",
 			},
 		},
 		{
@@ -2004,9 +2139,6 @@ func completeCloseout(rendered string) string {
 		"- Review: PENDING_UNTIL_ARCHIVE":        "- Review: No unresolved blocking review findings remain.",
 		"- Delivered: PENDING_UNTIL_ARCHIVE":     "- Delivered: Delivered the planned CLI slice.",
 		"- Not Delivered: PENDING_UNTIL_ARCHIVE": "- Not Delivered: NONE.",
-		"- PR: PENDING_UNTIL_ARCHIVE":            "- PR: NONE",
-		"- Ready: PENDING_UNTIL_ARCHIVE":         "- Ready: The candidate satisfies the acceptance criteria and is ready for merge approval.",
-		"- Merge Handoff: PENDING_UNTIL_ARCHIVE": "- Merge Handoff: Commit and push the archive move before treating this candidate as awaiting merge approval.",
 	}
 	for old, replacement := range replacements {
 		rendered = strings.Replace(rendered, old, replacement, 1)

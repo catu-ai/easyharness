@@ -724,10 +724,13 @@ Post-archive merge readiness additionally requires:
 - publish evidence with a PR URL
 - CI good enough or explicit `not_applied`
 - sync freshness or explicit `not_applied`
-- a descendant of the reviewed head whose only candidate changes are the
-  command-owned active-to-archived plan and supplement moves plus allowed
-  `Closeout` updates; any product, contract, test, or other plan change requires
-  reopen and review before `await_merge` or land
+- the same reviewed candidate-owned delta, plus only command-owned
+  active-to-archived plan and supplement moves and allowed `Closeout` updates.
+  Unrelated base advancement may preserve coverage when a fresh sync record and
+  the remote-tracking base prove the candidate delta is byte-for-byte and
+  mode-for-mode unchanged. Upstream overlap, conflict resolution, candidate
+  delta drift, or uncommitted work still requires reopen and review before
+  `await_merge` or land.
 
 The PR URL recorded in publish evidence is the remote handoff anchor for later
 read-only PR and CI observation. Local branch, commit, upstream, and remote
@@ -818,7 +821,7 @@ Contract:
   current plan plus local artifacts, not reconstructed from agent memory
 - require finalize review to be satisfied before archive succeeds
 - if the plan still contains real deferred items, require the `Closeout`
-  `Follow-Up Issues` value to be something other than `NONE`
+  `Follow-Up Issues` value to contain a concrete issue URL or `#number`
   before allowing archive to succeed
 - reject archive unless finalize coverage resolves to a continuous chain rooted
   in a full round, followed only by directly linked repair deltas whose anchors,
@@ -832,7 +835,8 @@ Contract:
   head; only actual top-level Markdown sections qualify, never heading-like
   text inside fenced examples
 - require `Closeout` to include structured `Validation`, `Review`, `Delivered`,
-  `Not Delivered`, `Follow-Up Issues`, `PR`, `Ready`, and `Merge Handoff` lines
+  `Not Delivered`, and `Follow-Up Issues` lines; their ordinary prose may wrap
+  onto immediately following lines indented by at least two spaces
 - move the plan from its active path to its archived path:
   - active plan root resolved by `harness repo config get paths.plans.active`
     -> archived plan root resolved by
@@ -876,10 +880,11 @@ Important note:
   absorbed into formal tracked locations
 - PR checks may rerun on that archive commit; if new feedback or check failures
   appear, use `harness reopen --mode <finalize-fix|new-step>`
-- merge actor, merge timestamp, and other land-only notes should go to PR
-  comments or remote history rather than back into the archived plan
+- merge actor, merge timestamp, and other land-only notes belong to forge
+  history or conditional post-merge handoff rather than the archived plan
 - if deferred items exist, the controller agent should replace `NONE` in
-  `Follow-Up Issues` with durable handoff details before archive completes
+  `Follow-Up Issues` with a concrete issue URL or `#number` before archive
+  completes
 
 Recommended next action:
 
@@ -959,9 +964,16 @@ Contract:
 - classify readable PR checks into `ci` evidence: passing checks become
   `success`, pending checks become `pending`, and failing or cancelled checks
   become `failed`
-- classify readable PR merge state into `sync` evidence: clean/current state
-  becomes `fresh`, stale/behind/blocked/unknown-but-readable state becomes
-  `stale`, and conflict state becomes `conflicted`
+- classify branch freshness from the PR base/head commit comparison, independent
+  of checks and provider policy: zero commits behind becomes `fresh`, a
+  genuinely behind head becomes `stale`, and a merge conflict becomes
+  `conflicted`
+- record the compared immutable `base_commit` and `head_commit` with refreshed
+  sync evidence so later base-aware coverage and post-merge land validation do
+  not depend on mutable branch names
+- surface provider approvals or merge-rule blocking separately from `sync`;
+  `UNSTABLE` with pending checks does not make a current branch stale, while
+  `BLOCKED` may leave sync fresh and still prevent merge approval
 - append evidence independently per domain: if CI facts are clear but sync
   facts degrade, write only CI evidence and return clear degraded sync
   guidance, and vice versa
@@ -984,6 +996,9 @@ Contract:
 - require the current plan artifact to still be the archived candidate
 - require `--pr <url>` and optionally accept `--commit <sha>`
 - validate that publish, CI, and sync evidence make the candidate merge-ready
+- when the current checkout is already the squash- or rebase-landed result,
+  validate the immutable commit recorded by publish evidence instead of
+  requiring the landed commit to descend from the feature head
 - record merge confirmation in plan-local runtime state
 - leave archived plan content untouched; this is a local-state milestone only
 - return the shared v0.2 envelope with the `land` post-command node and any

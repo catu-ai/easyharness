@@ -138,6 +138,8 @@ func (s Service) Submit(kind string, inputBytes []byte) Result {
 			Status:     strings.ToLower(strings.TrimSpace(input.Status)),
 			BaseRef:    strings.TrimSpace(input.BaseRef),
 			HeadRef:    strings.TrimSpace(input.HeadRef),
+			BaseCommit: strings.TrimSpace(input.BaseCommit),
+			HeadCommit: strings.TrimSpace(input.HeadCommit),
 			Reason:     strings.TrimSpace(input.Reason),
 		}
 		if err := writeJSONFile(recordPath, record); err != nil {
@@ -238,7 +240,9 @@ func (s Service) Refresh() RefreshResult {
 			Status:     observation.Sync.EvidenceStatus,
 			BaseRef:    observation.PR.BaseRefName,
 			HeadRef:    observation.PR.HeadRefName,
-			Reason:     "Refreshed from recorded pull request merge state.",
+			BaseCommit: observation.PR.BaseRefOID,
+			HeadCommit: observation.PR.HeadRefOID,
+			Reason:     "Refreshed from the recorded pull request base comparison and conflict state.",
 		}
 		syncRecordPath = recordPath
 	} else {
@@ -415,6 +419,11 @@ func validatePublishInput(input PublishInput) []CommandError {
 }
 
 func validateSyncInput(input SyncInput) []CommandError {
+	baseCommit := strings.TrimSpace(input.BaseCommit)
+	headCommit := strings.TrimSpace(input.HeadCommit)
+	if (baseCommit == "") != (headCommit == "") {
+		return []CommandError{{Path: "input", Message: "base_commit and head_commit must be provided together"}}
+	}
 	status := strings.ToLower(strings.TrimSpace(input.Status))
 	switch status {
 	case "fresh", "stale", "conflicted":

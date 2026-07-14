@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1991,11 +1992,15 @@ func TestEvidenceRefreshCommandPartialOutputOmitsUnwrittenStatus(t *testing.T) {
 				"reviewDecision":"APPROVED",
 				"headRefName":"codex/test",
 				"headRefOid":"abc123",
-				"baseRefName":"main"
+				"baseRefName":"main",
+				"baseRefOid":"def456"
 			}`}
 		}
 		if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
 			return remote.CommandResult{Err: context.DeadlineExceeded}
+		}
+		if len(args) >= 2 && args[0] == "api" {
+			return remote.CommandResult{Stdout: `{"behind_by":0}`}
 		}
 		return remote.CommandResult{}
 	}
@@ -2164,7 +2169,7 @@ func TestEvidenceRefreshCommandMapsNonSuccessRemoteStates(t *testing.T) {
 		wantCI     string
 		wantSync   string
 	}{
-		{name: "pending checks", mergeState: `"CLEAN"`, checks: `[{"name":"Go Test","bucket":"pending","state":"IN_PROGRESS"}]`, wantCI: "pending", wantSync: "fresh"},
+		{name: "unstable pending checks", mergeState: `"UNSTABLE"`, checks: `[{"name":"Go Test","bucket":"pending","state":"IN_PROGRESS"}]`, wantCI: "pending", wantSync: "fresh"},
 		{name: "failing checks", mergeState: `"CLEAN"`, checks: `[{"name":"Go Test","bucket":"fail","state":"FAILURE"}]`, wantCI: "failed", wantSync: "fresh"},
 		{name: "stale merge", mergeState: `"BEHIND"`, checks: `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`, wantCI: "success", wantSync: "stale"},
 		{name: "conflicted merge", mergeState: `"DIRTY"`, checks: `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`, wantCI: "success", wantSync: "conflicted"},
@@ -2792,6 +2797,10 @@ func seedMergeReadyEvidenceForCLI(t *testing.T, root string) {
 }
 
 func fakeCLIRefreshCommands(mergeStateJSON, checksJSON string) remote.CommandRunner {
+	mergeableJSON := `"MERGEABLE"`
+	if strings.Contains(mergeStateJSON, "DIRTY") {
+		mergeableJSON = `"CONFLICTING"`
+	}
 	return func(name string, args ...string) remote.CommandResult {
 		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
 			return remote.CommandResult{Stdout: `{
@@ -2800,15 +2809,23 @@ func fakeCLIRefreshCommands(mergeStateJSON, checksJSON string) remote.CommandRun
 				"state":"OPEN",
 				"isDraft":false,
 				"mergeStateStatus":` + mergeStateJSON + `,
-				"mergeable":"MERGEABLE",
+				"mergeable":` + mergeableJSON + `,
 				"reviewDecision":"APPROVED",
 				"headRefName":"codex/test",
 				"headRefOid":"abc123",
-				"baseRefName":"main"
+				"baseRefName":"main",
+				"baseRefOid":"def456"
 			}`}
 		}
 		if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
 			return remote.CommandResult{Stdout: checksJSON}
+		}
+		if len(args) >= 2 && args[0] == "api" {
+			behindBy := 0
+			if strings.Contains(mergeStateJSON, "BEHIND") {
+				behindBy = 1
+			}
+			return remote.CommandResult{Stdout: fmt.Sprintf(`{"behind_by":%d}`, behindBy)}
 		}
 		return remote.CommandResult{}
 	}

@@ -2,6 +2,7 @@ package evidence_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,8 +95,28 @@ func TestRefreshWritesCIAndSyncEvidenceFromRecordedPR(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load sync: %v", err)
 	}
-	if sync == nil || sync.Status != "fresh" || sync.BaseRef != "main" || sync.HeadRef != "codex/test" {
+	if sync == nil || sync.Status != "fresh" || sync.BaseRef != "main" || sync.HeadRef != "codex/test" || sync.BaseCommit != "def456" || sync.HeadCommit != "abc123" {
 		t.Fatalf("unexpected sync record: %#v", sync)
+	}
+}
+
+func TestRefreshKeepsSyncFreshWhileUnstableChecksArePending(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if result := (evidence.Service{Workdir: root}).Submit("publish", []byte(`{"status":"recorded","pr_url":"https://github.com/catu-ai/easyharness/pull/99"}`)); !result.OK {
+		t.Fatalf("seed publish evidence: %#v", result)
+	}
+
+	refresh := evidence.Service{
+		Workdir:    root,
+		RunCommand: fakeRefreshCommands(`"UNSTABLE"`, `[{"name":"Go Test","bucket":"pending","state":"IN_PROGRESS"}]`),
+	}.Refresh()
+
+	if !refresh.OK || refresh.Refreshed == nil || refresh.Refreshed.CIStatus != "pending" || refresh.Refreshed.SyncStatus != "fresh" {
+		t.Fatalf("expected pending CI with independently fresh sync, got %#v", refresh)
 	}
 }
 
@@ -257,7 +278,7 @@ func TestRefreshWritesOnlyClearDomainEvidence(t *testing.T) {
 
 	result := evidence.Service{
 		Workdir:    root,
-		RunCommand: fakeRefreshCommands(`""`, `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
+		RunCommand: fakeRefreshCommandsWithoutComparison(`[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`),
 	}.Refresh()
 
 	if !result.OK {
@@ -341,7 +362,8 @@ func TestRefreshWritesSyncOnlyWhenChecksTimeOut(t *testing.T) {
 					"reviewDecision":"APPROVED",
 					"headRefName":"codex/test",
 					"headRefOid":"abc123",
-					"baseRefName":"main"
+					"baseRefName":"main",
+					"baseRefOid":"def456"
 				}`}
 			}
 			if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
@@ -349,6 +371,9 @@ func TestRefreshWritesSyncOnlyWhenChecksTimeOut(t *testing.T) {
 					Stdout: `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
 					Err:    context.DeadlineExceeded,
 				}
+			}
+			if len(args) >= 2 && args[0] == "api" {
+				return remote.CommandResult{Stdout: `{"behind_by":0}`}
 			}
 			return remote.CommandResult{}
 		},
@@ -569,6 +594,20 @@ func TestSubmitSyncRejectsWrongHeadRefType(t *testing.T) {
 	assertEvidenceError(t, result, "input.head_ref")
 }
 
+func TestSubmitSyncRequiresCommitPair(t *testing.T) {
+	root := t.TempDir()
+	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
+	if _, err := runstate.SaveCurrentPlan(root, relPlanPath); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+
+	result := (evidence.Service{Workdir: root}).Submit("sync", []byte(`{"status":"fresh","base_commit":"def456"}`))
+	if result.OK {
+		t.Fatalf("expected incomplete commit pair rejection, got %#v", result)
+	}
+	assertEvidenceError(t, result, "input")
+}
+
 func TestSubmitSyncFreshWritesArtifactWithoutStateCache(t *testing.T) {
 	root := t.TempDir()
 	relPlanPath := writeArchivedPlan(t, root, "docs/plans/archived/2026-03-21-evidence-plan.md")
@@ -581,7 +620,7 @@ func TestSubmitSyncFreshWritesArtifactWithoutStateCache(t *testing.T) {
 		Now: func() time.Time {
 			return time.Date(2026, 3, 21, 10, 7, 0, 0, time.UTC)
 		},
-	}.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`))
+	}.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123"}`))
 	if !result.OK {
 		t.Fatalf("expected success, got %#v", result)
 	}
@@ -599,7 +638,7 @@ func TestSubmitSyncFreshWritesArtifactWithoutStateCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load latest sync record: %v", err)
 	}
-	if record == nil || record.Status != "fresh" || record.BaseRef != "main" {
+	if record == nil || record.Status != "fresh" || record.BaseRef != "main" || record.BaseCommit != "def456" || record.HeadCommit != "abc123" {
 		t.Fatalf("unexpected sync record: %#v", record)
 	}
 }
@@ -830,6 +869,10 @@ func fakeRefreshCommands(mergeStateJSON, checksJSON string) remote.CommandRunner
 }
 
 func fakeRefreshCommandsWithPRState(prStateJSON, mergeStateJSON, checksJSON string) remote.CommandRunner {
+	mergeableJSON := `"MERGEABLE"`
+	if strings.Contains(mergeStateJSON, "DIRTY") {
+		mergeableJSON = `"CONFLICTING"`
+	}
 	return func(name string, args ...string) remote.CommandResult {
 		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
 			return remote.CommandResult{Stdout: `{
@@ -838,8 +881,38 @@ func fakeRefreshCommandsWithPRState(prStateJSON, mergeStateJSON, checksJSON stri
 				"state":` + prStateJSON + `,
 				"isDraft":false,
 				"mergeStateStatus":` + mergeStateJSON + `,
-				"mergeable":"MERGEABLE",
+				"mergeable":` + mergeableJSON + `,
 				"reviewDecision":"APPROVED",
+				"headRefName":"codex/test",
+				"headRefOid":"abc123",
+				"baseRefName":"main",
+				"baseRefOid":"def456"
+			}`}
+		}
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
+			return remote.CommandResult{Stdout: checksJSON}
+		}
+		if len(args) >= 2 && args[0] == "api" {
+			behindBy := 0
+			if strings.Contains(mergeStateJSON, "BEHIND") {
+				behindBy = 1
+			}
+			return remote.CommandResult{Stdout: fmt.Sprintf(`{"behind_by":%d}`, behindBy)}
+		}
+		return remote.CommandResult{}
+	}
+}
+
+func fakeRefreshCommandsWithoutComparison(checksJSON string) remote.CommandRunner {
+	return func(name string, args ...string) remote.CommandResult {
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
+			return remote.CommandResult{Stdout: `{
+				"url":"https://github.com/catu-ai/easyharness/pull/99",
+				"number":99,
+				"state":"OPEN",
+				"isDraft":false,
+				"mergeStateStatus":"UNKNOWN",
+				"mergeable":"UNKNOWN",
 				"headRefName":"codex/test",
 				"headRefOid":"abc123",
 				"baseRefName":"main"

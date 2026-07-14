@@ -35,9 +35,6 @@ template_version: 0.3.0
 - Delivered: PENDING_UNTIL_ARCHIVE
 - Not Delivered: PENDING_UNTIL_ARCHIVE
 - Follow-Up Issues: NONE
-- PR: PENDING_UNTIL_ARCHIVE
-- Ready: PENDING_UNTIL_ARCHIVE
-- Merge Handoff: PENDING_UNTIL_ARCHIVE
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
@@ -57,7 +54,7 @@ template_version: 0.3.0
 	if strings.Contains(got, "PENDING_UNTIL_ARCHIVE") {
 		t.Fatalf("expected every Closeout placeholder to be replaced, got:\n%s", got)
 	}
-	for _, field := range []string{"Validation", "Review", "Delivered", "Not Delivered", "Follow-Up Issues", "PR", "Ready", "Merge Handoff"} {
+	for _, field := range []string{"Validation", "Review", "Delivered", "Not Delivered", "Follow-Up Issues"} {
 		if !strings.Contains(got, "- "+field+":") {
 			t.Fatalf("expected Closeout field %q, got:\n%s", field, got)
 		}

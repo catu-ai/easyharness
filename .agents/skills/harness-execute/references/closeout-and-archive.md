@@ -9,12 +9,16 @@ Archive freezes the reviewed outcome and its durable handoff.
    contains a passing full root plus any linked repair deltas.
 3. Replace the tracked plan's `Closeout` placeholders from repository and
    review evidence, not memory.
-4. Record durable follow-up details when `Deferred Items` contains real work.
+4. Record a concrete issue URL or `#number` reference when `Deferred Items`
+   contains real work. If no future commitment exists, keep that work in Out of
+   Scope and use `- None.` under Deferred Items instead of inventing an issue.
 5. Run `harness plan lint <plan-path>` and `harness archive`.
 
 Keep summaries concise: delivered outcome, meaningful validation, review result
-and repairs, known limits, and merge/release handoff. Do not paste execution
-transcripts.
+and repairs, known limits, and concrete follow-up issues. The tracked Closeout
+does not duplicate PR, CI, sync, merge, or land facts. Its labeled values may
+wrap onto immediately following ordinary prose lines indented by at least two
+spaces. Do not paste execution transcripts.
 
 ## Handoff
 

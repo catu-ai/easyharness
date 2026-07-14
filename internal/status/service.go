@@ -173,14 +173,18 @@ func (s Service) Snapshot() Result {
 		evidenceCtx, evidenceWarnings := loadEvidenceContext(s.Workdir, planStem, runstate.CurrentRevision(state))
 		result.Warnings = append(result.Warnings, evidenceWarnings...)
 		applyEvidenceFacts(facts, evidenceCtx)
+		applyRemoteHandoffFacts(s, facts, evidenceCtx)
 		result.State.CurrentNode = "execution/finalize/publish"
 		if archivedCandidateReadyForMerge(evidenceCtx) {
-			blockers = append(blockers, commandErrorsToStatusErrors(lifecycle.EvaluateArchivedReviewCoverage(s.Workdir, planStem, doc, state))...)
+			coverageIssues := lifecycle.EvaluateArchivedReviewCoverage(s.Workdir, planStem, doc, state)
+			if mergedRemotePR(remoteEvidenceFacts(facts)) {
+				coverageIssues = lifecycle.EvaluatePublishedReviewCoverage(s.Workdir, planStem, doc, state)
+			}
+			blockers = append(blockers, commandErrorsToStatusErrors(coverageIssues)...)
 			if len(blockers) == 0 {
 				result.State.CurrentNode = "execution/finalize/await_merge"
 			}
 		}
-		applyRemoteHandoffFacts(s, facts, evidenceCtx)
 	default:
 		return Result{
 			OK:      false,
@@ -458,6 +462,9 @@ func mapRemoteEvidenceObservation(facts *Facts, observation remote.HandoffObserv
 	if observation.Sync.Status == remote.RemoteSyncAvailable {
 		out.Sync = &contracts.StatusRemoteEvidenceStatus{Status: observation.Sync.EvidenceStatus}
 	}
+	if strings.TrimSpace(observation.Sync.MergePolicy) != "" {
+		out.MergePolicy = &contracts.StatusRemoteEvidenceStatus{Status: observation.Sync.MergePolicy}
+	}
 	out.Assessment = remoteAssessment(facts, out)
 	out.Message = remoteMessage(out)
 	return out
@@ -469,6 +476,12 @@ func remoteAssessment(facts *Facts, remoteFacts *contracts.StatusRemoteEvidence)
 	}
 	if mergedRemotePR(remoteFacts) {
 		return "merged_pending_land"
+	}
+	if remoteMergePolicyStatus(remoteFacts) == "blocked" {
+		return "merge_policy_blocked"
+	}
+	if remoteMergePolicyStatus(remoteFacts) == "unknown" {
+		return "wait_for_remote"
 	}
 	remoteCI := remoteCIStatusFrom(remoteFacts)
 	remoteSync := remoteSyncStatusFrom(remoteFacts)
@@ -532,6 +545,8 @@ func remoteMessage(remoteFacts *contracts.StatusRemoteEvidence) string {
 		return "Remote PR facts are not ready yet; wait before recording final evidence."
 	case "repair_remote":
 		return "Remote PR facts show CI or sync repair is needed before merge-ready handoff."
+	case "merge_policy_blocked":
+		return "The branch is current, but provider approvals or merge policy still block merge."
 	case "manual_evidence_required":
 		return "Remote PR facts are unavailable or incomplete; use manual evidence fallback when the facts are known."
 	case "candidate_invalidated":
@@ -614,6 +629,13 @@ func remoteSyncStatusFrom(remoteFacts *contracts.StatusRemoteEvidence) string {
 		return ""
 	}
 	return remoteFacts.Sync.Status
+}
+
+func remoteMergePolicyStatus(remoteFacts *contracts.StatusRemoteEvidence) string {
+	if remoteFacts == nil || remoteFacts.MergePolicy == nil {
+		return ""
+	}
+	return strings.TrimSpace(remoteFacts.MergePolicy.Status)
 }
 
 func remoteEvidenceUnavailable(facts *Facts, degradation remote.Degradation) *contracts.StatusRemoteEvidence {
@@ -814,8 +836,8 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 		return actions
 	case "land":
 		return []NextAction{
-			{Command: nil, Description: "Finish required post-merge bookkeeping and cleanup while the plan is in land: add the final PR comment when the permanent record still needs one, close resolved linked issues or add follow-up references for unresolved ones, and complete the remaining closeout tasks."},
-			{Command: strPtr("harness land complete"), Description: "Record required post-merge bookkeeping completion only after the required PR and issue bookkeeping is done, then restore the worktree to idle."},
+			{Command: nil, Description: "Finish required post-merge bookkeeping and cleanup while the plan is in land: rely on the forge merge record when it is sufficient; add a PR comment or issue update only for material unresolved, deployment, or follow-up context; then sync local branches."},
+			{Command: strPtr("harness land complete"), Description: "Record required post-merge bookkeeping completion only after any necessary durable handoff and local cleanup are done, then restore the worktree to idle."},
 		}
 	}
 
@@ -950,6 +972,12 @@ func remoteHandoffNextActions(facts *Facts) []NextAction {
 			})
 		}
 	}
+	if remoteMergePolicyStatus(remoteFacts) == "blocked" {
+		actions = append(actions, NextAction{
+			Command:     nil,
+			Description: "The branch is current, but provider approvals or merge policy still block merge; satisfy that policy without refreshing the branch.",
+		})
+	}
 	return actions
 }
 
@@ -973,7 +1001,7 @@ func remoteBlocksMergeApproval(facts *Facts) bool {
 		return false
 	}
 	switch remoteFacts.Assessment {
-	case "candidate_invalidated", "repair_remote", "wait_for_remote":
+	case "candidate_invalidated", "repair_remote", "wait_for_remote", "merge_policy_blocked":
 		return true
 	default:
 		return unusableRemotePR(remoteFacts)

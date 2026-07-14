@@ -3,6 +3,7 @@ package remote
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,7 +24,8 @@ func TestObserveRecordedPRUsesGhView(t *testing.T) {
 				"state": "OPEN",
 				"headRefName": "codex/read-only-pr-handoff-identity",
 				"headRefOid": "abc123",
-				"baseRefName": "main"
+				"baseRefName": "main",
+				"baseRefOid": "def456"
 			}`}
 		},
 	}
@@ -40,7 +42,7 @@ func TestObserveRecordedPRUsesGhView(t *testing.T) {
 		Name: "gh",
 		Args: []string{
 			"pr", "view", "https://github.com/catu-ai/easyharness/pull/203",
-			"--json", "url,number,state,isDraft,mergeStateStatus,mergeable,reviewDecision,headRefName,headRefOid,baseRefName",
+			"--json", "url,number,state,isDraft,mergeStateStatus,mergeable,reviewDecision,headRefName,headRefOid,baseRefName,baseRefOid",
 		},
 	}}
 	if !reflect.DeepEqual(calls, want) {
@@ -65,13 +67,16 @@ func TestObserveHandoffMapsPassingChecksAndCleanMergeState(t *testing.T) {
 					"reviewDecision": "APPROVED",
 					"headRefName": "codex/refresh",
 					"headRefOid": "abc123",
-					"baseRefName": "main"
+					"baseRefName": "main",
+					"baseRefOid": "def456"
 				}`}
 			case len(args) >= 3 && args[0] == "pr" && args[1] == "checks":
 				return CommandResult{Stdout: `[
 					{"name":"Go Test","workflow":"Go Test","bucket":"pass","state":"SUCCESS","link":"https://ci.example/1"},
 					{"name":"Lint","workflow":"Go Test","bucket":"skipping","state":"SKIPPED"}
 				]`}
+			case len(args) >= 2 && args[0] == "api":
+				return CommandResult{Stdout: `{"status":"ahead","ahead_by":1,"behind_by":0}`}
 			default:
 				t.Fatalf("unexpected command %s %v", name, args)
 				return CommandResult{}
@@ -90,20 +95,25 @@ func TestObserveHandoffMapsPassingChecksAndCleanMergeState(t *testing.T) {
 	if observation.Sync.Status != RemoteSyncAvailable || observation.Sync.EvidenceStatus != "fresh" {
 		t.Fatalf("expected fresh sync observation, got %#v", observation.Sync)
 	}
-	if len(calls) != 2 {
-		t.Fatalf("expected pr view and pr checks calls, got %#v", calls)
+	if len(calls) != 3 {
+		t.Fatalf("expected pr view, pr checks, and compare calls, got %#v", calls)
 	}
 	want := []commandCall{{
 		Name: "gh",
 		Args: []string{
 			"pr", "view", "https://github.com/catu-ai/easyharness/pull/199",
-			"--json", "url,number,state,isDraft,mergeStateStatus,mergeable,reviewDecision,headRefName,headRefOid,baseRefName",
+			"--json", "url,number,state,isDraft,mergeStateStatus,mergeable,reviewDecision,headRefName,headRefOid,baseRefName,baseRefOid",
 		},
 	}, {
 		Name: "gh",
 		Args: []string{
 			"pr", "checks", "https://github.com/catu-ai/easyharness/pull/199",
 			"--json", "name,workflow,bucket,state,link",
+		},
+	}, {
+		Name: "gh",
+		Args: []string{
+			"api", "repos/catu-ai/easyharness/compare/def456...abc123",
 		},
 	}}
 	if !reflect.DeepEqual(calls, want) {
@@ -137,7 +147,7 @@ func TestObserveHandoffDoesNotCallGhWhenNoRecordedPR(t *testing.T) {
 }
 
 func TestObserveHandoffMapsPendingChecks(t *testing.T) {
-	svc := Service{RunCommand: fakePRAndChecks(`{"mergeStateStatus":"CLEAN"}`, `[
+	svc := Service{RunCommand: fakePRAndChecks(`{"mergeStateStatus":"UNSTABLE"}`, `[
 		{"name":"Go Test","bucket":"pass","state":"SUCCESS"},
 		{"name":"Smoke","bucket":"pending","state":"IN_PROGRESS"}
 	]`)}
@@ -146,6 +156,9 @@ func TestObserveHandoffMapsPendingChecks(t *testing.T) {
 
 	if observation.CI.Status != RemoteCIAvailable || observation.CI.EvidenceStatus != "pending" {
 		t.Fatalf("expected pending CI observation, got %#v", observation.CI)
+	}
+	if observation.Sync.Status != RemoteSyncAvailable || observation.Sync.EvidenceStatus != "fresh" {
+		t.Fatalf("expected UNSTABLE checks not to make sync stale, got %#v", observation.Sync)
 	}
 }
 
@@ -165,28 +178,36 @@ func TestObserveHandoffMapsFailingAndCancelledChecks(t *testing.T) {
 	}
 }
 
-func TestObserveHandoffMapsMergeStateToSyncEvidence(t *testing.T) {
+func TestObserveHandoffSeparatesFreshnessConflictAndPolicy(t *testing.T) {
 	tests := []struct {
-		name       string
-		mergeState string
-		want       string
+		name         string
+		mergeState   string
+		mergeable    string
+		behindBy     int
+		wantSync     string
+		wantFresh    string
+		wantConflict string
+		wantPolicy   string
 	}{
-		{name: "clean", mergeState: "CLEAN", want: "fresh"},
-		{name: "behind", mergeState: "BEHIND", want: "stale"},
-		{name: "blocked", mergeState: "BLOCKED", want: "stale"},
-		{name: "unknown", mergeState: "UNKNOWN", want: "stale"},
-		{name: "dirty", mergeState: "DIRTY", want: "conflicted"},
+		{name: "clean", mergeState: "CLEAN", mergeable: "MERGEABLE", wantSync: "fresh", wantFresh: "fresh", wantConflict: "clear", wantPolicy: "clear"},
+		{name: "compare behind despite clean merge state", mergeState: "CLEAN", mergeable: "MERGEABLE", behindBy: 2, wantSync: "stale", wantFresh: "stale", wantConflict: "clear", wantPolicy: "clear"},
+		{name: "behind merge state but current comparison", mergeState: "BEHIND", mergeable: "MERGEABLE", wantSync: "fresh", wantFresh: "fresh", wantConflict: "clear", wantPolicy: "clear"},
+		{name: "blocked policy", mergeState: "BLOCKED", mergeable: "MERGEABLE", wantSync: "fresh", wantFresh: "fresh", wantConflict: "clear", wantPolicy: "blocked"},
+		{name: "hooks policy", mergeState: "HAS_HOOKS", mergeable: "MERGEABLE", wantSync: "fresh", wantFresh: "fresh", wantConflict: "clear", wantPolicy: "blocked"},
+		{name: "unstable checks", mergeState: "UNSTABLE", mergeable: "MERGEABLE", wantSync: "fresh", wantFresh: "fresh", wantConflict: "clear", wantPolicy: "clear"},
+		{name: "unknown provider state", mergeState: "UNKNOWN", mergeable: "UNKNOWN", wantSync: "fresh", wantFresh: "fresh", wantConflict: "unknown", wantPolicy: "unknown"},
+		{name: "conflicted", mergeState: "DIRTY", mergeable: "CONFLICTING", wantSync: "conflicted", wantFresh: "fresh", wantConflict: "conflicted", wantPolicy: "clear"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := Service{RunCommand: fakePRAndChecks(`{"mergeStateStatus":"`+tt.mergeState+`"}`, `[
+			svc := Service{RunCommand: fakePRChecksAndCompare(`{"mergeStateStatus":"`+tt.mergeState+`","mergeable":"`+tt.mergeable+`"}`, `[
 				{"name":"Go Test","bucket":"pass","state":"SUCCESS"}
-			]`)}
+			]`, tt.behindBy)}
 
 			observation := svc.ObserveHandoff(ParseRecordedPRURL("https://github.com/catu-ai/easyharness/pull/199"))
 
-			if observation.Sync.Status != RemoteSyncAvailable || observation.Sync.EvidenceStatus != tt.want {
-				t.Fatalf("expected sync %q, got %#v", tt.want, observation.Sync)
+			if observation.Sync.Status != RemoteSyncAvailable || observation.Sync.EvidenceStatus != tt.wantSync || observation.Sync.Freshness != tt.wantFresh || observation.Sync.Conflict != tt.wantConflict || observation.Sync.MergePolicy != tt.wantPolicy {
+				t.Fatalf("unexpected separated sync observation: %#v", observation.Sync)
 			}
 		})
 	}
@@ -195,7 +216,10 @@ func TestObserveHandoffMapsMergeStateToSyncEvidence(t *testing.T) {
 func TestObserveHandoffDegradesWhenChecksAreUnreadableButMergeIsClear(t *testing.T) {
 	svc := Service{RunCommand: func(name string, args ...string) CommandResult {
 		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
-			return CommandResult{Stdout: `{"mergeStateStatus":"CLEAN"}`}
+			return CommandResult{Stdout: `{"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","headRefOid":"abc123","baseRefOid":"def456"}`}
+		}
+		if len(args) >= 2 && args[0] == "api" {
+			return CommandResult{Stdout: `{"behind_by":0}`}
 		}
 		return CommandResult{Err: exec.ErrNotFound}
 	}}
@@ -210,18 +234,27 @@ func TestObserveHandoffDegradesWhenChecksAreUnreadableButMergeIsClear(t *testing
 	}
 }
 
-func TestObserveHandoffDegradesWhenMergeIsUnreadableButChecksAreClear(t *testing.T) {
-	svc := Service{RunCommand: fakePRAndChecks(`{"mergeStateStatus":""}`, `[
-		{"name":"Go Test","bucket":"pass","state":"SUCCESS"}
-	]`)}
+func TestObserveHandoffDegradesWhenComparisonIsUnreadableButChecksAreClear(t *testing.T) {
+	svc := Service{RunCommand: func(name string, args ...string) CommandResult {
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
+			return CommandResult{Stdout: `{"mergeStateStatus":"UNSTABLE","mergeable":"MERGEABLE","headRefOid":"abc123","baseRefOid":"def456"}`}
+		}
+		if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
+			return CommandResult{Stdout: `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`}
+		}
+		return CommandResult{Err: errors.New("comparison unavailable")}
+	}}
 
 	observation := svc.ObserveHandoff(ParseRecordedPRURL("https://github.com/catu-ai/easyharness/pull/199"))
 
 	if observation.CI.Status != RemoteCIAvailable || observation.CI.EvidenceStatus != "success" {
 		t.Fatalf("expected CI to remain refreshable, got %#v", observation.CI)
 	}
-	if observation.Sync.Status != RemoteSyncUnavailable || observation.Sync.Degraded.Code != DegradedMergeUnreadable {
+	if observation.Sync.Status != RemoteSyncUnavailable || observation.Sync.Degraded.Code != DegradedGhCommandFailed {
 		t.Fatalf("expected degraded sync observation, got %#v", observation.Sync)
+	}
+	if observation.Sync.Conflict != "clear" || observation.Sync.MergePolicy != "clear" {
+		t.Fatalf("expected independent conflict and policy facts, got %#v", observation.Sync)
 	}
 }
 
@@ -350,7 +383,10 @@ func TestObserveRecordedPRDegradesForGhTimeout(t *testing.T) {
 func TestObserveHandoffDegradesTimedOutChecksEvenWithStdout(t *testing.T) {
 	svc := Service{RunCommand: func(name string, args ...string) CommandResult {
 		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
-			return CommandResult{Stdout: `{"mergeStateStatus":"CLEAN"}`}
+			return CommandResult{Stdout: `{"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","headRefOid":"abc123","baseRefOid":"def456"}`}
+		}
+		if len(args) >= 2 && args[0] == "api" {
+			return CommandResult{Stdout: `{"behind_by":0}`}
 		}
 		return CommandResult{
 			Stdout: `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
@@ -439,6 +475,10 @@ type commandCall struct {
 }
 
 func fakePRAndChecks(prFields, checksJSON string) CommandRunner {
+	return fakePRChecksAndCompare(prFields, checksJSON, 0)
+}
+
+func fakePRChecksAndCompare(prFields, checksJSON string, behindBy int) CommandRunner {
 	return func(name string, args ...string) CommandResult {
 		if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
 			fields := strings.TrimSpace(prFields)
@@ -454,11 +494,15 @@ func fakePRAndChecks(prFields, checksJSON string) CommandRunner {
 				"headRefName": "codex/refresh",
 				"headRefOid": "abc123",
 				"baseRefName": "main",
+				"baseRefOid": "def456",
 				` + fields + `
 			}`}
 		}
 		if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
 			return CommandResult{Stdout: checksJSON}
+		}
+		if len(args) >= 2 && args[0] == "api" {
+			return CommandResult{Stdout: fmt.Sprintf(`{"status":"diverged","behind_by":%d}`, behindBy)}
 		}
 		return CommandResult{Err: errors.New("unexpected command")}
 	}

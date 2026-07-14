@@ -101,7 +101,9 @@ dimension selector.
 ### Deferred Items
 
 Name work intentionally excluded from the slice, or use `- None.`. Deferred
-work that remains at archive must have a concrete follow-up in `Closeout`.
+work that remains at archive must have a concrete issue URL or `#number`
+reference in `Closeout`. Work with no intended follow-up belongs in Out of
+Scope with `- None.` under Deferred Items; do not invent an issue for it.
 
 ### Work Breakdown
 
@@ -156,15 +158,15 @@ The template starts with compact archive-time fields:
 - Delivered: PENDING_UNTIL_ARCHIVE
 - Not Delivered: PENDING_UNTIL_ARCHIVE
 - Follow-Up Issues: NONE
-- PR: PENDING_UNTIL_ARCHIVE
-- Ready: PENDING_UNTIL_ARCHIVE
-- Merge Handoff: PENDING_UNTIL_ARCHIVE
 ```
 
 Before archive, replace every placeholder with a concise durable result. The
-archive command adds `Archived At` and `Revision`. `PR`, `Ready`, and
-`Merge Handoff` preserve the publish boundary; `Follow-Up Issues` cannot remain
-`NONE` when deferred items remain.
+archive command adds `Archived At` and `Revision`. Values may wrap onto
+immediately following lines indented by at least two spaces, using the same
+ordinary-prose continuation rules as step fields. `Follow-Up Issues` must name
+a concrete issue URL or `#number` when deferred items remain. PR, CI, sync,
+merge, and land facts belong to harness runtime evidence and forge history,
+not the tracked archive-time Closeout.
 
 ## Plan Packages
 
