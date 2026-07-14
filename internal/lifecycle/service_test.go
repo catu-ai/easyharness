@@ -2061,7 +2061,7 @@ func commitLifecycleCandidate(t *testing.T, root string) string {
 		return strings.TrimSpace(string(output))
 	}
 	if _, err := os.Stat(filepath.Join(root, ".git")); os.IsNotExist(err) {
-		run("init", "-q")
+		run("init", "-q", "-b", "main")
 		run("config", "user.name", "Codex Test")
 		run("config", "user.email", "codex@example.com")
 		writeFile(t, filepath.Join(root, ".gitignore"), ".local/\n")
