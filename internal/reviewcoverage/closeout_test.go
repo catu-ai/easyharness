@@ -140,6 +140,23 @@ This text is still part of Design Notes.`, 1)
 	}
 }
 
+func TestValidateArchiveWorktreeDoesNotMaskFrontmatterCloseoutComment(t *testing.T) {
+	root := t.TempDir()
+	initGit(t, root)
+	reviewed := strings.Replace(reviewedPlan, "size: S", "## Closeout\nsize: S", 1)
+	planPath := writeFile(t, root, "docs/plans/active/2026-07-13-test.md", reviewed)
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "reviewed")
+	covered := git(t, root, "rev-parse", "HEAD")
+
+	changed := strings.Replace(reviewed, "size: S", "size: M", 1)
+	changed = strings.Replace(changed, "# Plan", "# Unreviewed Plan", 1)
+	writeFile(t, root, "docs/plans/active/2026-07-13-test.md", changed)
+	if err := ValidateArchiveWorktree(root, planPath, covered); err == nil || !strings.Contains(err.Error(), "outside") {
+		t.Fatalf("expected frontmatter/title change after YAML comment to be rejected, got %v", err)
+	}
+}
+
 func TestValidateArchiveWorktreeAllowsCommittedCloseoutOnlyDescendant(t *testing.T) {
 	root := t.TempDir()
 	initGit(t, root)
@@ -254,6 +271,28 @@ func TestValidateArchivedCandidateRejectsFrontmatterChangesOutsideCloseout(t *te
 				t.Fatalf("expected raw frontmatter change rejection, got %v", err)
 			}
 		})
+	}
+}
+
+func TestValidateArchivedCandidateDoesNotMaskFrontmatterCloseoutComment(t *testing.T) {
+	root := t.TempDir()
+	initGit(t, root)
+	activePlan := "docs/plans/active/2026-07-13-test.md"
+	archivedPlan := "docs/plans/archived/2026-07-13-test.md"
+	reviewed := strings.Replace(reviewedPlan, "size: S", "## Closeout\nsize: S", 1)
+	writeFile(t, root, activePlan, reviewed)
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "reviewed")
+	covered := git(t, root, "rev-parse", "HEAD")
+	changed := strings.Replace(reviewed, "size: S", "size: M", 1)
+	changed = strings.Replace(changed, "# Plan", "# Unreviewed Plan", 1)
+	writeFile(t, root, archivedPlan, changed)
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
+		t.Fatalf("remove active plan: %v", err)
+	}
+	chain := &Chain{CoveredHeadSHA: covered, ReviewedPlanPath: activePlan}
+	if err := ValidateArchivedCandidate(root, archivedPlan, chain); err == nil || !strings.Contains(err.Error(), "outside the allowed Closeout body") {
+		t.Fatalf("expected archived frontmatter/title change after YAML comment to be rejected, got %v", err)
 	}
 }
 

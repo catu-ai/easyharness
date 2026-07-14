@@ -67,7 +67,15 @@ func ValidateArchiveWorktree(workdir, planPath, coveredHead string) error {
 	if err != nil {
 		return fmt.Errorf("read current plan content: %w", err)
 	}
-	if !bytes.Equal(maskCloseoutBodies(baseline), maskCloseoutBodies(current)) {
+	baselineComparable, err := planWithMaskedCloseoutBody(baseline)
+	if err != nil {
+		return fmt.Errorf("read reviewed plan structure: %w", err)
+	}
+	currentComparable, err := planWithMaskedCloseoutBody(current)
+	if err != nil {
+		return fmt.Errorf("read current plan structure: %w", err)
+	}
+	if !bytes.Equal(baselineComparable, currentComparable) {
 		return fmt.Errorf("current plan changed outside the allowed closeout summary bodies")
 	}
 	return nil
@@ -121,9 +129,18 @@ func ValidateArchivedCandidate(workdir, archivedPlanPath string, chain *Chain) e
 	if err != nil {
 		return fmt.Errorf("prepare reviewed plan for archive comparison: %w", err)
 	}
-	expectedComparable := maskCloseoutBodies(expected)
-	reviewedComparable := maskCloseoutBodies(baseline)
-	currentComparable := maskCloseoutBodies(current)
+	expectedComparable, err := planWithMaskedCloseoutBody(expected)
+	if err != nil {
+		return fmt.Errorf("read command-rendered plan structure: %w", err)
+	}
+	reviewedComparable, err := planWithMaskedCloseoutBody(baseline)
+	if err != nil {
+		return fmt.Errorf("read reviewed plan structure: %w", err)
+	}
+	currentComparable, err := planWithMaskedCloseoutBody(current)
+	if err != nil {
+		return fmt.Errorf("read archived plan structure: %w", err)
+	}
 	if !bytes.Equal(expectedComparable, currentComparable) && !bytes.Equal(reviewedComparable, currentComparable) {
 		return fmt.Errorf("archived plan differs from the command-rendered reviewed plan outside the allowed Closeout body near %s", firstComparableDifference(expectedComparable, currentComparable))
 	}
@@ -177,6 +194,45 @@ func splitPlanContent(content []byte) (string, []byte, error) {
 		}
 	}
 	return "", nil, fmt.Errorf("missing closing frontmatter delimiter")
+}
+
+func planWithMaskedCloseoutBody(content []byte) ([]byte, error) {
+	envelope, body, err := splitPlanEnvelope(content)
+	if err != nil {
+		return nil, err
+	}
+	comparable := make([]byte, 0, len(envelope)+len(body))
+	comparable = append(comparable, envelope...)
+	comparable = append(comparable, maskCloseoutBodies(body)...)
+	return comparable, nil
+}
+
+func splitPlanEnvelope(content []byte) ([]byte, []byte, error) {
+	lineStart := 0
+	lineNumber := 0
+	for lineStart <= len(content) {
+		lineEnd := len(content)
+		if relative := bytes.IndexByte(content[lineStart:], '\n'); relative >= 0 {
+			lineEnd = lineStart + relative
+		}
+		line := content[lineStart:lineEnd]
+		if lineNumber == 0 && strings.TrimSpace(string(line)) != "---" {
+			return nil, nil, fmt.Errorf("missing opening frontmatter delimiter")
+		}
+		if lineNumber > 0 && strings.TrimSpace(string(line)) == "---" {
+			bodyStart := lineEnd
+			if bodyStart < len(content) && content[bodyStart] == '\n' {
+				bodyStart++
+			}
+			return content[:bodyStart], content[bodyStart:], nil
+		}
+		if lineEnd == len(content) {
+			break
+		}
+		lineStart = lineEnd + 1
+		lineNumber++
+	}
+	return nil, nil, fmt.Errorf("missing closing frontmatter delimiter")
 }
 
 func firstComparableDifference(left, right []byte) string {
