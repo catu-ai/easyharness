@@ -387,15 +387,21 @@ func currentWorkspaceHead(t *testing.T, root string) string {
 		t.Fatalf("stat .git: %v", err)
 	}
 
-	output, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").CombinedOutput()
+	return resolveWorkspaceRevision(t, root, "HEAD")
+}
+
+func resolveWorkspaceRevision(t *testing.T, root, revision string) string {
+	t.Helper()
+
+	output, err := exec.Command("git", "-C", root, "rev-parse", revision).CombinedOutput()
 	if err != nil {
-		t.Fatalf("git rev-parse HEAD: %v\n%s", err, output)
+		t.Fatalf("git rev-parse %s: %v\n%s", revision, err, output)
 	}
-	head := strings.TrimSpace(string(output))
-	if head == "" {
-		t.Fatalf("git rev-parse HEAD returned an empty commit for %s", root)
+	resolved := strings.TrimSpace(string(output))
+	if resolved == "" {
+		t.Fatalf("git rev-parse %s returned an empty commit for %s", revision, root)
 	}
-	return head
+	return resolved
 }
 
 func runPassingFinalizeReview(t *testing.T, workspace *support.Workspace) string {
@@ -476,7 +482,7 @@ func compactPlanFixture(stepTitles ...string) string {
 		fmt.Fprintf(&body, "\n### Step %d: %s\n\n- Done: [ ]\n- Outcome: Complete %s.\n- Covers: Criterion %d\n- Check: Verify the step through the built binary.\n", index+1, title, title, index+1)
 	}
 	body.WriteString("\n## Validation Strategy\n\n- Run the built-binary end-to-end scenario.\n\n## Closeout\n\n")
-	body.WriteString("- Validation: PENDING_UNTIL_ARCHIVE\n- Review: PENDING_UNTIL_ARCHIVE\n- Delivered: PENDING_UNTIL_ARCHIVE\n- Not Delivered: PENDING_UNTIL_ARCHIVE\n- Follow-Up Issues: NONE\n- PR: PENDING_UNTIL_ARCHIVE\n- Ready: PENDING_UNTIL_ARCHIVE\n- Merge Handoff: PENDING_UNTIL_ARCHIVE\n")
+	body.WriteString("- Validation: PENDING_UNTIL_ARCHIVE\n- Review: PENDING_UNTIL_ARCHIVE\n- Delivered: PENDING_UNTIL_ARCHIVE\n- Not Delivered: PENDING_UNTIL_ARCHIVE\n- Follow-Up Issues: NONE\n")
 	return body.String()
 }
 
@@ -497,9 +503,8 @@ func drivePlanToAwaitMergeNode(t *testing.T, workspace *support.Workspace, planP
 		"url":      "https://ci.example/build/2",
 	})
 	submitEvidence(t, workspace, "sync", "tmp/sync.json", map[string]any{
-		"status":   "fresh",
-		"base_ref": "main",
-		"head_ref": "codex/e2e-lifecycle-handoff-coverage",
+		"status": "not_applied",
+		"reason": "fixture does not model a remote base comparison",
 	})
 
 	postSyncStatus := runStatus(t, workspace.Root)

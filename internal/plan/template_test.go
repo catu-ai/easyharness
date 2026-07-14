@@ -51,6 +51,9 @@ func TestRenderTemplateOmitsPrescriptiveStepAndLegacyCloseoutSections(t *testing
 		"## Review Summary",
 		"## Archive Summary",
 		"## Outcome Summary",
+		"- PR:",
+		"- Ready:",
+		"- Merge Handoff:",
 	} {
 		if strings.Contains(rendered, unwanted) {
 			t.Fatalf("rendered compact template unexpectedly contains %q\n%s", unwanted, rendered)

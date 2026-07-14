@@ -143,6 +143,15 @@ type EvidenceSyncInput struct {
 	// HeadRef is the compared head ref when one is available.
 	HeadRef string `json:"head_ref,omitempty"`
 
+	// BaseCommit is the immutable base commit used for the comparison.
+	BaseCommit string `json:"base_commit,omitempty"`
+
+	// HeadCommit is the immutable candidate commit used for the comparison.
+	HeadCommit string `json:"head_commit,omitempty"`
+
+	// PRURL is the immutable remote handoff identity whose commits were compared.
+	PRURL string `json:"pr_url,omitempty"`
+
 	// Reason is the human-readable explanation attached to the evidence record.
 	Reason string `json:"reason,omitempty"`
 }
@@ -247,6 +256,15 @@ type EvidenceSyncRecord struct {
 
 	// HeadRef is the compared head ref when one is available.
 	HeadRef string `json:"head_ref,omitempty"`
+
+	// BaseCommit is the immutable base commit used for the comparison.
+	BaseCommit string `json:"base_commit,omitempty"`
+
+	// HeadCommit is the immutable candidate commit used for the comparison.
+	HeadCommit string `json:"head_commit,omitempty"`
+
+	// PRURL is the immutable remote handoff identity whose commits were compared.
+	PRURL string `json:"pr_url,omitempty"`
 
 	// Reason is the human-readable explanation attached to the evidence record.
 	Reason string `json:"reason,omitempty"`

@@ -111,6 +111,7 @@ type PRObservation struct {
 	HeadRefName      string      `json:"head_ref_name,omitempty"`
 	HeadRefOID       string      `json:"head_ref_oid,omitempty"`
 	BaseRefName      string      `json:"base_ref_name,omitempty"`
+	BaseRefOID       string      `json:"base_ref_oid,omitempty"`
 	Degraded         Degradation `json:"degraded,omitempty"`
 }
 
@@ -133,6 +134,9 @@ type RemoteSyncObservation struct {
 	Status         string      `json:"status"`
 	EvidenceStatus string      `json:"evidence_status,omitempty"`
 	MergeState     string      `json:"merge_state,omitempty"`
+	Freshness      string      `json:"freshness,omitempty"`
+	Conflict       string      `json:"conflict,omitempty"`
+	MergePolicy    string      `json:"merge_policy,omitempty"`
 	Degraded       Degradation `json:"degraded,omitempty"`
 }
 
@@ -164,7 +168,7 @@ func (s Service) ObserveRecordedPR(identity PRIdentity) PRObservation {
 		}
 	}
 
-	result := s.run("gh", "pr", "view", identity.URL, "--json", "url,number,state,isDraft,mergeStateStatus,mergeable,reviewDecision,headRefName,headRefOid,baseRefName")
+	result := s.run("gh", "pr", "view", identity.URL, "--json", "url,number,state,isDraft,mergeStateStatus,mergeable,reviewDecision,headRefName,headRefOid,baseRefName,baseRefOid")
 	if result.Err != nil {
 		return PRObservation{
 			Status:   PRObservationUnavailable,
@@ -183,6 +187,7 @@ func (s Service) ObserveRecordedPR(identity PRIdentity) PRObservation {
 		HeadRefName      string `json:"headRefName"`
 		HeadRefOID       string `json:"headRefOid"`
 		BaseRefName      string `json:"baseRefName"`
+		BaseRefOID       string `json:"baseRefOid"`
 	}
 	if err := json.Unmarshal([]byte(result.Stdout), &parsed); err != nil {
 		return PRObservation{
@@ -206,6 +211,7 @@ func (s Service) ObserveRecordedPR(identity PRIdentity) PRObservation {
 		HeadRefName:      parsed.HeadRefName,
 		HeadRefOID:       parsed.HeadRefOID,
 		BaseRefName:      parsed.BaseRefName,
+		BaseRefOID:       parsed.BaseRefOID,
 	}
 }
 
@@ -223,7 +229,7 @@ func (s Service) ObserveHandoff(identity PRIdentity) HandoffObservation {
 	}
 
 	ci := s.observeChecks(identity.URL)
-	sync := classifyMergeState(pr.MergeStateStatus)
+	sync := s.observeSync(identity, pr)
 	degraded := make([]Degradation, 0, 2)
 	if ci.Status == RemoteCIUnavailable {
 		degraded = append(degraded, ci.Degraded)
@@ -307,32 +313,73 @@ func classifyChecks(checks []CheckRun) (string, bool) {
 	return "", false
 }
 
-func classifyMergeState(raw string) RemoteSyncObservation {
-	mergeState := strings.ToUpper(strings.TrimSpace(raw))
-	switch mergeState {
-	case "CLEAN":
-		return RemoteSyncObservation{
-			Status:         RemoteSyncAvailable,
-			EvidenceStatus: "fresh",
-			MergeState:     mergeState,
-		}
-	case "DIRTY":
-		return RemoteSyncObservation{
-			Status:         RemoteSyncAvailable,
-			EvidenceStatus: "conflicted",
-			MergeState:     mergeState,
-		}
-	case "BEHIND", "BLOCKED", "DRAFT", "HAS_HOOKS", "UNKNOWN", "UNSTABLE":
-		return RemoteSyncObservation{
-			Status:         RemoteSyncAvailable,
-			EvidenceStatus: "stale",
-			MergeState:     mergeState,
-		}
-	default:
-		return unavailableSync(Degradation{
+func (s Service) observeSync(identity PRIdentity, pr PRObservation) RemoteSyncObservation {
+	mergeState := strings.ToUpper(strings.TrimSpace(pr.MergeStateStatus))
+	conflict := classifyConflict(pr.Mergeable, mergeState)
+	policy := classifyMergePolicy(mergeState)
+	baseOID := strings.TrimSpace(pr.BaseRefOID)
+	headOID := strings.TrimSpace(pr.HeadRefOID)
+	if baseOID == "" || headOID == "" {
+		return unavailableSyncWithFacts(mergeState, conflict, policy, Degradation{
 			Code:    DegradedMergeUnreadable,
-			Message: "recorded PR merge state is unavailable",
+			Message: "recorded PR base or head commit is unavailable",
 		})
+	}
+
+	endpoint := fmt.Sprintf("repos/%s/%s/compare/%s...%s", identity.Owner, identity.Repo, baseOID, headOID)
+	result := s.run("gh", "api", endpoint)
+	if result.Err != nil {
+		return unavailableSyncWithFacts(mergeState, conflict, policy, classifyGhFailure(result))
+	}
+	var comparison struct {
+		BehindBy int `json:"behind_by"`
+	}
+	if err := json.Unmarshal([]byte(result.Stdout), &comparison); err != nil || comparison.BehindBy < 0 {
+		return unavailableSyncWithFacts(mergeState, conflict, policy, Degradation{
+			Code:    DegradedGhInvalidJSON,
+			Message: "gh returned invalid JSON for recorded PR base comparison",
+		})
+	}
+
+	freshness := "fresh"
+	if comparison.BehindBy > 0 {
+		freshness = "stale"
+	}
+	evidenceStatus := freshness
+	if conflict == "conflicted" {
+		evidenceStatus = "conflicted"
+	}
+	return RemoteSyncObservation{
+		Status:         RemoteSyncAvailable,
+		EvidenceStatus: evidenceStatus,
+		MergeState:     mergeState,
+		Freshness:      freshness,
+		Conflict:       conflict,
+		MergePolicy:    policy,
+	}
+}
+
+func classifyConflict(mergeable, mergeState string) string {
+	switch strings.ToUpper(strings.TrimSpace(mergeable)) {
+	case "MERGEABLE":
+		return "clear"
+	case "CONFLICTING":
+		return "conflicted"
+	}
+	if mergeState == "DIRTY" {
+		return "conflicted"
+	}
+	return "unknown"
+}
+
+func classifyMergePolicy(mergeState string) string {
+	switch mergeState {
+	case "BLOCKED", "DRAFT", "HAS_HOOKS":
+		return "blocked"
+	case "CLEAN", "BEHIND", "DIRTY", "UNSTABLE":
+		return "clear"
+	default:
+		return "unknown"
 	}
 }
 
@@ -347,6 +394,16 @@ func unavailableSync(degradation Degradation) RemoteSyncObservation {
 	return RemoteSyncObservation{
 		Status:   RemoteSyncUnavailable,
 		Degraded: degradation,
+	}
+}
+
+func unavailableSyncWithFacts(mergeState, conflict, policy string, degradation Degradation) RemoteSyncObservation {
+	return RemoteSyncObservation{
+		Status:      RemoteSyncUnavailable,
+		MergeState:  mergeState,
+		Conflict:    conflict,
+		MergePolicy: policy,
+		Degraded:    degradation,
 	}
 }
 

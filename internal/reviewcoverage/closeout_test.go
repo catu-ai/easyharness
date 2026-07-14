@@ -210,6 +210,194 @@ func TestValidateArchivedCandidateAllowsMechanicalPlanAndSupplementMove(t *testi
 	}
 }
 
+func TestValidateArchivedCandidateAgainstBaseAllowsUnchangedCandidateDeltaAfterBaseSync(t *testing.T) {
+	for _, syncMode := range []string{"merge", "rebase"} {
+		t.Run(syncMode, func(t *testing.T) {
+			root, archivedPlan, chain, upstream := baseAwareArchivedCandidate(t, false)
+			git(t, root, "checkout", "candidate")
+			if syncMode == "merge" {
+				git(t, root, "merge", "--no-ff", "-m", "sync upstream", "upstream")
+			} else {
+				git(t, root, "rebase", "upstream")
+			}
+
+			if err := ValidateArchivedCandidateAgainstBase(root, archivedPlan, chain, upstream); err != nil {
+				t.Fatalf("expected unchanged candidate delta after %s sync to pass: %v", syncMode, err)
+			}
+		})
+	}
+}
+
+func TestValidateArchivedCandidateAgainstBaseRejectsUpstreamCandidatePathOverlap(t *testing.T) {
+	root, archivedPlan, chain, upstream := baseAwareArchivedCandidate(t, true)
+	git(t, root, "checkout", "candidate")
+	git(t, root, "merge", "--no-ff", "-m", "sync overlapping upstream", "upstream")
+
+	err := ValidateArchivedCandidateAgainstBase(root, archivedPlan, chain, upstream)
+	if err == nil || !strings.Contains(err.Error(), "overlaps reviewed candidate path product.go") {
+		t.Fatalf("expected same-path upstream overlap rejection, got %v", err)
+	}
+}
+
+func TestValidateArchivedCandidateAgainstBaseRejectsChangedCandidateDelta(t *testing.T) {
+	root, archivedPlan, chain, upstream := baseAwareArchivedCandidate(t, false)
+	git(t, root, "checkout", "candidate")
+	git(t, root, "merge", "--no-ff", "-m", "sync upstream", "upstream")
+	writeFile(t, root, "product.go", "package product\n\nconst Candidate = 2\n")
+	git(t, root, "add", "product.go")
+	git(t, root, "commit", "-m", "change reviewed candidate")
+
+	err := ValidateArchivedCandidateAgainstBase(root, archivedPlan, chain, upstream)
+	if err == nil || !strings.Contains(err.Error(), "candidate-owned delta changed") || !strings.Contains(err.Error(), "product.go") {
+		t.Fatalf("expected changed candidate delta rejection, got %v", err)
+	}
+}
+
+func TestValidateArchivedCandidateAgainstBaseRejectsCandidateModeChange(t *testing.T) {
+	root, archivedPlan, chain, upstream := baseAwareArchivedCandidate(t, false)
+	git(t, root, "checkout", "candidate")
+	git(t, root, "merge", "--no-ff", "-m", "sync upstream", "upstream")
+	if err := os.Chmod(filepath.Join(root, "product.go"), 0o755); err != nil {
+		t.Fatalf("change candidate file mode: %v", err)
+	}
+	git(t, root, "add", "product.go")
+	git(t, root, "commit", "-m", "change reviewed candidate mode")
+
+	err := ValidateArchivedCandidateAgainstBase(root, archivedPlan, chain, upstream)
+	if err == nil || !strings.Contains(err.Error(), "candidate-owned delta changed") || !strings.Contains(err.Error(), "product.go") {
+		t.Fatalf("expected candidate mode change rejection, got %v", err)
+	}
+}
+
+func TestValidateArchivedCandidateAgainstBaseRejectsDirtyWorktree(t *testing.T) {
+	root, archivedPlan, chain, upstream := baseAwareArchivedCandidate(t, false)
+	git(t, root, "checkout", "candidate")
+	git(t, root, "merge", "--no-ff", "-m", "sync upstream", "upstream")
+	writeFile(t, root, "untracked.txt", "not reviewed\n")
+
+	err := ValidateArchivedCandidateAgainstBase(root, archivedPlan, chain, upstream)
+	if err == nil || !strings.Contains(err.Error(), "clean candidate worktree") || !strings.Contains(err.Error(), "untracked.txt") {
+		t.Fatalf("expected dirty worktree rejection, got %v", err)
+	}
+}
+
+func TestValidateArchivedCandidateAgainstBaseRequiresCurrentBaseInHead(t *testing.T) {
+	root, archivedPlan, chain, upstream := baseAwareArchivedCandidate(t, false)
+	git(t, root, "checkout", "candidate")
+
+	err := ValidateArchivedCandidateAgainstBase(root, archivedPlan, chain, upstream)
+	if err == nil || !strings.Contains(err.Error(), "does not contain base") {
+		t.Fatalf("expected unsynchronized base rejection, got %v", err)
+	}
+}
+
+func TestValidatePublishedCandidateDoesNotDependOnPostSquashCheckout(t *testing.T) {
+	root, archivedPlan, chain, upstream := baseAwareArchivedCandidate(t, false)
+	git(t, root, "checkout", "candidate")
+	published := git(t, root, "rev-parse", "HEAD")
+
+	git(t, root, "checkout", "-b", "landed", upstream)
+	git(t, root, "merge", "--squash", "candidate")
+	git(t, root, "commit", "-m", "squash candidate")
+	if ancestor, err := IsAncestor(root, chain.CoveredHeadSHA, "HEAD"); err != nil {
+		t.Fatalf("inspect squash ancestry: %v", err)
+	} else if ancestor {
+		t.Fatal("test setup expected landed squash commit not to descend from reviewed head")
+	}
+
+	if err := ValidatePublishedCandidate(root, archivedPlan, chain, published); err != nil {
+		t.Fatalf("expected recorded published candidate to validate from landed checkout: %v", err)
+	}
+}
+
+func TestValidatePublishedCandidateAgainstBaseAllowsEquivalentRebase(t *testing.T) {
+	root, archivedPlan, chain, upstream := baseAwareArchivedCandidate(t, false)
+	git(t, root, "checkout", "candidate")
+	git(t, root, "rebase", "upstream")
+	published := git(t, root, "rev-parse", "HEAD")
+	if ancestor, err := IsAncestor(root, chain.CoveredHeadSHA, published); err != nil {
+		t.Fatalf("inspect rebased ancestry: %v", err)
+	} else if ancestor {
+		t.Fatal("test setup expected rebase to rewrite reviewed ancestry")
+	}
+
+	git(t, root, "checkout", "upstream")
+	if err := ValidatePublishedCandidateAgainstBase(root, archivedPlan, chain, published, upstream); err != nil {
+		t.Fatalf("expected equivalent rebased published candidate to preserve coverage: %v", err)
+	}
+}
+
+func TestValidatePublishedCandidateAgainstBaseRejectsRebasedCandidateDrift(t *testing.T) {
+	root, archivedPlan, chain, upstream := baseAwareArchivedCandidate(t, false)
+	git(t, root, "checkout", "candidate")
+	git(t, root, "rebase", "upstream")
+	writeFile(t, root, "product.go", "package product\n\nconst Candidate = 2\n\nconst Upstream = 0\n")
+	git(t, root, "add", "product.go")
+	git(t, root, "commit", "-m", "candidate drift")
+	published := git(t, root, "rev-parse", "HEAD")
+
+	err := ValidatePublishedCandidateAgainstBase(root, archivedPlan, chain, published, upstream)
+	if err == nil || !strings.Contains(err.Error(), "candidate-owned delta changed") {
+		t.Fatalf("expected rebased published candidate drift rejection, got %v", err)
+	}
+}
+
+func TestValidatePublishedCandidateRejectsUnreviewedPublishedChange(t *testing.T) {
+	root, archivedPlan, chain, _ := baseAwareArchivedCandidate(t, false)
+	git(t, root, "checkout", "candidate")
+	writeFile(t, root, "product.go", "package product\n\nconst Candidate = 2\n")
+	git(t, root, "add", "product.go")
+	git(t, root, "commit", "-m", "unreviewed published change")
+	published := git(t, root, "rev-parse", "HEAD")
+
+	err := ValidatePublishedCandidate(root, archivedPlan, chain, published)
+	if err == nil || !strings.Contains(err.Error(), "unreviewed product change") || !strings.Contains(err.Error(), "product.go") {
+		t.Fatalf("expected unreviewed published change rejection, got %v", err)
+	}
+}
+
+func baseAwareArchivedCandidate(t *testing.T, overlap bool) (string, string, *Chain, string) {
+	t.Helper()
+	root := t.TempDir()
+	initGit(t, root)
+	activePlan := "docs/plans/active/2026-07-13-test.md"
+	archivedPlan := "docs/plans/archived/2026-07-13-test.md"
+	writeFile(t, root, activePlan, reviewedPlan)
+	writeFile(t, root, "product.go", "package product\n\nconst Candidate = 0\n\nconst Upstream = 0\n")
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "base")
+	base := git(t, root, "rev-parse", "HEAD")
+
+	git(t, root, "checkout", "-b", "candidate")
+	writeFile(t, root, "product.go", "package product\n\nconst Candidate = 1\n\nconst Upstream = 0\n")
+	git(t, root, "add", "product.go")
+	git(t, root, "commit", "-m", "reviewed candidate")
+	reviewed := git(t, root, "rev-parse", "HEAD")
+	commandRendered, err := commandRenderedArchivePlan([]byte(reviewedPlan))
+	if err != nil {
+		t.Fatalf("render command-owned archive baseline: %v", err)
+	}
+	writeFile(t, root, archivedPlan, string(commandRendered))
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
+		t.Fatalf("remove active plan: %v", err)
+	}
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "archive plan")
+
+	git(t, root, "checkout", "-b", "upstream", base)
+	if overlap {
+		writeFile(t, root, "product.go", "package product\n\nconst Candidate = 0\n\nconst Upstream = 1\n")
+		git(t, root, "add", "product.go")
+	} else {
+		writeFile(t, root, "upstream.txt", "unrelated upstream work\n")
+		git(t, root, "add", "upstream.txt")
+	}
+	git(t, root, "commit", "-m", "upstream advance")
+	upstream := git(t, root, "rev-parse", "HEAD")
+
+	return root, archivedPlan, &Chain{CoveredHeadSHA: reviewed, ReviewedPlanPath: activePlan}, upstream
+}
+
 func TestValidateArchivedCandidateRejectsPostArchiveProductChange(t *testing.T) {
 	root := t.TempDir()
 	initGit(t, root)

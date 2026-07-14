@@ -41,6 +41,18 @@
           "type": "string",
           "description": "HeadRef is the compared head ref when one is available."
         },
+        "base_commit": {
+          "type": "string",
+          "description": "BaseCommit is the immutable base commit used for the comparison."
+        },
+        "head_commit": {
+          "type": "string",
+          "description": "HeadCommit is the immutable candidate commit used for the comparison."
+        },
+        "pr_url": {
+          "type": "string",
+          "description": "PRURL is the immutable remote handoff identity whose commits were compared."
+        },
         "reason": {
           "type": "string",
           "description": "Reason is the human-readable explanation attached to the evidence record."

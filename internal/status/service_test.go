@@ -539,13 +539,17 @@ func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) 
 		checks         string
 		wantCue        string
 		wantAssessment string
+		wantSync       string
+		wantPolicy     string
 	}{
 		{
-			name:           "pending checks",
-			mergeState:     `"CLEAN"`,
+			name:           "unstable pending checks with fresh sync",
+			mergeState:     `"UNSTABLE"`,
 			checks:         `[{"name":"Go Test","bucket":"pending","state":"IN_PROGRESS"}]`,
 			wantCue:        "Remote PR checks are still pending",
 			wantAssessment: "wait_for_remote",
+			wantSync:       "fresh",
+			wantPolicy:     "clear",
 		},
 		{
 			name:           "failed checks",
@@ -553,6 +557,8 @@ func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) 
 			checks:         `[{"name":"Go Test","bucket":"fail","state":"FAILURE"}]`,
 			wantCue:        "Remote PR checks are failing",
 			wantAssessment: "repair_remote",
+			wantSync:       "fresh",
+			wantPolicy:     "clear",
 		},
 		{
 			name:           "stale sync",
@@ -560,6 +566,8 @@ func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) 
 			checks:         `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
 			wantCue:        "Remote PR merge state is stale",
 			wantAssessment: "repair_remote",
+			wantSync:       "stale",
+			wantPolicy:     "clear",
 		},
 		{
 			name:           "conflicted sync",
@@ -567,6 +575,17 @@ func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) 
 			checks:         `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
 			wantCue:        "Remote PR merge state is conflicted",
 			wantAssessment: "repair_remote",
+			wantSync:       "conflicted",
+			wantPolicy:     "clear",
+		},
+		{
+			name:           "merge policy blocked with fresh sync",
+			mergeState:     `"BLOCKED"`,
+			checks:         `[{"name":"Go Test","bucket":"pass","state":"SUCCESS"}]`,
+			wantCue:        "provider approvals or merge policy still block merge",
+			wantAssessment: "merge_policy_blocked",
+			wantSync:       "fresh",
+			wantPolicy:     "blocked",
 		},
 	}
 
@@ -589,6 +608,12 @@ func TestStatusRemoteHandoffNextActionsExplainNonReadyRemoteFacts(t *testing.T) 
 			remoteEvidence := requireRemoteEvidence(t, result)
 			if remoteEvidence.Assessment != tt.wantAssessment {
 				t.Fatalf("expected remote assessment %q, got %#v", tt.wantAssessment, remoteEvidence)
+			}
+			if remoteEvidence.Sync == nil || remoteEvidence.Sync.Status != tt.wantSync {
+				t.Fatalf("expected remote sync %q, got %#v", tt.wantSync, remoteEvidence)
+			}
+			if remoteEvidence.MergePolicy == nil || remoteEvidence.MergePolicy.Status != tt.wantPolicy {
+				t.Fatalf("expected merge policy %q, got %#v", tt.wantPolicy, remoteEvidence)
 			}
 			found := false
 			for _, action := range result.NextAction {
@@ -645,7 +670,7 @@ func TestStatusRemoteAssessmentMatchesRecordedEvidence(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -759,7 +784,7 @@ func TestStatusRemoteAssessmentInvalidatesReadyClosedPR(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -794,7 +819,7 @@ func TestStatusRemoteAssessmentRecoversReadyMergedPRIntoLand(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"not_applied","reason":"this remote-merge status fixture does not model immutable git commits"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -831,12 +856,12 @@ func TestStatusSuggestsRefreshWhenCleanRemoteCanReplaceNonReadyEvidence(t *testi
 		{
 			name:      "failed CI evidence",
 			ciInput:   `{"status":"failed","provider":"github-actions","url":"https://ci.example/run"}`,
-			syncInput: `{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`,
+			syncInput: `{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`,
 		},
 		{
 			name:      "conflicted sync evidence",
 			ciInput:   `{"status":"success","provider":"github-actions","url":"https://ci.example/run"}`,
-			syncInput: `{"status":"conflicted","base_ref":"main","head_ref":"codex/test"}`,
+			syncInput: `{"status":"conflicted","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`,
 		},
 	}
 
@@ -899,7 +924,7 @@ func TestStatusAwaitMergeIncludesRemoteHandoffWarningsWithoutRegressingNode(t *t
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -968,14 +993,14 @@ func TestStatusArchivedPlanKeepsEvidenceRefreshForNonReadyRecordedPR(t *testing.
 		{
 			name:            "pending CI",
 			ciInput:         `{"status":"pending","provider":"github-actions","url":"https://ci.example/run"}`,
-			syncInput:       `{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`,
+			syncInput:       `{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`,
 			wantStatus:      "pending",
 			fallbackCommand: "harness evidence submit --kind ci --input <json>",
 		},
 		{
 			name:            "stale sync",
 			ciInput:         `{"status":"success","provider":"github-actions","url":"https://ci.example/run"}`,
-			syncInput:       `{"status":"stale","base_ref":"main","head_ref":"codex/test"}`,
+			syncInput:       `{"status":"stale","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`,
 			wantStatus:      "stale",
 			fallbackCommand: "harness evidence submit --kind sync --input <json>",
 		},
@@ -1034,7 +1059,7 @@ func TestStatusArchivedPlanReadyForAwaitMerge(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"not_applied","reason":"repository has no hosted CI in this test"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -1071,7 +1096,7 @@ func TestStatusPostArchiveProductCommitCannotReachAwaitMerge(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -1107,7 +1132,7 @@ func TestStatusArchivedPlanReadyForAwaitMergeFromEvidenceArtifacts(t *testing.T)
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -1146,7 +1171,7 @@ func TestStatusArchivedPlanIgnoresOlderRevisionEvidenceArtifacts(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 	writeState(t, root, "2026-03-18-status-plan", map[string]any{
@@ -1250,7 +1275,7 @@ func TestStatusArchivedPlanStaysInPublishFromEvidenceArtifactsWhenDirty(t *testi
 	if result := svc.Submit("ci", []byte(`{"status":"failed","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -1293,7 +1318,7 @@ func TestStatusArchivedPlanStaysInPublishWhenEvidenceIsDirty(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"pending","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"fresh","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -1335,7 +1360,7 @@ func TestStatusArchivedPlanStaysInPublishWhenSyncIsDirty(t *testing.T) {
 	if result := svc.Submit("ci", []byte(`{"status":"success","provider":"github-actions"}`)); !result.OK {
 		t.Fatalf("ci evidence: %#v", result)
 	}
-	if result := svc.Submit("sync", []byte(`{"status":"conflicted","base_ref":"main","head_ref":"codex/test"}`)); !result.OK {
+	if result := svc.Submit("sync", []byte(`{"status":"conflicted","base_ref":"main","head_ref":"codex/test","base_commit":"def456","head_commit":"abc123","pr_url":"https://github.com/catu-ai/easyharness/pull/13"}`)); !result.OK {
 		t.Fatalf("sync evidence: %#v", result)
 	}
 
@@ -1388,13 +1413,13 @@ func TestStatusLandNode(t *testing.T) {
 	if !strings.Contains(result.NextAction[0].Description, "required post-merge bookkeeping") {
 		t.Fatalf("expected bookkeeping guidance, got %#v", result.NextAction)
 	}
-	if !strings.Contains(result.NextAction[0].Description, "final PR comment") {
-		t.Fatalf("expected final PR comment guidance, got %#v", result.NextAction)
+	if !strings.Contains(result.NextAction[0].Description, "rely on the forge merge record") {
+		t.Fatalf("expected forge-record guidance, got %#v", result.NextAction)
 	}
-	if !strings.Contains(result.NextAction[0].Description, "follow-up references") {
-		t.Fatalf("expected linked issue follow-up guidance, got %#v", result.NextAction)
+	if !strings.Contains(result.NextAction[0].Description, "only for material") {
+		t.Fatalf("expected conditional handoff guidance, got %#v", result.NextAction)
 	}
-	if !strings.Contains(result.NextAction[1].Description, "only after the required PR and issue bookkeeping is done") {
+	if !strings.Contains(result.NextAction[1].Description, "only after any necessary durable handoff") {
 		t.Fatalf("expected land complete gate guidance, got %#v", result.NextAction)
 	}
 	if !strings.Contains(result.NextAction[1].Description, "required post-merge bookkeeping completion") {
@@ -1957,6 +1982,10 @@ func fakeStatusRemoteCommands(mergeStateJSON, checksJSON string) remote.CommandR
 }
 
 func fakeStatusRemoteCommandsWithPRState(prStateJSON string, draft bool, mergeStateJSON, checksJSON string) remote.CommandRunner {
+	mergeableJSON := `"MERGEABLE"`
+	if strings.Contains(mergeStateJSON, "DIRTY") {
+		mergeableJSON = `"CONFLICTING"`
+	}
 	return func(name string, args ...string) remote.CommandResult {
 		if name != "gh" {
 			return remote.CommandResult{}
@@ -1968,15 +1997,23 @@ func fakeStatusRemoteCommandsWithPRState(prStateJSON string, draft bool, mergeSt
 				"state":` + prStateJSON + `,
 				"isDraft":` + fmt.Sprintf("%t", draft) + `,
 				"mergeStateStatus":` + mergeStateJSON + `,
-				"mergeable":"MERGEABLE",
+				"mergeable":` + mergeableJSON + `,
 				"reviewDecision":"APPROVED",
 				"headRefName":"codex/test",
 				"headRefOid":"abc123",
-				"baseRefName":"main"
+				"baseRefName":"main",
+				"baseRefOid":"def456"
 			}`}
 		}
 		if len(args) >= 3 && args[0] == "pr" && args[1] == "checks" {
 			return remote.CommandResult{Stdout: checksJSON}
+		}
+		if len(args) >= 2 && args[0] == "api" {
+			behindBy := 0
+			if strings.Contains(mergeStateJSON, "BEHIND") {
+				behindBy = 1
+			}
+			return remote.CommandResult{Stdout: fmt.Sprintf(`{"behind_by":%d}`, behindBy)}
 		}
 		return remote.CommandResult{}
 	}
@@ -2004,6 +2041,8 @@ func initCommittedGitCandidate(t *testing.T, root string) string {
 		{"init", "-q"},
 		{"config", "user.name", "Status Test"},
 		{"config", "user.email", "status-test@example.com"},
+		{"config", "gc.auto", "0"},
+		{"config", "maintenance.auto", "false"},
 		{"add", "."},
 		{"commit", "-qm", "candidate"},
 	} {

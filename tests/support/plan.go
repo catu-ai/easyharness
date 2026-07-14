@@ -139,9 +139,6 @@ func CompleteCloseout(t *testing.T, path string) {
 		"Delivered":        "Delivered the tracked test fixture outcome.",
 		"Not Delivered":    "None.",
 		"Follow-Up Issues": "NONE",
-		"PR":               "NONE",
-		"Ready":            "The candidate is ready for archive.",
-		"Merge Handoff":    "Commit and publish the archived candidate before merge approval.",
 	}
 	updated, replaced := rewriteSection(content, "## Closeout", func(section string) string {
 		lines := strings.Split(section, "\n")

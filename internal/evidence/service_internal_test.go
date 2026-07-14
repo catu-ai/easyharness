@@ -34,7 +34,7 @@ func TestSubmitIgnoresStateSaveFailuresAndKeepsRecordArtifact(t *testing.T) {
 		{
 			name:       "sync",
 			kind:       "sync",
-			input:      `{"status":"fresh","base_ref":"main","head_ref":"codex/issue-93"}`,
+			input:      `{"status":"fresh","base_ref":"main","head_ref":"codex/issue-93","base_commit":"def456","head_commit":"abc123def456","pr_url":"https://github.com/catu-ai/easyharness/pull/93"}`,
 			recordPath: filepath.Join(".local", "harness", "plans", "2026-04-01-evidence-rollback", "evidence", "sync", "sync-001.json"),
 		},
 	}

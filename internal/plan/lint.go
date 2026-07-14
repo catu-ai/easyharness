@@ -26,6 +26,8 @@ var (
 	stepContinuationBullet = regexp.MustCompile(`^[-+*][ \t]`)
 	stepContinuationSetext = regexp.MustCompile(`^[=-]+[ \t]*$`)
 	stepContinuationRule   = regexp.MustCompile(`^(?:\*[ \t]*){3,}$|^(?:_[ \t]*){3,}$|^(?:-[ \t]*){3,}$`)
+	issueURLPattern        = regexp.MustCompile(`https?://[^\s<>()]+/issues/[1-9][0-9]*(?:$|[/?#\s),.;\]])`)
+	issueShorthandPattern  = regexp.MustCompile(`(?:^|[\s(\[])#[1-9][0-9]*(?:$|[\s),.;\]])`)
 )
 
 var (
@@ -39,7 +41,7 @@ var (
 		"Validation Strategy",
 		"Closeout",
 	}
-	closeoutLabels = []string{"Validation", "Review", "Delivered", "Not Delivered", "Follow-Up Issues", "PR", "Ready", "Merge Handoff"}
+	closeoutLabels = []string{"Validation", "Review", "Delivered", "Not Delivered", "Follow-Up Issues"}
 )
 
 type Frontmatter struct {
@@ -677,8 +679,8 @@ func validateArchivedRules(ctx *lintContext) []LintIssue {
 		values, parseIssues := parseLabeledBullets("section.Closeout", closeout.lines, append([]string{"Archived At", "Revision"}, closeoutLabels...))
 		issues = append(issues, parseIssues...)
 		if deferredItemsSection := ctx.sections["Deferred Items"]; deferredItemsSection != nil && hasRealDeferredItems(strings.Join(deferredItemsSection.lines, "\n")) {
-			if strings.EqualFold(strings.TrimSpace(values["Follow-Up Issues"]), "NONE") {
-				issues = append(issues, LintIssue{Path: "section.Closeout.Follow-Up Issues", Message: "archived plans with deferred items must include follow-up issue references"})
+			if !hasConcreteFollowUpIssueReference(values["Follow-Up Issues"]) {
+				issues = append(issues, LintIssue{Path: "section.Closeout.Follow-Up Issues", Message: "archived plans with deferred items must include a concrete issue URL or #number reference"})
 			}
 		}
 	}
@@ -687,26 +689,64 @@ func validateArchivedRules(ctx *lintContext) []LintIssue {
 }
 
 func parseLabeledBullets(path string, lines, required []string) (map[string]string, []LintIssue) {
-	values := map[string]string{}
+	partsByLabel := map[string][]string{}
 	issues := make([]LintIssue, 0)
+	currentLabel := ""
+	separatedFromField := false
 	for _, rawLine := range lines {
-		line := strings.TrimSpace(rawLine)
-		if line == "" {
+		line := strings.TrimRight(rawLine, "\r")
+		if strings.TrimSpace(line) == "" {
+			if currentLabel != "" {
+				separatedFromField = true
+			}
 			continue
 		}
-		if !strings.HasPrefix(line, "- ") || !strings.Contains(line, ":") {
-			issues = append(issues, LintIssue{Path: path, Message: "must contain only labeled bullet lines"})
+		if len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
+			if !strings.HasPrefix(line, "  ") {
+				issues = append(issues, LintIssue{Path: path, Message: "field continuation lines must be indented by at least two spaces"})
+				continue
+			}
+			continuation := strings.TrimSpace(line)
+			if currentLabel == "" {
+				issues = append(issues, LintIssue{Path: path, Message: "field continuation line must follow a labeled bullet"})
+				continue
+			}
+			if separatedFromField {
+				issues = append(issues, LintIssue{Path: path + "." + currentLabel, Message: "continuation lines must directly follow the field without a blank line"})
+				continue
+			}
+			if isUnsupportedStepContinuation(continuation) {
+				issues = append(issues, LintIssue{Path: path + "." + currentLabel, Message: "continuation lines may contain ordinary wrapped prose only, not headings, thematic breaks, blockquotes, fences, or nested lists"})
+				continue
+			}
+			partsByLabel[currentLabel] = append(partsByLabel[currentLabel], continuation)
 			continue
 		}
-		parts := strings.SplitN(strings.TrimPrefix(line, "- "), ":", 2)
+
+		currentLabel = ""
+		separatedFromField = false
+		trimmedLine := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmedLine, "- ") || !strings.Contains(trimmedLine, ":") {
+			issues = append(issues, LintIssue{Path: path, Message: "must contain only labeled bullet lines and their indented prose continuations"})
+			continue
+		}
+		parts := strings.SplitN(strings.TrimPrefix(trimmedLine, "- "), ":", 2)
 		label := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
-		if _, exists := values[label]; exists {
+		if _, exists := partsByLabel[label]; exists {
 			issues = append(issues, LintIssue{Path: path + "." + label, Message: "must appear only once"})
 			continue
 		}
-		values[label] = value
-		if value == "" {
+		partsByLabel[label] = nil
+		currentLabel = label
+		if value != "" {
+			partsByLabel[label] = append(partsByLabel[label], value)
+		}
+	}
+	values := make(map[string]string, len(partsByLabel))
+	for label, parts := range partsByLabel {
+		values[label] = strings.Join(parts, "\n")
+		if len(parts) == 0 {
 			issues = append(issues, LintIssue{Path: path + "." + label, Message: "must not be empty"})
 		}
 	}
@@ -716,6 +756,10 @@ func parseLabeledBullets(path string, lines, required []string) (map[string]stri
 		}
 	}
 	return values, issues
+}
+
+func hasConcreteFollowUpIssueReference(value string) bool {
+	return issueURLPattern.MatchString(value) || issueShorthandPattern.MatchString(value)
 }
 
 func parseCheckboxList(lines []string) ([]checkboxItem, error) {

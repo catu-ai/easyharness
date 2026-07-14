@@ -372,6 +372,79 @@ func TestLintFileRejectsArchivedDeferredItemsWithoutFollowUpIssue(t *testing.T) 
 	assertHasError(t, result, "section.Closeout.Follow-Up Issues")
 }
 
+func TestLintFileRejectsArchivedDeferredItemsWithProseButNoIssueReference(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/archived/2026-03-17-deferred-without-reference.md")
+	content := mustRenderTemplate(t, "Archived Deferred Without Reference")
+	content = strings.Replace(content, "- None.", "- A later cleanup remains deferred.", 1)
+	content = strings.Replace(content, "- Follow-Up Issues: NONE", "- Follow-Up Issues: No issue was opened by this plan.", 1)
+	content = makeArchiveReady(checkAllBoxes(strings.ReplaceAll(content, "- Done: [ ]", "- Done: [x]")))
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatal("expected prose without a concrete issue reference to fail lint")
+	}
+	assertHasError(t, result, "section.Closeout.Follow-Up Issues")
+}
+
+func TestLintFileAcceptsArchivedDeferredItemsWithMultilineIssueReference(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/archived/2026-03-17-deferred-with-reference.md")
+	content := mustRenderTemplate(t, "Archived Deferred With Reference")
+	content = strings.Replace(content, "- None.", "- A later cleanup remains deferred.", 1)
+	content = strings.Replace(content, "- Follow-Up Issues: NONE", "- Follow-Up Issues: Continue the cleanup in\n  https://github.com/catu-ai/easyharness/issues/293.", 1)
+	content = makeArchiveReady(checkAllBoxes(strings.ReplaceAll(content, "- Done: [ ]", "- Done: [x]")))
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if !result.OK {
+		t.Fatalf("expected concrete multiline issue reference to pass lint, got %#v", result)
+	}
+}
+
+func TestLintFileAcceptsArchivedDeferredItemsWithIssueShorthand(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/archived/2026-03-17-deferred-with-shorthand.md")
+	content := mustRenderTemplate(t, "Archived Deferred With Shorthand")
+	content = strings.Replace(content, "- None.", "- A later cleanup remains deferred.", 1)
+	content = strings.Replace(content, "- Follow-Up Issues: NONE", "- Follow-Up Issues: Continue in #293.", 1)
+	content = makeArchiveReady(checkAllBoxes(strings.ReplaceAll(content, "- Done: [ ]", "- Done: [x]")))
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if !result.OK {
+		t.Fatalf("expected #number issue reference to pass lint, got %#v", result)
+	}
+}
+
+func TestLintFileAcceptsIndentedCloseoutContinuations(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-multiline-closeout.md")
+	content := mustRenderTemplate(t, "Multiline Closeout")
+	content = strings.Replace(content, "- Validation: PENDING_UNTIL_ARCHIVE", "- Validation: Focused tests passed,\n  including the archive round trip.", 1)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if !result.OK {
+		t.Fatalf("expected multiline Closeout to pass lint, got %#v", result)
+	}
+}
+
+func TestLintFileRejectsMalformedCloseoutContinuation(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/2026-03-17-malformed-closeout.md")
+	content := mustRenderTemplate(t, "Malformed Closeout")
+	content = strings.Replace(content, "- Validation: PENDING_UNTIL_ARCHIVE", "- Validation: Focused tests passed.\n  - Hidden nested detail.", 1)
+	writeFile(t, path, content)
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatal("expected nested Closeout continuation to fail lint")
+	}
+	assertHasError(t, result, "section.Closeout.Validation")
+}
+
 func TestLintFileAcceptsHistoricalTemplateVersion(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-easyharness-cli-and-plan-foundations.md")
@@ -765,9 +838,6 @@ func makeArchiveReady(content string) string {
 	content = strings.Replace(content, "- Review: PENDING_UNTIL_ARCHIVE", "- Review: No unresolved blocking findings remain.", 1)
 	content = strings.Replace(content, "- Delivered: PENDING_UNTIL_ARCHIVE", "- Delivered: Shipped the planned slice.", 1)
 	content = strings.Replace(content, "- Not Delivered: PENDING_UNTIL_ARCHIVE", "- Not Delivered: NONE.", 1)
-	content = strings.Replace(content, "- PR: PENDING_UNTIL_ARCHIVE", "- PR: NONE", 1)
-	content = strings.Replace(content, "- Ready: PENDING_UNTIL_ARCHIVE", "- Ready: The candidate satisfies the acceptance criteria.", 1)
-	content = strings.Replace(content, "- Merge Handoff: PENDING_UNTIL_ARCHIVE", "- Merge Handoff: Await explicit merge approval.", 1)
 	return content
 }
 

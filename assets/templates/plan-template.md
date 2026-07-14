@@ -71,6 +71,3 @@ Describe the intended outcome in one or two short paragraphs.
 - Delivered: PENDING_UNTIL_ARCHIVE
 - Not Delivered: PENDING_UNTIL_ARCHIVE
 - Follow-Up Issues: NONE
-- PR: PENDING_UNTIL_ARCHIVE
-- Ready: PENDING_UNTIL_ARCHIVE
-- Merge Handoff: PENDING_UNTIL_ARCHIVE

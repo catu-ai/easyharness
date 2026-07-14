@@ -39,7 +39,10 @@ Keep the conversation focused on:
 
 When direction is clear, summarize the accepted approach, repository facts that
 shaped it, draft acceptance criteria, rough plan shape, and deferred scope.
-Hand off to `harness-plan` only after the human confirms the direction.
+If a material steering choice remains, ask the human to confirm that choice
+before handoff. Otherwise proceed directly to `harness-plan`; do not add a
+separate discovery confirmation when the investigation found no decision for
+the human to make. Plan approval remains the execution boundary.
 
 Answer factual questions directly. If the request is already clear and
 approved, use the appropriate execution skill instead of manufacturing a

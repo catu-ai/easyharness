@@ -261,7 +261,7 @@ func (a *App) runEvidenceSubmit(args []string) int {
 		fmt.Fprintln(a.Stderr, "Schemas:")
 		fmt.Fprintln(a.Stderr, `  ci:      {"status":"pending|success|failed|not_applied","provider":"optional","url":"optional","reason":"required when status=not_applied"}`)
 		fmt.Fprintln(a.Stderr, `  publish: {"status":"recorded|not_applied","pr_url":"required when status=recorded","branch":"optional","base":"optional","commit":"optional","reason":"required when status=not_applied"}`)
-		fmt.Fprintln(a.Stderr, `  sync:    {"status":"fresh|stale|conflicted|not_applied","base_ref":"optional","head_ref":"optional","reason":"required when status=not_applied"}`)
+		fmt.Fprintln(a.Stderr, `  sync:    {"status":"fresh|stale|conflicted|not_applied","pr_url":"required unless not_applied","base_commit":"required unless not_applied","head_commit":"required unless not_applied","base_ref":"optional","head_ref":"optional","reason":"required when status=not_applied"}`)
 		fmt.Fprintln(a.Stderr)
 		fmt.Fprintln(a.Stderr, "Examples:")
 		fmt.Fprintln(a.Stderr, `  harness evidence submit --kind ci <<'EOF'`)

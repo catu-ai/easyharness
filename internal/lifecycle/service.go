@@ -536,8 +536,8 @@ func (s Service) Land(prURL, commit string) Result {
 					LocalStatePath: statePath,
 				},
 				NextAction: []NextAction{
-					{Command: nil, Description: "Finish required post-merge bookkeeping and cleanup: add the final PR comment when the permanent record still needs one, close resolved linked issues or add follow-up references for unresolved ones, sync local branches, and complete any final remote updates."},
-					{Command: strPtr("harness land complete"), Description: "Record required post-merge bookkeeping completion only after the required PR and issue bookkeeping is done."},
+					{Command: nil, Description: "Finish required post-merge bookkeeping and cleanup: rely on the forge merge record when it is sufficient; add a PR comment or issue update only for material unresolved, deployment, or follow-up context; then sync local branches."},
+					{Command: strPtr("harness land complete"), Description: "Record required post-merge bookkeeping completion only after any necessary durable handoff and local cleanup are done."},
 				},
 			}
 			return s.finalizeMutation(result, func() []CommandError {
@@ -561,8 +561,8 @@ func (s Service) Land(prURL, commit string) Result {
 				LocalStatePath: statePath,
 			},
 			NextAction: []NextAction{
-				{Command: nil, Description: "Finish required post-merge bookkeeping and cleanup: add the final PR comment when the permanent record still needs one, close resolved linked issues or add follow-up references for unresolved ones, sync local branches, and complete any final remote updates."},
-				{Command: strPtr("harness land complete"), Description: "Record required post-merge bookkeeping completion only after the required PR and issue bookkeeping is done."},
+				{Command: nil, Description: "Finish required post-merge bookkeeping and cleanup: rely on the forge merge record when it is sufficient; add a PR comment or issue update only for material unresolved, deployment, or follow-up context; then sync local branches."},
+				{Command: strPtr("harness land complete"), Description: "Record required post-merge bookkeeping completion only after any necessary durable handoff and local cleanup are done."},
 			},
 		}, nil)
 	}
@@ -603,8 +603,8 @@ func (s Service) Land(prURL, commit string) Result {
 			LocalStatePath: statePath,
 		},
 		NextAction: []NextAction{
-			{Command: nil, Description: "Finish required post-merge bookkeeping and cleanup: add the final PR comment when the permanent record still needs one, close resolved linked issues or add follow-up references for unresolved ones, sync local branches, and complete any final remote updates."},
-			{Command: strPtr("harness land complete"), Description: "Record required post-merge bookkeeping completion only after the required PR and issue bookkeeping is done."},
+			{Command: nil, Description: "Finish required post-merge bookkeeping and cleanup: rely on the forge merge record when it is sufficient; add a PR comment or issue update only for material unresolved, deployment, or follow-up context; then sync local branches."},
+			{Command: strPtr("harness land complete"), Description: "Record required post-merge bookkeeping completion only after any necessary durable handoff and local cleanup are done."},
 		},
 	}
 	return s.finalizeMutation(result, func() []CommandError {
@@ -861,7 +861,8 @@ func renderEditablePlan(frontmatter plan.Frontmatter, body string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("---\n%s---\n\n%s", string(data), strings.TrimLeft(body, "\n")), nil
+	canonicalBody := strings.TrimRight(strings.TrimLeft(body, "\n"), "\r\n")
+	return fmt.Sprintf("---\n%s---\n\n%s\n", string(data), canonicalBody), nil
 }
 
 func missingArchiveSummaryLabels(content string, labels []string) []string {
@@ -1088,6 +1089,41 @@ func EvaluateArchiveReadiness(workdir, planStem string, doc *plan.Document, stat
 // the candidate accepted by finalize review, apart from the command-owned plan
 // archive move and allowed Closeout updates.
 func EvaluateArchivedReviewCoverage(workdir, planStem string, doc *plan.Document, state *runstate.State) []CommandError {
+	return evaluateArchivedReviewCoverage(workdir, planStem, doc, state, "", "")
+}
+
+// EvaluatePublishedReviewCoverage verifies the immutable published candidate
+// rather than the current checkout. This is the recovery path after squash or
+// rebase merge moves the worktree to a landed commit that cannot descend from
+// the reviewed feature head.
+func EvaluatePublishedReviewCoverage(workdir, planStem string, doc *plan.Document, state *runstate.State) []CommandError {
+	publish, err := evidence.LoadLatestPublish(workdir, planStem, runstate.CurrentRevision(state))
+	if err != nil {
+		return []CommandError{{Path: "evidence.publish", Message: err.Error()}}
+	}
+	if publish == nil {
+		return EvaluateArchivedReviewCoverage(workdir, planStem, doc, state)
+	}
+	publishedRevision := strings.TrimSpace(publish.Commit)
+	baseRevision := ""
+	syncRecord, err := evidence.LoadLatestSync(workdir, planStem, runstate.CurrentRevision(state))
+	if err != nil {
+		return []CommandError{{Path: "evidence.sync", Message: err.Error()}}
+	}
+	if syncRecord != nil && syncRecord.Status == "fresh" {
+		if err := validateSyncCandidateIdentity(publish, syncRecord); err != nil {
+			return []CommandError{{Path: "evidence.sync", Message: err.Error()}}
+		}
+		publishedRevision = strings.TrimSpace(syncRecord.HeadCommit)
+		baseRevision = strings.TrimSpace(syncRecord.BaseCommit)
+	}
+	if publishedRevision == "" {
+		return EvaluateArchivedReviewCoverage(workdir, planStem, doc, state)
+	}
+	return evaluateArchivedReviewCoverage(workdir, planStem, doc, state, publishedRevision, baseRevision)
+}
+
+func evaluateArchivedReviewCoverage(workdir, planStem string, doc *plan.Document, state *runstate.State, publishedRevision, publishedBaseRevision string) []CommandError {
 	if state == nil || state.FinalizeCoverage == nil || strings.TrimSpace(state.FinalizeCoverage.TipRoundID) == "" {
 		return []CommandError{{
 			Path:    "state.finalize_coverage",
@@ -1116,8 +1152,56 @@ func EvaluateArchivedReviewCoverage(workdir, planStem string, doc *plan.Document
 			Message: fmt.Sprintf("archived plan is at %s, expected the configured archive path %s", doc.Path, expectedArchivedPath),
 		}}
 	}
-	if err := reviewcoverage.ValidateArchivedCandidate(workdir, doc.Path, chain); err != nil {
-		return []CommandError{{Path: "review.coverage", Message: err.Error()}}
+	var validationErr error
+	if publishedRevision != "" {
+		if publishedBaseRevision != "" {
+			validationErr = reviewcoverage.ValidatePublishedCandidateAgainstBase(workdir, doc.Path, chain, publishedRevision, publishedBaseRevision)
+		} else {
+			validationErr = reviewcoverage.ValidatePublishedCandidate(workdir, doc.Path, chain, publishedRevision)
+		}
+	} else if baseRevision := archivedCandidateBaseRevision(workdir, planStem, state); baseRevision != "" {
+		validationErr = reviewcoverage.ValidateArchivedCandidateAgainstBase(workdir, doc.Path, chain, baseRevision)
+	} else {
+		validationErr = reviewcoverage.ValidateArchivedCandidate(workdir, doc.Path, chain)
+	}
+	if validationErr != nil {
+		return []CommandError{{Path: "review.coverage", Message: validationErr.Error()}}
+	}
+	return nil
+}
+
+func archivedCandidateBaseRevision(workdir, planStem string, state *runstate.State) string {
+	revision := runstate.CurrentRevision(state)
+	publish, err := evidence.LoadLatestPublish(workdir, planStem, revision)
+	if err != nil || publish == nil {
+		return ""
+	}
+	syncRecord, err := evidence.LoadLatestSync(workdir, planStem, revision)
+	if err != nil || syncRecord == nil || syncRecord.Status != "fresh" {
+		return ""
+	}
+	if err := validateSyncCandidateIdentity(publish, syncRecord); err != nil {
+		return ""
+	}
+	currentHead, err := reviewcoverage.ResolveCommit(workdir, "HEAD")
+	if err != nil || strings.TrimSpace(syncRecord.HeadCommit) == "" || currentHead != strings.TrimSpace(syncRecord.HeadCommit) {
+		return ""
+	}
+	if strings.TrimSpace(syncRecord.BaseCommit) != "" {
+		return strings.TrimSpace(syncRecord.BaseCommit)
+	}
+	return ""
+}
+
+func validateSyncCandidateIdentity(publish *evidence.PublishRecord, syncRecord *evidence.SyncRecord) error {
+	if publish == nil || syncRecord == nil {
+		return fmt.Errorf("fresh sync evidence requires publish and sync candidate identity")
+	}
+	if strings.TrimSpace(syncRecord.PRURL) == "" || strings.TrimSpace(syncRecord.PRURL) != strings.TrimSpace(publish.PRURL) {
+		return fmt.Errorf("fresh sync evidence PR URL does not match publish evidence")
+	}
+	if strings.TrimSpace(syncRecord.BaseCommit) == "" || strings.TrimSpace(syncRecord.HeadCommit) == "" {
+		return fmt.Errorf("fresh sync evidence must record immutable base_commit and head_commit")
 	}
 	return nil
 }
@@ -1160,12 +1244,11 @@ func archiveStateIssues(workdir, planStem string, doc *plan.Document, revision i
 }
 
 func (s Service) landReadinessIssues(planStem string, doc *plan.Document, state *runstate.State, prURL string) []CommandError {
-	issues := EvaluateArchivedReviewCoverage(s.Workdir, planStem, doc, state)
-
 	publish, err := evidence.LoadLatestPublish(s.Workdir, planStem, runstate.CurrentRevision(state))
 	if err != nil {
 		return []CommandError{{Path: "evidence.publish", Message: err.Error()}}
 	}
+	issues := EvaluatePublishedReviewCoverage(s.Workdir, planStem, doc, state)
 	if publish == nil || publish.Status != "recorded" || strings.TrimSpace(publish.PRURL) == "" {
 		issues = append(issues, CommandError{
 			Path:    "evidence.publish",

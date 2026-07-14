@@ -108,9 +108,8 @@ paths:
 		"url":      "https://ci.example/custom-roots",
 	})
 	submitEvidence(t, workspace, "sync", "tmp/sync.json", map[string]any{
-		"status":   "fresh",
-		"base_ref": "main",
-		"head_ref": "codex/custom-harness-path-roots",
+		"status": "not_applied",
+		"reason": "fixture does not model a remote base comparison",
 	})
 	support.RequireFileExists(t, workspace.Path("tmp/harness-runtime/plans/2026-06-07-custom-path-roots/evidence/publish/publish-001.json"))
 	support.RequireFileExists(t, workspace.Path("tmp/harness-runtime/plans/2026-06-07-custom-path-roots/evidence/ci/ci-001.json"))
