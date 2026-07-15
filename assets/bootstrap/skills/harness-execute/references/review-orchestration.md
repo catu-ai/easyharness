@@ -14,7 +14,12 @@ harness review start
 
 The first round establishes full whole-candidate coverage. After a blocking
 review and a narrow committed repair, `review start` infers the linked delta
-from current coverage and unresolved findings. Use
+from current coverage and unresolved findings. If rewritten ancestry makes the
+clean covered tip no longer an ancestor of the current candidate, `review
+start` automatically establishes a new full root before it creates any round.
+When unresolved findings remain, restore ancestry or explicitly choose a full
+replacement; Harness fails before creating a round rather than silently
+discarding those obligations. Use
 `harness review start --full` only when the repair changes design, scope, or
 risk enough to invalidate the prior full judgment.
 
@@ -45,3 +50,9 @@ A clean linked delta extends the full root without another full review.
 Non-blocking findings do not require repair. Archive remains blocked when
 findings are unresolved, candidate changes are uncovered, or the reviewed git
 boundary moved.
+
+If an unfinished round genuinely cannot be completed, do not edit local
+runtime state. Run `harness review abort --round <round-id>`. The command marks
+the historical round aborted, preserves its artifacts and existing finalize
+coverage, clears only the active pointer, and allows a replacement `review
+start` to select a valid delta or full boundary.

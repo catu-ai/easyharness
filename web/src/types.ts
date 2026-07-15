@@ -210,6 +210,7 @@ export type ReviewReviewer = {
   name?: string;
   status?: string;
   submitted_at?: string;
+  aborted_at?: string;
   summary?: string;
   warnings?: string[] | null;
 };

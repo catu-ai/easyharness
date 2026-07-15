@@ -29,6 +29,7 @@ var canonicalTransitionFamilies = []transitionFamily{
 	{ID: "step_implement_to_finalize_review", From: "execution/step-<n>/implement", To: "execution/finalize/review", Driver: "Plan edit", RequiredInputs: "Every step is complete. Formal review has not yet established clean coverage for the candidate."},
 	{ID: "finalize_review_to_finalize_fix", From: "execution/finalize/review", To: "execution/finalize/fix", Driver: "harness review submit", RequiredInputs: "The integrated reviewer reports blocking findings or a conservative failure."},
 	{ID: "finalize_review_to_finalize_archive", From: "execution/finalize/review", To: "execution/finalize/archive", Driver: "`harness review submit` or derived status", RequiredInputs: "A clean full root, optionally extended by clean linked deltas, covers current candidate HEAD."},
+	{ID: "finalize_review_abort_recovery", From: "execution/finalize/review", To: "execution/finalize/review", Driver: "harness review abort", RequiredInputs: "The exact active unfinished round is preserved as aborted history and its active pointer is cleared; completed coverage is unchanged."},
 	{ID: "finalize_fix_to_finalize_review", From: "execution/finalize/fix", To: "execution/finalize/review", Driver: "harness review start", RequiredInputs: "A committed repair starts an inferred linked delta, or `--full` explicitly resets materially invalidated coverage."},
 	{ID: "finalize_fix_to_new_step_implement", From: "execution/finalize/fix", To: "execution/step-<m>/implement", Driver: "Plan edit after `reopen --mode new-step`", RequiredInputs: "The first new unfinished step is added."},
 	{ID: "finalize_archive_to_publish", From: "execution/finalize/archive", To: "execution/finalize/publish", Driver: "harness archive", RequiredInputs: "Acceptance, steps, Closeout, and finalize coverage are complete."},
@@ -51,6 +52,11 @@ var currentScenarioCoverage = []scenarioCoverage{
 			"finalize_fix_to_finalize_review",
 			"finalize_review_to_finalize_archive",
 		},
+	},
+	{
+		ID:            "review_abort_recovery",
+		TestName:      "TestReviewAbortRecoveryWithBuiltBinary",
+		TransitionIDs: []string{"finalize_review_abort_recovery"},
 	},
 	{
 		ID:       "archive_reopen_finalize_fix",

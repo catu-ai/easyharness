@@ -101,6 +101,15 @@ func SchemaRegistry() []SchemaEntry {
 			Type:        reflect.TypeFor[ReviewSubmitResult](),
 		},
 		{
+			Key:         "commands.review.abort.result",
+			Group:       "command_results",
+			Path:        "schema/commands/review.abort.result.schema.json",
+			Title:       "Review abort command result",
+			Description: "JSON output for `harness review abort`.",
+			Shape:       "output",
+			Type:        reflect.TypeFor[ReviewAbortResult](),
+		},
+		{
 			Key:         "commands.evidence.submit.result",
 			Group:       "command_results",
 			Path:        "schema/commands/evidence.submit.result.schema.json",

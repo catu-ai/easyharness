@@ -329,6 +329,9 @@ func TestStatusFinalizeReviewInFlightIncludesReviewFacts(t *testing.T) {
 	if result.Facts == nil || result.Facts.ReviewKind != "full" || result.Facts.ReviewStatus != "in_progress" {
 		t.Fatalf("unexpected facts: %#v", result.Facts)
 	}
+	if len(result.NextAction) != 2 || result.NextAction[1].Command == nil || *result.NextAction[1].Command != "harness review abort --round review-004-full" {
+		t.Fatalf("expected supported abort recovery action, got %#v", result.NextAction)
+	}
 }
 
 func TestStatusFinalizeFixNodeAfterFailedFinalizeReview(t *testing.T) {

@@ -77,6 +77,25 @@ func TestServiceReadKeepsOneReviewerPending(t *testing.T) {
 	}
 }
 
+func TestServiceReadSurfacesAbortedRoundHistory(t *testing.T) {
+	workdir := t.TempDir()
+	relPlanPath, planStem := seedActivePlan(t, workdir, "2026-07-13-review-aborted.md", "Aborted review")
+	saveReviewState(t, workdir, planStem, 1, "")
+	integrated := reviewAssignment(workdir, planStem, "review-001-full", "integrated", "integrated")
+	abortedAt := "2026-07-13T11:02:00Z"
+	assignment := ledgerAssignment(integrated, "aborted", "")
+	assignment.AbortedAt = abortedAt
+	writeReviewRound(t, workdir, planStem, reviewRoundFixture{
+		Manifest: contracts.ReviewManifest{RoundID: "review-001-full", Kind: "full", Revision: 1, PlanPath: relPlanPath, PlanStem: planStem, CreatedAt: "2026-07-13T11:00:00Z", Assignments: []contracts.ReviewAssignment{integrated}},
+		Ledger:   contracts.ReviewLedger{RoundID: "review-001-full", Kind: "full", UpdatedAt: abortedAt, Assignments: []contracts.ReviewLedgerAssignment{assignment}},
+	})
+
+	got := Service{Workdir: workdir}.Read().Rounds[0]
+	if got.Status != "aborted" || got.IsActive || got.Reviewer == nil || got.Reviewer.Status != "aborted" || got.Reviewer.AbortedAt != abortedAt {
+		t.Fatalf("expected preserved aborted review history, got %#v", got)
+	}
+}
+
 func TestServiceReadArchivedPlanVisibilityAndLandHiding(t *testing.T) {
 	t.Run("visible while waiting for merge", func(t *testing.T) {
 		workdir := t.TempDir()

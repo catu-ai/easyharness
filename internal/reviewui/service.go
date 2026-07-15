@@ -40,6 +40,7 @@ type reviewerState struct {
 	Role        string
 	Status      string
 	SubmittedAt string
+	AbortedAt   string
 	Name        string
 	Summary     string
 	Warnings    []string
@@ -352,14 +353,18 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 	warnings = append(warnings, reviewerWarnings...)
 
 	pendingReviewers := 0
+	abortedReviewers := 0
 	for _, reviewer := range reviewers {
-		if normalizeSlotStatus(reviewer.Status) != "submitted" {
+		switch normalizeSlotStatus(reviewer.Status) {
+		case "pending":
 			pendingReviewers++
+		case "aborted":
+			abortedReviewers++
 		}
 	}
 	round.Reviewer = selectReviewer(reviewers)
 
-	status, summary := resolveRoundStatus(round, len(reviewers), pendingReviewers, manifestArtifact, ledgerArtifact, decisionArtifact)
+	status, summary := resolveRoundStatus(round, len(reviewers), pendingReviewers, abortedReviewers, manifestArtifact, ledgerArtifact, decisionArtifact)
 	round.Status = status
 	round.StatusSummary = summary
 	if manifestArtifact.Status == "invalid" || ledgerArtifact.Status == "invalid" || decisionArtifact.Status == "invalid" {
@@ -371,7 +376,7 @@ func (s Service) readRound(planStem, roundID, activeRoundID string) Round {
 	if ledgerArtifact.Status == "missing" && len(reviewers) > 0 {
 		appendWarning("Review progress is missing, so reviewer state is inferred conservatively.")
 	}
-	if decisionArtifact.Status == "missing" && pendingReviewers == 0 && len(reviewers) > 0 {
+	if decisionArtifact.Status == "missing" && pendingReviewers == 0 && abortedReviewers == 0 && len(reviewers) > 0 {
 		appendWarning("Reviewer results are present, but the review decision is still missing.")
 	}
 	round.Warnings = dedupeStrings(warnings)
@@ -455,6 +460,7 @@ func (s Service) readReviewers(roundDir string, manifest *Manifest, ledger *Ledg
 			}
 			reviewer.Status = item.Status
 			reviewer.SubmittedAt = item.SubmittedAt
+			reviewer.AbortedAt = item.AbortedAt
 			normalizedLedgerStatus, warning := canonicalSlotStatus(item.Status)
 			ledgerClaimedSubmitted = normalizedLedgerStatus == "submitted"
 			ledgerStatusWarning = warning
@@ -517,6 +523,7 @@ func selectReviewer(reviewers []reviewerState) *Reviewer {
 		Name:        selected.Name,
 		Status:      normalizeSlotStatus(selected.Status),
 		SubmittedAt: selected.SubmittedAt,
+		AbortedAt:   selected.AbortedAt,
 		Summary:     selected.Summary,
 		Warnings:    selected.Warnings,
 	}
@@ -553,12 +560,14 @@ func canonicalSlotStatus(status string) (string, string) {
 		return "pending", ""
 	case "submitted":
 		return "submitted", ""
+	case "aborted":
+		return "aborted", ""
 	default:
 		return "pending", fmt.Sprintf("Review progress reports unknown reviewer status %q, so the result is shown conservatively as pending.", strings.TrimSpace(status))
 	}
 }
 
-func resolveRoundStatus(round Round, reviewerCount, pendingReviewers int, manifestArtifact, ledgerArtifact, decisionArtifact artifact) (string, string) {
+func resolveRoundStatus(round Round, reviewerCount, pendingReviewers, abortedReviewers int, manifestArtifact, ledgerArtifact, decisionArtifact artifact) (string, string) {
 	if manifestArtifact.Status == "invalid" || ledgerArtifact.Status == "invalid" || decisionArtifact.Status == "invalid" {
 		return "degraded", "One or more artifacts are malformed; review state is shown conservatively."
 	}
@@ -570,6 +579,9 @@ func resolveRoundStatus(round Round, reviewerCount, pendingReviewers int, manife
 			return "in_progress", "Review is active, but the independent reviewer could not be recovered yet."
 		}
 		return "incomplete", "Review metadata is incomplete."
+	}
+	if abortedReviewers == reviewerCount {
+		return "aborted", "The unfinished review round was explicitly aborted."
 	}
 	if pendingReviewers > 0 {
 		return "waiting_for_review", "Waiting for independent review."
