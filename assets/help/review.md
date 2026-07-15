@@ -31,6 +31,20 @@ not covered and block archive.
 
 If review finds a narrow issue, commit the repair and run
 `harness review start` again. Harness infers a linked delta that resolves the
-finding and extends coverage. Use `harness review start --full` only when the
-repair materially changes candidate design, scope, or risk and therefore
-invalidates the earlier full root.
+finding and extends coverage. If rewritten Git ancestry means the covered tip
+is no longer an ancestor of the candidate, Harness automatically starts a new
+full root instead of creating an unusable delta when the covered tip is clean.
+If unresolved findings remain, automatic reset fails before round creation;
+restore ancestry or explicitly use `harness review start --full` when a new
+whole-candidate review should supersede them. Explicit full is also appropriate
+when the repair materially changes candidate design, scope, or risk.
+
+If an unfinished round cannot be completed, preserve it as aborted and clear
+the active pointer through the supported recovery command:
+
+```bash
+harness review abort --round <round-id>
+```
+
+Abort never changes completed coverage or deletes round artifacts. Afterward,
+run `harness review start`; Harness will infer a valid delta or full boundary.

@@ -75,6 +75,57 @@ func TestIntegratedReviewCLIStartAndSubmitCompleteRound(t *testing.T) {
 	}
 }
 
+func TestIntegratedReviewCLIAbortPreservesHistoryAndAllowsReplacement(t *testing.T) {
+	root := writeReviewV3CLIPlan(t)
+	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	app.Getwd = func() (string, error) { return root, nil }
+	app.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+
+	if code := app.Run([]string{"execute", "start"}); code != 0 {
+		t.Fatalf("execute start failed (%d): %s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"review", "start"}); code != 0 {
+		t.Fatalf("review start failed (%d): %s", code, stderr.String())
+	}
+	var started struct {
+		Artifacts struct {
+			RoundID string `json:"round_id"`
+		} `json:"artifacts"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &started); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"review", "abort", "--round", started.Artifacts.RoundID}); code != 0 {
+		t.Fatalf("review abort failed (%d): %s\n%s", code, stderr.String(), stdout.String())
+	}
+	var aborted struct {
+		OK      bool   `json:"ok"`
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &aborted); err != nil {
+		t.Fatal(err)
+	}
+	if !aborted.OK || aborted.Command != "review abort" {
+		t.Fatalf("unexpected abort result: %#v", aborted)
+	}
+	events := timeline.Service{Workdir: root}.Read()
+	if !events.OK || len(events.Events) == 0 || events.Events[len(events.Events)-1].Command != "review abort" {
+		t.Fatalf("expected abort timeline event: %#v", events)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"review", "start"}); code != 0 {
+		t.Fatalf("replacement review start failed (%d): %s\n%s", code, stderr.String(), stdout.String())
+	}
+}
+
 func TestRemovedReviewOrchestrationCommandsAreRejected(t *testing.T) {
 	for _, args := range [][]string{{"review", "aggregate", "--round", "review-001-full"}, {"review", "dimensions", "list"}} {
 		stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)

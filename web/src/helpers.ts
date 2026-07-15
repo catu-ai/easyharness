@@ -432,6 +432,8 @@ export function reviewRoundCompactStatusLabel(round: ReviewRound): string {
       return "DONE";
     case "incomplete":
       return "PART";
+    case "aborted":
+      return "ABORT";
     default:
       return reviewRoundStatusLabel(round).toUpperCase();
   }
@@ -493,6 +495,8 @@ export function reviewRoundStatusLabel(round: ReviewRound): string {
       return "Complete";
     case "incomplete":
       return "Incomplete";
+    case "aborted":
+      return "Aborted";
     default:
       return humanizeLabel(status);
   }

@@ -105,11 +105,15 @@ type ReviewReviewerView struct {
 	// Name is the reviewer-provided identity label when available.
 	Name string `json:"name,omitempty"`
 
-	// Status is pending or submitted.
+	// Status is pending, submitted, or aborted.
 	Status string `json:"status,omitempty"`
 
 	// SubmittedAt is the submission timestamp when known.
 	SubmittedAt string `json:"submitted_at,omitempty"`
+
+	// AbortedAt is the timestamp when the unfinished round was explicitly
+	// aborted.
+	AbortedAt string `json:"aborted_at,omitempty"`
 
 	// Summary is the reviewer's concise assessment.
 	Summary string `json:"summary,omitempty"`

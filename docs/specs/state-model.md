@@ -231,7 +231,9 @@ inputs that do not already live in a more specific artifact:
 - `land`
 
 `active_review_round` is the mutable pointer for the round that is currently in
-flight or most recently completed. It is not, by itself, the
+flight or most recently completed. An explicit `review abort` clears an
+unfinished pointer while preserving that round's artifacts as aborted history.
+It is not, by itself, the
 archive verdict. `finalize_coverage` is a compact command-validated cache of a
 durable coverage chain: the full root round, current tip round, covered Git
 head, revision, and unresolved blocking count. Round manifests, the sole
@@ -240,6 +242,11 @@ of truth, so archive must validate that chain rather than trusting the cache
 alone. Reopen preserves the prior coverage tip
 so a narrow later revision can extend it with a linked delta; a new full review
 may replace the root when broader work invalidates the earlier judgment.
+Rewritten ancestry is detected before round creation. When a clean existing
+coverage tip is no longer an ancestor of the candidate, automatic inference
+starts a new full root rather than creating a delta that cannot aggregate. If
+the old tip has unresolved findings, inference fails before creating a round;
+only restored ancestry or an explicit full replacement may proceed.
 
 The mutation surfaces around those runtime artifacts stay split on purpose:
 

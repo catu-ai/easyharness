@@ -28,13 +28,19 @@ complete finalize candidate.
 | --- | --- | --- | --- |
 | `execution/finalize/review` | `execution/finalize/fix` | `harness review submit` | The integrated reviewer reports blocking findings or a conservative failure. |
 | `execution/finalize/review` | `execution/finalize/archive` | `harness review submit` or derived status | A clean full root, optionally extended by clean linked deltas, covers current candidate HEAD. |
+| `execution/finalize/review` | `execution/finalize/review` | `harness review abort` | The exact active unfinished round is preserved as aborted history and its active pointer is cleared; completed coverage is unchanged. |
 | `execution/finalize/fix` | `execution/finalize/review` | `harness review start` | A committed repair starts an inferred linked delta, or `--full` explicitly resets materially invalidated coverage. |
 | `execution/finalize/fix` | `execution/step-<m>/implement` | Plan edit after `reopen --mode new-step` | The first new unfinished step is added. |
 
 `review start` is finalize-only. The first round is full. When prior coverage
 and unresolved findings exist, the ordinary next round is an inferred linked
-delta; another full root is reserved for a material design, scope, or risk
-change. The sole reviewer submission verifies the captured HEAD and completes
+delta. Rewritten ancestry over clean coverage automatically establishes another
+full root before a round is created. Rewritten ancestry with unresolved
+findings fails safely until ancestry is restored or a human explicitly requests
+a replacement full root. A human may also request a full root for a material
+design, scope, or risk change. An unfinished round may be explicitly aborted without
+deleting its history or changing prior coverage. The sole reviewer submission
+verifies the captured HEAD and completes
 the decision and coverage transaction without a controller aggregate action.
 
 ## Archive, Publish, and Land

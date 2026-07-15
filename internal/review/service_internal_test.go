@@ -34,6 +34,42 @@ func TestSubmitRollsBackSubmissionAndDecisionWhenStateSaveFails(t *testing.T) {
 	}
 }
 
+func TestAbortRollsBackLedgerWhenStateSaveFails(t *testing.T) {
+	root, stem := writeInternalExecutingPlan(t)
+	svc := Service{Workdir: root}
+	start := svc.Start(StartOptions{})
+	if !start.OK {
+		t.Fatalf("start failed: %#v", start)
+	}
+	manifest, err := loadManifest(filepath.Join(runstate.ReviewRoundDir(root, stem, start.Artifacts.RoundID), "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ledgerBefore, err := os.ReadFile(manifest.LedgerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	originalSaveState := saveState
+	saveState = func(string, string, *runstate.State) (string, error) { return "", errors.New("boom") }
+	t.Cleanup(func() { saveState = originalSaveState })
+	result := svc.Abort(start.Artifacts.RoundID)
+	if result.OK {
+		t.Fatalf("expected abort failure: %#v", result)
+	}
+	ledgerAfter, err := os.ReadFile(manifest.LedgerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(ledgerAfter) != string(ledgerBefore) {
+		t.Fatal("state-save failure did not restore the review ledger")
+	}
+	state, _, err := runstate.LoadState(root, stem)
+	if err != nil || state == nil || state.ActiveReviewRound == nil || state.ActiveReviewRound.RoundID != start.Artifacts.RoundID {
+		t.Fatalf("state should remain pending: state=%#v err=%v", state, err)
+	}
+}
+
 func writeInternalExecutingPlan(t *testing.T) (string, string) {
 	t.Helper()
 	root := t.TempDir()

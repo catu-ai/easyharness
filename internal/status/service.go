@@ -769,6 +769,7 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 		if reviewCtx != nil && reviewCtx.InFlight {
 			return []NextAction{
 				{Command: reviewSubmitCommand(reviewCtx), Description: "Have the independent integrated reviewer submit its complete judgment for the active finalize round."},
+				{Command: strPtr(fmt.Sprintf("harness review abort --round %s", reviewCtx.RoundID)), Description: "Abort this unfinished round only when it cannot be completed, then start a replacement review without editing local state."},
 			}
 		}
 		if acceptanceIncomplete(facts) {

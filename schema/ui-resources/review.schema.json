@@ -118,11 +118,15 @@
         },
         "status": {
           "type": "string",
-          "description": "Status is pending or submitted."
+          "description": "Status is pending, submitted, or aborted."
         },
         "submitted_at": {
           "type": "string",
           "description": "SubmittedAt is the submission timestamp when known."
+        },
+        "aborted_at": {
+          "type": "string",
+          "description": "AbortedAt is the timestamp when the unfinished round was explicitly aborted."
         },
         "summary": {
           "type": "string",

@@ -59,15 +59,15 @@ editing local harness state by hand.
 - [x] A normal narrow repair whose current head descends from the prior reviewed
       head still creates and completes a linked delta with existing finding and
       revision semantics intact.
-- [ ] An active unaggregated review round can be explicitly aborted through the
+- [x] An active unaggregated review round can be explicitly aborted through the
       CLI; its artifacts and abort fact remain inspectable, and a replacement
       full or inferred review can start without manual state edits.
-- [ ] Aborting a completed, non-active, or mismatched round fails safely without
+- [x] Aborting a completed, non-active, or mismatched round fails safely without
       changing finalize coverage or the active round.
-- [ ] Status/help and managed workflow guidance lead an agent from an invalid or
+- [x] Status/help and managed workflow guidance lead an agent from an invalid or
       abandoned round to the supported next action without suggesting local
       state surgery.
-- [ ] Unit and built-binary E2E coverage reproduces the rebase deadlock, proves
+- [x] Unit and built-binary E2E coverage reproduces the rebase deadlock, proves
       the repaired transition, and keeps existing review, publish/sync, and
       archive behavior green.
 
@@ -97,7 +97,7 @@ editing local harness state by hand.
 
 ### Step 2: Add supported unfinished-round recovery
 
-- Done: [ ]
+- Done: [x]
 - Outcome: Agents can abort an active unaggregated round through a documented command and immediately follow status guidance into a valid replacement review, with artifacts and prior coverage preserved.
 - Covers: Acceptance criteria 3, 4, 5, and 6.
 - Check: Cover successful abort, invalid targets, rollback behavior, status/help output, schemas, and managed bootstrap synchronization.

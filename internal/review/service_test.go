@@ -3,6 +3,7 @@ package review_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -266,6 +267,107 @@ func TestSubmitRejectsMovedHeadAndLeavesRoundPending(t *testing.T) {
 	}
 }
 
+func TestAbortUnfinishedRoundPreservesCoverageAndAllowsReplacement(t *testing.T) {
+	root, stem := writeExecutingPlan(t, true)
+	svc := review.Service{Workdir: root, Now: fixedNow}
+	full := svc.Start(review.StartOptions{})
+	if result := svc.Submit(full.Artifacts.RoundID, "reviewer-integrated", jsonBytes(t, review.SubmissionInput{Summary: "Pass."})); !result.OK {
+		t.Fatalf("complete full review: %#v", result)
+	}
+	appendCommit(t, root, "follow-up candidate")
+	delta := svc.Start(review.StartOptions{})
+	if !delta.OK || !strings.HasSuffix(delta.Artifacts.RoundID, "-delta") {
+		t.Fatalf("start delta: %#v", delta)
+	}
+
+	aborted := svc.Abort(delta.Artifacts.RoundID)
+	if !aborted.OK || aborted.Artifacts == nil || aborted.Artifacts.RoundID != delta.Artifacts.RoundID {
+		t.Fatalf("abort unfinished round: %#v", aborted)
+	}
+	state, _, err := runstate.LoadState(root, stem)
+	if err != nil || state == nil || state.ActiveReviewRound != nil {
+		t.Fatalf("abort must clear only the active pointer: state=%#v err=%v", state, err)
+	}
+	if state.FinalizeCoverage == nil || state.FinalizeCoverage.TipRoundID != full.Artifacts.RoundID {
+		t.Fatalf("abort must preserve prior finalize coverage: %#v", state.FinalizeCoverage)
+	}
+	manifest := readManifest(t, root, stem, delta.Artifacts.RoundID)
+	ledger, err := os.ReadFile(manifest.LedgerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stored review.Ledger
+	if err := json.Unmarshal(ledger, &stored); err != nil {
+		t.Fatal(err)
+	}
+	if len(stored.Assignments) != 1 || stored.Assignments[0].Status != "aborted" || stored.Assignments[0].AbortedAt != fixedNow().Format(time.RFC3339) {
+		t.Fatalf("abort fact was not preserved in the ledger: %#v", stored)
+	}
+	if _, err := os.Stat(roundFile(root, stem, delta.Artifacts.RoundID, "manifest.json")); err != nil {
+		t.Fatalf("abort must preserve round artifacts: %v", err)
+	}
+
+	replacement := svc.Start(review.StartOptions{})
+	if !replacement.OK || !strings.HasSuffix(replacement.Artifacts.RoundID, "-delta") {
+		t.Fatalf("expected replacement review after abort: %#v", replacement)
+	}
+}
+
+func TestAbortRejectsNonActiveMismatchedAndCompletedRounds(t *testing.T) {
+	root, stem := writeExecutingPlan(t, true)
+	svc := review.Service{Workdir: root, Now: fixedNow}
+	if result := svc.Abort("review-001-full"); result.OK || result.Summary != "No active review round can be aborted." {
+		t.Fatalf("expected no-active rejection: %#v", result)
+	}
+	active := svc.Start(review.StartOptions{})
+	if result := svc.Abort("review-999-full"); result.OK || result.Summary != "The requested review round is not active." {
+		t.Fatalf("expected mismatched-round rejection: %#v", result)
+	}
+	stateBefore, _, _ := runstate.LoadState(root, stem)
+	if stateBefore == nil || stateBefore.ActiveReviewRound == nil || stateBefore.ActiveReviewRound.RoundID != active.Artifacts.RoundID {
+		t.Fatalf("mismatched abort changed active state: %#v", stateBefore)
+	}
+	if result := svc.Submit(active.Artifacts.RoundID, "reviewer-integrated", jsonBytes(t, review.SubmissionInput{Summary: "Pass."})); !result.OK {
+		t.Fatalf("complete review: %#v", result)
+	}
+	if result := svc.Abort(active.Artifacts.RoundID); result.OK || result.Summary != "Completed review rounds are immutable." {
+		t.Fatalf("expected completed-round rejection: %#v", result)
+	}
+	stateAfter, _, _ := runstate.LoadState(root, stem)
+	if stateAfter == nil || stateAfter.ActiveReviewRound == nil || !stateAfter.ActiveReviewRound.Aggregated || stateAfter.FinalizeCoverage == nil {
+		t.Fatalf("completed abort changed review state: %#v", stateAfter)
+	}
+}
+
+func TestAbortTimelineFailureRollsBackLedgerAndState(t *testing.T) {
+	root, stem := writeExecutingPlan(t, true)
+	svc := review.Service{Workdir: root, Now: fixedNow, AfterAbort: func(review.AbortResult) error {
+		return errors.New("timeline unavailable")
+	}}
+	active := svc.Start(review.StartOptions{})
+	manifest := readManifest(t, root, stem, active.Artifacts.RoundID)
+	ledgerBefore, err := os.ReadFile(manifest.LedgerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result := svc.Abort(active.Artifacts.RoundID)
+	if result.OK || len(result.Errors) == 0 || result.Errors[0].Path != "timeline" {
+		t.Fatalf("expected timeline rollback failure: %#v", result)
+	}
+	ledgerAfter, err := os.ReadFile(manifest.LedgerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(ledgerAfter, ledgerBefore) {
+		t.Fatal("timeline failure did not restore the review ledger")
+	}
+	state, _, err := runstate.LoadState(root, stem)
+	if err != nil || state == nil || state.ActiveReviewRound == nil || state.ActiveReviewRound.RoundID != active.Artifacts.RoundID {
+		t.Fatalf("timeline failure did not restore active state: state=%#v err=%v", state, err)
+	}
+}
+
 func TestExistingCoverageInfersLinkedDeltaAndResolvesFinding(t *testing.T) {
 	root, stem := writeExecutingPlan(t, true)
 	svc := review.Service{Workdir: root, Now: fixedNow}
@@ -352,6 +454,48 @@ func TestStartFallsBackToFullAfterRebaseRewritesReviewedAncestry(t *testing.T) {
 	manifest := readManifest(t, root, stem, replacement.Artifacts.RoundID)
 	if manifest.Repair != nil || manifest.AnchorSHA != "" {
 		t.Fatalf("rewritten ancestry must establish a fresh full root: %#v", manifest)
+	}
+}
+
+func TestStartDoesNotSilentlyResetUnresolvedFindingsAfterRewrittenAncestry(t *testing.T) {
+	root, stem := writeExecutingPlan(t, true)
+	appendCommit(t, root, "candidate under review")
+	svc := review.Service{Workdir: root, Now: fixedNow}
+	full := svc.Start(review.StartOptions{})
+	blocked := svc.Submit(full.Artifacts.RoundID, "reviewer-integrated", jsonBytes(t, review.SubmissionInput{
+		Summary:  "One repair is required.",
+		Findings: []review.Finding{{Area: "correctness", Severity: "important", Title: "Repair required", Details: "The candidate misses an invariant."}},
+	}))
+	if !blocked.OK || blocked.Review == nil || len(blocked.Review.UnresolvedFindingIDs) != 1 {
+		t.Fatalf("expected unresolved finding: %#v", blocked)
+	}
+
+	reviewedHead := full.Artifacts.ReviewedHeadSHA
+	base := git(t, root, "rev-parse", reviewedHead+"^")
+	git(t, root, "branch", "candidate", reviewedHead)
+	git(t, root, "checkout", "-qb", "upstream", base)
+	if err := os.WriteFile(filepath.Join(root, "upstream.txt"), []byte("upstream\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "add", "upstream.txt")
+	git(t, root, "commit", "-qm", "advance upstream")
+	git(t, root, "checkout", "-q", "candidate")
+	git(t, root, "rebase", "upstream")
+
+	replacement := svc.Start(review.StartOptions{})
+	if replacement.OK || !strings.Contains(replacement.Summary, "cannot automatically reset unresolved") {
+		t.Fatalf("expected safe pre-round failure: %#v", replacement)
+	}
+	roundEntries, err := os.ReadDir(filepath.Join(root, ".local", "harness", "plans", stem, "reviews"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(roundEntries) != 1 {
+		t.Fatalf("failed inference created review artifacts: %#v", roundEntries)
+	}
+	explicit := svc.Start(review.StartOptions{ForceFull: true})
+	if !explicit.OK || !strings.HasSuffix(explicit.Artifacts.RoundID, "-full") {
+		t.Fatalf("expected explicit whole-candidate replacement to remain available: %#v", explicit)
 	}
 }
 

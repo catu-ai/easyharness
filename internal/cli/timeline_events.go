@@ -100,6 +100,18 @@ func reviewSubmitTimelineHook(workdir string, before *status.Result, recordedAt 
 	}
 }
 
+func reviewAbortTimelineHook(workdir string, before *status.Result, recordedAt string, input any) func(reviewAbortResult) error {
+	return func(result reviewAbortResult) error {
+		return appendTimelineEvent(
+			workdir,
+			before,
+			readStatusSnapshot(workdir),
+			attachRawPayloads(timelineEventFromReviewAbort(result), input, result, result.Artifacts),
+			recordedAt,
+		)
+	}
+}
+
 func evidenceTimelineHook(workdir string, before *status.Result, recordedAt, kind string, input any) func(evidence.Result) error {
 	return func(result evidence.Result) error {
 		return appendTimelineEvent(
@@ -201,6 +213,23 @@ func timelineEventFromReviewSubmit(result reviewSubmitResult) timeline.Event {
 	return pruneTimelineEvent(event)
 }
 
+func timelineEventFromReviewAbort(result reviewAbortResult) timeline.Event {
+	event := timeline.Event{
+		Kind:    "review",
+		Command: result.Command,
+		Summary: result.Summary,
+	}
+	if result.Artifacts != nil {
+		event.PlanPath = result.Artifacts.PlanPath
+		event.ArtifactRefs = append(event.ArtifactRefs,
+			pathRef("plan_path", result.Artifacts.PlanPath),
+			valueRef("round_id", result.Artifacts.RoundID),
+			pathRef("ledger_path", result.Artifacts.LedgerPath),
+		)
+	}
+	return pruneTimelineEvent(event)
+}
+
 func timelineEventFromEvidence(result evidence.Result, kind string) timeline.Event {
 	event := timeline.Event{
 		Kind:    "evidence",
@@ -241,6 +270,7 @@ func timelineEventFromEvidenceRefresh(result evidence.RefreshResult) timeline.Ev
 
 type reviewStartResult = contracts.ReviewStartResult
 type reviewSubmitResult = contracts.ReviewSubmitResult
+type reviewAbortResult = contracts.ReviewAbortResult
 
 func pathRef(label, path string) timeline.ArtifactRef {
 	if strings.TrimSpace(path) == "" {

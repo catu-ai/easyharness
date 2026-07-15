@@ -116,6 +116,10 @@ type ReviewLedgerAssignment struct {
 
 	// SubmittedAt is the submission timestamp when the slot has been submitted.
 	SubmittedAt string `json:"submitted_at,omitempty"`
+
+	// AbortedAt is the timestamp when the unfinished round was explicitly
+	// abandoned before submission.
+	AbortedAt string `json:"aborted_at,omitempty"`
 }
 
 // ReviewSubmissionInput is the JSON input consumed by `harness review submit`.
@@ -479,4 +483,41 @@ type ReviewSubmitArtifacts struct {
 
 	// SubmissionPath is the path to the created submission artifact.
 	SubmissionPath string `json:"submission_path"`
+}
+
+// ReviewAbortResult is the JSON result returned by `harness review abort`.
+type ReviewAbortResult struct {
+	// OK reports whether the command succeeded.
+	OK bool `json:"ok"`
+
+	// Command is the stable command identifier for the result payload.
+	Command string `json:"command"`
+
+	// Summary is the concise human-readable outcome description.
+	Summary string `json:"summary"`
+
+	// Artifacts identifies the preserved round and updated ledger.
+	Artifacts *ReviewAbortArtifacts `json:"artifacts,omitempty"`
+
+	// NextAction lists the most relevant follow-up steps in priority order.
+	NextAction []NextAction `json:"next_actions"`
+
+	// Errors lists hard failures that prevented the command from succeeding.
+	Errors []ErrorDetail `json:"errors,omitempty"`
+}
+
+// ReviewAbortArtifacts identifies the unfinished round preserved by abort.
+type ReviewAbortArtifacts struct {
+	// ProjectRoot is the repository root that anchors surfaced repo-facing
+	// paths.
+	ProjectRoot string `json:"project_root"`
+
+	// PlanPath is the current plan associated with the review round.
+	PlanPath string `json:"plan_path"`
+
+	// RoundID is the stable identifier of the aborted round.
+	RoundID string `json:"round_id"`
+
+	// LedgerPath is the updated round ledger that records aborted assignments.
+	LedgerPath string `json:"ledger_path"`
 }

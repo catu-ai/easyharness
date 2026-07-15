@@ -153,6 +153,16 @@
       "go_type": "github.com/catu-ai/easyharness/internal/contracts.LifecycleResult"
     },
     {
+      "key": "commands.review.abort.result",
+      "group": "command_results",
+      "surface": "public",
+      "title": "Review abort command result",
+      "description": "JSON output for `harness review abort`.",
+      "path": "schema/commands/review.abort.result.schema.json",
+      "id": "https://github.com/catu-ai/easyharness/tree/main/schema/commands/review.abort.result.schema.json",
+      "go_type": "github.com/catu-ai/easyharness/internal/contracts.ReviewAbortResult"
+    },
+    {
       "key": "commands.review.start.result",
       "group": "command_results",
       "surface": "public",

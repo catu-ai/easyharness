@@ -143,6 +143,55 @@ func TestReviewRewrittenAncestryFallsBackToFullWithBuiltBinary(t *testing.T) {
 	}
 }
 
+func TestReviewAbortRecoveryWithBuiltBinary(t *testing.T) {
+	workspace, _, planStem := prepareFinalizeReviewFixture(t)
+	active := startReviewRound(t, workspace, false)
+
+	abortCommand := support.Run(t, workspace.Root, "review", "abort", "--round", active.Artifacts.RoundID)
+	support.RequireSuccess(t, abortCommand)
+	support.RequireNoStderr(t, abortCommand)
+	var aborted struct {
+		OK        bool   `json:"ok"`
+		Command   string `json:"command"`
+		Artifacts struct {
+			RoundID string `json:"round_id"`
+		} `json:"artifacts"`
+	}
+	aborted = support.RequireJSONResult[struct {
+		OK        bool   `json:"ok"`
+		Command   string `json:"command"`
+		Artifacts struct {
+			RoundID string `json:"round_id"`
+		} `json:"artifacts"`
+	}](t, abortCommand)
+	if !aborted.OK || aborted.Command != "review abort" || aborted.Artifacts.RoundID != active.Artifacts.RoundID {
+		t.Fatalf("unexpected abort result: %#v", aborted)
+	}
+
+	ledger := support.ReadJSONFile[struct {
+		Assignments []struct {
+			Status    string `json:"status"`
+			AbortedAt string `json:"aborted_at"`
+		} `json:"assignments"`
+	}](t, reviewRoundArtifactPath(workspace.Root, planStem, active.Artifacts.RoundID, "ledger.json"))
+	if len(ledger.Assignments) != 1 || ledger.Assignments[0].Status != "aborted" || ledger.Assignments[0].AbortedAt == "" {
+		t.Fatalf("expected preserved aborted assignment history, got %#v", ledger)
+	}
+
+	status := runStatus(t, workspace.Root)
+	assertNode(t, status, "execution/finalize/review")
+	if status.Facts.ReviewStatus != "" {
+		t.Fatalf("aborted round must not remain active, got %#v", status.Facts)
+	}
+	replacement := startReviewRound(t, workspace, false)
+	if replacement.Artifacts.RoundID == active.Artifacts.RoundID || !strings.HasSuffix(replacement.Artifacts.RoundID, "-full") {
+		t.Fatalf("expected a new full replacement round, got %#v", replacement)
+	}
+
+	completedAbort := support.Run(t, workspace.Root, "review", "abort", "--round", active.Artifacts.RoundID)
+	support.RequireExitCode(t, completedAbort, 1)
+}
+
 func runReviewGit(t *testing.T, root string, args ...string) string {
 	t.Helper()
 	command := exec.Command("git", append([]string{"-C", root}, args...)...)

@@ -165,6 +165,8 @@ func (a *App) runReview(args []string) int {
 		return a.runReviewStart(args[1:])
 	case "submit":
 		return a.runReviewSubmit(args[1:])
+	case "abort":
+		return a.runReviewAbort(args[1:])
 	case "-h", "--help", "help":
 		a.printReviewUsage()
 		return 0
@@ -1147,6 +1149,40 @@ func (a *App) runReviewSubmit(args []string) int {
 	return a.writeJSONResultForWorkdir(workdir, result)
 }
 
+func (a *App) runReviewAbort(args []string) int {
+	fs := flag.NewFlagSet("harness review abort", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	roundID := fs.String("round", "", "Active unfinished review round ID.")
+	fs.Usage = func() {
+		fmt.Fprintln(a.Stderr, "Usage: harness review abort --round <round-id>")
+		fmt.Fprintln(a.Stderr)
+		fmt.Fprintln(a.Stderr, "Abort the active unfinished review round while preserving its artifacts.")
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if fs.NArg() != 0 || strings.TrimSpace(*roundID) == "" {
+		fs.Usage()
+		return 2
+	}
+	workdir, err := a.Getwd()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "resolve working directory: %v\n", err)
+		return 1
+	}
+	recordedAt := a.Now().Format(time.RFC3339)
+	beforeStatus := readStatusSnapshot(workdir)
+	result := review.Service{
+		Workdir:    workdir,
+		Now:        a.Now,
+		AfterAbort: reviewAbortTimelineHook(workdir, beforeStatus, recordedAt, map[string]any{"round": strings.TrimSpace(*roundID)}),
+	}.Abort(*roundID)
+	return a.writeJSONResultForWorkdir(workdir, result)
+}
+
 func (a *App) runExecuteStart(args []string) int {
 	fs := flag.NewFlagSet("harness execute start", flag.ContinueOnError)
 	fs.SetOutput(a.Stderr)
@@ -1315,6 +1351,7 @@ func (a *App) printRootUsage() {
 	fmt.Fprintln(a.Stderr, "  evidence refresh Refresh CI and sync evidence from a recorded PR")
 	fmt.Fprintln(a.Stderr, "  review start    Create a deterministic review round")
 	fmt.Fprintln(a.Stderr, "  review submit   Record the integrated reviewer decision")
+	fmt.Fprintln(a.Stderr, "  review abort    Abort the active unfinished review round")
 	fmt.Fprintln(a.Stderr, "  land            Record merge confirmation and start required post-merge bookkeeping")
 	fmt.Fprintln(a.Stderr, "  land complete   Record required post-merge bookkeeping completion")
 	fmt.Fprintln(a.Stderr, "  archive         Freeze the current active plan")
@@ -1349,6 +1386,7 @@ func (a *App) printReviewUsage() {
 	fmt.Fprintln(a.Stderr, "Subcommands:")
 	fmt.Fprintln(a.Stderr, "  start      Create a deterministic review round")
 	fmt.Fprintln(a.Stderr, "  submit     Record the integrated reviewer decision")
+	fmt.Fprintln(a.Stderr, "  abort      Abort the active unfinished review round")
 }
 
 func (a *App) printExecuteUsage() {
@@ -1480,6 +1518,10 @@ func (a *App) writeJSONResult(value any) int {
 		if result.OK {
 			return 0
 		}
+	case review.AbortResult:
+		if result.OK {
+			return 0
+		}
 	case evidence.Result:
 		if result.OK {
 			return 0
@@ -1502,7 +1544,7 @@ func (a *App) writeJSONResult(value any) int {
 
 func watchlistTouchEnabled(value any) bool {
 	switch value.(type) {
-	case evidence.Result, evidence.RefreshResult, lifecycle.Result, review.StartResult, review.SubmitResult, status.Result:
+	case evidence.Result, evidence.RefreshResult, lifecycle.Result, review.StartResult, review.SubmitResult, review.AbortResult, status.Result:
 		return true
 	default:
 		return false

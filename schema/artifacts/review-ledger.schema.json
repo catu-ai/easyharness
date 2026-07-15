@@ -62,6 +62,10 @@
         "submitted_at": {
           "type": "string",
           "description": "SubmittedAt is the submission timestamp when the slot has been submitted."
+        },
+        "aborted_at": {
+          "type": "string",
+          "description": "AbortedAt is the timestamp when the unfinished round was explicitly abandoned before submission."
         }
       },
       "additionalProperties": false,

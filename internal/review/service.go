@@ -30,8 +30,10 @@ type Service struct {
 	Now                func() time.Time
 	AfterStart         func(StartResult) error
 	AfterSubmit        func(SubmitResult) error
+	AfterAbort         func(AbortResult) error
 	AfterStartSuccess  func(StartResult)
 	AfterSubmitSuccess func(SubmitResult)
+	AfterAbortSuccess  func(AbortResult)
 }
 
 type StartOptions = contracts.ReviewStartOptions
@@ -52,6 +54,8 @@ type StartResult = contracts.ReviewStartResult
 type StartArtifacts = contracts.ReviewStartArtifacts
 type SubmitResult = contracts.ReviewSubmitResult
 type SubmitArtifacts = contracts.ReviewSubmitArtifacts
+type AbortResult = contracts.ReviewAbortResult
+type AbortArtifacts = contracts.ReviewAbortArtifacts
 
 type inferredSpec struct {
 	Kind      string
@@ -164,6 +168,17 @@ func (s Service) Start(options StartOptions) StartResult {
 			}
 		}
 		if !ancestor {
+			if spec.Repair != nil && len(spec.Repair.FindingIDs) > 0 {
+				return StartResult{
+					OK:      false,
+					Command: "review start",
+					Summary: "Rewritten ancestry cannot automatically reset unresolved review findings.",
+					Errors: []CommandError{{
+						Path:    "review.coverage",
+						Message: "restore ancestry for a linked delta, or explicitly run harness review start --full when a whole-candidate review should replace the unresolved finding obligations",
+					}},
+				}
+			}
 			spec = inferredSpec{Kind: "full"}
 		}
 	}
@@ -521,6 +536,162 @@ func (s Service) Submit(roundID, reviewerName string, inputBytes []byte) SubmitR
 		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "ledger")
 		issues = append(issues, restoreJSONFileSnapshot(assignmentDef.SubmissionPath, previousSubmission, previousSubmissionExists, "submission")...)
 		issues = append(issues, restoreJSONFileSnapshot(manifest.Aggregate, previousAggregate, previousAggregateExists, "review.decision")...)
+		issues = append(issues, restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)...)
+		return issues
+	})
+}
+
+func (s Service) Abort(roundID string) AbortResult {
+	locks, failure := s.acquireReviewAndStateMutationLocks()
+	if failure != nil {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: failure.Summary,
+			Errors:  []CommandError{failure.Issue},
+		}
+	}
+	defer locks.release()
+
+	roundID = strings.TrimSpace(roundID)
+	_, _, planStem, relPlanPath, state, statePath, errResult := s.loadCurrentExecutingPlan(locks.PlanPath)
+	if errResult != nil {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: errResult.Summary,
+			Errors:  errResult.Errors,
+		}
+	}
+	if state == nil || state.ActiveReviewRound == nil {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: "No active review round can be aborted.",
+			Errors:  []CommandError{{Path: "state.active_review_round", Message: "start a review round before attempting to abort it"}},
+		}
+	}
+	active := state.ActiveReviewRound
+	if strings.TrimSpace(active.RoundID) != roundID {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: "The requested review round is not active.",
+			Errors:  []CommandError{{Path: "round", Message: fmt.Sprintf("active review round is %s", active.RoundID)}},
+		}
+	}
+	if active.Aggregated {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: "Completed review rounds are immutable.",
+			Errors:  []CommandError{{Path: "round", Message: fmt.Sprintf("review round %s is complete and cannot be aborted", roundID)}},
+		}
+	}
+
+	roundDir := runstate.ReviewRoundDir(s.Workdir, planStem, roundID)
+	manifest, err := loadManifest(filepath.Join(roundDir, "manifest.json"))
+	if err != nil {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: "Unable to load active review round metadata.",
+			Errors:  []CommandError{{Path: "review.round", Message: sanitizedReadMessage("review round metadata", err)}},
+		}
+	}
+	if manifest.RoundID != roundID {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: "Active review round metadata is inconsistent.",
+			Errors:  []CommandError{{Path: "review.round", Message: fmt.Sprintf("manifest identifies round %s", manifest.RoundID)}},
+		}
+	}
+	if _, err := os.Stat(manifest.Aggregate); err == nil {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: "Completed review rounds are immutable.",
+			Errors:  []CommandError{{Path: "round", Message: fmt.Sprintf("review round %s already has a completed decision", roundID)}},
+		}
+	} else if !os.IsNotExist(err) {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: "Unable to inspect active review decision state.",
+			Errors:  []CommandError{{Path: "review.decision", Message: sanitizedReadMessage("the review decision", err)}},
+		}
+	}
+	ledger, err := loadLedger(manifest.LedgerPath)
+	if err != nil {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: "Unable to load active review assignment state.",
+			Errors:  []CommandError{{Path: "review.assignments", Message: sanitizedReadMessage("reviewer assignment state", err)}},
+		}
+	}
+	if ledger.RoundID != roundID {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: "Active review assignment state is inconsistent.",
+			Errors:  []CommandError{{Path: "review.assignments", Message: fmt.Sprintf("ledger identifies round %s", ledger.RoundID)}},
+		}
+	}
+
+	previousLedger, previousLedgerExists, err := readFileIfExists(manifest.LedgerPath)
+	if err != nil {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: "Unable to snapshot active review assignment state.",
+			Errors:  []CommandError{{Path: "review.assignments", Message: sanitizedReadMessage("reviewer assignment state", err)}},
+		}
+	}
+	originalState := cloneState(state)
+	abortedAt := s.now().Format(time.RFC3339)
+	for index := range ledger.Assignments {
+		ledger.Assignments[index].Status = "aborted"
+		ledger.Assignments[index].AbortedAt = abortedAt
+	}
+	ledger.UpdatedAt = abortedAt
+	if err := writeJSON(manifest.LedgerPath, ledger); err != nil {
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: "Unable to persist aborted review assignment state.",
+			Errors:  []CommandError{{Path: "review.assignments", Message: sanitizedWriteMessage("reviewer assignment state", err)}},
+		}
+	}
+	state.ActiveReviewRound = nil
+	statePath, err = saveState(s.Workdir, planStem, state)
+	if err != nil {
+		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "review.assignments")
+		return AbortResult{
+			OK:      false,
+			Command: "review abort",
+			Summary: "Unable to persist local harness state.",
+			Errors:  append([]CommandError{{Path: "state", Message: sanitizedWriteMessage("local harness state", err)}}, issues...),
+		}
+	}
+
+	return s.finalizeAbort(AbortResult{
+		OK:      true,
+		Command: "review abort",
+		Summary: fmt.Sprintf("Aborted unfinished review round %q.", roundID),
+		Artifacts: &AbortArtifacts{
+			ProjectRoot: s.Workdir,
+			PlanPath:    relPlanPath,
+			RoundID:     roundID,
+			LedgerPath:  repoFacingReviewPath(s.Workdir, manifest.LedgerPath),
+		},
+		NextAction: []NextAction{{
+			Command:     strPtr("harness review start"),
+			Description: "Start a replacement review; Harness will select a valid linked delta or full boundary without editing local state.",
+		}},
+	}, func() []CommandError {
+		issues := restoreJSONFileSnapshot(manifest.LedgerPath, previousLedger, previousLedgerExists, "review.assignments")
 		issues = append(issues, restoreStateSnapshot(s.Workdir, planStem, originalState, statePath)...)
 		return issues
 	})
@@ -1377,6 +1548,31 @@ func (s Service) finalizeSubmit(result SubmitResult, rollback func() []CommandEr
 	}
 	if s.AfterSubmitSuccess != nil {
 		s.AfterSubmitSuccess(result)
+	}
+	return result
+}
+
+func (s Service) finalizeAbort(result AbortResult, rollback func() []CommandError) AbortResult {
+	if !result.OK || s.AfterAbort == nil {
+		if result.OK && s.AfterAbortSuccess != nil {
+			s.AfterAbortSuccess(result)
+		}
+		return result
+	}
+	if err := s.AfterAbort(result); err != nil {
+		issues := []CommandError{{Path: "timeline", Message: "Unable to record the review timeline event."}}
+		if rollback != nil {
+			issues = append(issues, rollback()...)
+		}
+		return AbortResult{
+			OK:      false,
+			Command: result.Command,
+			Summary: "Unable to record the timeline event for the successful command result.",
+			Errors:  issues,
+		}
+	}
+	if s.AfterAbortSuccess != nil {
+		s.AfterAbortSuccess(result)
 	}
 	return result
 }

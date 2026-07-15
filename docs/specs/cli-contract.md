@@ -48,6 +48,7 @@ The current command surface is:
 - `harness ui`
 - `harness review start [--full]`
 - `harness review submit --round <round-id> --by <reviewer> [--input <path>]`
+- `harness review abort --round <round-id>`
 - `harness archive`
 - `harness reopen --mode <finalize-fix|new-step>`
 - `harness land --pr <url> [--commit <sha>]`
@@ -640,7 +641,11 @@ Contract:
 - default to `full` when establishing finalize coverage; during finalize
   repair, infer a linked `delta` only when the current coverage tip, repair
   revision, reviewed-head ancestry, and targeted finding IDs identify one
-  unambiguous narrow repair
+  unambiguous narrow repair; if a clean covered tip is not an ancestor of the
+  captured candidate, establish a new full root before creating round artifacts
+- when rewritten ancestry coexists with unresolved findings, fail before round
+  creation rather than silently discard them; require restored ancestry for a
+  linked delta or an explicit `--full` whole-candidate replacement
 - fail safely instead of inventing a delta when that link cannot be inferred;
   `--full` explicitly establishes a replacement full root after a material
   design, scope, or risk change
@@ -703,6 +708,31 @@ There is no separate aggregate command. A valid integrated submission is the
 single authoritative review decision for the round and immediately completes
 its decision and coverage update.
 
+### `harness review abort --round <round-id>`
+
+Purpose:
+
+- recover from an active unfinished review round that cannot be completed
+  without directly editing command-owned runtime state
+
+Contract:
+
+- require the exact active round ID and reject missing, mismatched, historical,
+  or completed rounds
+- operate only on an unaggregated round with no completed decision artifact
+- preserve the manifest, submission skeleton, and round directory as
+  historical evidence
+- mark the round's reviewer assignment `aborted` with a timestamp, clear only
+  `active_review_round`, and preserve `finalize_coverage` unchanged
+- record the abort in the plan timeline and roll back ledger and state together
+  if any part of the transaction fails
+- return `harness review start` as the next action; replacement start chooses a
+  linked delta only when ancestry and repair references remain valid, otherwise
+  it establishes a full root
+
+Abort is not a way to erase or override a completed review decision. Completed
+rounds and their coverage remain immutable.
+
 ## Review Sequencing
 
 Every standard candidate requires an independent whole-candidate finalize
@@ -714,6 +744,11 @@ A narrow review-driven, CI, or conflict repair extends that root through an
 automatically linked `delta` that verifies the targeted findings and related
 regressions. A repair that materially changes candidate design, scope, or risk
 uses `review start --full` and establishes a replacement root.
+
+An unfinished round that cannot be completed uses `review abort`, remains
+visible as aborted history, and contributes no coverage. The next `review
+start` selects its boundary from the last completed coverage, not from the
+aborted round.
 
 Archive readiness requires a continuous coverage chain rooted in a full round,
 no unresolved blocking findings, no active round, and coverage of the current
