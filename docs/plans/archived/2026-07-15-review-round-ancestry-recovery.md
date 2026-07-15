@@ -115,8 +115,21 @@ editing local harness state by hand.
 
 ## Closeout
 
-- Validation: PENDING_UNTIL_ARCHIVE
-- Review: PENDING_UNTIL_ARCHIVE
-- Delivered: PENDING_UNTIL_ARCHIVE
-- Not Delivered: PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-07-15T09:46:51+08:00
+- Revision: 1
+- Validation: `scripts/validate-release` passed on the final candidate,
+  including the complete Go suite, built-binary E2E, installer and release
+  smoke tests, UI build, and schema/bootstrap synchronization checks.
+- Review: `review-001-full` passed at
+  `50f47a6fb7989ffdd7b83390b415cd6ba2c1a8f8` with no blocking or non-blocking
+  findings; the independent reviewer also reran release, race, and targeted
+  rebase/abort validation.
+- Delivered: Review start now rejects impossible deltas before artifact
+  creation, automatically establishes a full root after clean rewritten
+  ancestry, preserves unresolved-finding obligations, and provides atomic
+  `review abort` recovery with historical UI/timeline visibility and agent
+  guidance.
+- Not Delivered: Patch-similarity ancestry bridging, legacy runtime-state
+  migration, and changes to RC3 publish/sync overlap policy remain outside the
+  approved scope.
 - Follow-Up Issues: NONE
