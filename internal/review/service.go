@@ -153,6 +153,20 @@ func (s Service) Start(options StartOptions) StartResult {
 			Errors:  []CommandError{{Path: "review.candidate", Message: err.Error()}},
 		}
 	}
+	if spec.Kind == "delta" {
+		ancestor, err := reviewcoverage.IsAncestor(s.Workdir, spec.AnchorSHA, candidate.HeadSHA)
+		if err != nil {
+			return StartResult{
+				OK:      false,
+				Command: "review start",
+				Summary: "Unable to validate finalize review ancestry.",
+				Errors:  []CommandError{{Path: "review.coverage", Message: err.Error()}},
+			}
+		}
+		if !ancestor {
+			spec = inferredSpec{Kind: "full"}
+		}
+	}
 	if issues := validateRepairLink(s.Workdir, planStem, state, spec, revision); len(issues) > 0 {
 		return StartResult{
 			OK:      false,

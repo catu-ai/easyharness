@@ -318,6 +318,43 @@ func TestForceFullResetsExistingCoverage(t *testing.T) {
 	}
 }
 
+func TestStartFallsBackToFullAfterRebaseRewritesReviewedAncestry(t *testing.T) {
+	root, stem := writeExecutingPlan(t, true)
+	appendCommit(t, root, "candidate under review")
+	svc := review.Service{Workdir: root, Now: fixedNow}
+	full := svc.Start(review.StartOptions{})
+	if !full.OK {
+		t.Fatalf("start full review: %#v", full)
+	}
+	if result := svc.Submit(full.Artifacts.RoundID, "reviewer-integrated", jsonBytes(t, review.SubmissionInput{Summary: "Pass."})); !result.OK {
+		t.Fatalf("submit full review: %#v", result)
+	}
+
+	reviewedHead := full.Artifacts.ReviewedHeadSHA
+	base := git(t, root, "rev-parse", reviewedHead+"^")
+	git(t, root, "branch", "candidate", reviewedHead)
+	git(t, root, "checkout", "-qb", "upstream", base)
+	if err := os.WriteFile(filepath.Join(root, "upstream.txt"), []byte("upstream\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "add", "upstream.txt")
+	git(t, root, "commit", "-qm", "advance upstream")
+	git(t, root, "checkout", "-q", "candidate")
+	git(t, root, "rebase", "upstream")
+	if ancestor := gitIsAncestor(t, root, reviewedHead, "HEAD"); ancestor {
+		t.Fatal("test setup expected rebase to rewrite reviewed ancestry")
+	}
+
+	replacement := svc.Start(review.StartOptions{})
+	if !replacement.OK || !strings.HasSuffix(replacement.Artifacts.RoundID, "-full") {
+		t.Fatalf("expected automatic full review after rewritten ancestry: %#v", replacement)
+	}
+	manifest := readManifest(t, root, stem, replacement.Artifacts.RoundID)
+	if manifest.Repair != nil || manifest.AnchorSHA != "" {
+		t.Fatalf("rewritten ancestry must establish a fresh full root: %#v", manifest)
+	}
+}
+
 func writeExecutingPlan(t *testing.T, done bool) (string, string) {
 	t.Helper()
 	root := t.TempDir()
@@ -429,6 +466,20 @@ func git(t *testing.T, root string, args ...string) string {
 		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
 	}
 	return strings.TrimSpace(string(output))
+}
+
+func gitIsAncestor(t *testing.T, root, ancestor, descendant string) bool {
+	t.Helper()
+	command := exec.Command("git", "-C", root, "merge-base", "--is-ancestor", ancestor, descendant)
+	err := command.Run()
+	if err == nil {
+		return true
+	}
+	if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 1 {
+		return false
+	}
+	t.Fatalf("git merge-base --is-ancestor %s %s: %v", ancestor, descendant, err)
+	return false
 }
 
 func readManifest(t *testing.T, root, stem, roundID string) review.Manifest {

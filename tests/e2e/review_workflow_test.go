@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -106,6 +107,64 @@ func TestReviewFullResetAndCandidateBoundaryWithBuiltBinary(t *testing.T) {
 		"summary": "This stale judgment must not persist.", "findings": []map[string]any{},
 	}))
 	support.RequireExitCode(t, changed, 1)
+}
+
+func TestReviewRewrittenAncestryFallsBackToFullWithBuiltBinary(t *testing.T) {
+	workspace, _, planStem := prepareFinalizeReviewFixture(t)
+	workspace.CommitAll(t, "base fixture")
+	workspace.WriteFile(t, "candidate/product.txt", []byte("candidate\n"))
+	workspace.CommitAll(t, "candidate under review")
+
+	full := startReviewRound(t, workspace, false)
+	passing := submitReview(t, workspace, full.Artifacts.RoundID, "integrated-reviewer", "The candidate passes.", nil, nil)
+	if passing.Review.Decision != "pass" {
+		t.Fatalf("expected initial full review to pass, got %#v", passing)
+	}
+	reviewedHead := full.Artifacts.ReviewedHeadSHA
+	base := runReviewGit(t, workspace.Root, "rev-parse", reviewedHead+"^")
+	runReviewGit(t, workspace.Root, "branch", "candidate", reviewedHead)
+	runReviewGit(t, workspace.Root, "checkout", "-qb", "upstream", base)
+	workspace.WriteFile(t, "upstream.txt", []byte("upstream\n"))
+	runReviewGit(t, workspace.Root, "add", "upstream.txt")
+	runReviewGit(t, workspace.Root, "commit", "-qm", "advance upstream")
+	runReviewGit(t, workspace.Root, "checkout", "-q", "candidate")
+	runReviewGit(t, workspace.Root, "rebase", "upstream")
+	if runReviewGitExitCode(t, workspace.Root, "merge-base", "--is-ancestor", reviewedHead, "HEAD") == 0 {
+		t.Fatal("test setup expected rebase to rewrite reviewed ancestry")
+	}
+
+	replacement := startReviewRound(t, workspace, false)
+	if !strings.HasSuffix(replacement.Artifacts.RoundID, "-full") {
+		t.Fatalf("expected rewritten ancestry to establish a full root, got %#v", replacement)
+	}
+	manifest := support.ReadJSONFile[reviewManifest](t, reviewRoundArtifactPath(workspace.Root, planStem, replacement.Artifacts.RoundID, "manifest.json"))
+	if manifest.Kind != "full" || manifest.AnchorSHA != "" {
+		t.Fatalf("unexpected replacement review manifest: %#v", manifest)
+	}
+}
+
+func runReviewGit(t *testing.T, root string, args ...string) string {
+	t.Helper()
+	command := exec.Command("git", append([]string{"-C", root}, args...)...)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func runReviewGitExitCode(t *testing.T, root string, args ...string) int {
+	t.Helper()
+	command := exec.Command("git", append([]string{"-C", root}, args...)...)
+	err := command.Run()
+	if err == nil {
+		return 0
+	}
+	exit, ok := err.(*exec.ExitError)
+	if !ok {
+		t.Fatalf("git %s: %v", strings.Join(args, " "), err)
+	}
+	return exit.ExitCode()
 }
 
 func prepareFinalizeReviewFixture(t *testing.T) (*support.Workspace, string, string) {
