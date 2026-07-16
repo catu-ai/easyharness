@@ -102,9 +102,7 @@ easyharness's tracked-plan approval boundary.
 
 ## Deferred Items
 
-- A separate domain-modeling or documentation-during-discovery workflow remains
-  deferred until a concrete need justifies changing the conversation-only
-  boundary.
+- None.
 
 ## Work Breakdown
 
@@ -131,8 +129,17 @@ easyharness's tracked-plan approval boundary.
 
 ## Closeout
 
-- Validation: PENDING_UNTIL_ARCHIVE
-- Review: PENDING_UNTIL_ARCHIVE
-- Delivered: PENDING_UNTIL_ARCHIVE
-- Not Delivered: PENDING_UNTIL_ARCHIVE
-- Follow-Up Issues: NONE
+- Validation: Fresh-agent probes covered ambiguous, factual, and
+  implementation-ready requests with the expected question/no-question split;
+  bootstrap sync checks, smoke tests, plan lint, diff checks, and full
+  `scripts/validate` passed.
+- Review: `review-001-full` passed the complete candidate at `02ec34c` with no
+  findings; the reviewer independently confirmed the behavioral probes and
+  repository validation.
+- Delivered: Restored a compact bounded-grilling loop in the managed discovery
+  contract, including fact/decision ownership, active decision-tree discovery,
+  one-question pacing, recommended answers, waiting for human choices, and a
+  shared-understanding stop rule; refreshed the materialized dogfood skill.
+- Not Delivered: No separate grilling/domain-modeling skill, repository writes
+  during discovery, CLI discovery state, or lifecycle changes were added.
+- Follow-Up Issues: None.
