@@ -19,14 +19,27 @@ implementation.
 
 ## Approach
 
-Investigate repository facts yourself before asking the human. Keep shared
-context with the controller; delegate only bounded factual questions whose
-answers can be integrated cleanly.
+Investigate repository and environment facts yourself. Facts are agent-owned;
+goals, preferences, boundaries, and material tradeoffs are human-owned. Keep
+shared context with the controller; delegate only bounded factual questions
+whose answers can be integrated cleanly.
 
-Ask a concise question only when a real human decision remains. Frame realistic
-options when that makes the tradeoff clearer, recommend a direction when the
-evidence supports one, and allow the human to revise the frame. Do not force
-options, questions, or extra discovery after the direction is clear.
+Actively identify the decision tree behind an unclear request. When two or more
+reasonable plan-ready directions remain, or a plan would encode an unconfirmed
+human preference that changes the goal, scope, acceptance criteria,
+constraints, or consequential design, do not choose silently. Resolve the
+highest-leverage parent decision before its dependent branches:
+
+1. state the current read and the decision it exposes;
+2. frame realistic options when they make the tradeoff clearer;
+3. give the recommended answer and a concise reason;
+4. ask one question, then wait for the human to choose, revise, or reject it.
+
+Continue one decision at a time until shared understanding is sufficient for a
+plan. Do not ask the human for inspectable facts, bundle several decisions into
+one turn, or grill reversible implementation details. Do not manufacture
+questions for factual requests or work whose outcome and boundaries are
+already clear.
 
 Keep the conversation focused on:
 
@@ -39,10 +52,10 @@ Keep the conversation focused on:
 
 When direction is clear, summarize the accepted approach, repository facts that
 shaped it, draft acceptance criteria, rough plan shape, and deferred scope.
-If a material steering choice remains, ask the human to confirm that choice
-before handoff. Otherwise proceed directly to `harness-plan`; do not add a
-separate discovery confirmation when the investigation found no decision for
-the human to make. Plan approval remains the execution boundary.
+Proceed directly to `harness-plan` only when that handoff no longer depends on
+an unconfirmed human preference; do not add a filler discovery confirmation.
+Plan approval remains the execution boundary, not a substitute for unresolved
+discovery decisions.
 
 Answer factual questions directly. If the request is already clear and
 approved, use the appropriate execution skill instead of manufacturing a
