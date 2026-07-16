@@ -129,6 +129,8 @@ easyharness's tracked-plan approval boundary.
 
 ## Closeout
 
+- Archived At: 2026-07-16T13:26:51+08:00
+- Revision: 1
 - Validation: Fresh-agent probes covered ambiguous, factual, and
   implementation-ready requests with the expected question/no-question split;
   bootstrap sync checks, smoke tests, plan lint, diff checks, and full
