@@ -1154,7 +1154,13 @@ func evaluateArchivedReviewCoverage(workdir, planStem string, doc *plan.Document
 	}
 	var validationErr error
 	if publishedRevision != "" {
-		if publishedBaseRevision != "" {
+		if doc.WorkflowProfile() == plan.WorkflowProfileLightweight {
+			if publishedBaseRevision != "" {
+				validationErr = reviewcoverage.ValidatePublishedLightweightCandidateAgainstBase(workdir, doc.Path, chain, publishedRevision, publishedBaseRevision)
+			} else {
+				validationErr = reviewcoverage.ValidatePublishedLightweightCandidate(workdir, doc.Path, chain, publishedRevision)
+			}
+		} else if publishedBaseRevision != "" {
 			validationErr = reviewcoverage.ValidatePublishedCandidateAgainstBase(workdir, doc.Path, chain, publishedRevision, publishedBaseRevision)
 		} else {
 			validationErr = reviewcoverage.ValidatePublishedCandidate(workdir, doc.Path, chain, publishedRevision)
