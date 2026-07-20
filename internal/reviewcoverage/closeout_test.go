@@ -356,6 +356,177 @@ func TestValidatePublishedCandidateRejectsUnreviewedPublishedChange(t *testing.T
 	}
 }
 
+func TestValidatePublishedLightweightCandidateAllowsLocalArchiveSnapshot(t *testing.T) {
+	root, archivedPlan, chain, published := lightweightPublishedCandidate(t, true)
+
+	if err := ValidatePublishedLightweightCandidate(root, archivedPlan, chain, published); err != nil {
+		t.Fatalf("expected local lightweight archive snapshot to preserve published coverage: %v", err)
+	}
+}
+
+func TestValidatePublishedLightweightCandidateRejectsRetainedTrackedSource(t *testing.T) {
+	root, archivedPlan, chain, _ := lightweightPublishedCandidate(t, true)
+	published := chain.CoveredHeadSHA
+
+	err := ValidatePublishedLightweightCandidate(root, archivedPlan, chain, published)
+	if err == nil || !strings.Contains(err.Error(), "reviewed active plan path still exists") {
+		t.Fatalf("expected retained active plan rejection, got %v", err)
+	}
+}
+
+func TestValidatePublishedLightweightCandidateRejectsRetainedTrackedSupplement(t *testing.T) {
+	root, archivedPlan, chain, _ := lightweightPublishedCandidate(t, true)
+	activeSupplement := "docs/plans/active/supplements/2026-07-13-test/notes.md"
+	writeFile(t, root, activeSupplement, "reviewed supplement\n")
+	git(t, root, "add", activeSupplement)
+	git(t, root, "commit", "-m", "restore tracked supplement")
+	published := git(t, root, "rev-parse", "HEAD")
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activeSupplement))); err != nil {
+		t.Fatalf("remove restored active supplement from worktree: %v", err)
+	}
+
+	err := ValidatePublishedLightweightCandidate(root, archivedPlan, chain, published)
+	if err == nil || !strings.Contains(err.Error(), "reviewed supplement still exists") {
+		t.Fatalf("expected retained active supplement rejection, got %v", err)
+	}
+}
+
+func TestValidatePublishedLightweightCandidateRejectsUnreviewedProductChange(t *testing.T) {
+	root, archivedPlan, chain, _ := lightweightPublishedCandidate(t, false)
+	writeFile(t, root, "product.go", "package product\n\nconst Candidate = 2\n")
+	git(t, root, "add", "product.go")
+	git(t, root, "commit", "-m", "unreviewed product change")
+	published := git(t, root, "rev-parse", "HEAD")
+
+	err := ValidatePublishedLightweightCandidate(root, archivedPlan, chain, published)
+	if err == nil || !strings.Contains(err.Error(), "unreviewed product change") || !strings.Contains(err.Error(), "product.go") {
+		t.Fatalf("expected unreviewed lightweight product change rejection, got %v", err)
+	}
+}
+
+func TestValidatePublishedLightweightCandidateRejectsForceTrackedLocalArchive(t *testing.T) {
+	root, archivedPlan, chain, _ := lightweightPublishedCandidate(t, false)
+	git(t, root, "add", "-f", archivedPlan)
+	git(t, root, "commit", "-m", "force track local archive")
+	published := git(t, root, "rev-parse", "HEAD")
+
+	err := ValidatePublishedLightweightCandidate(root, archivedPlan, chain, published)
+	if err == nil || !strings.Contains(err.Error(), "unreviewed product change") || !strings.Contains(err.Error(), archivedPlan) {
+		t.Fatalf("expected force-tracked local archive rejection, got %v", err)
+	}
+}
+
+func TestValidatePublishedLightweightCandidateRejectsUnexpectedLocalSupplement(t *testing.T) {
+	root, archivedPlan, chain, published := lightweightPublishedCandidate(t, false)
+	writeFile(t, root, ".local/harness/plans/archived/supplements/2026-07-13-test/extra.md", "unexpected\n")
+
+	err := ValidatePublishedLightweightCandidate(root, archivedPlan, chain, published)
+	if err == nil || !strings.Contains(err.Error(), "unexpected archived lightweight supplement") {
+		t.Fatalf("expected unexpected local supplement rejection, got %v", err)
+	}
+}
+
+func TestValidatePublishedLightweightCandidateAgainstBaseAllowsEquivalentRebase(t *testing.T) {
+	root, archivedPlan, chain, upstream := baseAwareLightweightPublishedCandidate(t)
+	git(t, root, "checkout", "candidate")
+	git(t, root, "rebase", "upstream")
+	published := git(t, root, "rev-parse", "HEAD")
+
+	if err := ValidatePublishedLightweightCandidateAgainstBase(root, archivedPlan, chain, published, upstream); err != nil {
+		t.Fatalf("expected equivalent rebased lightweight candidate to preserve coverage: %v", err)
+	}
+}
+
+func TestValidatePublishedLightweightCandidateAgainstBaseRejectsCandidateDrift(t *testing.T) {
+	root, archivedPlan, chain, upstream := baseAwareLightweightPublishedCandidate(t)
+	git(t, root, "checkout", "candidate")
+	git(t, root, "rebase", "upstream")
+	writeFile(t, root, "product.go", "package product\n\nconst Candidate = 2\n")
+	git(t, root, "add", "product.go")
+	git(t, root, "commit", "-m", "candidate drift")
+	published := git(t, root, "rev-parse", "HEAD")
+
+	err := ValidatePublishedLightweightCandidateAgainstBase(root, archivedPlan, chain, published, upstream)
+	if err == nil || !strings.Contains(err.Error(), "candidate-owned delta changed") || !strings.Contains(err.Error(), "product.go") {
+		t.Fatalf("expected rebased lightweight candidate drift rejection, got %v", err)
+	}
+}
+
+func lightweightPublishedCandidate(t *testing.T, withSupplement bool) (string, string, *Chain, string) {
+	t.Helper()
+	root := t.TempDir()
+	initGit(t, root)
+	activePlan := "docs/plans/active/2026-07-13-test.md"
+	archivedPlan := ".local/harness/plans/archived/2026-07-13-test.md"
+	activeSupplement := "docs/plans/active/supplements/2026-07-13-test/notes.md"
+	archivedSupplement := ".local/harness/plans/archived/supplements/2026-07-13-test/notes.md"
+	writeFile(t, root, activePlan, reviewedPlan)
+	writeFile(t, root, "product.go", "package product\n\nconst Candidate = 1\n")
+	if withSupplement {
+		writeFile(t, root, activeSupplement, "reviewed supplement\n")
+	}
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "reviewed")
+	covered := git(t, root, "rev-parse", "HEAD")
+
+	commandRendered, err := commandRenderedArchivePlan([]byte(reviewedPlan))
+	if err != nil {
+		t.Fatalf("render command-owned archive baseline: %v", err)
+	}
+	writeFile(t, root, archivedPlan, string(commandRendered))
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
+		t.Fatalf("remove active plan: %v", err)
+	}
+	if withSupplement {
+		writeFile(t, root, archivedSupplement, "reviewed supplement\n")
+		if err := os.Remove(filepath.Join(root, filepath.FromSlash(activeSupplement))); err != nil {
+			t.Fatalf("remove active supplement: %v", err)
+		}
+	}
+	git(t, root, "add", "-u")
+	git(t, root, "commit", "-m", "archive lightweight plan")
+	published := git(t, root, "rev-parse", "HEAD")
+
+	return root, archivedPlan, &Chain{CoveredHeadSHA: covered, ReviewedPlanPath: activePlan}, published
+}
+
+func baseAwareLightweightPublishedCandidate(t *testing.T) (string, string, *Chain, string) {
+	t.Helper()
+	root := t.TempDir()
+	initGit(t, root)
+	activePlan := "docs/plans/active/2026-07-13-test.md"
+	archivedPlan := ".local/harness/plans/archived/2026-07-13-test.md"
+	writeFile(t, root, activePlan, reviewedPlan)
+	writeFile(t, root, "product.go", "package product\n\nconst Candidate = 0\n")
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "base")
+	base := git(t, root, "rev-parse", "HEAD")
+
+	git(t, root, "checkout", "-b", "candidate")
+	writeFile(t, root, "product.go", "package product\n\nconst Candidate = 1\n")
+	git(t, root, "add", "product.go")
+	git(t, root, "commit", "-m", "reviewed candidate")
+	reviewed := git(t, root, "rev-parse", "HEAD")
+	commandRendered, err := commandRenderedArchivePlan([]byte(reviewedPlan))
+	if err != nil {
+		t.Fatalf("render command-owned archive baseline: %v", err)
+	}
+	writeFile(t, root, archivedPlan, string(commandRendered))
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
+		t.Fatalf("remove active plan: %v", err)
+	}
+	git(t, root, "add", "-u")
+	git(t, root, "commit", "-m", "archive lightweight plan")
+
+	git(t, root, "checkout", "-b", "upstream", base)
+	writeFile(t, root, "upstream.txt", "unrelated upstream work\n")
+	git(t, root, "add", "upstream.txt")
+	git(t, root, "commit", "-m", "upstream advance")
+	upstream := git(t, root, "rev-parse", "HEAD")
+
+	return root, archivedPlan, &Chain{CoveredHeadSHA: reviewed, ReviewedPlanPath: activePlan}, upstream
+}
+
 func baseAwareArchivedCandidate(t *testing.T, overlap bool) (string, string, *Chain, string) {
 	t.Helper()
 	root := t.TempDir()

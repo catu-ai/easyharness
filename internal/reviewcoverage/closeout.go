@@ -196,6 +196,23 @@ func ValidatePublishedCandidate(workdir, archivedPlanPath string, chain *Chain, 
 	if err != nil {
 		return err
 	}
+	return validatePublishedCandidateAncestry(workdir, chain, publishedHead, allowed)
+}
+
+// ValidatePublishedLightweightCandidate validates a published lightweight
+// candidate without requiring its command-owned local archive snapshot to
+// exist in Git. The local snapshot still has to match the reviewed plan and
+// supplements, while the published tree must contain only the corresponding
+// tracked source removals plus the reviewed candidate delta.
+func ValidatePublishedLightweightCandidate(workdir, archivedPlanPath string, chain *Chain, publishedRevision string) error {
+	publishedHead, allowed, err := validatePublishedLightweightCandidateStructure(workdir, archivedPlanPath, chain, publishedRevision)
+	if err != nil {
+		return err
+	}
+	return validatePublishedCandidateAncestry(workdir, chain, publishedHead, allowed)
+}
+
+func validatePublishedCandidateAncestry(workdir string, chain *Chain, publishedHead string, allowed map[string]bool) error {
 	ancestor, err := IsAncestor(workdir, chain.CoveredHeadSHA, publishedHead)
 	if err != nil {
 		return fmt.Errorf("validate published candidate ancestry: %w", err)
@@ -224,6 +241,21 @@ func ValidatePublishedCandidateAgainstBase(workdir, archivedPlanPath string, cha
 	if err != nil {
 		return err
 	}
+	return validatePublishedCandidateAgainstBase(workdir, chain, publishedHead, allowed, baseRevision)
+}
+
+// ValidatePublishedLightweightCandidateAgainstBase is the base-aware variant
+// of ValidatePublishedLightweightCandidate for an otherwise equivalent
+// candidate whose commits were rewritten during synchronization.
+func ValidatePublishedLightweightCandidateAgainstBase(workdir, archivedPlanPath string, chain *Chain, publishedRevision, baseRevision string) error {
+	publishedHead, allowed, err := validatePublishedLightweightCandidateStructure(workdir, archivedPlanPath, chain, publishedRevision)
+	if err != nil {
+		return err
+	}
+	return validatePublishedCandidateAgainstBase(workdir, chain, publishedHead, allowed, baseRevision)
+}
+
+func validatePublishedCandidateAgainstBase(workdir string, chain *Chain, publishedHead string, allowed map[string]bool, baseRevision string) error {
 	currentBase, err := ResolveCommit(workdir, baseRevision)
 	if err != nil {
 		return fmt.Errorf("resolve published candidate base %q: %w", baseRevision, err)
@@ -330,52 +362,35 @@ func validatePublishedCandidateStructure(workdir, archivedPlanPath string, chain
 	return publishedHead, allowed, nil
 }
 
-func validateArchivedCandidateStructure(workdir, archivedPlanPath string, chain *Chain) (string, string, map[string]bool, error) {
-	if chain == nil || strings.TrimSpace(chain.CoveredHeadSHA) == "" {
-		return "", "", nil, fmt.Errorf("archived candidate has no reviewed head coverage")
-	}
-	reviewedPlan, err := repoRelativePath(workdir, chain.ReviewedPlanPath)
+func validatePublishedLightweightCandidateStructure(workdir, archivedPlanPath string, chain *Chain, publishedRevision string) (string, map[string]bool, error) {
+	reviewedPlan, archivedPlan, err := validateLocalArchivedPlanSnapshot(workdir, archivedPlanPath, chain)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("resolve reviewed plan path: %w", err)
+		return "", nil, err
 	}
-	archivedPlan, err := repoRelativePath(workdir, archivedPlanPath)
+	publishedHead, err := ResolveCommit(workdir, publishedRevision)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("resolve archived plan path: %w", err)
+		return "", nil, fmt.Errorf("resolve published candidate %q: %w", publishedRevision, err)
 	}
-	if reviewedPlan == archivedPlan {
-		return "", "", nil, fmt.Errorf("archived plan path still equals reviewed active plan path")
+	if entry, err := treeEntry(workdir, publishedHead, reviewedPlan); err != nil {
+		return "", nil, err
+	} else if entry != "" {
+		return "", nil, fmt.Errorf("reviewed active plan path still exists in published candidate: %s", reviewedPlan)
 	}
 
-	baseline, err := gitBytes(workdir, "show", chain.CoveredHeadSHA+":"+reviewedPlan)
+	// Only tracked source removals are archive mechanics for lightweight work.
+	// The ignored local targets must remain outside this allowlist so a
+	// force-added .local artifact is rejected as an unreviewed product change.
+	allowed := map[string]bool{reviewedPlan: true}
+	if err := validatePublishedLightweightSupplements(workdir, chain.CoveredHeadSHA, publishedHead, reviewedPlan, archivedPlan, allowed); err != nil {
+		return "", nil, err
+	}
+	return publishedHead, allowed, nil
+}
+
+func validateArchivedCandidateStructure(workdir, archivedPlanPath string, chain *Chain) (string, string, map[string]bool, error) {
+	reviewedPlan, archivedPlan, err := validateLocalArchivedPlanSnapshot(workdir, archivedPlanPath, chain)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("read reviewed plan content: %w", err)
-	}
-	archivedPlanFSPath := filepath.Join(workdir, filepath.FromSlash(archivedPlan))
-	currentMode, current, err := readGitWorktreeFile(archivedPlanFSPath)
-	if err != nil {
-		return "", "", nil, fmt.Errorf("read archived plan content: %w", err)
-	}
-	if currentMode != "100644" {
-		return "", "", nil, fmt.Errorf("archived plan has git mode %s, expected command-rendered regular file mode 100644", currentMode)
-	}
-	expected, err := commandRenderedArchivePlan(baseline)
-	if err != nil {
-		return "", "", nil, fmt.Errorf("prepare reviewed plan for archive comparison: %w", err)
-	}
-	expectedComparable, err := planWithMaskedCloseoutBody(expected)
-	if err != nil {
-		return "", "", nil, fmt.Errorf("read command-rendered plan structure: %w", err)
-	}
-	reviewedComparable, err := planWithMaskedCloseoutBody(baseline)
-	if err != nil {
-		return "", "", nil, fmt.Errorf("read reviewed plan structure: %w", err)
-	}
-	currentComparable, err := planWithMaskedCloseoutBody(current)
-	if err != nil {
-		return "", "", nil, fmt.Errorf("read archived plan structure: %w", err)
-	}
-	if !bytes.Equal(expectedComparable, currentComparable) && !bytes.Equal(reviewedComparable, currentComparable) {
-		return "", "", nil, fmt.Errorf("archived plan differs from the command-rendered reviewed plan outside the allowed Closeout body near %s", firstComparableDifference(expectedComparable, currentComparable))
+		return "", "", nil, err
 	}
 	if _, err := os.Lstat(filepath.Join(workdir, filepath.FromSlash(reviewedPlan))); !os.IsNotExist(err) {
 		if err != nil {
@@ -389,6 +404,56 @@ func validateArchivedCandidateStructure(workdir, archivedPlanPath string, chain 
 		return "", "", nil, err
 	}
 	return reviewedPlan, archivedPlan, allowed, nil
+}
+
+func validateLocalArchivedPlanSnapshot(workdir, archivedPlanPath string, chain *Chain) (string, string, error) {
+	if chain == nil || strings.TrimSpace(chain.CoveredHeadSHA) == "" {
+		return "", "", fmt.Errorf("archived candidate has no reviewed head coverage")
+	}
+	reviewedPlan, err := repoRelativePath(workdir, chain.ReviewedPlanPath)
+	if err != nil {
+		return "", "", fmt.Errorf("resolve reviewed plan path: %w", err)
+	}
+	archivedPlan, err := repoRelativePath(workdir, archivedPlanPath)
+	if err != nil {
+		return "", "", fmt.Errorf("resolve archived plan path: %w", err)
+	}
+	if reviewedPlan == archivedPlan {
+		return "", "", fmt.Errorf("archived plan path still equals reviewed active plan path")
+	}
+
+	baseline, err := gitBytes(workdir, "show", chain.CoveredHeadSHA+":"+reviewedPlan)
+	if err != nil {
+		return "", "", fmt.Errorf("read reviewed plan content: %w", err)
+	}
+	archivedPlanFSPath := filepath.Join(workdir, filepath.FromSlash(archivedPlan))
+	currentMode, current, err := readGitWorktreeFile(archivedPlanFSPath)
+	if err != nil {
+		return "", "", fmt.Errorf("read archived plan content: %w", err)
+	}
+	if currentMode != "100644" {
+		return "", "", fmt.Errorf("archived plan has git mode %s, expected command-rendered regular file mode 100644", currentMode)
+	}
+	expected, err := commandRenderedArchivePlan(baseline)
+	if err != nil {
+		return "", "", fmt.Errorf("prepare reviewed plan for archive comparison: %w", err)
+	}
+	expectedComparable, err := planWithMaskedCloseoutBody(expected)
+	if err != nil {
+		return "", "", fmt.Errorf("read command-rendered plan structure: %w", err)
+	}
+	reviewedComparable, err := planWithMaskedCloseoutBody(baseline)
+	if err != nil {
+		return "", "", fmt.Errorf("read reviewed plan structure: %w", err)
+	}
+	currentComparable, err := planWithMaskedCloseoutBody(current)
+	if err != nil {
+		return "", "", fmt.Errorf("read archived plan structure: %w", err)
+	}
+	if !bytes.Equal(expectedComparable, currentComparable) && !bytes.Equal(reviewedComparable, currentComparable) {
+		return "", "", fmt.Errorf("archived plan differs from the command-rendered reviewed plan outside the allowed Closeout body near %s", firstComparableDifference(expectedComparable, currentComparable))
+	}
+	return reviewedPlan, archivedPlan, nil
 }
 
 func commandRenderedArchivePlan(content []byte) ([]byte, error) {
@@ -571,6 +636,93 @@ func validatePublishedSupplements(workdir, coveredHead, publishedHead, reviewedP
 		allowed[target] = true
 	}
 	return nil
+}
+
+func validatePublishedLightweightSupplements(workdir, coveredHead, publishedHead, reviewedPlan, archivedPlan string, allowed map[string]bool) error {
+	reviewedDir := repoSlashPath(plan.SupplementsDirForPlanPath(filepath.FromSlash(reviewedPlan)))
+	archivedDir := repoSlashPath(plan.SupplementsDirForPlanPath(filepath.FromSlash(archivedPlan)))
+	data, err := gitBytes(workdir, "ls-tree", "-r", "-z", coveredHead, "--", reviewedDir)
+	if err != nil {
+		return fmt.Errorf("inspect reviewed plan supplements: %w", err)
+	}
+	expectedTargets := make(map[string]bool)
+	for _, raw := range bytes.Split(data, []byte{0}) {
+		entry := string(raw)
+		if entry == "" {
+			continue
+		}
+		metadata, source, ok := strings.Cut(entry, "\t")
+		fields := strings.Fields(metadata)
+		if !ok || len(fields) < 1 || source == "" {
+			return fmt.Errorf("parse reviewed supplement tree entry %q", entry)
+		}
+		expectedMode := fields[0]
+		source = filepath.ToSlash(source)
+		rel, err := filepath.Rel(filepath.FromSlash(reviewedDir), filepath.FromSlash(source))
+		if err != nil || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+			return fmt.Errorf("reviewed supplement escaped its expected directory: %s", source)
+		}
+		target := filepath.ToSlash(filepath.Join(filepath.FromSlash(archivedDir), rel))
+		baseline, err := gitBytes(workdir, "show", coveredHead+":"+source)
+		if err != nil {
+			return fmt.Errorf("read reviewed supplement %s: %w", source, err)
+		}
+		currentMode, current, err := readGitWorktreeFile(filepath.Join(workdir, filepath.FromSlash(target)))
+		if err != nil {
+			return fmt.Errorf("read archived supplement %s: %w", target, err)
+		}
+		if currentMode != expectedMode {
+			return fmt.Errorf("archived supplement git mode differs from reviewed content: %s (%s -> %s)", target, expectedMode, currentMode)
+		}
+		if !bytes.Equal(baseline, current) {
+			return fmt.Errorf("archived supplement differs from reviewed content: %s", target)
+		}
+		if sourceEntry, err := treeEntry(workdir, publishedHead, source); err != nil {
+			return err
+		} else if sourceEntry != "" {
+			return fmt.Errorf("reviewed supplement still exists in published candidate: %s", source)
+		}
+		allowed[source] = true
+		expectedTargets[target] = true
+	}
+
+	actualTargets, err := localArchiveEntries(workdir, archivedDir)
+	if err != nil {
+		return fmt.Errorf("inspect archived lightweight supplements: %w", err)
+	}
+	for _, target := range actualTargets {
+		if !expectedTargets[target] {
+			return fmt.Errorf("unexpected archived lightweight supplement: %s", target)
+		}
+	}
+	return nil
+}
+
+func localArchiveEntries(workdir, archivedDir string) ([]string, error) {
+	root := filepath.Join(workdir, filepath.FromSlash(archivedDir))
+	entries := make([]string, 0)
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path == root || entry.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(workdir, path)
+		if err != nil {
+			return err
+		}
+		entries = append(entries, filepath.ToSlash(rel))
+		return nil
+	})
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(entries)
+	return entries, nil
 }
 
 func readGitRevisionFile(workdir, revision, path string) (string, []byte, error) {
