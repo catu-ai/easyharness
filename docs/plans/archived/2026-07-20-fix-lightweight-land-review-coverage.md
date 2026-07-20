@@ -115,8 +115,19 @@ lightweight archive snapshot to exist in a Git tree.
 
 ## Closeout
 
-- Validation: PENDING_UNTIL_ARCHIVE
-- Review: PENDING_UNTIL_ARCHIVE
-- Delivered: PENDING_UNTIL_ARCHIVE
-- Not Delivered: PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-07-20T22:13:14+08:00
+- Revision: 1
+- Validation: `go test ./... -count=1`, focused review-coverage and lifecycle
+  suites, the commit-bearing lightweight `land complete` E2E, and
+  `git diff --check` passed.
+- Review: Integrated full review requested one fail-closed repair for archive
+  targets already present in a reviewed or base tree; linked delta
+  `review-002-delta` verified the repair, resolved the finding, and passed with
+  no new findings.
+- Delivered: Profile-aware published coverage now validates lightweight local
+  plan and supplement snapshots separately from Git-visible source removals,
+  rejects tracked `.local` archive targets directly, preserves standard and
+  base-aware validation, and exercises the complete lightweight land lifecycle.
+- Not Delivered: No archive-storage, evidence-schema, migration, or manual
+  runtime-state recovery changes.
 - Follow-Up Issues: NONE
