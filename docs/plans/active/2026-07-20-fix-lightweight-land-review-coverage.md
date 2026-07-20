@@ -56,17 +56,17 @@ lightweight archive snapshot to exist in a Git tree.
 
 ## Acceptance Criteria
 
-- [ ] A valid lightweight candidate with commit-bearing publish evidence can
+- [x] A valid lightweight candidate with commit-bearing publish evidence can
       enter and complete land without looking for its `.local` archive path in
       the published Git tree.
-- [ ] Lightweight land still rejects a published candidate that retains the
+- [x] Lightweight land still rejects a published candidate that retains the
       reviewed active plan, changes reviewed plan or supplement content
       outside allowed archive mechanics, or introduces an unreviewed product
       delta.
-- [ ] Base-aware validation accepts an equivalent rewritten lightweight
+- [x] Base-aware validation accepts an equivalent rewritten lightweight
       candidate and rejects candidate-owned drift.
-- [ ] Standard published-candidate and land behavior remains unchanged.
-- [ ] Automated coverage includes a full lightweight lifecycle through
+- [x] Standard published-candidate and land behavior remains unchanged.
+- [x] Automated coverage includes a full lightweight lifecycle through
       `land complete` with an immutable published commit.
 
 ## Review Focus
@@ -97,7 +97,7 @@ lightweight archive snapshot to exist in a Git tree.
 
 ### Step 2: Close the lifecycle regression gap
 
-- Done: [ ]
+- Done: [x]
 - Outcome: The built CLI proves a commit-bearing lightweight candidate can
   progress from archive through completed land bookkeeping.
 - Covers: Acceptance criterion 5.

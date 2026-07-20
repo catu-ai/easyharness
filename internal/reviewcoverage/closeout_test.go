@@ -426,6 +426,26 @@ func TestValidatePublishedLightweightCandidateRejectsUnexpectedLocalSupplement(t
 	}
 }
 
+func TestValidatePublishedLightweightCandidateRejectsLocalPlanDrift(t *testing.T) {
+	root, archivedPlan, chain, published := lightweightPublishedCandidate(t, false)
+	writeFile(t, root, archivedPlan, strings.Replace(reviewedPlan, "Ship the candidate.", "Changed local goal.", 1))
+
+	err := ValidatePublishedLightweightCandidate(root, archivedPlan, chain, published)
+	if err == nil || !strings.Contains(err.Error(), "outside the allowed Closeout body") {
+		t.Fatalf("expected local lightweight plan drift rejection, got %v", err)
+	}
+}
+
+func TestValidatePublishedLightweightCandidateRejectsLocalSupplementDrift(t *testing.T) {
+	root, archivedPlan, chain, published := lightweightPublishedCandidate(t, true)
+	writeFile(t, root, ".local/harness/plans/archived/supplements/2026-07-13-test/notes.md", "changed supplement\n")
+
+	err := ValidatePublishedLightweightCandidate(root, archivedPlan, chain, published)
+	if err == nil || !strings.Contains(err.Error(), "archived supplement differs") {
+		t.Fatalf("expected local lightweight supplement drift rejection, got %v", err)
+	}
+}
+
 func TestValidatePublishedLightweightCandidateAgainstBaseAllowsEquivalentRebase(t *testing.T) {
 	root, archivedPlan, chain, upstream := baseAwareLightweightPublishedCandidate(t)
 	git(t, root, "checkout", "candidate")

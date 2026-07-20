@@ -88,12 +88,14 @@ func TestLightweightWorkflowWithBuiltBinary(t *testing.T) {
 	if len(postArchiveStatus.NextAction) == 0 || !strings.Contains(postArchiveStatus.NextAction[0].Description, "repo-visible breadcrumb") {
 		t.Fatalf("expected breadcrumb guidance after lightweight archive, got %#v", postArchiveStatus.NextAction)
 	}
+	publishedHead := workspace.CommitAll(t, "commit lightweight active plan removal")
 
 	submitEvidence(t, workspace, "publish", "tmp/lightweight-publish.json", map[string]any{
 		"status": "recorded",
 		"pr_url": "https://github.com/catu-ai/easyharness/pull/109",
 		"branch": "codex/e2e-lightweight-workflow",
 		"base":   "main",
+		"commit": publishedHead,
 	})
 	submitEvidence(t, workspace, "ci", "tmp/lightweight-ci.json", map[string]any{
 		"status":   "not_applied",
@@ -112,6 +114,34 @@ func TestLightweightWorkflowWithBuiltBinary(t *testing.T) {
 	}
 	if len(awaitMergeStatus.NextAction) == 0 || !strings.Contains(awaitMergeStatus.NextAction[0].Description, "repo-visible breadcrumb") {
 		t.Fatalf("expected await-merge breadcrumb guidance, got %#v", awaitMergeStatus.NextAction)
+	}
+
+	land := support.Run(t, workspace.Root, "land", "--pr", "https://github.com/catu-ai/easyharness/pull/109", "--commit", publishedHead)
+	support.RequireSuccess(t, land)
+	support.RequireNoStderr(t, land)
+	landPayload := requireLifecycleResult(t, land)
+	if !landPayload.OK || landPayload.Command != "land" {
+		t.Fatalf("unexpected lightweight land payload: %#v", landPayload)
+	}
+	assertLifecycleEnvelope(t, landPayload, "land", 1)
+
+	landComplete := support.Run(t, workspace.Root, "land", "complete")
+	support.RequireSuccess(t, landComplete)
+	support.RequireNoStderr(t, landComplete)
+	landCompletePayload := requireLifecycleResult(t, landComplete)
+	if !landCompletePayload.OK || landCompletePayload.Command != "land complete" {
+		t.Fatalf("unexpected lightweight land-complete payload: %#v", landCompletePayload)
+	}
+	assertLifecycleEnvelope(t, landCompletePayload, "idle", 1)
+
+	current = support.ReadJSONFile[currentPlan](t, workspace.Path(".local/harness/current-plan.json"))
+	if current.PlanPath != "" || current.LastLandedPlanPath != archivedRelPath || current.LastLandedAt == "" {
+		t.Fatalf("expected lightweight idle marker with last-landed context, got %#v", current)
+	}
+	postLandStatus := runStatus(t, workspace.Root)
+	assertNode(t, postLandStatus, "idle")
+	if postLandStatus.Artifacts.PlanPath != archivedRelPath {
+		t.Fatalf("expected lightweight last-landed path in idle status, got %#v", postLandStatus)
 	}
 }
 
