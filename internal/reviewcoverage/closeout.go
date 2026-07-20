@@ -371,6 +371,11 @@ func validatePublishedLightweightCandidateStructure(workdir, archivedPlanPath st
 	if err != nil {
 		return "", nil, fmt.Errorf("resolve published candidate %q: %w", publishedRevision, err)
 	}
+	if entry, err := treeEntry(workdir, publishedHead, archivedPlan); err != nil {
+		return "", nil, err
+	} else if entry != "" {
+		return "", nil, fmt.Errorf("lightweight archived plan is tracked in published candidate: %s", archivedPlan)
+	}
 	if entry, err := treeEntry(workdir, publishedHead, reviewedPlan); err != nil {
 		return "", nil, err
 	} else if entry != "" {
@@ -641,6 +646,21 @@ func validatePublishedSupplements(workdir, coveredHead, publishedHead, reviewedP
 func validatePublishedLightweightSupplements(workdir, coveredHead, publishedHead, reviewedPlan, archivedPlan string, allowed map[string]bool) error {
 	reviewedDir := repoSlashPath(plan.SupplementsDirForPlanPath(filepath.FromSlash(reviewedPlan)))
 	archivedDir := repoSlashPath(plan.SupplementsDirForPlanPath(filepath.FromSlash(archivedPlan)))
+	trackedTargets, err := gitBytes(workdir, "ls-tree", "-r", "-z", publishedHead, "--", archivedDir)
+	if err != nil {
+		return fmt.Errorf("inspect published lightweight archive supplements: %w", err)
+	}
+	for _, raw := range bytes.Split(trackedTargets, []byte{0}) {
+		entry := string(raw)
+		if entry == "" {
+			continue
+		}
+		_, target, ok := strings.Cut(entry, "\t")
+		if !ok || target == "" {
+			return fmt.Errorf("parse published lightweight supplement tree entry %q", entry)
+		}
+		return fmt.Errorf("lightweight archived supplement is tracked in published candidate: %s", filepath.ToSlash(target))
+	}
 	data, err := gitBytes(workdir, "ls-tree", "-r", "-z", coveredHead, "--", reviewedDir)
 	if err != nil {
 		return fmt.Errorf("inspect reviewed plan supplements: %w", err)

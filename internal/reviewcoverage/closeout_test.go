@@ -411,8 +411,21 @@ func TestValidatePublishedLightweightCandidateRejectsForceTrackedLocalArchive(t 
 	published := git(t, root, "rev-parse", "HEAD")
 
 	err := ValidatePublishedLightweightCandidate(root, archivedPlan, chain, published)
-	if err == nil || !strings.Contains(err.Error(), "unreviewed product change") || !strings.Contains(err.Error(), archivedPlan) {
+	if err == nil || !strings.Contains(err.Error(), "lightweight archived plan is tracked") || !strings.Contains(err.Error(), archivedPlan) {
 		t.Fatalf("expected force-tracked local archive rejection, got %v", err)
+	}
+}
+
+func TestValidatePublishedLightweightCandidateRejectsPreReviewedTrackedTargets(t *testing.T) {
+	for _, targetKind := range []string{"plan", "supplement"} {
+		t.Run(targetKind, func(t *testing.T) {
+			root, archivedPlan, chain, published := pretrackedLightweightTargetCandidate(t, targetKind)
+
+			err := ValidatePublishedLightweightCandidate(root, archivedPlan, chain, published)
+			if err == nil || !strings.Contains(err.Error(), "is tracked in published candidate") {
+				t.Fatalf("expected pre-reviewed tracked lightweight %s rejection, got %v", targetKind, err)
+			}
+		})
 	}
 }
 
@@ -472,6 +485,26 @@ func TestValidatePublishedLightweightCandidateAgainstBaseRejectsCandidateDrift(t
 	}
 }
 
+func TestValidatePublishedLightweightCandidateAgainstBaseRejectsBaseOwnedArchiveTarget(t *testing.T) {
+	root, archivedPlan, chain, _ := baseAwareLightweightPublishedCandidate(t)
+	git(t, root, "add", "-f", archivedPlan)
+	git(t, root, "commit", "-m", "base owns local archive target")
+	upstream := git(t, root, "rev-parse", "HEAD")
+	git(t, root, "checkout", "candidate")
+	git(t, root, "rebase", "upstream")
+	published := git(t, root, "rev-parse", "HEAD")
+	commandRendered, err := commandRenderedArchivePlan([]byte(reviewedPlan))
+	if err != nil {
+		t.Fatalf("render local archive snapshot: %v", err)
+	}
+	writeFile(t, root, archivedPlan, string(commandRendered))
+
+	err = ValidatePublishedLightweightCandidateAgainstBase(root, archivedPlan, chain, published, upstream)
+	if err == nil || !strings.Contains(err.Error(), "lightweight archived plan is tracked") {
+		t.Fatalf("expected base-owned lightweight archive target rejection, got %v", err)
+	}
+}
+
 func lightweightPublishedCandidate(t *testing.T, withSupplement bool) (string, string, *Chain, string) {
 	t.Helper()
 	root := t.TempDir()
@@ -502,6 +535,45 @@ func lightweightPublishedCandidate(t *testing.T, withSupplement bool) (string, s
 		if err := os.Remove(filepath.Join(root, filepath.FromSlash(activeSupplement))); err != nil {
 			t.Fatalf("remove active supplement: %v", err)
 		}
+	}
+	git(t, root, "add", "-u")
+	git(t, root, "commit", "-m", "archive lightweight plan")
+	published := git(t, root, "rev-parse", "HEAD")
+
+	return root, archivedPlan, &Chain{CoveredHeadSHA: covered, ReviewedPlanPath: activePlan}, published
+}
+
+func pretrackedLightweightTargetCandidate(t *testing.T, targetKind string) (string, string, *Chain, string) {
+	t.Helper()
+	root := t.TempDir()
+	initGit(t, root)
+	activePlan := "docs/plans/active/2026-07-13-test.md"
+	archivedPlan := ".local/harness/plans/archived/2026-07-13-test.md"
+	activeSupplement := "docs/plans/active/supplements/2026-07-13-test/notes.md"
+	archivedSupplement := ".local/harness/plans/archived/supplements/2026-07-13-test/notes.md"
+	writeFile(t, root, ".gitignore", ".local/\n")
+	writeFile(t, root, activePlan, reviewedPlan)
+	writeFile(t, root, activeSupplement, "reviewed supplement\n")
+	commandRendered, err := commandRenderedArchivePlan([]byte(reviewedPlan))
+	if err != nil {
+		t.Fatalf("render command-owned archive baseline: %v", err)
+	}
+	writeFile(t, root, archivedPlan, string(commandRendered))
+	writeFile(t, root, archivedSupplement, "reviewed supplement\n")
+	git(t, root, "add", ".")
+	if targetKind == "plan" {
+		git(t, root, "add", "-f", archivedPlan)
+	} else {
+		git(t, root, "add", "-f", archivedSupplement)
+	}
+	git(t, root, "commit", "-m", "reviewed with pretracked local target")
+	covered := git(t, root, "rev-parse", "HEAD")
+
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activePlan))); err != nil {
+		t.Fatalf("remove active plan: %v", err)
+	}
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(activeSupplement))); err != nil {
+		t.Fatalf("remove active supplement: %v", err)
 	}
 	git(t, root, "add", "-u")
 	git(t, root, "commit", "-m", "archive lightweight plan")
