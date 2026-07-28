@@ -20,6 +20,7 @@ import (
 
 type Service struct {
 	Workdir       string
+	PlanSelector  string
 	ObserveRemote bool
 	RunCommand    remote.CommandRunner
 }
@@ -63,6 +64,14 @@ func (s Service) Snapshot() Result {
 	planPath, err := plan.DetectCurrentPath(s.Workdir)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoCurrentPlan) {
+			if strings.TrimSpace(s.PlanSelector) != "" {
+				return Result{
+					OK:      false,
+					Command: "status",
+					Summary: "Unable to resolve the selected coordinated subplan.",
+					Errors:  []StatusError{{Path: "plan", Message: "no current coordinated root plan is available"}},
+				}
+			}
 			return idleResult(s.Workdir, currentPlan)
 		}
 		return Result{
@@ -99,6 +108,10 @@ func (s Service) Snapshot() Result {
 			},
 			Errors: []StatusError{{Path: "state", Message: "Unable to read local harness state."}},
 		}
+	}
+
+	if strings.TrimSpace(s.PlanSelector) != "" {
+		return s.snapshotSelectedSubplan(planPath, doc, state)
 	}
 
 	result := Result{
@@ -159,14 +172,41 @@ func (s Service) Snapshot() Result {
 	case doc.DerivedPlanStatus() == "active" && !doc.ExecutionStarted(state):
 		result.State.CurrentNode = "plan"
 	case doc.DerivedPlanStatus() == "active":
-		stepIdx, stepNode := resolveStepNode(doc)
-		if stepNode != "" {
-			result.State.CurrentNode = stepNode
-			facts.CurrentStep = doc.Steps[stepIdx].Title
+		if doc.UsesCoordinatedProfile() {
+			pkg, packageResult := loadCoordinatedPackageResult(s.Workdir, planPath)
+			if packageResult != nil {
+				return *packageResult
+			}
+			progress := pkg.Progress()
+			facts.Subplans = &contracts.StatusSubplansFacts{
+				Total:     progress.Total,
+				Completed: progress.Completed,
+				Runnable:  progress.Runnable,
+				Waiting:   progress.Waiting,
+			}
+			blockers = append(blockers, documentIssuesToStatusErrors(pkg.DependencyIssues())...)
+			reopenedNewSubplanPending := coordinatedNewSubplanPending(state, progress)
+			if !reopenedNewSubplanPending && facts.ReopenMode == "new-step" {
+				facts.ReopenMode = ""
+			}
+			if progress.Total == 0 || len(blockers) > 0 || !pkg.AllSubplansCompleted() || reopenedNewSubplanPending {
+				result.State.CurrentNode = "execution/coordinate"
+			} else {
+				result.State.CurrentNode, blockers = resolveFinalizeNode(s.Workdir, planStem, doc, state, reviewCtx)
+				if len(blockers) > 0 {
+					facts.ArchiveBlockerCount = len(blockers)
+				}
+			}
 		} else {
-			result.State.CurrentNode, blockers = resolveFinalizeNode(s.Workdir, planStem, doc, state, reviewCtx)
-			if len(blockers) > 0 {
-				facts.ArchiveBlockerCount = len(blockers)
+			stepIdx, stepNode := resolveStepNode(doc)
+			if stepNode != "" {
+				result.State.CurrentNode = stepNode
+				facts.CurrentStep = doc.Steps[stepIdx].Title
+			} else {
+				result.State.CurrentNode, blockers = resolveFinalizeNode(s.Workdir, planStem, doc, state, reviewCtx)
+				if len(blockers) > 0 {
+					facts.ArchiveBlockerCount = len(blockers)
+				}
 			}
 		}
 	case doc.DerivedPlanStatus() == "archived":
@@ -229,6 +269,140 @@ func (s Service) Snapshot() Result {
 	return result
 }
 
+func (s Service) snapshotSelectedSubplan(rootPath string, rootDoc *plan.Document, rootState *runstate.State) Result {
+	selector := strings.TrimSpace(s.PlanSelector)
+	if rootDoc == nil || !rootDoc.UsesCoordinatedProfile() {
+		return Result{
+			OK:      false,
+			Command: "status",
+			Summary: "Unable to select a subplan from the current plan.",
+			Artifacts: &Artifacts{
+				ProjectRoot: s.Workdir,
+				PlanPath:    repoFacingPath(s.Workdir, rootPath),
+			},
+			Errors: []StatusError{{
+				Path:    "plan",
+				Message: "`--plan` selects subplans only when the current root uses workflow_profile: coordinated",
+			}},
+		}
+	}
+
+	pkg, packageResult := loadCoordinatedPackageResult(s.Workdir, rootPath)
+	if packageResult != nil {
+		return *packageResult
+	}
+	selectedPath, err := plan.ResolveSubplanPath(rootPath, selector)
+	if err != nil {
+		return Result{
+			OK:      false,
+			Command: "status",
+			Summary: "Unable to resolve the selected coordinated subplan.",
+			Artifacts: &Artifacts{
+				ProjectRoot: s.Workdir,
+				PlanPath:    repoFacingPath(s.Workdir, rootPath),
+			},
+			Errors: []StatusError{{Path: "plan", Message: err.Error()}},
+		}
+	}
+
+	var selected *plan.SubplanDocument
+	for _, child := range pkg.Subplans {
+		if child != nil && filepath.Clean(child.Path) == filepath.Clean(selectedPath) {
+			selected = child
+			break
+		}
+	}
+	if selected == nil {
+		return Result{
+			OK:      false,
+			Command: "status",
+			Summary: "Unable to resolve the selected coordinated subplan.",
+			Artifacts: &Artifacts{
+				ProjectRoot: s.Workdir,
+				PlanPath:    repoFacingPath(s.Workdir, rootPath),
+			},
+			Errors: []StatusError{{Path: "plan", Message: fmt.Sprintf("subplan %q is not part of the current coordinated package", selector)}},
+		}
+	}
+
+	facts := &Facts{
+		SelectedSubplan: &contracts.StatusSelectedSubplanFacts{
+			ID:           selected.ID,
+			Dependencies: append([]string(nil), selected.DependsOn...),
+		},
+	}
+	applyStepProgressFacts(facts, selected.Steps)
+
+	waitingOn := make([]string, 0, len(selected.DependsOn))
+	for _, dependencyID := range selected.DependsOn {
+		dependency := pkg.Subplan(dependencyID)
+		if dependency == nil || !dependency.Completed() {
+			waitingOn = append(waitingOn, dependencyID)
+		}
+	}
+	facts.SelectedSubplan.WaitingOn = waitingOn
+
+	blockers := documentIssuesToStatusErrors(pkg.DependencyIssues())
+	result := Result{
+		OK:       true,
+		Command:  "status",
+		Facts:    facts,
+		Blockers: blockers,
+		Artifacts: &Artifacts{
+			PlanPath: repoFacingPath(s.Workdir, selected.Path),
+		},
+	}
+
+	switch {
+	case rootDoc.DerivedPlanStatus() == "active" && !rootDoc.ExecutionStarted(rootState):
+		result.State.CurrentNode = "plan"
+		result.Summary = fmt.Sprintf("Subplan %s belongs to a coordinated root whose execution has not started yet.", selected.ID)
+		result.NextAction = []NextAction{{Command: nil, Description: "Wait for the controller to start execution for the approved coordinated root."}}
+	case selected.Completed():
+		result.State.CurrentNode = "execution/complete"
+		result.Summary = fmt.Sprintf("Subplan %s has completed its ordered steps and final result.", selected.ID)
+		result.NextAction = []NextAction{{Command: nil, Description: "The subplan is complete; return its result to the coordinated root and continue root-level integration."}}
+	case len(waitingOn) > 0:
+		result.State.CurrentNode = "execution/waiting"
+		result.Summary = fmt.Sprintf("Subplan %s is waiting on %s.", selected.ID, strings.Join(waitingOn, ", "))
+		result.NextAction = []NextAction{{Command: nil, Description: "Complete the unresolved sibling dependencies before executing this subplan."}}
+	default:
+		stepDoc := &plan.Document{Steps: selected.Steps}
+		stepIdx, node := resolveStepNode(stepDoc)
+		if node != "" {
+			result.State.CurrentNode = node
+			facts.CurrentStep = selected.Steps[stepIdx].Title
+			result.Summary = fmt.Sprintf("Subplan %s is executing %s.", selected.ID, facts.CurrentStep)
+			result.NextAction = []NextAction{{Command: nil, Description: "Continue the current subplan outcome and mark the step done after its concise check passes."}}
+		} else {
+			result.State.CurrentNode = "execution/subplan/closeout"
+			result.Summary = fmt.Sprintf("Subplan %s has finished its ordered steps and needs its final result completed.", selected.ID)
+			result.NextAction = []NextAction{{Command: nil, Description: "Record the subplan validation and delivered result so the coordinated root can count it as complete."}}
+		}
+	}
+
+	decorateRepoBootstrapDrift(s.Workdir, &result, false)
+	return result
+}
+
+func loadCoordinatedPackageResult(workdir, rootPath string) (*plan.CoordinatedPackage, *Result) {
+	pkg, err := plan.LoadCoordinatedPackage(rootPath)
+	if err == nil {
+		return pkg, nil
+	}
+	result := Result{
+		OK:      false,
+		Command: "status",
+		Summary: "Unable to read the coordinated plan package.",
+		Artifacts: &Artifacts{
+			ProjectRoot: workdir,
+			PlanPath:    repoFacingPath(workdir, rootPath),
+		},
+		Errors: []StatusError{{Path: "plan", Message: err.Error()}},
+	}
+	return nil, &result
+}
+
 func resolveStepNode(doc *plan.Document) (int, string) {
 	currentStepIndex := currentStepIndex(doc)
 	if currentStepIndex < 0 {
@@ -241,17 +415,7 @@ func applyPlanProgressFacts(facts *Facts, doc *plan.Document) {
 	if facts == nil || doc == nil {
 		return
 	}
-	facts.StepTotal = len(doc.Steps)
-	for index, step := range doc.Steps {
-		if step.Done {
-			facts.StepCompleted++
-			continue
-		}
-		if facts.CurrentStepNumber == 0 {
-			facts.CurrentStepNumber = index + 1
-			facts.CurrentStep = step.Title
-		}
-	}
+	applyStepProgressFacts(facts, doc.Steps)
 	for _, rawLine := range strings.Split(doc.SectionText("Acceptance Criteria"), "\n") {
 		line := strings.TrimSpace(rawLine)
 		if len(line) < 6 || !strings.HasPrefix(line, "- [") || line[4] != ']' {
@@ -264,6 +428,23 @@ func applyPlanProgressFacts(facts *Facts, doc *plan.Document) {
 		facts.AcceptanceTotal++
 		if marker == 'x' || marker == 'X' {
 			facts.AcceptanceCompleted++
+		}
+	}
+}
+
+func applyStepProgressFacts(facts *Facts, steps []plan.DocumentStep) {
+	if facts == nil {
+		return
+	}
+	facts.StepTotal = len(steps)
+	for index, step := range steps {
+		if step.Done {
+			facts.StepCompleted++
+			continue
+		}
+		if facts.CurrentStepNumber == 0 {
+			facts.CurrentStepNumber = index + 1
+			facts.CurrentStep = step.Title
 		}
 	}
 }
@@ -296,6 +477,13 @@ func resolveFinalizeNode(workdir, planStem string, doc *plan.Document, state *ru
 		return "execution/finalize/archive", commandErrorsToStatusErrors(lifecycle.EvaluateArchiveReadiness(workdir, planStem, doc, state))
 	}
 	return "execution/finalize/review", nil
+}
+
+func coordinatedNewSubplanPending(state *runstate.State, progress plan.CoordinatedProgress) bool {
+	return state != nil &&
+		state.Reopen != nil &&
+		state.Reopen.Mode == "new-step" &&
+		progress.Total <= state.Reopen.BaseStepCount
 }
 
 func finalizeReviewSatisfied(workdir, planStem string, state *runstate.State) bool {
@@ -705,12 +893,35 @@ func buildSummary(node string, facts *Facts, reviewCtx *reviewContext, blockers 
 			return "Current plan is approved and ready for execution to start."
 		}
 		return "Current plan exists, but execution is still waiting for explicit human approval."
+	case "execution/coordinate":
+		if facts == nil || facts.Subplans == nil || facts.Subplans.Total == 0 {
+			return "Coordinated execution has started, but the root does not have any subplans yet."
+		}
+		if facts.ReopenMode == "new-step" && facts.Subplans.Completed == facts.Subplans.Total {
+			return "The coordinated root was reopened for new work and needs a new subplan before it can return to finalize review."
+		}
+		if len(blockers) > 0 {
+			return fmt.Sprintf("Coordinated execution has %d dependency blocker(s) that must be fixed before the root can finalize.", len(blockers))
+		}
+		return fmt.Sprintf(
+			"Coordinated execution is progressing across %d subplans: %d complete, %d runnable, and %d waiting on dependencies.",
+			facts.Subplans.Total,
+			facts.Subplans.Completed,
+			facts.Subplans.Runnable,
+			facts.Subplans.Waiting,
+		)
 	case "execution/finalize/review":
 		if reviewCtx != nil && reviewCtx.InFlight {
 			return "Plan is in finalize review and waiting for the integrated reviewer to submit its complete judgment."
 		}
 		if acceptanceIncomplete(facts) {
+			if facts != nil && facts.Subplans != nil {
+				return "Plan has finished its coordinated subplans, but acceptance criteria are still incomplete and finalize review cannot start yet."
+			}
 			return "Plan has finished its tracked steps, but acceptance criteria are still incomplete and finalize review cannot start yet."
+		}
+		if facts != nil && facts.Subplans != nil {
+			return "Plan has finished its coordinated subplans and needs finalize review before archive."
 		}
 		return "Plan has finished its tracked steps and needs finalize review before archive."
 	case "execution/finalize/fix":
@@ -764,6 +975,22 @@ func buildNextActions(node string, facts *Facts, reviewCtx *reviewContext, block
 		return []NextAction{
 			{Command: strPtr("harness execute start"), Description: "Start execution now that the tracked plan is approved for implementation."},
 			{Command: nil, Description: "If scope changed after approval but before implementation begins, update the tracked plan and refresh approval before executing."},
+		}
+	case "execution/coordinate":
+		if len(blockers) > 0 {
+			return []NextAction{{Command: nil, Description: "Fix the coordinated subplan dependency blockers, then rerun `harness status` before continuing toward finalize review."}}
+		}
+		if facts != nil && facts.Subplans != nil &&
+			facts.ReopenMode == "new-step" &&
+			facts.Subplans.Completed == facts.Subplans.Total {
+			return []NextAction{{Command: nil, Description: "Add a new sibling subplan for the reopened work, then complete its ordered steps and result before returning to finalize review."}}
+		}
+		if facts == nil || facts.Subplans == nil || facts.Subplans.Total == 0 {
+			return []NextAction{{Command: nil, Description: "Create at least one flat subplan inside the coordinated root package before continuing execution."}}
+		}
+		return []NextAction{
+			{Command: nil, Description: "Continue the runnable subplans in parallel where their file ownership does not overlap, and serialize Git mutations through the controller."},
+			{Command: strPtr("harness status --plan <subplan-id-or-path>"), Description: "Inspect one subplan's ordered steps and unresolved dependencies without changing the current root plan."},
 		}
 	case "execution/finalize/review":
 		if reviewCtx != nil && reviewCtx.InFlight {
@@ -1219,8 +1446,21 @@ func factsEmpty(f *Facts) bool {
 		strings.TrimSpace(f.ReviewStatus) == "" &&
 		strings.TrimSpace(f.ReviewedHeadSHA) == "" &&
 		f.ArchiveBlockerCount == 0 &&
+		f.Subplans == nil &&
+		f.SelectedSubplan == nil &&
 		f.Evidence == nil &&
 		f.ManagedResources == nil &&
 		strings.TrimSpace(f.LandPRURL) == "" &&
 		strings.TrimSpace(f.LandCommit) == ""
+}
+
+func documentIssuesToStatusErrors(issues []plan.DocumentIssue) []StatusError {
+	if len(issues) == 0 {
+		return nil
+	}
+	out := make([]StatusError, 0, len(issues))
+	for _, issue := range issues {
+		out = append(out, StatusError{Path: issue.Path, Message: issue.Message})
+	}
+	return out
 }

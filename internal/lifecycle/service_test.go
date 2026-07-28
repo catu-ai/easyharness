@@ -1985,6 +1985,162 @@ func writeActiveArchiveCandidate(t *testing.T, root, relPath string) string {
 	return path
 }
 
+func TestExecuteStartReturnsCoordinateForCoordinatedRoot(t *testing.T) {
+	root := t.TempDir()
+	activePath := filepath.Join(root, "docs/plans/active/2026-07-28-coordinated-start.md")
+	writeFile(t, activePath, buildCoordinatedRoot(t, "Coordinated Start", false))
+
+	result := lifecycle.Service{Workdir: root}.ExecuteStart()
+	if !result.OK {
+		t.Fatalf("expected coordinated execution start, got %#v", result)
+	}
+	if result.State.CurrentNode != "execution/coordinate" {
+		t.Fatalf("current node = %q, want execution/coordinate", result.State.CurrentNode)
+	}
+	current, err := runstate.LoadCurrentPlan(root)
+	if err != nil {
+		t.Fatalf("load current pointer: %v", err)
+	}
+	if current.PlanPath != "docs/plans/active/2026-07-28-coordinated-start.md" {
+		t.Fatalf("current root pointer = %q", current.PlanPath)
+	}
+}
+
+func TestCoordinatedArchiveReadinessRequiresSettledPackage(t *testing.T) {
+	root := t.TempDir()
+	activePath := filepath.Join(root, "docs/plans/active/2026-07-28-coordinated-readiness.md")
+	writeFile(t, activePath, buildCoordinatedRoot(t, "Coordinated Readiness", true))
+	doc, err := plan.LoadFile(activePath)
+	if err != nil {
+		t.Fatalf("load coordinated root: %v", err)
+	}
+
+	issues := lifecycle.EvaluateArchiveReadiness(root, "2026-07-28-coordinated-readiness", doc, &runstate.State{Revision: 1})
+	assertLifecycleIssueContains(t, issues, "at least one subplan")
+
+	subplanPath, err := plan.SubplanPathForPlan(activePath, "api")
+	if err != nil {
+		t.Fatalf("resolve subplan path: %v", err)
+	}
+	writeFile(t, subplanPath, buildCoordinatedSubplan(t, "API", false))
+	issues = lifecycle.EvaluateArchiveReadiness(root, "2026-07-28-coordinated-readiness", doc, &runstate.State{Revision: 1})
+	assertLifecycleIssueContains(t, issues, "all subplan steps and Result fields")
+}
+
+func TestArchiveAndReopenMoveCompleteCoordinatedPackage(t *testing.T) {
+	root := t.TempDir()
+	activeRelPath := "docs/plans/active/2026-07-28-coordinated-archive.md"
+	activePath := filepath.Join(root, activeRelPath)
+	writeFile(t, activePath, buildCoordinatedRoot(t, "Coordinated Archive", true))
+	subplanPath, err := plan.SubplanPathForPlan(activePath, "api")
+	if err != nil {
+		t.Fatalf("resolve subplan path: %v", err)
+	}
+	writeFile(t, subplanPath, buildCoordinatedSubplan(t, "API", true))
+
+	planStem := "2026-07-28-coordinated-archive"
+	if _, err := saveLifecycleState(t, root, planStem, &runstate.State{
+		Revision:           1,
+		ExecutionStartedAt: "2026-07-28T10:00:00Z",
+		ActiveReviewRound: &runstate.ReviewRound{
+			RoundID:    "review-001-full",
+			Kind:       "full",
+			Revision:   1,
+			Aggregated: true,
+			Decision:   "pass",
+		},
+	}); err != nil {
+		t.Fatalf("save coordinated state: %v", err)
+	}
+
+	svc := lifecycle.Service{
+		Workdir: root,
+		Now: func() time.Time {
+			return time.Date(2026, 7, 28, 11, 0, 0, 0, time.UTC)
+		},
+	}
+	archived := svc.Archive()
+	if !archived.OK {
+		t.Fatalf("expected coordinated archive success, got %#v", archived)
+	}
+	archivedPath := filepath.Join(root, "docs/plans/archived/2026-07-28-coordinated-archive.md")
+	archivedSubplan, err := plan.SubplanPathForPlan(archivedPath, "api")
+	if err != nil {
+		t.Fatalf("resolve archived subplan path: %v", err)
+	}
+	if _, err := os.Stat(archivedSubplan); err != nil {
+		t.Fatalf("archived subplan missing: %v", err)
+	}
+	if _, err := os.Stat(subplanPath); !os.IsNotExist(err) {
+		t.Fatalf("active subplan should move with package, got %v", err)
+	}
+
+	reopened := svc.Reopen("new-step")
+	if !reopened.OK {
+		t.Fatalf("expected coordinated reopen success, got %#v", reopened)
+	}
+	if reopened.State.CurrentNode != "execution/coordinate" {
+		t.Fatalf("reopen node = %q, want execution/coordinate", reopened.State.CurrentNode)
+	}
+	state, _, err := runstate.LoadState(root, planStem)
+	if err != nil {
+		t.Fatalf("load reopened state: %v", err)
+	}
+	if state == nil || state.Reopen == nil || state.Reopen.BaseStepCount != 1 {
+		t.Fatalf("reopen baseline = %#v, want one coordinated child", state)
+	}
+	if _, err := os.Stat(subplanPath); err != nil {
+		t.Fatalf("reopened subplan missing: %v", err)
+	}
+	if _, err := os.Stat(archivedSubplan); !os.IsNotExist(err) {
+		t.Fatalf("archived subplan should move back with package, got %v", err)
+	}
+}
+
+func buildCoordinatedRoot(t *testing.T, title string, archiveReady bool) string {
+	t.Helper()
+	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
+		Title:           title,
+		Timestamp:       time.Date(2026, 7, 28, 9, 0, 0, 0, time.UTC),
+		SourceType:      "direct_request",
+		Size:            "M",
+		WorkflowProfile: plan.WorkflowProfileCoordinated,
+	})
+	if err != nil {
+		t.Fatalf("render coordinated root: %v", err)
+	}
+	rendered = strings.Replace(rendered, "created_at: 2026-07-28T09:00:00Z", "created_at: 2026-07-28T09:00:00Z\napproved_at: 2026-07-28T09:05:00Z", 1)
+	if archiveReady {
+		rendered = strings.ReplaceAll(rendered, "- [ ]", "- [x]")
+		rendered = completeCloseout(rendered)
+	}
+	return rendered
+}
+
+func buildCoordinatedSubplan(t *testing.T, title string, complete bool) string {
+	t.Helper()
+	rendered, err := plan.RenderSubplanTemplate(plan.SubplanTemplateOptions{Title: title})
+	if err != nil {
+		t.Fatalf("render coordinated subplan: %v", err)
+	}
+	if complete {
+		rendered = strings.ReplaceAll(rendered, "- Done: [ ]", "- Done: [x]")
+		rendered = strings.Replace(rendered, "- Validation: PENDING", "- Validation: Focused tests passed.", 1)
+		rendered = strings.Replace(rendered, "- Delivered: PENDING", "- Delivered: Implemented the child outcome.", 1)
+	}
+	return rendered
+}
+
+func assertLifecycleIssueContains(t *testing.T, issues []contracts.ErrorDetail, want string) {
+	t.Helper()
+	for _, issue := range issues {
+		if strings.Contains(issue.Message, want) {
+			return
+		}
+	}
+	t.Fatalf("expected lifecycle issue containing %q, got %#v", want, issues)
+}
+
 func saveLifecycleState(t *testing.T, root, planStem string, state *runstate.State) (string, error) {
 	t.Helper()
 	if state != nil && state.ActiveReviewRound != nil && state.ActiveReviewRound.Aggregated && state.ActiveReviewRound.Decision == "pass" {

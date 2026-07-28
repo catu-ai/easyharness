@@ -58,9 +58,13 @@ func LoadFile(path string) (*Document, error) {
 		sectionOrder: order,
 		pathKind:     inferPathKind(path),
 	}
-	steps, issues := parseSteps(ctx)
-	if len(issues) > 0 {
-		return nil, fmt.Errorf("parse steps: %s", issues[0].Message)
+	steps := make([]step, 0)
+	if normalizeWorkflowProfile(fm.WorkflowProfile) != WorkflowProfileCoordinated {
+		var issues []LintIssue
+		steps, issues = parseSteps(ctx)
+		if len(issues) > 0 {
+			return nil, fmt.Errorf("parse steps: %s", issues[0].Message)
+		}
 	}
 
 	doc := &Document{
@@ -73,16 +77,7 @@ func LoadFile(path string) (*Document, error) {
 	}
 
 	for _, parsedStep := range steps {
-		stepDoc := DocumentStep{
-			Title:          parsedStep.title,
-			Done:           parsedStep.done,
-			UsesDoneMarker: parsedStep.usesDoneMarker,
-			Status:         parsedStep.status,
-			Outcome:        parsedStep.outcome,
-			Covers:         parsedStep.covers,
-			Check:          parsedStep.check,
-		}
-		doc.Steps = append(doc.Steps, stepDoc)
+		doc.Steps = append(doc.Steps, documentStep(parsedStep))
 	}
 
 	if deferredSection := doc.Sections["Deferred Items"]; deferredSection != nil {
@@ -163,7 +158,7 @@ func (d *Document) ArchiveReadinessIssues() []DocumentIssue {
 			Message: "all acceptance criteria must be checked before archive",
 		})
 	}
-	if !d.AllStepsCompleted() {
+	if !d.UsesCoordinatedProfile() && !d.AllStepsCompleted() {
 		issues = append(issues, DocumentIssue{
 			Path:    "section.Work Breakdown",
 			Message: "all steps must be completed before archive",

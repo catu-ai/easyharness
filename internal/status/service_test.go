@@ -1,6 +1,7 @@
 package status_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -1807,6 +1808,174 @@ func TestStatusConsumedReopenedNewStepDoesNotForceAnotherStepAfterLaterFinding(t
 	}
 }
 
+func TestStatusCoordinatedRootAggregatesSubplanProgress(t *testing.T) {
+	root := t.TempDir()
+	rootPath := writeCoordinatedPlan(t, root, "docs/plans/active/2026-07-28-coordinated.md")
+	writeCoordinatedSubplan(t, rootPath, "api", nil, false)
+	writeCoordinatedSubplan(t, rootPath, "ui", []string{"api"}, false)
+	writeCoordinatedSubplan(t, rootPath, "docs", nil, true)
+	writeState(t, root, "2026-07-28-coordinated", map[string]any{
+		"execution_started_at": "2026-07-28T10:05:00+08:00",
+	})
+
+	result := status.Service{Workdir: root}.Snapshot()
+	if !result.OK || result.State.CurrentNode != "execution/coordinate" {
+		t.Fatalf("expected coordinated root execution node, got %#v", result)
+	}
+	if result.Facts == nil || result.Facts.Subplans == nil {
+		t.Fatalf("expected coordinated aggregate facts, got %#v", result.Facts)
+	}
+	if got := *result.Facts.Subplans; got.Total != 3 || got.Completed != 1 || got.Runnable != 1 || got.Waiting != 1 {
+		t.Fatalf("unexpected coordinated progress: %#v", got)
+	}
+	if len(result.Blockers) != 0 {
+		t.Fatalf("expected ordinary dependency waiting not to be a hard blocker, got %#v", result.Blockers)
+	}
+	if result.Facts.CurrentStep != "" || result.Facts.StepTotal != 0 {
+		t.Fatalf("expected root status not to select a sequential child step, got %#v", result.Facts)
+	}
+}
+
+func TestStatusSelectedSubplanReportsDependencyWaitingWithoutChangingRootPointer(t *testing.T) {
+	root := t.TempDir()
+	rootPath := writeCoordinatedPlan(t, root, "docs/plans/active/2026-07-28-coordinated.md")
+	writeCoordinatedSubplan(t, rootPath, "api", nil, false)
+	uiPath := writeCoordinatedSubplan(t, rootPath, "ui", []string{"api"}, false)
+	writeCurrentPlan(t, root, "docs/plans/active/2026-07-28-coordinated.md")
+	writeState(t, root, "2026-07-28-coordinated", map[string]any{
+		"execution_started_at": "2026-07-28T10:05:00+08:00",
+	})
+	pointerPath := filepath.Join(root, ".local", "harness", "current-plan.json")
+	before, err := os.ReadFile(pointerPath)
+	if err != nil {
+		t.Fatalf("read current plan before selected status: %v", err)
+	}
+
+	result := status.Service{Workdir: root, PlanSelector: "ui"}.Snapshot()
+	if !result.OK || result.State.CurrentNode != "execution/waiting" {
+		t.Fatalf("expected selected dependency-waiting subplan, got %#v", result)
+	}
+	if result.Artifacts == nil || result.Artifacts.PlanPath != repoRelative(t, root, uiPath) {
+		t.Fatalf("expected selected child artifact path, got %#v", result.Artifacts)
+	}
+	if result.Facts == nil || result.Facts.SelectedSubplan == nil ||
+		result.Facts.SelectedSubplan.ID != "ui" ||
+		len(result.Facts.SelectedSubplan.WaitingOn) != 1 ||
+		result.Facts.SelectedSubplan.WaitingOn[0] != "api" {
+		t.Fatalf("unexpected selected subplan facts: %#v", result.Facts)
+	}
+	after, err := os.ReadFile(pointerPath)
+	if err != nil {
+		t.Fatalf("read current plan after selected status: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatalf("selected child status changed current-plan pointer:\nbefore=%s\nafter=%s", before, after)
+	}
+}
+
+func TestStatusSelectedSubplanReportsOrderedStepAndCompletion(t *testing.T) {
+	root := t.TempDir()
+	rootPath := writeCoordinatedPlan(t, root, "docs/plans/active/2026-07-28-coordinated.md")
+	childPath := writeCoordinatedSubplan(t, rootPath, "api", nil, false)
+	writeState(t, root, "2026-07-28-coordinated", map[string]any{
+		"execution_started_at": "2026-07-28T10:05:00+08:00",
+	})
+
+	result := status.Service{Workdir: root, PlanSelector: repoRelative(t, root, childPath)}.Snapshot()
+	if !result.OK || result.State.CurrentNode != "execution/step-1/implement" {
+		t.Fatalf("expected selected child ordered step, got %#v", result)
+	}
+	if result.Facts == nil || result.Facts.CurrentStepNumber != 1 || result.Facts.StepTotal != 1 {
+		t.Fatalf("unexpected selected child step facts: %#v", result.Facts)
+	}
+
+	completeSubplanFile(t, childPath)
+	result = status.Service{Workdir: root, PlanSelector: "api"}.Snapshot()
+	if !result.OK || result.State.CurrentNode != "execution/complete" {
+		t.Fatalf("expected selected child completion, got %#v", result)
+	}
+}
+
+func TestStatusCoordinatedRootFinalizesOnlyAfterValidSubplansComplete(t *testing.T) {
+	root := t.TempDir()
+	rootPath := writeCoordinatedPlan(t, root, "docs/plans/active/2026-07-28-coordinated.md")
+	writeCoordinatedSubplan(t, rootPath, "api", nil, true)
+	writeCoordinatedSubplan(t, rootPath, "ui", []string{"api"}, true)
+	writeState(t, root, "2026-07-28-coordinated", map[string]any{
+		"execution_started_at": "2026-07-28T10:05:00+08:00",
+	})
+
+	result := status.Service{Workdir: root}.Snapshot()
+	if !result.OK || result.State.CurrentNode != "execution/finalize/review" {
+		t.Fatalf("expected completed coordinated package to enter root finalize review, got %#v", result)
+	}
+	if result.Facts == nil || result.Facts.Subplans == nil ||
+		result.Facts.Subplans.Total != 2 || result.Facts.Subplans.Completed != 2 {
+		t.Fatalf("expected complete coordinated progress, got %#v", result.Facts)
+	}
+}
+
+func TestStatusCoordinatedRootSurfacesDependencyIssuesAsBlockers(t *testing.T) {
+	root := t.TempDir()
+	rootPath := writeCoordinatedPlan(t, root, "docs/plans/active/2026-07-28-coordinated.md")
+	writeCoordinatedSubplan(t, rootPath, "ui", []string{"missing-api"}, false)
+	writeState(t, root, "2026-07-28-coordinated", map[string]any{
+		"execution_started_at": "2026-07-28T10:05:00+08:00",
+	})
+
+	result := status.Service{Workdir: root}.Snapshot()
+	if !result.OK || result.State.CurrentNode != "execution/coordinate" {
+		t.Fatalf("expected invalid graph to remain in coordinate, got %#v", result)
+	}
+	if len(result.Blockers) != 1 || !strings.Contains(result.Blockers[0].Message, "missing dependency") {
+		t.Fatalf("expected clear dependency blocker, got %#v", result.Blockers)
+	}
+}
+
+func TestStatusCoordinatedReopenNewStepWaitsForNewSubplan(t *testing.T) {
+	root := t.TempDir()
+	rootPath := writeCoordinatedPlan(t, root, "docs/plans/active/2026-07-28-coordinated.md")
+	writeCoordinatedSubplan(t, rootPath, "api", nil, true)
+	writeState(t, root, "2026-07-28-coordinated", map[string]any{
+		"execution_started_at": "2026-07-28T10:05:00+08:00",
+		"reopen": map[string]any{
+			"mode":            "new-step",
+			"base_step_count": 1,
+		},
+	})
+
+	result := status.Service{Workdir: root}.Snapshot()
+	if !result.OK || result.State.CurrentNode != "execution/coordinate" {
+		t.Fatalf("expected reopen to wait for a new coordinated subplan, got %#v", result)
+	}
+
+	writeCoordinatedSubplan(t, rootPath, "follow-up", nil, true)
+	result = status.Service{Workdir: root}.Snapshot()
+	if !result.OK || result.State.CurrentNode != "execution/finalize/review" {
+		t.Fatalf("expected completed new subplan to consume reopen requirement, got %#v", result)
+	}
+	if result.Facts != nil && result.Facts.ReopenMode == "new-step" {
+		t.Fatalf("expected consumed coordinated reopen mode to clear from facts, got %#v", result.Facts)
+	}
+}
+
+func TestStatusRejectsSubplanSelectorForStandardRoot(t *testing.T) {
+	root := t.TempDir()
+	writePlan(t, root, "docs/plans/active/2026-07-28-standard.md", func(content string) string { return content })
+
+	result := status.Service{Workdir: root, PlanSelector: "api"}.Snapshot()
+	if result.OK || len(result.Errors) != 1 || result.Errors[0].Path != "plan" {
+		t.Fatalf("expected coordinated-only selector error, got %#v", result)
+	}
+}
+
+func TestStatusRejectsSubplanSelectorWithoutCurrentRoot(t *testing.T) {
+	result := status.Service{Workdir: t.TempDir(), PlanSelector: "api"}.Snapshot()
+	if result.OK || len(result.Errors) != 1 || result.Errors[0].Path != "plan" {
+		t.Fatalf("expected missing coordinated root error, got %#v", result)
+	}
+}
+
 func writePlan(t *testing.T, root, relPath string, mutate func(string) string) string {
 	t.Helper()
 	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
@@ -1827,6 +1996,76 @@ func writePlan(t *testing.T, root, relPath string, mutate func(string) string) s
 		t.Fatalf("write plan: %v", err)
 	}
 	return path
+}
+
+func writeCoordinatedPlan(t *testing.T, root, relPath string) string {
+	t.Helper()
+	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
+		Title:           "Coordinated Status Plan",
+		Timestamp:       time.Date(2026, 7, 28, 10, 0, 0, 0, time.FixedZone("CST", 8*60*60)),
+		SourceType:      "direct_request",
+		Size:            "M",
+		WorkflowProfile: plan.WorkflowProfileCoordinated,
+	})
+	if err != nil {
+		t.Fatalf("RenderTemplate coordinated: %v", err)
+	}
+	rendered = approvePlanContent(rendered, "2026-07-28T10:01:00+08:00")
+	path := filepath.Join(root, filepath.FromSlash(relPath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir coordinated root: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
+		t.Fatalf("write coordinated root: %v", err)
+	}
+	return path
+}
+
+func writeCoordinatedSubplan(t *testing.T, rootPath, id string, dependsOn []string, complete bool) string {
+	t.Helper()
+	rendered, err := plan.RenderSubplanTemplate(plan.SubplanTemplateOptions{
+		Title:     strings.ToUpper(id),
+		DependsOn: dependsOn,
+	})
+	if err != nil {
+		t.Fatalf("RenderSubplanTemplate %s: %v", id, err)
+	}
+	if complete {
+		rendered = strings.ReplaceAll(rendered, "- Done: [ ]", "- Done: [x]")
+		rendered = strings.Replace(rendered, "- Validation: PENDING", "- Validation: Focused validation passed.", 1)
+		rendered = strings.Replace(rendered, "- Delivered: PENDING", "- Delivered: The bounded outcome was delivered.", 1)
+	}
+	path := filepath.Join(plan.SubplansDirForPlanPath(rootPath), id+".md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir subplan dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
+		t.Fatalf("write subplan %s: %v", id, err)
+	}
+	return path
+}
+
+func completeSubplanFile(t *testing.T, path string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read subplan: %v", err)
+	}
+	content := strings.ReplaceAll(string(data), "- Done: [ ]", "- Done: [x]")
+	content = strings.Replace(content, "- Validation: PENDING", "- Validation: Focused validation passed.", 1)
+	content = strings.Replace(content, "- Delivered: PENDING", "- Delivered: The bounded outcome was delivered.", 1)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("complete subplan: %v", err)
+	}
+}
+
+func repoRelative(t *testing.T, root, path string) string {
+	t.Helper()
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		t.Fatalf("relative path: %v", err)
+	}
+	return filepath.ToSlash(rel)
 }
 
 func approvePlanContent(content, approvedAt string) string {

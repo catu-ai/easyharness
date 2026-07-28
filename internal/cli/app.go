@@ -856,18 +856,23 @@ func (a *App) runPlanTemplate(args []string) int {
 	fs.SetOutput(a.Stderr)
 
 	var refs stringListFlag
+	var dependencies stringListFlag
 	title := fs.String("title", "", "Seed the H1 title.")
 	output := fs.String("output", "", "Write the rendered template to this file instead of stdout.")
 	lightweight := fs.Bool("lightweight", false, "Render the lightweight variant and seed workflow_profile: lightweight.")
+	coordinated := fs.Bool("coordinated", false, "Render a coordinated root and seed workflow_profile: coordinated.")
+	subplan := fs.Bool("subplan", false, "Render a compact coordinated subplan instead of a root plan.")
 	dateValue := fs.String("date", "", "Seed timestamps using this YYYY-MM-DD date with the current local time-of-day.")
 	timestampValue := fs.String("timestamp", "", "Seed timestamps using this RFC3339 timestamp.")
 	sourceType := fs.String("source-type", "direct_request", "Seed the frontmatter source_type field.")
 	size := fs.String("size", "", "Seed the required frontmatter size field (XXS, XS, S, M, L, XL, or XXL).")
 	fs.Var(&refs, "source-ref", "Seed one source_refs entry. Repeat to add multiple refs.")
+	fs.Var(&dependencies, "depends-on", "Seed one sibling dependency for a subplan. Repeat to add multiple dependencies.")
 	fs.Usage = func() {
 		fmt.Fprintln(a.Stderr, "Usage: harness plan template [flags]")
 		fmt.Fprintln(a.Stderr)
-		fmt.Fprintln(a.Stderr, "Render the packaged plan template with seeded title, timestamp, source metadata, and size.")
+		fmt.Fprintln(a.Stderr, "Render a standard, lightweight, or coordinated root plan, or a compact coordinated subplan.")
+		fmt.Fprintln(a.Stderr, "Use --depends-on only with --subplan. Subplans accept only --title, --output, and repeatable --depends-on metadata.")
 		fmt.Fprintln(a.Stderr)
 		fs.PrintDefaults()
 	}
@@ -882,25 +887,60 @@ func (a *App) runPlanTemplate(args []string) int {
 		fmt.Fprintln(a.Stderr, "harness plan template does not accept positional arguments")
 		return 2
 	}
-	ts, err := a.resolveTimestamp(*timestampValue, *dateValue)
-	if err != nil {
-		fmt.Fprintln(a.Stderr, err.Error())
+
+	if (*lightweight && *coordinated) || (*lightweight && *subplan) || (*coordinated && *subplan) {
+		fmt.Fprintln(a.Stderr, "--lightweight, --coordinated, and --subplan select mutually exclusive template variants")
+		return 2
+	}
+	if len(dependencies) > 0 && !*subplan {
+		fmt.Fprintln(a.Stderr, "--depends-on requires --subplan")
 		return 2
 	}
 
-	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
-		Title:      *title,
-		Timestamp:  ts,
-		SourceType: *sourceType,
-		SourceRefs: refs,
-		Size:       *size,
-		WorkflowProfile: func() string {
-			if *lightweight {
-				return plan.WorkflowProfileLightweight
+	var rendered string
+	var err error
+	if *subplan {
+		visited := map[string]bool{}
+		fs.Visit(func(f *flag.Flag) {
+			visited[f.Name] = true
+		})
+		invalidRootFlag := ""
+		for _, rootOnlyFlag := range []string{"date", "timestamp", "source-type", "source-ref", "size"} {
+			if visited[rootOnlyFlag] {
+				invalidRootFlag = rootOnlyFlag
+				break
 			}
-			return ""
-		}(),
-	})
+		}
+		if invalidRootFlag != "" {
+			fmt.Fprintf(a.Stderr, "--%s is root-plan metadata and cannot be used with --subplan\n", invalidRootFlag)
+			return 2
+		}
+		rendered, err = plan.RenderSubplanTemplate(plan.SubplanTemplateOptions{
+			Title:     *title,
+			DependsOn: dependencies,
+		})
+	} else {
+		ts, timestampErr := a.resolveTimestamp(*timestampValue, *dateValue)
+		if timestampErr != nil {
+			fmt.Fprintln(a.Stderr, timestampErr.Error())
+			return 2
+		}
+		workflowProfile := ""
+		switch {
+		case *lightweight:
+			workflowProfile = plan.WorkflowProfileLightweight
+		case *coordinated:
+			workflowProfile = plan.WorkflowProfileCoordinated
+		}
+		rendered, err = plan.RenderTemplate(plan.TemplateOptions{
+			Title:           *title,
+			Timestamp:       ts,
+			SourceType:      *sourceType,
+			SourceRefs:      refs,
+			Size:            *size,
+			WorkflowProfile: workflowProfile,
+		})
+	}
 	if err != nil {
 		fmt.Fprintf(a.Stderr, "render template: %v\n", err)
 		return 1
@@ -919,7 +959,11 @@ func (a *App) runPlanTemplate(args []string) int {
 		fmt.Fprintf(a.Stderr, "write template: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(a.Stdout, "Wrote plan template to %s\n", *output)
+	if *subplan {
+		fmt.Fprintf(a.Stdout, "Wrote subplan template to %s\n", *output)
+	} else {
+		fmt.Fprintf(a.Stdout, "Wrote plan template to %s\n", *output)
+	}
 	return 0
 }
 
@@ -995,10 +1039,12 @@ func (a *App) runPlanApprove(args []string) int {
 func (a *App) runStatus(args []string) int {
 	fs := flag.NewFlagSet("harness status", flag.ContinueOnError)
 	fs.SetOutput(a.Stderr)
+	planSelector := fs.String("plan", "", "Select a coordinated subplan by ID or path without changing the current root plan.")
 	fs.Usage = func() {
-		fmt.Fprintln(a.Stderr, "Usage: harness status")
+		fmt.Fprintln(a.Stderr, "Usage: harness status [--plan <subplan-id-or-path>]")
 		fmt.Fprintln(a.Stderr)
 		fmt.Fprintln(a.Stderr, "Summarize the current plan plus local execution state for the current worktree.")
+		fmt.Fprintln(a.Stderr, "With --plan, report one subplan from the current coordinated root without changing the root plan pointer.")
 	}
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -1022,6 +1068,7 @@ func (a *App) runStatus(args []string) int {
 	}
 	result := status.Service{
 		Workdir:       workdir,
+		PlanSelector:  strings.TrimSpace(*planSelector),
 		ObserveRemote: true,
 		RunCommand:    a.RunCommand,
 	}.Snapshot()

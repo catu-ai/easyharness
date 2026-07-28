@@ -41,6 +41,15 @@ var (
 		"Validation Strategy",
 		"Closeout",
 	}
+	coordinatedTopSections = []string{
+		"Goal",
+		"Scope",
+		"Acceptance Criteria",
+		"Review Focus",
+		"Deferred Items",
+		"Validation Strategy",
+		"Closeout",
+	}
 	closeoutLabels = []string{"Validation", "Review", "Delivered", "Not Delivered", "Follow-Up Issues"}
 )
 
@@ -103,6 +112,9 @@ type checkboxItem struct {
 }
 
 func LintFile(path string) LintResult {
+	if IsSubplanPath(path) {
+		return lintSubplanFile(path)
+	}
 	result := LintResult{
 		Command:   "plan lint",
 		Artifacts: lintArtifacts{PlanPath: path},
@@ -168,13 +180,16 @@ func parseAndValidate(path string) (*lintContext, []LintIssue) {
 	issues = append(issues, validateReviewFocus(ctx)...)
 	issues = append(issues, validateCloseout(ctx)...)
 
-	steps, stepIssues := parseSteps(ctx)
-	ctx.steps = steps
-	issues = append(issues, stepIssues...)
-	issues = append(issues, validateStepMarkers(ctx)...)
+	if normalizeWorkflowProfile(ctx.frontmatter.WorkflowProfile) != WorkflowProfileCoordinated {
+		steps, stepIssues := parseSteps(ctx)
+		ctx.steps = steps
+		issues = append(issues, stepIssues...)
+		issues = append(issues, validateStepMarkers(ctx)...)
+	}
 
 	issues = append(issues, validatePathRules(ctx)...)
 	issues = append(issues, validateArchivedRules(ctx)...)
+	issues = append(issues, validateCoordinatedPackageRules(ctx)...)
 
 	return ctx, issues
 }
@@ -269,10 +284,10 @@ func validateFrontmatter(ctx *lintContext) []LintIssue {
 	}
 	if rawProfile, ok := ctx.rawFrontmatter["workflow_profile"]; ok {
 		value, ok := rawProfile.(string)
-		if !ok || !slices.Contains([]string{WorkflowProfileStandard, WorkflowProfileLightweight}, strings.TrimSpace(value)) {
+		if !ok || !slices.Contains([]string{WorkflowProfileStandard, WorkflowProfileLightweight, WorkflowProfileCoordinated}, strings.TrimSpace(value)) {
 			issues = append(issues, LintIssue{
 				Path:    "frontmatter.workflow_profile",
-				Message: "must be standard or lightweight when provided",
+				Message: "must be standard, lightweight, or coordinated when provided",
 			})
 		}
 	}
@@ -297,10 +312,14 @@ func validateFrontmatter(ctx *lintContext) []LintIssue {
 
 func validateSectionOrder(ctx *lintContext) []LintIssue {
 	issues := make([]LintIssue, 0)
-	if !slices.Equal(ctx.sectionOrder, requiredTopSections) {
+	required := requiredTopSections
+	if normalizeWorkflowProfile(ctx.frontmatter.WorkflowProfile) == WorkflowProfileCoordinated {
+		required = coordinatedTopSections
+	}
+	if !slices.Equal(ctx.sectionOrder, required) {
 		issues = append(issues, LintIssue{
 			Path:    "sections",
-			Message: fmt.Sprintf("top-level sections must appear in order: %s", strings.Join(requiredTopSections, " -> ")),
+			Message: fmt.Sprintf("top-level sections must appear in order: %s", strings.Join(required, " -> ")),
 		})
 	}
 	return issues
@@ -580,7 +599,7 @@ func validatePathRules(ctx *lintContext) []LintIssue {
 	pathProfile := inferWorkflowProfileFromPath(ctx.path)
 	declaredProfile := strings.TrimSpace(ctx.frontmatter.WorkflowProfile)
 	if declaredProfile == WorkflowProfileStandard {
-		issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "omit workflow_profile for standard plans; only lightweight plans should declare it"})
+		issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "omit workflow_profile for standard plans"})
 	}
 	switch pathProfile {
 	case WorkflowProfileStandard:
@@ -593,8 +612,11 @@ func validatePathRules(ctx *lintContext) []LintIssue {
 			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "lightweight archived paths require workflow_profile: lightweight"})
 		}
 	default:
-		if ctx.pathKind == "active" && declaredProfile != "" && declaredProfile != WorkflowProfileLightweight {
-			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "tracked active plans must omit workflow_profile unless they explicitly use lightweight"})
+		if ctx.pathKind == "active" &&
+			declaredProfile != "" &&
+			declaredProfile != WorkflowProfileLightweight &&
+			declaredProfile != WorkflowProfileCoordinated {
+			issues = append(issues, LintIssue{Path: "frontmatter.workflow_profile", Message: "tracked active plans must omit workflow_profile unless they explicitly use lightweight or coordinated"})
 		}
 	}
 	issues = append(issues, validateSupplementsRules(ctx)...)
@@ -686,6 +708,68 @@ func validateArchivedRules(ctx *lintContext) []LintIssue {
 	}
 
 	return issues
+}
+
+func validateCoordinatedPackageRules(ctx *lintContext) []LintIssue {
+	subplansDir := SubplansDirForPlanPath(ctx.path)
+	if normalizeWorkflowProfile(ctx.frontmatter.WorkflowProfile) != WorkflowProfileCoordinated {
+		if _, err := os.Stat(subplansDir); err == nil {
+			return []LintIssue{{
+				Path:    "subplans",
+				Message: "flat subplans require workflow_profile: coordinated on the root plan",
+			}}
+		} else if err != nil && !os.IsNotExist(err) {
+			return []LintIssue{{Path: "subplans", Message: err.Error()}}
+		}
+		return nil
+	}
+
+	pkg, err := LoadCoordinatedPackage(ctx.path)
+	if err != nil {
+		return []LintIssue{{Path: "subplans", Message: err.Error()}}
+	}
+	issues := make([]LintIssue, 0)
+	for _, issue := range pkg.DependencyIssues() {
+		issues = append(issues, LintIssue{Path: issue.Path, Message: issue.Message})
+	}
+	if ctx.pathKind == "archived" {
+		for _, subplan := range pkg.Subplans {
+			if !subplan.Completed() {
+				issues = append(issues, LintIssue{
+					Path:    "subplan." + subplan.ID + ".result",
+					Message: "archived coordinated plans require every subplan step and result to be complete",
+				})
+			}
+		}
+	}
+	return issues
+}
+
+func lintSubplanFile(path string) LintResult {
+	result := LintResult{
+		Command:   "plan lint",
+		Artifacts: lintArtifacts{PlanPath: path},
+	}
+	doc, issues := parseAndValidateSubplan(path)
+	if doc != nil && len(issues) == 0 {
+		rootContext, rootIssues := parseAndValidate(doc.RootPlanPath)
+		issues = append(issues, rootIssues...)
+		if rootContext != nil && normalizeWorkflowProfile(rootContext.frontmatter.WorkflowProfile) != WorkflowProfileCoordinated {
+			issues = append(issues, LintIssue{Path: "root", Message: "subplan root must use workflow_profile: coordinated"})
+		}
+	}
+
+	if version, err := templateassets.PlanTemplateVersion(); err == nil {
+		result.SupportedTemplateVersion = version
+	}
+	if len(issues) > 0 {
+		result.Summary = fmt.Sprintf("Subplan is invalid with %d issue(s).", len(issues))
+		result.Errors = issues
+		return result
+	}
+	result.OK = true
+	result.Summary = fmt.Sprintf("Subplan %q is valid.", doc.Title)
+	return result
 }
 
 func parseLabeledBullets(path string, lines, required []string) (map[string]string, []LintIssue) {

@@ -137,6 +137,51 @@ func TestRenderTemplateLightweightSeedsWorkflowProfileAndSingleStep(t *testing.T
 	}
 }
 
+func TestRenderTemplateCoordinatedOmitsRootWorkBreakdown(t *testing.T) {
+	rendered, err := plan.RenderTemplate(plan.TemplateOptions{
+		Title:           "Coordinated Plan",
+		Size:            plan.PlanSizeL,
+		WorkflowProfile: plan.WorkflowProfileCoordinated,
+	})
+	if err != nil {
+		t.Fatalf("RenderTemplate returned error: %v", err)
+	}
+	for _, want := range []string{
+		"workflow_profile: coordinated",
+		"supplements/<plan-stem>/subplans/",
+		"## Validation Strategy",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("rendered coordinated template missing %q\n%s", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, "## Work Breakdown") || strings.Contains(rendered, "### Step 1:") {
+		t.Fatalf("coordinated root must not contain sequential root steps\n%s", rendered)
+	}
+}
+
+func TestRenderSubplanTemplateSeedsDependenciesAndOrderedStep(t *testing.T) {
+	rendered, err := plan.RenderSubplanTemplate(plan.SubplanTemplateOptions{
+		Title:     "UI",
+		DependsOn: []string{"api"},
+	})
+	if err != nil {
+		t.Fatalf("RenderSubplanTemplate returned error: %v", err)
+	}
+	for _, want := range []string{
+		"depends_on: [\"api\"]",
+		"# UI",
+		"## Work Breakdown",
+		"### Step 1:",
+		"- Validation: PENDING",
+		"- Delivered: PENDING",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("rendered subplan template missing %q\n%s", want, rendered)
+		}
+	}
+}
+
 func TestRenderTemplateRejectsGoalOrientedProfile(t *testing.T) {
 	_, err := plan.RenderTemplate(plan.TemplateOptions{
 		Title:           "Goal-Oriented Plan",

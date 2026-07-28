@@ -98,7 +98,26 @@ func (s Service) Start(options StartOptions) StartResult {
 		return *errResult
 	}
 
-	if !doc.AllStepsCompleted() {
+	if doc.UsesCoordinatedProfile() {
+		pkg, err := plan.LoadCoordinatedPackage(doc.Path)
+		if err != nil {
+			return StartResult{
+				OK:      false,
+				Command: "review start",
+				Summary: "Finalize review is not ready to start.",
+				Errors:  []CommandError{{Path: "subplans", Message: err.Error()}},
+			}
+		}
+		packageErrors := coordinatedReviewReadinessErrors(pkg, state)
+		if len(packageErrors) > 0 {
+			return StartResult{
+				OK:      false,
+				Command: "review start",
+				Summary: "Finalize review is not ready to start.",
+				Errors:  packageErrors,
+			}
+		}
+	} else if !doc.AllStepsCompleted() {
 		return StartResult{
 			OK:      false,
 			Command: "review start",
@@ -114,7 +133,7 @@ func (s Service) Start(options StartOptions) StartResult {
 			Errors:  []CommandError{{Path: "plan.acceptance", Message: "check every acceptance criterion before starting finalize review"}},
 		}
 	}
-	if pendingNewStepReopen(doc, state) {
+	if !doc.UsesCoordinatedProfile() && pendingNewStepReopen(doc, state) {
 		return StartResult{
 			OK:      false,
 			Command: "review start",
@@ -348,6 +367,32 @@ func (s Service) Start(options StartOptions) StartResult {
 		}
 		return issues
 	})
+}
+
+func coordinatedReviewReadinessErrors(pkg *plan.CoordinatedPackage, state *runstate.State) []CommandError {
+	if pkg == nil {
+		return []CommandError{{Path: "subplans", Message: "coordinated package is unavailable"}}
+	}
+	errors := make([]CommandError, 0)
+	if len(pkg.Subplans) == 0 {
+		errors = append(errors, CommandError{
+			Path:    "subplans",
+			Message: "create and complete at least one subplan before starting finalize review",
+		})
+	}
+	for _, issue := range pkg.CompletionIssues() {
+		errors = append(errors, CommandError{Path: issue.Path, Message: issue.Message})
+	}
+	if state != nil &&
+		state.Reopen != nil &&
+		state.Reopen.Mode == "new-step" &&
+		len(pkg.Subplans) <= state.Reopen.BaseStepCount {
+		errors = append(errors, CommandError{
+			Path:    "subplans",
+			Message: "reopen mode new-step still requires a new subplan before review can start",
+		})
+	}
+	return errors
 }
 
 func (s Service) Submit(roundID, reviewerName string, inputBytes []byte) SubmitResult {

@@ -296,6 +296,102 @@ func TestPlanTemplateLightweightRejectsNonXXSSize(t *testing.T) {
 	}
 }
 
+func TestPlanTemplateCoordinatedFlagSeedsRootVariant(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{"plan", "template", "--title", "Coordinated Plan", "--coordinated", "--size", "L"})
+	if exitCode != 0 {
+		t.Fatalf("expected coordinated template success, got %d: %s", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "workflow_profile: coordinated") {
+		t.Fatalf("expected coordinated workflow profile, got:\n%s", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "## Work Breakdown") {
+		t.Fatalf("expected coordinated root to omit ordered root steps, got:\n%s", stdout.String())
+	}
+}
+
+func TestPlanTemplateSubplanSeedsDependencies(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	exitCode := app.Run([]string{
+		"plan", "template",
+		"--subplan",
+		"--title", "Integration",
+		"--depends-on", "api",
+		"--depends-on", "ui",
+	})
+	if exitCode != 0 {
+		t.Fatalf("expected subplan template success, got %d: %s", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `depends_on: ["api","ui"]`) ||
+		!strings.Contains(stdout.String(), "# Integration") ||
+		!strings.Contains(stdout.String(), "## Result") {
+		t.Fatalf("unexpected subplan template:\n%s", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "source_type:") || strings.Contains(stdout.String(), "workflow_profile:") {
+		t.Fatalf("expected subplan to omit root metadata, got:\n%s", stdout.String())
+	}
+}
+
+func TestPlanTemplateSubplanRejectsRootMetadata(t *testing.T) {
+	testCases := [][]string{
+		{"--subplan", "--size", "M"},
+		{"--subplan", "--source-type", "issue"},
+		{"--subplan", "--source-ref", "#42"},
+		{"--subplan", "--timestamp", "2026-07-28T10:00:00+08:00"},
+	}
+	for _, flags := range testCases {
+		t.Run(strings.Join(flags, "_"), func(t *testing.T) {
+			stdout := new(bytes.Buffer)
+			stderr := new(bytes.Buffer)
+			app := cli.New(stdout, stderr)
+
+			exitCode := app.Run(append([]string{"plan", "template"}, flags...))
+			if exitCode != 2 {
+				t.Fatalf("expected root metadata rejection, got %d: %s", exitCode, stderr.String())
+			}
+			if !strings.Contains(stderr.String(), "root-plan metadata") {
+				t.Fatalf("expected clear root metadata error, got %q", stderr.String())
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("expected no rendered template, got %q", stdout.String())
+			}
+		})
+	}
+}
+
+func TestPlanTemplateRejectsConflictingVariantsAndRootDependency(t *testing.T) {
+	testCases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "coordinated lightweight", args: []string{"--coordinated", "--lightweight"}, want: "mutually exclusive"},
+		{name: "coordinated subplan", args: []string{"--coordinated", "--subplan"}, want: "mutually exclusive"},
+		{name: "root dependency", args: []string{"--depends-on", "api"}, want: "--depends-on requires --subplan"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			stdout := new(bytes.Buffer)
+			stderr := new(bytes.Buffer)
+			app := cli.New(stdout, stderr)
+
+			exitCode := app.Run(append([]string{"plan", "template"}, tc.args...))
+			if exitCode != 2 || !strings.Contains(stderr.String(), tc.want) {
+				t.Fatalf("expected %q rejection, got exit=%d stderr=%q", tc.want, exitCode, stderr.String())
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("expected no rendered template, got %q", stdout.String())
+			}
+		})
+	}
+}
+
 func TestPlanTemplateRejectsRemovedGoalOrientedFlag(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
@@ -1284,6 +1380,94 @@ func TestStatusCommandReturnsJSON(t *testing.T) {
 	}
 	if payload["command"] != "status" {
 		t.Fatalf("unexpected payload: %#v", payload)
+	}
+}
+
+func TestStatusCommandSelectsCoordinatedSubplanWithoutChangingRootPointer(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+	root := t.TempDir()
+	app.Getwd = func() (string, error) { return root, nil }
+
+	relRootPath := "docs/plans/active/2026-07-28-coordinated.md"
+	rootPath := filepath.Join(root, filepath.FromSlash(relRootPath))
+	renderedRoot, err := plan.RenderTemplate(plan.TemplateOptions{
+		Title:           "Coordinated CLI Plan",
+		Timestamp:       time.Date(2026, 7, 28, 10, 0, 0, 0, time.FixedZone("CST", 8*60*60)),
+		SourceType:      "direct_request",
+		Size:            "M",
+		WorkflowProfile: plan.WorkflowProfileCoordinated,
+	})
+	if err != nil {
+		t.Fatalf("render coordinated root: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(rootPath), 0o755); err != nil {
+		t.Fatalf("mkdir coordinated root: %v", err)
+	}
+	if err := os.WriteFile(rootPath, []byte(renderedRoot), 0o644); err != nil {
+		t.Fatalf("write coordinated root: %v", err)
+	}
+	childPath := filepath.Join(plan.SubplansDirForPlanPath(rootPath), "api.md")
+	renderedChild, err := plan.RenderSubplanTemplate(plan.SubplanTemplateOptions{Title: "API"})
+	if err != nil {
+		t.Fatalf("render coordinated child: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(childPath), 0o755); err != nil {
+		t.Fatalf("mkdir coordinated children: %v", err)
+	}
+	if err := os.WriteFile(childPath, []byte(renderedChild), 0o644); err != nil {
+		t.Fatalf("write coordinated child: %v", err)
+	}
+	if _, err := runstate.SaveCurrentPlan(root, relRootPath); err != nil {
+		t.Fatalf("save coordinated current plan: %v", err)
+	}
+	if _, err := runstate.SaveState(root, "2026-07-28-coordinated", &runstate.State{
+		ExecutionStartedAt: "2026-07-28T10:05:00+08:00",
+	}); err != nil {
+		t.Fatalf("save coordinated root state: %v", err)
+	}
+	pointerPath := runstate.CurrentPlanPath(root)
+	before, err := os.ReadFile(pointerPath)
+	if err != nil {
+		t.Fatalf("read current-plan pointer before status: %v", err)
+	}
+
+	exitCode := app.Run([]string{"status", "--plan", "api"})
+	if exitCode != 0 {
+		t.Fatalf("selected status command failed with %d: %s", exitCode, stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode selected status: %v\n%s", err, stdout.String())
+	}
+	state, _ := payload["state"].(map[string]any)
+	if state["current_node"] != "execution/step-1/implement" {
+		t.Fatalf("unexpected selected status node: %#v", payload)
+	}
+	artifacts, _ := payload["artifacts"].(map[string]any)
+	if artifacts["plan_path"] != "docs/plans/active/supplements/2026-07-28-coordinated/subplans/api.md" {
+		t.Fatalf("unexpected selected status artifacts: %#v", artifacts)
+	}
+	after, err := os.ReadFile(pointerPath)
+	if err != nil {
+		t.Fatalf("read current-plan pointer after status: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatalf("selected status changed current-plan pointer:\nbefore=%s\nafter=%s", before, after)
+	}
+}
+
+func TestStatusCommandHelpDocumentsCoordinatedPlanSelector(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	app := cli.New(stdout, stderr)
+
+	if exitCode := app.Run([]string{"status", "--help"}); exitCode != 0 {
+		t.Fatalf("expected status help to exit zero, got %d", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "harness status [--plan <subplan-id-or-path>]") {
+		t.Fatalf("expected status help to document --plan, got %q", stderr.String())
 	}
 }
 

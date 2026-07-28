@@ -84,6 +84,14 @@ type StatusFacts struct {
 	// present.
 	ArchiveBlockerCount int `json:"archive_blocker_count,omitempty"`
 
+	// Subplans summarizes coordinated root progress when the current plan uses
+	// the coordinated workflow profile.
+	Subplans *StatusSubplansFacts `json:"subplans,omitempty"`
+
+	// SelectedSubplan identifies the explicitly selected coordinated subplan
+	// and its unresolved sibling dependencies.
+	SelectedSubplan *StatusSelectedSubplanFacts `json:"selected_subplan,omitempty"`
+
 	// Evidence groups durable recorded evidence and compact read-only remote
 	// observation facts for archived-candidate handoff.
 	Evidence *StatusEvidenceFacts `json:"evidence,omitempty"`
@@ -98,6 +106,39 @@ type StatusFacts struct {
 	// LandCommit is the merge commit or landed commit recorded for the land
 	// phase.
 	LandCommit string `json:"land_commit,omitempty"`
+}
+
+// StatusSubplansFacts summarizes the flat execution graph owned by one
+// coordinated root plan.
+type StatusSubplansFacts struct {
+	// Total is the number of subplans in the coordinated package.
+	Total int `json:"total"`
+
+	// Completed is the number of subplans whose ordered steps and final result
+	// are complete.
+	Completed int `json:"completed"`
+
+	// Runnable is the number of incomplete subplans whose dependencies are
+	// complete.
+	Runnable int `json:"runnable"`
+
+	// Waiting is the number of incomplete subplans still waiting on one or more
+	// sibling dependencies.
+	Waiting int `json:"waiting"`
+}
+
+// StatusSelectedSubplanFacts describes one coordinated subplan selected
+// explicitly with `harness status --plan`.
+type StatusSelectedSubplanFacts struct {
+	// ID is the subplan identifier scoped to the current coordinated root.
+	ID string `json:"id"`
+
+	// Dependencies lists the sibling subplan identifiers declared by the
+	// selected subplan.
+	Dependencies []string `json:"dependencies,omitempty"`
+
+	// WaitingOn lists declared sibling dependencies that are not complete yet.
+	WaitingOn []string `json:"waiting_on,omitempty"`
 }
 
 // StatusManagedResources is a compact read-only projection of stale default
