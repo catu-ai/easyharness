@@ -5,8 +5,10 @@ Archive freezes the reviewed outcome and its durable handoff.
 ## Archive
 
 1. Run `harness status` and resolve its archive blockers.
-2. Confirm acceptance criteria and steps are complete and finalize coverage
-   contains a passing full root plus any linked repair deltas.
+2. Confirm acceptance criteria and ordinary root steps are complete. For a
+   coordinated root, confirm every subplan step and Result is complete and the
+   sibling dependency graph has no blocker. Finalize coverage must contain a
+   passing full root plus any linked repair deltas.
 3. Replace the tracked plan's `Closeout` placeholders from repository and
    review evidence, not memory.
 4. Record a concrete issue URL or `#number` reference when `Deferred Items`
@@ -34,6 +36,9 @@ If feedback or remote changes invalidate the archived candidate, use:
 ```bash
 harness reopen --mode <finalize-fix|new-step>
 ```
+
+For coordinated `new-step` work, add or reopen a flat subplan; do not add a
+synthetic ordered step to the root.
 
 Do not claim archive or merge readiness while review findings, placeholders,
 deferred handoff, CI, or sync blockers remain.

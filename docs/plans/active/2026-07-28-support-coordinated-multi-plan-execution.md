@@ -121,41 +121,41 @@ manually switching a worktree-global current plan.
 
 ## Acceptance Criteria
 
-- [ ] A coordinated profile is explicitly selectable with
+- [x] A coordinated profile is explicitly selectable with
       `workflow_profile: coordinated`, while plans without that field retain
       the existing standard contract and behavior.
-- [ ] A valid coordinated root can own multiple flat subplan documents under
+- [x] A valid coordinated root can own multiple flat subplan documents under
       its matching supplements package without treating those documents as
       separately human-approved root plans.
-- [ ] Coordinated subplans use compact ordered steps and optional sibling
+- [x] Coordinated subplans use compact ordered steps and optional sibling
       dependencies, can represent related or unrelated work bundled into one
       candidate, and cannot form nested subplan trees.
-- [ ] Subplan completion is derived from its durable step and result content
+- [x] Subplan completion is derived from its durable step and result content
       without requiring child-level execution-start, formal review, archive,
       publish, or land commands.
-- [ ] `harness status` resolves and summarizes the coordinated root by default,
+- [x] `harness status` resolves and summarizes the coordinated root by default,
       while `harness status --plan <subplan-id-or-path>` reports the selected
       child without changing the worktree's root current-plan pointer.
-- [ ] Coordinated root status reports aggregate child progress and dependency
+- [x] Coordinated root status reports aggregate child progress and dependency
       blockers without selecting one arbitrary child as the root's current
       sequential step.
-- [ ] Duplicate subplan identifiers, missing dependency references,
+- [x] Duplicate subplan identifiers, missing dependency references,
       self-dependencies, and dependency cycles produce clear failures or
       blockers instead of guessed scheduling.
-- [ ] Root execution and archive readiness require root approval, settled
+- [x] Root execution and archive readiness require root approval, settled
       required subplans, satisfied root acceptance criteria, whole-candidate
       validation, and one clean root finalize review at the current committed
       candidate.
-- [ ] Archiving and reopening a coordinated root move its complete plan
+- [x] Archiving and reopening a coordinated root move its complete plan
       package, leave only the root Markdown at the top-level archived plan
       surface, and preserve subplans beneath the root's archived supplements.
-- [ ] Child selection and progress updates never replace the coordinated root
+- [x] Child selection and progress updates never replace the coordinated root
       as the worktree-global current plan or redirect unqualified lifecycle
       commands to the most recently touched child.
-- [ ] Agent-facing workflow guidance makes controller integration, bounded
+- [x] Agent-facing workflow guidance makes controller integration, bounded
       non-overlapping delegation, serialized Git mutation, and pre-review
       subagent settlement explicit without adding new verification ceremony.
-- [ ] Existing standard single-plan CLI behavior and supported single-plan UI
+- [x] Existing standard single-plan CLI behavior and supported single-plan UI
       behavior remain covered and pass, while coordinated-plan UI support is
       clearly documented as deferred and unsupported.
 
@@ -193,7 +193,7 @@ manually switching a worktree-global current plan.
 
 ### Step 1: Establish the coordinated plan contract
 
-- Done: [ ]
+- Done: [x]
 - Outcome: Formal plan, state, CLI, and package contracts define the explicit
   coordinated root, flat ordered-step subplans, root-only approval and final
   lifecycle, minimal dependency rules, and deliberate exclusions without
@@ -205,7 +205,7 @@ manually switching a worktree-global current plan.
 
 ### Step 2: Make resolution and status coordinated-aware
 
-- Done: [ ]
+- Done: [x]
 - Outcome: Root-default resolution, explicit child status selection, scoped
   child identity, aggregate coordinated status, and conservative parallel-read
   behavior work without child operations mutating the root current-plan
@@ -217,7 +217,7 @@ manually switching a worktree-global current plan.
 
 ### Step 3: Integrate coordinated packages with the root lifecycle
 
-- Done: [ ]
+- Done: [x]
 - Outcome: Approval, execution start, finalize readiness, archive, reopen,
   publish, and land continue to operate once per coordinated root candidate,
   with complete child-package preservation and no child-level lifecycle
@@ -229,7 +229,7 @@ manually switching a worktree-global current plan.
 
 ### Step 4: Align agent guidance and protect the standard workflow
 
-- Done: [ ]
+- Done: [x]
 - Outcome: Controller guidance explains coordinated decomposition and safe
   parallel execution, while standard single-plan CLI and supported UI behavior
   remain stable and coordinated UI behavior is explicitly deferred.
@@ -262,4 +262,5 @@ manually switching a worktree-global current plan.
 - Review: PENDING_UNTIL_ARCHIVE
 - Delivered: PENDING_UNTIL_ARCHIVE
 - Not Delivered: PENDING_UNTIL_ARCHIVE
-- Follow-Up Issues: NONE
+- Follow-Up Issues: https://github.com/catu-ai/easyharness/issues/133,
+  https://github.com/catu-ai/easyharness/issues/303

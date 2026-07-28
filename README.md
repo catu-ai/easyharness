@@ -144,6 +144,12 @@ The current v0.2 harness surface centers on a few core ideas:
 - the CLI reports one canonical `state.current_node`
 - tracked steps are human-visible implementation and validation boundaries,
   not review gates; finalize review is the mandatory formal gate
+- `workflow_profile: coordinated` lets one approved root candidate own flat
+  agent-created subplans that can progress concurrently; the root remains the
+  only approval, review, archive, publish, and land owner
+- `harness status --plan <subplan-id-or-path>` focuses one coordinated child;
+  the dashboard and UI continue to guarantee only the existing single-plan
+  experience, with coordinated visualization deferred
 - finalize review uses one whole-candidate integrated reviewer with the fixed
   standard rubric and plan Review Focus; that reviewer may use bounded advisor
   subagents while retaining the sole judgment
@@ -173,7 +179,7 @@ The root CLI currently ships:
 - `harness execute start`
 - `harness evidence submit`
 - `harness evidence refresh`
-- `harness status`
+- `harness status [--plan <subplan-id-or-path>]`
 - `harness help [topic ...]`
 - `harness dashboard`
 - `harness ui`

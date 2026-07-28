@@ -6,7 +6,9 @@ This is the normative transition matrix. If a move is absent, it is not a
 supported workflow transition. Exact command payloads live in the CLI contract.
 
 `step-<n>` is the current unfinished tracked step and `step-<m>` is the next
-unfinished step. A step is complete when its `Done` marker is checked.
+unfinished step for a standard or lightweight root. A step is complete when
+its `Done` marker is checked. Coordinated roots use `execution/coordinate`;
+their subplans use ordered child steps internally.
 
 ## Entering and Executing Work
 
@@ -14,13 +16,17 @@ unfinished step. A step is complete when its `Done` marker is checked.
 | --- | --- | --- | --- |
 | `idle` | `plan` | Active plan presence | Exactly one tracked active plan exists. |
 | `plan` | `execution/step-<n>/implement` | `harness execute start` | The plan has explicit human approval and an unfinished step. |
+| `plan` | `execution/coordinate` | `harness execute start` | The coordinated root has explicit human approval. |
 | `execution/step-<n>/implement` | `execution/step-<m>/implement` | Plan edit | Step `<n>` becomes complete and another unfinished step exists. |
 | `execution/step-<n>/implement` | `execution/finalize/review` | Plan edit | Every step is complete. Formal review has not yet established clean coverage for the candidate. |
+| `execution/coordinate` | `execution/coordinate` | Subplan edit | At least one subplan is incomplete, waiting on a sibling, or structurally blocked. |
+| `execution/coordinate` | `execution/finalize/review` | Subplan edit | At least one subplan exists, every subplan step and Result is complete, and the package graph is valid. |
 
-Steps are human-visible implementation and validation boundaries. They never
-create formal review nodes. Intermediate uncertainty uses focused validation or
-ordinary advisor subagents; the independent harness review belongs to the
-complete finalize candidate.
+Root or child steps are implementation and validation boundaries. They never
+create formal review nodes. Coordinated children may progress concurrently but
+share one candidate and controller-owned Git integration. Intermediate
+uncertainty uses focused validation or ordinary advisor subagents; the
+independent harness review belongs to the complete root candidate.
 
 ## Finalize
 
@@ -47,7 +53,7 @@ the decision and coverage transaction without a controller aggregate action.
 
 | From | To | Driver | Requirement |
 | --- | --- | --- | --- |
-| `execution/finalize/archive` | `execution/finalize/publish` | `harness archive` | Acceptance, steps, Closeout, and finalize coverage are complete. |
+| `execution/finalize/archive` | `execution/finalize/publish` | `harness archive` | Acceptance, ordinary root steps or the complete coordinated package, Closeout, and finalize coverage are complete. |
 | `execution/finalize/publish` | `execution/finalize/await_merge` | Evidence | Current publish, CI, and sync evidence supports merge readiness, and the archived branch differs from the reviewed candidate only by the allowed archive move and Closeout update. |
 | `execution/finalize/publish` or `execution/finalize/await_merge` | `execution/finalize/fix` | `harness reopen` with `finalize-fix` or `new-step` | Feedback or remote change invalidates the archived candidate. |
 | `execution/finalize/await_merge` | `land` | `harness land` | Human merge approval exists and the PR has merged. |
@@ -63,9 +69,12 @@ start and advisor progress do not create extra public nodes.
 ## Invalid Shortcuts
 
 - execution without explicit plan approval
-- skipping unfinished steps or the mandatory finalize review
+- skipping unfinished root/child steps or the mandatory root finalize review
 - archiving with unresolved findings, moved or uncovered HEAD, incomplete
-  acceptance, incomplete steps, or Closeout placeholders
+  acceptance, incomplete steps or coordinated Results, an invalid subplan
+  graph, or Closeout placeholders
+- using child-specific approval, execute-start, review, archive, publish, or
+  land as if a subplan owned an independent candidate
 - treating an advisor as the formal reviewer or controller
 - replacing a narrow linked delta with a ceremonial full review without a
   material coverage invalidation

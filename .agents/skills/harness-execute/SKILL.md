@@ -37,6 +37,13 @@ documented setup path before relying on it.
 - Delegate bounded exploration, non-overlapping implementation, validation, or
   advisory work when useful. The controller integrates shared state and owns
   final judgment.
+- At `execution/coordinate`, treat the root subplans as one flat, partially
+  ordered execution set. Use `harness status --plan <subplan-id-or-path>` for a
+  focused child view, delegate runnable non-overlapping children when useful,
+  and keep shared Git integration under the controller.
+- A coordinated child advances through edits to its own ordered steps and
+  concise Result. Do not run child-specific approve, execute-start, formal
+  review, archive, publish, or land ceremonies.
 - A completed step advances progress without a review boundary. Use ordinary
   bounded validation or advisory subagents for intermediate uncertainty.
 - Run the mandatory independent finalize review after the complete candidate is
@@ -54,6 +61,9 @@ documented setup path before relying on it.
 ## Node Guide
 
 - `plan`: wait for or record explicit approval, then start execution.
+- `execution/coordinate`: progress runnable subplans, resolve sibling
+  dependencies, and integrate the shared candidate until every child is
+  complete.
 - `execution/step-<n>/implement`: complete the current plan outcome and its
   validation.
 - `execution/finalize/review|fix|archive`: establish finalize coverage, repair

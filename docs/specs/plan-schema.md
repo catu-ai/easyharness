@@ -1,8 +1,8 @@
 ---
 title: Plan Schema
 created_at: "2026-03-17T14:00:00+08:00"
-updated_at: "2026-07-13T23:55:00+08:00"
-reviewed_at: "2026-07-13T23:55:00+08:00"
+updated_at: "2026-07-28T00:00:00+08:00"
+reviewed_at: "2026-07-28T00:00:00+08:00"
 status: active
 ---
 
@@ -14,10 +14,17 @@ A tracked plan preserves the decisions a human approved and the progress a
 future agent needs. It describes outcomes and boundaries, not predicted files,
 implementation recipes, or an execution diary.
 
-The current template version is `0.3.0`. Generate it with:
+The current template version is `0.3.0`. Generate an ordinary root with:
 
 ```bash
 harness plan template
+```
+
+Generate a coordinated root or one of its subplans with:
+
+```bash
+harness plan template --coordinated
+harness plan template --subplan
 ```
 
 ## Location and Naming
@@ -30,8 +37,15 @@ docs/plans/active/
 docs/plans/archived/
 ```
 
-Standard plans use `YYYY-MM-DD-short-topic.md`. A plan Markdown file cannot
-live below a `supplements/` directory.
+Root plans use `YYYY-MM-DD-short-topic.md` directly under an active or archived
+root. A coordinated root may additionally own flat subplans at:
+
+```text
+supplements/<root-plan-stem>/subplans/<subplan-id>.md
+```
+
+`<subplan-id>` is a lowercase hyphenated slug. Subplan directories cannot
+nest. Other plan Markdown files cannot live below `supplements/`.
 
 ## Frontmatter
 
@@ -58,13 +72,13 @@ Required fields:
 revision, and update state do not belong in tracked frontmatter.
 
 Standard plans omit `workflow_profile`. An explicitly approved `XXS`
-lightweight plan uses `workflow_profile: lightweight`; no other workflow
-profile is currently supported. Goal-oriented authoring and execution are
-deferred to `v0.7.0`.
+lightweight plan uses `workflow_profile: lightweight`. A root that coordinates
+multiple agent-owned workstreams uses `workflow_profile: coordinated`.
+Goal-oriented authoring and execution remain deferred to `v0.7.0`.
 
 ## Canonical Body
 
-Top-level sections appear exactly in this order:
+Standard and lightweight top-level sections appear exactly in this order:
 
 1. `Goal`
 2. `Scope`
@@ -74,6 +88,10 @@ Top-level sections appear exactly in this order:
 6. `Work Breakdown`
 7. `Validation Strategy`
 8. `Closeout`
+
+A coordinated root uses the same order but omits `Work Breakdown`. Its subplan
+set is the unordered or partially ordered execution breakdown; the root is not
+forced to pretend that one child is its sequential current step.
 
 ### Goal
 
@@ -135,10 +153,12 @@ or nested lists are not accepted as field continuations. List markers separated
 from their content by either spaces or tabs are rejected consistently with
 CommonMark parsing.
 
-The first unfinished `Done` marker is the current step. Steps are meaningful
-progress boundaries, not review units or prescribed implementation sequences.
-Do not add expected-file lists, details, execution notes, review notes, or
-step-local acceptance checklists.
+For standard and lightweight roots, the first unfinished `Done` marker is the
+current step. Coordinated roots do not have root steps; each subplan applies
+the same ordered-step rule locally. Steps are meaningful progress boundaries,
+not review units or prescribed implementation sequences. Do not add
+expected-file lists, details, execution notes, review notes, or step-local
+acceptance checklists.
 
 ### Validation Strategy
 
@@ -176,15 +196,67 @@ A plan may own durable supporting material under:
 supplements/<plan-stem>/
 ```
 
-Approval covers the Markdown plan and its matching supplements directory as
-one package. Supplements hold bulky approved context, not scratch work or the
-only copy of repository-facing normative behavior. Absorb normative content
-into code, tests, or formal specs before archive and summarize that absorption
-in `Closeout`.
+For standard and lightweight plans, approval covers the root Markdown and its
+matching supplements as one package. Supplements hold bulky approved context,
+not scratch work or the only copy of repository-facing normative behavior.
+
+For a coordinated plan, the human approves the root's goal, decisions and
+constraints, scope, acceptance criteria, Review Focus, and authority boundary.
+Subplans are agent-owned decomposition within that boundary and may be added or
+refined without separate approval. A material change to the approved root
+contract requires the same renewed human steering as an ordinary plan.
+
+Formal review, archive, publish, and land still cover the complete coordinated
+package. Archive moves the root and matching supplements together, and the
+archived top level contains only the root plan. Absorb normative content into
+code, tests, or formal specs before archive and summarize that absorption in
+the root `Closeout`.
 
 Plan-specific final-review input belongs in the Markdown `Review Focus`
 section. Supplements do not define additional reviewer guidance, topology, or
 selection machinery.
+
+## Coordinated Profile
+
+`workflow_profile: coordinated` represents one candidate-owning root plus zero
+or more flat subplans. It does not allow multiple independent root candidates
+in one worktree.
+
+A subplan has minimal frontmatter:
+
+```yaml
+---
+depends_on: [api]
+---
+```
+
+`depends_on` is optional and names sibling subplan IDs. Missing dependencies,
+self-dependencies, duplicate IDs, cycles, and nested subplans are invalid.
+With no dependencies, siblings are runnable concurrently.
+
+The body contains exactly:
+
+1. one H1 title
+2. `Outcome`
+3. `Work Breakdown`
+4. `Result`
+
+`Work Breakdown` contains one or more compact ordered steps using the same
+`Done`, `Outcome`, `Covers`, and optional `Check` fields as ordinary plan
+steps. `Covers` identifies the root acceptance outcome advanced by the child;
+the contract intentionally does not invent separate acceptance IDs.
+
+`Result` contains exactly:
+
+```markdown
+- Validation: PENDING
+- Delivered: PENDING
+```
+
+A subplan is complete only when every step is done and both Result values have
+been replaced with concise, non-placeholder outcomes. Every existing subplan
+is required. Subplans have no separate approval, execute-start, formal review,
+archive, publish, or land lifecycle.
 
 ## Lightweight Profile
 
@@ -195,18 +267,20 @@ archives its lightweight snapshot beneath the configured local runtime root.
 
 ## Lint and Archive Rules
 
-`harness plan lint <path>` validates frontmatter, section order, scope shape,
-acceptance checkboxes, compact step fields, closeout fields, filename/location,
-profile eligibility, and supplement placement.
+`harness plan lint <path>` validates frontmatter, profile-specific section
+order, scope shape, acceptance checkboxes, compact step fields, closeout fields,
+filename/location, profile eligibility, and supplement placement. For a
+coordinated root or child, lint validates the complete package and dependency
+graph.
 
 Archived plans additionally require:
 
 - every acceptance criterion checked
-- every step done
+- every ordinary root step done, or every coordinated subplan complete
 - no archive placeholder remaining in `Closeout`
 - `Archived At`, `Revision`, and all durable closeout fields present
 - follow-up issue information when deferred work remains
 
-The schema deliberately does not preserve the pre-`0.3.0` step subsection or
+The schema deliberately does not preserve obsolete step subsection or
 goal-oriented preview shapes. This repository is in rapid development and uses
 the clean current contract without compatibility shims.

@@ -92,10 +92,13 @@ resolving the snapshot.
 
 ### Durable Plan, Disposable Runtime
 
-Tracked active plans remain the durable source of decisions, scope, acceptance,
-Review Focus, step progress, and Closeout for all workflow profiles.
-Lightweight work uses the same
-schema and the same active-plan root resolved by
+Tracked active root plans remain the durable source of decisions, scope,
+acceptance, Review Focus, and Closeout for all workflow profiles. Standard and
+lightweight roots also own their step progress. A coordinated root owns a flat
+set of tracked subplans whose ordered child steps and concise Results record
+execution progress.
+
+Lightweight work uses the same active-plan root resolved by
 `harness repo config get paths.plans.active`, but its archived snapshot moves
 under the local runtime root resolved by
 `harness repo config get paths.local_runtime` so the workflow can stay
@@ -120,6 +123,7 @@ root
 ├── execution
 │   ├── step-<n>
 │   │   └── implement
+│   ├── coordinate
 │   └── finalize
 │       ├── review
 │       ├── fix
@@ -136,7 +140,9 @@ root
 - durable scope and non-goals
 - durable decisions and Review Focus
 - acceptance criteria
-- outcome-based step list and step `Done` markers
+- an outcome-based root step list for standard and lightweight plans
+- for coordinated work, flat agent-owned subplans with ordered child steps,
+  optional sibling dependencies, and concise Results
 - archive-time `Closeout`
 
 For active work in the currently implemented workflow profiles, this plan
@@ -188,13 +194,19 @@ any interrupted or overlapping command.
 
 ## Current Plan Selection
 
-v0.2 assumes one active plan artifact per repository.
+v0.2 assumes one active candidate-owning root plan per repository. A
+coordinated root may own multiple subplans without creating additional root
+candidates.
 
 Resolution rules:
 
-- if more than one active tracked plan exists under the active plan root
+- if more than one top-level active tracked root plan exists under the active
+  plan root
   resolved by `harness repo config get paths.plans.active`, state resolution
   is invalid and should fail rather than guess
+- Markdown below
+  `supplements/<root-plan-stem>/subplans/` belongs to that coordinated root and
+  never competes for the worktree current-plan pointer
 - lightweight archived snapshots under the local runtime root resolved by
   `harness repo config get paths.local_runtime` do not count as active-plan
   candidates
@@ -214,7 +226,9 @@ Resolution rules:
 - the current plan content
 - the plan path and any optional `workflow_profile`
 - whether execution-start has been recorded
-- the first unfinished step from the current plan
+- the first unfinished root step for standard or lightweight work
+- the aggregate subplan package, including sibling dependencies and child
+  completion, for coordinated work
 - review artifacts for the current step or the finalize gate
 - append-only `ci`, `publish`, and `sync` evidence
 - archive, reopen, and land milestones
@@ -275,17 +289,19 @@ silently queue behind each other.
 2. Otherwise, if no current work exists, resolve `idle`.
 3. Otherwise, if the current active plan exists but execution-start has not
    been recorded, resolve `plan`.
-4. Otherwise, if an unfinished step exists, resolve the appropriate
+4. Otherwise, for a coordinated root with an incomplete or invalid subplan
+   package, resolve `execution/coordinate`.
+5. Otherwise, if an unfinished ordinary root step exists, resolve the appropriate
    `execution/step-<n>/...` node.
-5. Otherwise, resolve the appropriate `execution/finalize/...` node.
+6. Otherwise, resolve the appropriate `execution/finalize/...` node.
 
 The exact transition matrix is normative in
 [State Transitions](./state-transitions.md).
 
-Workflow profiles do not add a second node tree. Lightweight reuses the same
-canonical nodes while changing where the archived snapshot lives and what
-closeout guidance `harness status` should emphasize. Goal-oriented execution is
-deferred to v0.7.0 and is not a current profile.
+Workflow profiles do not add a second finalize or candidate lifecycle.
+Lightweight changes archive placement and closeout guidance. Coordinated adds
+the aggregate `execution/coordinate` node before the shared finalize phase.
+Goal-oriented execution is deferred to v0.7.0 and is not a current profile.
 
 ## Node Semantics
 
@@ -296,8 +312,16 @@ No current work is in flight. This is the normal post-land resting state.
 ### `plan`
 
 A current tracked active plan exists, but execution has not started. Plan
-edits, approval, and step refinement happen here for all implemented workflow
-profiles.
+edits and approval happen here for all implemented workflow profiles.
+
+### `execution/coordinate`
+
+Execution has started for a coordinated root, and at least one subplan is
+incomplete or the flat dependency graph has a blocker. `harness status` returns
+aggregate child progress. `harness status --plan <subplan-id-or-path>` returns
+the focused child step or dependency view without changing the root pointer.
+Subplans can progress concurrently when their dependencies and shared-worktree
+edit boundaries allow it.
 
 ### `execution/step-<n>/implement`
 
@@ -307,8 +331,8 @@ boundaries; formal review belongs to finalize.
 
 ### `execution/finalize/review`
 
-All intended steps are complete, and the whole-branch candidate still needs the
-mandatory formal review gate.
+All intended ordinary root steps or coordinated subplans are complete, and the
+whole-branch candidate still needs the mandatory formal review gate.
 
 ### `execution/finalize/fix`
 
@@ -354,7 +378,17 @@ work remains in `land` until `harness land complete` intentionally restores
 
 ## Step and Review Rules
 
-- The first unfinished step determines the current execution step.
+- For standard and lightweight roots, the first unfinished step determines the
+  current execution step.
+- For coordinated roots, the root has no ordered step. Each child uses its own
+  first unfinished ordered step; the root remains at `execution/coordinate`
+  until every child step and Result is complete.
+- Sibling dependencies are optional. Missing references, self-dependencies,
+  cycles, and nested subplans are blockers; an unfinished valid dependency is
+  ordinary waiting progress.
+- Subplans are agent-owned decomposition inside the approved root boundary.
+  They never own approval, execute-start, formal review, archive, publish, or
+  land.
 - Plan steps are execution and validation boundaries, not review boundaries.
   Each carries a title, `Done`, outcome, covered acceptance criteria, and an
   optional concise check.
