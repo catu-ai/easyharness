@@ -258,9 +258,24 @@ manually switching a worktree-global current plan.
 
 ## Closeout
 
-- Validation: PENDING_UNTIL_ARCHIVE
-- Review: PENDING_UNTIL_ARCHIVE
-- Delivered: PENDING_UNTIL_ARCHIVE
-- Not Delivered: PENDING_UNTIL_ARCHIVE
+- Archived At: 2026-07-29T00:17:32+08:00
+- Revision: 1
+- Validation: `scripts/validate`; focused coordinated built-binary E2E and
+  transition-catalog tests; race tests for plan, status, lifecycle, and review;
+  bootstrap/contract sync checks; `git diff --check`; and direct installed
+  harness lint/status checks all passed.
+- Review: Independent full review `review-001-full` and linked deltas
+  `review-002-delta` and `review-003-delta` covered the complete candidate.
+  The final delta passed after all basename-collision, path-confinement,
+  concurrent-snapshot, and transition-contract findings were resolved.
+- Delivered: Added the explicit coordinated root profile, flat ordered
+  subplans with optional sibling dependencies, aggregate and selected-child
+  status, one root-owned approval/review/archive/publish/land lifecycle,
+  complete-package archive/reopen behavior, CLI/templates, durable specs and
+  agent guidance, conservative package reads, and regression coverage for the
+  existing standard/lightweight and single-plan UI paths.
+- Not Delivered: Coordinated/multi-plan UI, independent multi-root candidates
+  in one worktree, and advanced scheduling or execution-graph machinery remain
+  deferred.
 - Follow-Up Issues: https://github.com/catu-ai/easyharness/issues/133,
   https://github.com/catu-ai/easyharness/issues/303
