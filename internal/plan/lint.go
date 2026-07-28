@@ -590,8 +590,9 @@ func validatePathRules(ctx *lintContext) []LintIssue {
 	relativeWithinRoot := relativePathWithinPlanRoot(ctx.path)
 	if strings.HasPrefix(relativeWithinRoot, SupplementsDirName+"/") {
 		issues = append(issues, LintIssue{Path: "path", Message: "plan markdown must not live inside a supplements directory"})
+	} else if strings.Contains(relativeWithinRoot, "/") {
+		issues = append(issues, LintIssue{Path: "path", Message: "root plan markdown must be a direct child of its configured active or archived plan root"})
 	}
-
 	if filenameErr := validatePlanFilename(filepath.Base(ctx.path)); filenameErr != nil {
 		issues = append(issues, LintIssue{Path: "path", Message: filenameErr.Error()})
 	}

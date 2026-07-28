@@ -204,6 +204,10 @@ Resolution rules:
   plan root
   resolved by `harness repo config get paths.plans.active`, state resolution
   is invalid and should fail rather than guess
+- root plans must be direct children of their configured plan roots, and a
+  root filename must not be reused across active, standard-archive, or
+  lightweight-archive roots; state resolution fails on that collision instead
+  of attaching basename-keyed runtime state to a different plan
 - Markdown below
   `supplements/<root-plan-stem>/subplans/` belongs to that coordinated root and
   never competes for the worktree current-plan pointer
@@ -281,6 +285,12 @@ more specific command contract says otherwise. Waiting for a mutation lock is
 reserved for checkpoint reads such as `harness status`, where a short wait can
 avoid reporting an in-flight snapshot without letting two mutation commands
 silently queue behind each other.
+
+Coordinated package reads are conservative without introducing child runtime
+locks. The loader reads a confined, non-symlinked set of regular Markdown
+children and verifies the names and contents again before returning. If the
+package changes during that window, the snapshot fails with a retry signal
+instead of advancing the root from a stale child set.
 
 ## High-Level Resolution Order
 

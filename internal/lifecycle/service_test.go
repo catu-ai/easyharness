@@ -2006,6 +2006,29 @@ func TestExecuteStartReturnsCoordinateForCoordinatedRoot(t *testing.T) {
 	}
 }
 
+func TestExecuteStartRejectsReusedRootStemWithStaleRuntimeState(t *testing.T) {
+	root := t.TempDir()
+	activeRelPath := "docs/plans/active/2026-07-28-reused-root.md"
+	archivedRelPath := "docs/plans/archived/2026-07-28-reused-root.md"
+	writeFile(t, filepath.Join(root, activeRelPath), buildCoordinatedRoot(t, "New Unapproved Root", false))
+	writeFile(t, filepath.Join(root, archivedRelPath), buildCoordinatedRoot(t, "Old Archived Root", true))
+	if _, err := runstate.SaveCurrentPlan(root, archivedRelPath); err != nil {
+		t.Fatalf("save archived pointer: %v", err)
+	}
+	if _, err := runstate.SaveState(root, "2026-07-28-reused-root", &runstate.State{
+		ExecutionStartedAt: "2026-07-28T12:00:00Z",
+		Revision:           1,
+	}); err != nil {
+		t.Fatalf("save stale state: %v", err)
+	}
+
+	result := (lifecycle.Service{Workdir: root}).ExecuteStart()
+	if result.OK {
+		t.Fatalf("expected execute start to reject reused root identity, got %#v", result)
+	}
+	assertLifecycleIssueContains(t, result.Errors, "must remain unique")
+}
+
 func TestCoordinatedArchiveReadinessRequiresSettledPackage(t *testing.T) {
 	root := t.TempDir()
 	activePath := filepath.Join(root, "docs/plans/active/2026-07-28-coordinated-readiness.md")

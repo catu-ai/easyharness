@@ -38,14 +38,20 @@ docs/plans/archived/
 ```
 
 Root plans use `YYYY-MM-DD-short-topic.md` directly under an active or archived
-root. A coordinated root may additionally own flat subplans at:
+root. A root filename must remain unique across the configured active,
+standard-archive, and lightweight-archive roots because its stem is the stable
+runtime identity across archive and reopen. Reusing an archived root filename
+for new work is invalid; choose a new topic or date-qualified filename instead.
+A coordinated root may additionally own flat subplans at:
 
 ```text
 supplements/<root-plan-stem>/subplans/<subplan-id>.md
 ```
 
 `<subplan-id>` is a lowercase hyphenated slug. Subplan directories cannot
-nest. Other plan Markdown files cannot live below `supplements/`.
+nest. The supplements directory, `subplans/` directory, and child Markdown
+files must be ordinary in-package directories or regular files rather than
+symlinks. Other plan Markdown files cannot live below `supplements/`.
 
 ## Frontmatter
 

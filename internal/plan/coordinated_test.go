@@ -1,6 +1,7 @@
 package plan_test
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -176,6 +177,49 @@ func TestSubplanPathHelpersRejectNestedPaths(t *testing.T) {
 	nested := filepath.Join(plan.SubplansDirForPlanPath(rootPath), "group", "worker.md")
 	if _, err := plan.RootPathForSubplanPath(nested); err == nil {
 		t.Fatal("expected nested subplan path to fail")
+	}
+}
+
+func TestCoordinatedPackageRejectsSymlinkedSubplansDirectory(t *testing.T) {
+	root := t.TempDir()
+	rootPath := filepath.Join(root, "docs/plans/active/2026-07-28-symlink-package.md")
+	writeFile(t, rootPath, renderCoordinatedRoot(t, "Symlink Package"))
+
+	external := t.TempDir()
+	writeFile(t, filepath.Join(external, "worker.md"), renderSubplan(t, "Worker", nil))
+	subplansDir := plan.SubplansDirForPlanPath(rootPath)
+	if err := os.MkdirAll(filepath.Dir(subplansDir), 0o755); err != nil {
+		t.Fatalf("mkdir supplements: %v", err)
+	}
+	if err := os.Symlink(external, subplansDir); err != nil {
+		t.Fatalf("symlink subplans: %v", err)
+	}
+
+	if _, err := plan.LoadCoordinatedPackage(rootPath); err == nil || !strings.Contains(err.Error(), "not a symlink") {
+		t.Fatalf("expected symlinked package rejection, got %v", err)
+	}
+	if result := plan.LintFile(rootPath); result.OK {
+		t.Fatalf("expected lint to reject symlinked package, got %#v", result)
+	}
+}
+
+func TestCoordinatedPackageRejectsSymlinkedSubplanFile(t *testing.T) {
+	root := t.TempDir()
+	rootPath := filepath.Join(root, "docs/plans/active/2026-07-28-symlink-child.md")
+	writeFile(t, rootPath, renderCoordinatedRoot(t, "Symlink Child"))
+
+	external := filepath.Join(t.TempDir(), "worker.md")
+	writeFile(t, external, renderSubplan(t, "Worker", nil))
+	childPath := mustSubplanPath(t, rootPath, "worker")
+	if err := os.MkdirAll(filepath.Dir(childPath), 0o755); err != nil {
+		t.Fatalf("mkdir subplans: %v", err)
+	}
+	if err := os.Symlink(external, childPath); err != nil {
+		t.Fatalf("symlink child: %v", err)
+	}
+
+	if _, err := plan.LoadCoordinatedPackage(rootPath); err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("expected symlinked child rejection, got %v", err)
 	}
 }
 

@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ var subplanIDPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 var (
 	subplanSections     = []string{"Outcome", "Work Breakdown", "Result"}
 	subplanResultLabels = []string{"Validation", "Delivered"}
+	readSubplanSnapshot = loadSubplanSnapshot
 )
 
 type SubplanFrontmatter struct {
@@ -75,7 +77,11 @@ type CoordinatedProgress struct {
 }
 
 func LoadSubplanFile(path string) (*SubplanDocument, error) {
-	doc, issues := parseAndValidateSubplan(path)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	doc, issues := parseAndValidateSubplanContent(path, content)
 	if len(issues) > 0 {
 		return nil, fmt.Errorf("%s: %s", issues[0].Path, issues[0].Message)
 	}
@@ -91,33 +97,119 @@ func LoadCoordinatedPackage(rootPath string) (*CoordinatedPackage, error) {
 		return nil, fmt.Errorf("plan %s does not use workflow_profile: coordinated", filepath.ToSlash(rootPath))
 	}
 
-	pkg := &CoordinatedPackage{Root: root}
-	entries, err := os.ReadDir(SubplansDirForPlanPath(rootPath))
-	if os.IsNotExist(err) {
-		return pkg, nil
-	}
+	initial, err := readSubplanSnapshot(rootPath)
 	if err != nil {
 		return nil, err
 	}
 
+	pkg := &CoordinatedPackage{Root: root}
+	for _, file := range initial {
+		subplan, issues := parseAndValidateSubplanContent(file.path, file.content)
+		if len(issues) > 0 {
+			return nil, fmt.Errorf("load subplan %q: %s: %s", file.name, issues[0].Path, issues[0].Message)
+		}
+		pkg.Subplans = append(pkg.Subplans, subplan)
+	}
+	verified, err := readSubplanSnapshot(rootPath)
+	if err != nil {
+		return nil, err
+	}
+	if !equalSubplanSnapshots(initial, verified) {
+		return nil, fmt.Errorf("subplan package changed while it was being read; retry")
+	}
+	sort.Slice(pkg.Subplans, func(i, j int) bool {
+		return pkg.Subplans[i].ID < pkg.Subplans[j].ID
+	})
+	return pkg, nil
+}
+
+type subplanSnapshotFile struct {
+	name    string
+	path    string
+	content []byte
+}
+
+func loadSubplanSnapshot(rootPath string) ([]subplanSnapshotFile, error) {
+	supplementsDir := SupplementsDirForPlanPath(rootPath)
+	if err := rejectSymlinkPath(supplementsDir, "supplements"); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	subplansDir := SubplansDirForPlanPath(rootPath)
+	if err := rejectSymlinkPath(subplansDir, "subplans"); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	entries, err := os.ReadDir(subplansDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	snapshot := make([]subplanSnapshotFile, 0, len(entries))
 	for _, entry := range entries {
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("subplans must be in-package regular files; symlink %q is not allowed", entry.Name())
+		}
 		if entry.IsDir() {
 			return nil, fmt.Errorf("subplans must be flat; nested directory %q is not allowed", entry.Name())
 		}
 		if filepath.Ext(entry.Name()) != ".md" {
 			return nil, fmt.Errorf("subplans directory may contain only Markdown subplan files; found %q", entry.Name())
 		}
-		path := filepath.Join(SubplansDirForPlanPath(rootPath), entry.Name())
-		subplan, err := LoadSubplanFile(path)
+		path := filepath.Join(subplansDir, entry.Name())
+		info, err := os.Lstat(path)
 		if err != nil {
-			return nil, fmt.Errorf("load subplan %q: %w", entry.Name(), err)
+			return nil, err
 		}
-		pkg.Subplans = append(pkg.Subplans, subplan)
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("subplans must be in-package regular files; found %q", entry.Name())
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		snapshot = append(snapshot, subplanSnapshotFile{
+			name:    entry.Name(),
+			path:    path,
+			content: content,
+		})
 	}
-	sort.Slice(pkg.Subplans, func(i, j int) bool {
-		return pkg.Subplans[i].ID < pkg.Subplans[j].ID
-	})
-	return pkg, nil
+	return snapshot, nil
+}
+
+func rejectSymlinkPath(path, label string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s path must be a tracked directory, not a symlink", label)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%s path must be a directory", label)
+	}
+	return nil
+}
+
+func equalSubplanSnapshots(left, right []subplanSnapshotFile) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index].name != right[index].name ||
+			!bytes.Equal(left[index].content, right[index].content) {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *CoordinatedPackage) Subplan(id string) *SubplanDocument {
@@ -271,6 +363,10 @@ func parseAndValidateSubplan(path string) (*SubplanDocument, []LintIssue) {
 	if err != nil {
 		return nil, []LintIssue{{Path: "file", Message: err.Error()}}
 	}
+	return parseAndValidateSubplanContent(path, content)
+}
+
+func parseAndValidateSubplanContent(path string, content []byte) (*SubplanDocument, []LintIssue) {
 	rawFrontmatter, body, err := splitFrontmatter(string(content))
 	if err != nil {
 		return nil, []LintIssue{{Path: "frontmatter", Message: err.Error()}}

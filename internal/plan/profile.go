@@ -93,6 +93,40 @@ func activeCandidatePaths(workdir string) ([]string, error) {
 	return paths, nil
 }
 
+func conflictingRootPlanPaths(path string) ([]string, error) {
+	layout := pathsForPath(path)
+	absolutePath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	absolutePath = filepath.Clean(absolutePath)
+
+	var conflicts []string
+	for _, root := range []string{
+		layout.activePlansRoot,
+		layout.archivedPlansRoot,
+		layout.lightweightArchivedRoot,
+	} {
+		candidate := filepath.Join(root, filepath.Base(path))
+		absoluteCandidate, err := filepath.Abs(candidate)
+		if err != nil {
+			return nil, err
+		}
+		if filepath.Clean(absoluteCandidate) == absolutePath {
+			continue
+		}
+		if info, err := os.Lstat(candidate); err == nil {
+			if !info.IsDir() {
+				conflicts = append(conflicts, candidate)
+			}
+		} else if !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+	sort.Strings(conflicts)
+	return conflicts, nil
+}
+
 func currentLooksArchived(path string) bool {
 	return inferPathKind(path) == "archived"
 }

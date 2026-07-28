@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/catu-ai/easyharness/internal/runstate"
@@ -26,6 +27,27 @@ func TestDetectCurrentPathPrefersSingleActivePlanOverArchivedPointer(t *testing.
 	}
 	if got != activePath {
 		t.Fatalf("expected active plan %s, got %s", activePath, got)
+	}
+}
+
+func TestDetectCurrentPathRejectsRootStemReusedAcrossActiveAndArchivedRoots(t *testing.T) {
+	root := t.TempDir()
+	activePath := filepath.Join(root, "docs/plans/active/2026-03-18-reused.md")
+	archivedPath := filepath.Join(root, "docs/plans/archived/2026-03-18-reused.md")
+	writeTestFile(t, activePath)
+	writeTestFile(t, archivedPath)
+	if _, err := runstate.SaveCurrentPlan(root, "docs/plans/archived/2026-03-18-reused.md"); err != nil {
+		t.Fatalf("save current plan: %v", err)
+	}
+	if _, err := runstate.SaveState(root, "2026-03-18-reused", &runstate.State{
+		ExecutionStartedAt: "2026-03-18T12:00:00Z",
+		Revision:           1,
+	}); err != nil {
+		t.Fatalf("save stale state: %v", err)
+	}
+
+	if _, err := DetectCurrentPath(root); err == nil || !strings.Contains(err.Error(), "must remain unique") {
+		t.Fatalf("expected root stem collision error, got %v", err)
 	}
 }
 

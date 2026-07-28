@@ -517,9 +517,10 @@ Contract:
 - validate supported `template_version` values without invalidating older
   historical plans created by earlier harness versions
 - reject malformed plan filenames and malformed `### Step N: ...` headings
+- require root Markdown to be a direct child of a configured plan root
 - for coordinated roots and children, validate exact flat placement, compact
   child shape, sibling references, self-dependencies, and cycles across the
-  complete package
+  complete package; reject symlinked package directories or child files
 
 Recommended next action:
 
@@ -558,6 +559,9 @@ Contract:
 - resolve an executing coordinated root to `execution/coordinate` while the
   package has no subplans, any child is incomplete, or graph blockers remain;
   surface aggregate completed, runnable, and waiting counts
+- verify that the coordinated child names and contents remain stable across
+  the package read; return a retryable read error instead of finalizing from a
+  stale concurrent snapshot
 - advance a settled coordinated package into the existing root finalize
   lifecycle; do not create child-specific finalize nodes
 - return pure v0.2 JSON centered on `state.current_node`, selected `facts`,
