@@ -131,7 +131,14 @@ type subplanSnapshotFile struct {
 
 func loadSubplanSnapshot(rootPath string) ([]subplanSnapshotFile, error) {
 	supplementsDir := SupplementsDirForPlanPath(rootPath)
-	if err := rejectSymlinkPath(supplementsDir, "supplements"); err != nil {
+	supplementsRoot := filepath.Dir(supplementsDir)
+	if err := rejectSymlinkPath(supplementsRoot, "supplements root"); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if err := rejectSymlinkPath(supplementsDir, "supplements package"); err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}

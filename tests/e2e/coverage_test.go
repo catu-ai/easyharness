@@ -37,7 +37,8 @@ var canonicalTransitionFamilies = []transitionFamily{
 	{ID: "finalize_fix_to_new_step_implement", From: "execution/finalize/fix", To: "execution/step-<m>/implement", Driver: "Plan edit after `reopen --mode new-step`", RequiredInputs: "The first new unfinished step is added."},
 	{ID: "finalize_archive_to_publish", From: "execution/finalize/archive", To: "execution/finalize/publish", Driver: "harness archive", RequiredInputs: "Acceptance, ordinary root steps or the complete coordinated package, Closeout, and finalize coverage are complete."},
 	{ID: "publish_to_await_merge", From: "execution/finalize/publish", To: "execution/finalize/await_merge", Driver: "Evidence", RequiredInputs: "Current publish, CI, and sync evidence supports merge readiness, and the archived branch differs from the reviewed candidate only by the allowed archive move and Closeout update."},
-	{ID: "archived_to_finalize_fix", From: "`execution/finalize/publish` or `execution/finalize/await_merge`", To: "execution/finalize/fix", Driver: "`harness reopen` with `finalize-fix` or `new-step`", RequiredInputs: "Feedback or remote change invalidates the archived candidate."},
+	{ID: "archived_to_finalize_fix", From: "`execution/finalize/publish` or `execution/finalize/await_merge`", To: "execution/finalize/fix", Driver: "`harness reopen` with `finalize-fix`, or `new-step` for standard/lightweight", RequiredInputs: "Feedback or remote change invalidates the archived candidate."},
+	{ID: "archived_to_coordinate", From: "`execution/finalize/publish` or `execution/finalize/await_merge`", To: "execution/coordinate", Driver: "harness reopen --mode new-step", RequiredInputs: "A coordinated candidate needs at least one new or reopened subplan before returning to finalize."},
 	{ID: "await_merge_to_land", From: "execution/finalize/await_merge", To: "land", Driver: "harness land", RequiredInputs: "Human merge approval exists and the PR has merged."},
 	{ID: "land_to_idle", From: "land", To: "idle", Driver: "harness land complete", RequiredInputs: "Required post-merge bookkeeping and release verification are complete."},
 }
@@ -120,7 +121,7 @@ var currentScenarioCoverage = []scenarioCoverage{
 			"coordinate_to_finalize_review",
 			"finalize_review_to_finalize_archive",
 			"finalize_archive_to_publish",
-			"archived_to_finalize_fix",
+			"archived_to_coordinate",
 		},
 	},
 	{

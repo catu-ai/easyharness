@@ -203,6 +203,35 @@ func TestCoordinatedPackageRejectsSymlinkedSubplansDirectory(t *testing.T) {
 	}
 }
 
+func TestCoordinatedPackageRejectsSymlinkedSupplementsRoot(t *testing.T) {
+	root := t.TempDir()
+	rootPath := filepath.Join(root, "docs/plans/active/2026-07-28-symlink-ancestor.md")
+	writeFile(t, rootPath, renderCoordinatedRoot(t, "Symlink Ancestor"))
+
+	external := t.TempDir()
+	externalChild := filepath.Join(
+		external,
+		"2026-07-28-symlink-ancestor",
+		"subplans",
+		"worker.md",
+	)
+	writeFile(t, externalChild, renderSubplan(t, "Worker", nil))
+	supplementsRoot := filepath.Dir(plan.SupplementsDirForPlanPath(rootPath))
+	if err := os.MkdirAll(filepath.Dir(supplementsRoot), 0o755); err != nil {
+		t.Fatalf("mkdir plan root: %v", err)
+	}
+	if err := os.Symlink(external, supplementsRoot); err != nil {
+		t.Fatalf("symlink supplements root: %v", err)
+	}
+
+	if _, err := plan.LoadCoordinatedPackage(rootPath); err == nil || !strings.Contains(err.Error(), "supplements root") {
+		t.Fatalf("expected symlinked supplements-root rejection, got %v", err)
+	}
+	if result := plan.LintFile(rootPath); result.OK {
+		t.Fatalf("expected lint to reject symlinked supplements root, got %#v", result)
+	}
+}
+
 func TestCoordinatedPackageRejectsSymlinkedSubplanFile(t *testing.T) {
 	root := t.TempDir()
 	rootPath := filepath.Join(root, "docs/plans/active/2026-07-28-symlink-child.md")
