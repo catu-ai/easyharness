@@ -125,6 +125,12 @@ Use `workflow_profile: lightweight` only when the human explicitly approves it
 for one bounded, low-risk `XXS` change. It does not remove plan approval,
 review, evidence, or merge approval.
 
+Use `workflow_profile: coordinated` when one approved candidate needs multiple
+flat agent-owned subplans. The root is the only approval and candidate
+lifecycle owner; subplans may progress concurrently but do not approve, start,
+review, archive, publish, or land independently. Use
+`harness status --plan <subplan-id-or-path>` for a focused child view.
+
 ## Delegation
 
 Repository and harness skill instructions authorize bounded subagents without a

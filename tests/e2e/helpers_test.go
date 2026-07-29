@@ -163,7 +163,18 @@ type statusResult struct {
 		StepTotal           int    `json:"step_total"`
 		AcceptanceCompleted int    `json:"acceptance_completed"`
 		AcceptanceTotal     int    `json:"acceptance_total"`
-		Evidence            struct {
+		Subplans            struct {
+			Total     int `json:"total"`
+			Completed int `json:"completed"`
+			Runnable  int `json:"runnable"`
+			Waiting   int `json:"waiting"`
+		} `json:"subplans"`
+		SelectedSubplan struct {
+			ID           string   `json:"id"`
+			Dependencies []string `json:"dependencies"`
+			WaitingOn    []string `json:"waiting_on"`
+		} `json:"selected_subplan"`
+		Evidence struct {
 			Recorded struct {
 				Publish struct {
 					Status string `json:"status"`

@@ -96,12 +96,18 @@ func (s Service) ExecuteStart() Result {
 		summary = "Execution is already started for the current active plan."
 	}
 
+	currentNode := "execution/step-1/implement"
+	nextDescription := "Continue the current outcome and mark the step done after its concise check passes."
+	if doc.UsesCoordinatedProfile() {
+		currentNode = "execution/coordinate"
+		nextDescription = "Create or continue runnable subplans, integrate their shared candidate, and keep lifecycle actions on the coordinated root."
+	}
 	result := Result{
 		OK:      true,
 		Command: "execute start",
 		Summary: summary,
 		State: State{
-			CurrentNode: "execution/step-1/implement",
+			CurrentNode: currentNode,
 		},
 		Facts: &Facts{Revision: runstate.CurrentRevision(state)},
 		Artifacts: &Artifacts{
@@ -110,7 +116,7 @@ func (s Service) ExecuteStart() Result {
 			CurrentPlanPath: currentPlanPath,
 		},
 		NextAction: []NextAction{
-			{Command: nil, Description: "Continue the current outcome and mark the step done after its concise check passes."},
+			{Command: nil, Description: nextDescription},
 		},
 	}
 	return s.finalizeMutation(result, func() []CommandError {
@@ -376,6 +382,18 @@ func (s Service) Reopen(mode string) Result {
 		}})
 	}
 
+	baseStepCount := len(doc.Steps)
+	if doc.UsesCoordinatedProfile() {
+		pkg, err := plan.LoadCoordinatedPackage(currentPath)
+		if err != nil {
+			return errorResult("reopen", "Unable to read the coordinated plan package.", []CommandError{{
+				Path:    "subplans",
+				Message: err.Error(),
+			}})
+		}
+		baseStepCount = len(pkg.Subplans)
+	}
+
 	body, err := markCloseoutUpdateRequired(editable.Body)
 	if err != nil {
 		return errorResult("reopen", "Unable to refresh Closeout.", []CommandError{{Path: "section.Closeout", Message: err.Error()}})
@@ -427,7 +445,7 @@ func (s Service) Reopen(mode string) Result {
 	nextState.Reopen = &runstate.ReopenState{
 		Mode:          mode,
 		ReopenedAt:    now.Format(time.RFC3339),
-		BaseStepCount: len(doc.Steps),
+		BaseStepCount: baseStepCount,
 	}
 	nextState.ActiveReviewRound = nil
 	nextState.Land = nil
@@ -448,12 +466,16 @@ func (s Service) Reopen(mode string) Result {
 		return errorResult("reopen", "Unable to update current-plan pointer.", []CommandError{{Path: "state", Message: err.Error()}})
 	}
 
+	currentNode := "execution/finalize/fix"
+	if doc.UsesCoordinatedProfile() && mode == "new-step" {
+		currentNode = "execution/coordinate"
+	}
 	result := Result{
 		OK:      true,
 		Command: "reopen",
 		Summary: "Archived plan reopened for active execution.",
 		State: State{
-			CurrentNode: "execution/finalize/fix",
+			CurrentNode: currentNode,
 		},
 		Facts: &Facts{Revision: nextState.Revision, ReopenMode: mode},
 		Artifacts: &Artifacts{
@@ -467,7 +489,7 @@ func (s Service) Reopen(mode string) Result {
 		NextAction: []NextAction{
 			{Command: nil, Description: "Review the feedback or remote change that caused reopen."},
 			{Command: nil, Description: "Update the plan content if scope or acceptance criteria changed."},
-			{Command: nil, Description: reopenNextActionDescription(mode)},
+			{Command: nil, Description: reopenNextActionDescription(mode, doc.UsesCoordinatedProfile())},
 		},
 	}
 	if err := os.Remove(currentPath); err != nil {
@@ -965,8 +987,11 @@ func cloneState(state *runstate.State) *runstate.State {
 	return &cloned
 }
 
-func reopenNextActionDescription(mode string) string {
+func reopenNextActionDescription(mode string, coordinated bool) string {
 	if mode == "new-step" {
+		if coordinated {
+			return "Add or reopen a subplan for the reopened scope, then continue coordinated implementation."
+		}
 		return "Add a new unfinished step for the reopened scope, then continue implementation from that new step."
 	}
 	return "Repair the reopened finalize-scope issues, refresh durable summaries as needed, and rerun review before archive."
@@ -1080,6 +1105,22 @@ func EvaluateArchiveReadiness(workdir, planStem string, doc *plan.Document, stat
 	issues := make([]CommandError, 0)
 	for _, issue := range doc.ArchiveReadinessIssues() {
 		issues = append(issues, CommandError{Path: issue.Path, Message: issue.Message})
+	}
+	if doc.UsesCoordinatedProfile() {
+		pkg, err := plan.LoadCoordinatedPackage(doc.Path)
+		if err != nil {
+			issues = append(issues, CommandError{Path: "subplans", Message: err.Error()})
+		} else {
+			if len(pkg.Subplans) == 0 {
+				issues = append(issues, CommandError{
+					Path:    "subplans",
+					Message: "coordinated plans require at least one subplan before archive",
+				})
+			}
+			for _, packageIssue := range pkg.CompletionIssues() {
+				issues = append(issues, CommandError{Path: packageIssue.Path, Message: packageIssue.Message})
+			}
+		}
 	}
 	issues = append(issues, archiveStateIssues(workdir, planStem, doc, runstate.CurrentRevision(state), state)...)
 	return issues

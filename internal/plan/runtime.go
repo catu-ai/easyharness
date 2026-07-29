@@ -28,6 +28,10 @@ func (d *Document) UsesLightweightProfile() bool {
 	return d.WorkflowProfile() == WorkflowProfileLightweight
 }
 
+func (d *Document) UsesCoordinatedProfile() bool {
+	return d.WorkflowProfile() == WorkflowProfileCoordinated
+}
+
 func (d *Document) ApprovedAt() string {
 	if d == nil {
 		return ""

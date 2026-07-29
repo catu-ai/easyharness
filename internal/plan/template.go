@@ -23,6 +23,11 @@ type TemplateOptions struct {
 	WorkflowProfile string
 }
 
+type SubplanTemplateOptions struct {
+	Title     string
+	DependsOn []string
+}
+
 func RenderTemplate(opts TemplateOptions) (string, error) {
 	template := templateassets.PlanTemplate()
 	title := strings.TrimSpace(opts.Title)
@@ -47,8 +52,15 @@ func RenderTemplate(opts TemplateOptions) (string, error) {
 	}
 	size := opts.Size
 	workflowProfile := normalizeWorkflowProfile(opts.WorkflowProfile)
-	if workflowProfile != WorkflowProfileStandard && workflowProfile != WorkflowProfileLightweight {
-		return "", fmt.Errorf("workflow profile must be %q or %q", WorkflowProfileStandard, WorkflowProfileLightweight)
+	if workflowProfile != WorkflowProfileStandard &&
+		workflowProfile != WorkflowProfileLightweight &&
+		workflowProfile != WorkflowProfileCoordinated {
+		return "", fmt.Errorf(
+			"workflow profile must be %q, %q, or %q",
+			WorkflowProfileStandard,
+			WorkflowProfileLightweight,
+			WorkflowProfileCoordinated,
+		)
 	}
 	if workflowProfile == WorkflowProfileLightweight {
 		if size == "" {
@@ -89,6 +101,43 @@ func RenderTemplate(opts TemplateOptions) (string, error) {
 				rendered = rendered[:start] + rendered[start+end:]
 			}
 		}
+	} else if workflowProfile == WorkflowProfileCoordinated {
+		rendered = strings.Replace(rendered, "size: "+size, "size: "+size+"\nworkflow_profile: coordinated", 1)
+		workBreakdownMarker := "\n## Work Breakdown"
+		if start := strings.Index(rendered, workBreakdownMarker); start >= 0 {
+			if end := strings.Index(rendered[start:], "\n## Validation Strategy"); end >= 0 {
+				rendered = rendered[:start] + rendered[start+end:]
+			}
+		}
+		rendered = strings.Replace(
+			rendered,
+			"<!-- If this plan uses supplements/<plan-stem>/, keep the markdown concise,\nabsorb repository-facing normative content into formal tracked locations before\narchive, and record supplement absorption in Closeout. Lightweight plans should\nnormally avoid supplements. -->",
+			"<!-- This coordinated root owns flat subplans under\nsupplements/<plan-stem>/subplans/. Human approval applies to this root; agents\nmay revise the child decomposition within its approved boundary. -->",
+			1,
+		)
 	}
+	return rendered, nil
+}
+
+func RenderSubplanTemplate(opts SubplanTemplateOptions) (string, error) {
+	title := strings.TrimSpace(opts.Title)
+	if title == "" {
+		title = "Replace With Subplan Title"
+	}
+	if strings.Contains(title, "\n") {
+		return "", fmt.Errorf("title must be a single line")
+	}
+	for _, dependency := range opts.DependsOn {
+		if err := validateSubplanID(dependency); err != nil {
+			return "", fmt.Errorf("invalid dependency %q: %w", dependency, err)
+		}
+	}
+	dependencies, err := json.Marshal(opts.DependsOn)
+	if err != nil {
+		return "", fmt.Errorf("marshal dependencies: %w", err)
+	}
+	rendered := templateassets.SubplanTemplate()
+	rendered = strings.Replace(rendered, "# Replace With Subplan Title", "# "+title, 1)
+	rendered = strings.Replace(rendered, "depends_on: []", "depends_on: "+string(dependencies), 1)
 	return rendered, nil
 }

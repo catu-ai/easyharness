@@ -20,6 +20,18 @@ func DetectCurrentPath(workdir string) (string, error) {
 	if len(activeMatches) > 1 {
 		return "", fmt.Errorf("multiple active plans found; state resolution must fail rather than guess")
 	}
+	if len(activeMatches) == 1 {
+		conflicts, err := conflictingRootPlanPaths(activeMatches[0])
+		if err != nil {
+			return "", err
+		}
+		if len(conflicts) > 0 {
+			return "", fmt.Errorf(
+				"active plan stem conflicts with another root plan at %s; root plan filenames must remain unique across active and archived roots",
+				filepath.ToSlash(conflicts[0]),
+			)
+		}
+	}
 
 	if current, err := runstate.LoadCurrentPlan(workdir); err != nil {
 		return "", err
@@ -42,6 +54,16 @@ func DetectCurrentPath(workdir string) (string, error) {
 		if currentPath != "" {
 			if _, err := os.Stat(currentPath); err == nil {
 				if inferPathKind(currentPath) != "" {
+					conflicts, conflictErr := conflictingRootPlanPaths(currentPath)
+					if conflictErr != nil {
+						return "", conflictErr
+					}
+					if len(conflicts) > 0 {
+						return "", fmt.Errorf(
+							"current plan stem conflicts with another root plan at %s; root plan filenames must remain unique across active and archived roots",
+							filepath.ToSlash(conflicts[0]),
+						)
+					}
 					return currentPath, nil
 				}
 			} else if !os.IsNotExist(err) {

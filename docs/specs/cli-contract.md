@@ -42,7 +42,7 @@ The current command surface is:
 - `harness execute start`
 - `harness evidence submit`
 - `harness evidence refresh`
-- `harness status`
+- `harness status [--plan <subplan-id-or-path>]`
 - `harness help [topic ...]`
 - `harness dashboard`
 - `harness ui`
@@ -267,6 +267,10 @@ help explain the node:
 - `review_status`
 - `reviewed_head_sha`
 - `archive_blocker_count`
+- `subplans`
+  - coordinated root totals for `total`, `completed`, `runnable`, and `waiting`
+- `selected_subplan`
+  - explicit child `id`, declared `dependencies`, and unresolved `waiting_on`
 - `evidence`
   - optional archived-candidate evidence group
   - `recorded`
@@ -380,6 +384,8 @@ Contract:
 - open `/dashboard` as the canonical home route
 - render the machine-local watchlist as one dashboard-owned surface and route
   workspace detail under `/workspace/<workspace_key>/...`
+- guarantee the existing single-plan experience only; coordinated root and
+  subplan visualization is explicitly unsupported and deferred
 
 Recommended next action:
 
@@ -415,6 +421,9 @@ Contract:
 - expose `Status`, `Review`, and `Timeline` through real read-only resources
 - keep timeline data grounded in command-owned runtime artifacts rather than
   reconstructing history from ad hoc client-side state
+- guarantee the existing single-plan experience only; coordinated root and
+  subplan visualization, selection, and mutation are explicitly unsupported
+  and deferred to future UI work
 
 Recommended next action:
 
@@ -436,6 +445,9 @@ Contract:
 - print the rendered template to stdout by default
 - optionally support writing directly to a target path
 - support a lightweight authoring mode such as `--lightweight`
+- support `--coordinated` for a root with no sequential `Work Breakdown`
+- support `--subplan` for a compact child with ordered steps, optional sibling
+  dependencies, and concise Result fields
 - support enough parameters to seed title, date, source metadata, and the
   required `size` field
 - when only a date is provided, preserve the current local time-of-day on that
@@ -456,6 +468,10 @@ Contract:
   lightweight template with explicit `size: XXS`
 - in standard mode, preserve current behavior when `workflow_profile` is
   omitted
+- coordinated and subplan authoring are mutually exclusive with lightweight
+  authoring
+- coordinated subplans are flat files below the matching root package; they do
+  not introduce another root template or lifecycle
 - goal-oriented authoring is not part of this command contract; its future
   direction is deferred to `v0.7.0` and described only as a non-normative note
   in [Goal-Oriented Workflow](./goal-oriented-workflow.md)
@@ -501,6 +517,10 @@ Contract:
 - validate supported `template_version` values without invalidating older
   historical plans created by earlier harness versions
 - reject malformed plan filenames and malformed `### Step N: ...` headings
+- require root Markdown to be a direct child of a configured plan root
+- for coordinated roots and children, validate exact flat placement, compact
+  child shape, sibling references, self-dependencies, and cycles across the
+  complete package; reject symlinked package directories or child files
 
 Recommended next action:
 
@@ -512,6 +532,7 @@ Recommended next action:
 Purpose:
 
 - summarize the current plan and local execution state in the current worktree
+- optionally summarize one subplan inside the current coordinated package
 
 This is the primary resume and handoff command. Another agent, a compacted
 session, or a human should be able to run `harness status` and quickly
@@ -521,6 +542,11 @@ Contract:
 
 - detect the current plan artifact, whether it is a tracked active plan, a
   tracked standard archive, or a lightweight local archive
+- without `--plan`, resolve only the single top-level candidate-owning root;
+  coordinated children never compete for or replace the current-plan pointer
+- with `--plan`, accept a current coordinated child ID or confined in-package
+  path and return its dependency and ordered-step view without reading or
+  writing child-specific runtime state
 - before resolving the status snapshot for a current plan, briefly wait for an
   actively held state mutation lock to settle; if the lock remains held beyond
   the bounded wait, return a clear local-mutation-in-progress result
@@ -530,6 +556,14 @@ Contract:
 - resolve the canonical `state.current_node` from the current plan,
   execute-start milestones, review artifacts, append-only evidence, reopen
   milestones, archive state, and land milestones
+- resolve an executing coordinated root to `execution/coordinate` while the
+  package has no subplans, any child is incomplete, or graph blockers remain;
+  surface aggregate completed, runnable, and waiting counts
+- verify that the coordinated child names and contents remain stable across
+  the package read; return a retryable read error instead of finalizing from a
+  stale concurrent snapshot
+- advance a settled coordinated package into the existing root finalize
+  lifecycle; do not create child-specific finalize nodes
 - return pure v0.2 JSON centered on `state.current_node`, selected `facts`,
   `artifacts`, `summary`, and `next_actions`
 - keep the underlying status snapshot read-only: the snapshot resolver must
@@ -599,6 +633,8 @@ Contract:
 Recommended next action examples:
 
 - continue the current step
+- continue a runnable coordinated subplan, or inspect it with
+  `harness status --plan <subplan-id-or-path>`
 - complete the current outcome and its concise check before marking a step done
 - update the plan if scope changed
 - start the mandatory finalize review after the complete candidate is committed
@@ -808,6 +844,8 @@ Contract:
   actionable `next_actions`
 - avoid emitting a lifecycle-specific state sublanguage separate from
   `current_node`
+- for coordinated roots, return `execution/coordinate` after start and keep
+  subplans free of separate execute-start commands
 
 Recommended next action:
 
@@ -829,6 +867,8 @@ Contract:
   strong identity check; harness records the approval boundary but does not
   authenticate the actor
 - persist approval durably in the tracked plan frontmatter as `approved_at`
+- for coordinated work, approve only the root steering contract; subplans are
+  agent-owned decomposition within that approved boundary
 - keep approval separate from `harness execute start`; approval records the
   human steering boundary, while execution start records the later execution
   milestone
@@ -855,6 +895,8 @@ Contract:
 - assume the plan's durable `Closeout` has already been written from the
   current plan plus local artifacts, not reconstructed from agent memory
 - require finalize review to be satisfied before archive succeeds
+- for coordinated work, require at least one subplan, a valid flat dependency
+  graph, and every child step and Result to be complete
 - if the plan still contains real deferred items, require the `Closeout`
   `Follow-Up Issues` value to contain a concrete issue URL or `#number`
   before allowing archive to succeed
@@ -881,6 +923,8 @@ Contract:
     by `harness repo config get paths.local_runtime` for `lightweight`
 - when a matching `supplements/<plan-stem>/` directory exists, move it with
   the markdown plan to the corresponding archived root
+- coordinated archive moves the complete package, leaving only the root plan
+  visible at the archived top level and child files beneath its supplements
 - for `lightweight`, that archived root is the local snapshot path under the
   resolved local runtime root, not tracked git
 - update the current-plan pointer under the local runtime root resolved by

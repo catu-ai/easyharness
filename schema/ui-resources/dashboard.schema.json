@@ -369,6 +369,14 @@
           "type": "integer",
           "description": "ArchiveBlockerCount reports how many archive-readiness blockers are still present."
         },
+        "subplans": {
+          "$ref": "#/$defs/StatusSubplansFacts",
+          "description": "Subplans summarizes coordinated root progress when the current plan uses the coordinated workflow profile."
+        },
+        "selected_subplan": {
+          "$ref": "#/$defs/StatusSelectedSubplanFacts",
+          "description": "SelectedSubplan identifies the explicitly selected coordinated subplan and its unresolved sibling dependencies."
+        },
         "evidence": {
           "$ref": "#/$defs/StatusEvidenceFacts",
           "description": "Evidence groups durable recorded evidence and compact read-only remote observation facts for archived-candidate handoff."
@@ -567,6 +575,63 @@
         "draft"
       ],
       "description": "StatusRemotePRSummary summarizes only remote pull request state that can affect controller guidance."
+    },
+    "StatusSelectedSubplanFacts": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID is the subplan identifier scoped to the current coordinated root."
+        },
+        "dependencies": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Dependencies lists the sibling subplan identifiers declared by the selected subplan."
+        },
+        "waiting_on": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "WaitingOn lists declared sibling dependencies that are not complete yet."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "description": "StatusSelectedSubplanFacts describes one coordinated subplan selected explicitly with `harness status --plan`."
+    },
+    "StatusSubplansFacts": {
+      "properties": {
+        "total": {
+          "type": "integer",
+          "description": "Total is the number of subplans in the coordinated package."
+        },
+        "completed": {
+          "type": "integer",
+          "description": "Completed is the number of subplans whose ordered steps and final result are complete."
+        },
+        "runnable": {
+          "type": "integer",
+          "description": "Runnable is the number of incomplete subplans whose dependencies are complete."
+        },
+        "waiting": {
+          "type": "integer",
+          "description": "Waiting is the number of incomplete subplans still waiting on one or more sibling dependencies."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "total",
+        "completed",
+        "runnable",
+        "waiting"
+      ],
+      "description": "StatusSubplansFacts summarizes the flat execution graph owned by one coordinated root plan."
     }
   },
   "title": "Dashboard UI resource",

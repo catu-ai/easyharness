@@ -6,9 +6,8 @@
 - [State Transitions](./state-transitions.md): exhaustive enumeration of every
   allowed v0.2 `current_node` transition, including command-driven milestones
   and derived progression rules.
-- [Plan Schema](./plan-schema.md): shared compact plan contract for tracked
-  `standard` and `lightweight` plans, their markdown-led package layout, and
-  local state expectations.
+- [Plan Schema](./plan-schema.md): compact contract for tracked `standard`,
+  `lightweight`, and coordinated root-plus-subplan packages.
 - [Goal-Oriented Workflow](./goal-oriented-workflow.md): deferred v0.7.0 design
   note; not part of the current workflow contract.
 - [Bootstrap Install](./bootstrap-install.md): normative bootstrap resource

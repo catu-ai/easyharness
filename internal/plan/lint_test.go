@@ -23,6 +23,18 @@ func TestLintFileAcceptsValidActivePlan(t *testing.T) {
 	}
 }
 
+func TestLintFileRejectsNestedRootPlan(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "docs/plans/active/group/2026-03-17-nested-root.md")
+	writeFile(t, path, mustRenderTemplate(t, "Nested Root"))
+
+	result := plan.LintFile(path)
+	if result.OK {
+		t.Fatalf("expected nested root lint failure, got %#v", result)
+	}
+	assertHasError(t, result, "path")
+}
+
 func TestLintFileAcceptsDoneMarkers(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs/plans/active/2026-03-17-done-marker-plan.md")

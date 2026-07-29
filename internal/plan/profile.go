@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,8 +13,10 @@ import (
 const (
 	WorkflowProfileStandard     = "standard"
 	WorkflowProfileLightweight  = "lightweight"
+	WorkflowProfileCoordinated  = "coordinated"
 	WorkflowProfileGoalOriented = "goal_oriented"
 	SupplementsDirName          = "supplements"
+	SubplansDirName             = "subplans"
 )
 
 func normalizeWorkflowProfile(value string) string {
@@ -22,6 +25,8 @@ func normalizeWorkflowProfile(value string) string {
 		return WorkflowProfileStandard
 	case WorkflowProfileLightweight:
 		return WorkflowProfileLightweight
+	case WorkflowProfileCoordinated:
+		return WorkflowProfileCoordinated
 	case WorkflowProfileGoalOriented:
 		return WorkflowProfileGoalOriented
 	default:
@@ -88,6 +93,40 @@ func activeCandidatePaths(workdir string) ([]string, error) {
 	return paths, nil
 }
 
+func conflictingRootPlanPaths(path string) ([]string, error) {
+	layout := pathsForPath(path)
+	absolutePath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	absolutePath = filepath.Clean(absolutePath)
+
+	var conflicts []string
+	for _, root := range []string{
+		layout.activePlansRoot,
+		layout.archivedPlansRoot,
+		layout.lightweightArchivedRoot,
+	} {
+		candidate := filepath.Join(root, filepath.Base(path))
+		absoluteCandidate, err := filepath.Abs(candidate)
+		if err != nil {
+			return nil, err
+		}
+		if filepath.Clean(absoluteCandidate) == absolutePath {
+			continue
+		}
+		if info, err := os.Lstat(candidate); err == nil {
+			if !info.IsDir() {
+				conflicts = append(conflicts, candidate)
+			}
+		} else if !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+	sort.Strings(conflicts)
+	return conflicts, nil
+}
+
 func currentLooksArchived(path string) bool {
 	return inferPathKind(path) == "archived"
 }
@@ -111,6 +150,73 @@ func SupplementsDirForPlanPath(path string) string {
 	dir := filepath.Dir(clean)
 	stem := strings.TrimSuffix(filepath.Base(clean), filepath.Ext(clean))
 	return filepath.Join(dir, SupplementsDirName, stem)
+}
+
+func SubplansDirForPlanPath(path string) string {
+	return filepath.Join(SupplementsDirForPlanPath(path), SubplansDirName)
+}
+
+func SubplanPathForPlan(path, id string) (string, error) {
+	if err := validateSubplanID(strings.TrimSpace(id)); err != nil {
+		return "", err
+	}
+	return filepath.Join(SubplansDirForPlanPath(path), strings.TrimSpace(id)+".md"), nil
+}
+
+func RootPathForSubplanPath(path string) (string, error) {
+	clean := filepath.Clean(path)
+	if filepath.Ext(clean) != ".md" || filepath.Base(filepath.Dir(clean)) != SubplansDirName {
+		return "", fmt.Errorf("subplan must be a direct Markdown child of a subplans directory")
+	}
+	packageDir := filepath.Dir(filepath.Dir(clean))
+	if filepath.Base(filepath.Dir(packageDir)) != SupplementsDirName {
+		return "", fmt.Errorf("subplan must live under supplements/<root-stem>/subplans")
+	}
+	rootStem := filepath.Base(packageDir)
+	rootPath := filepath.Join(filepath.Dir(filepath.Dir(packageDir)), rootStem+".md")
+	if inferPathKind(rootPath) == "" {
+		return "", fmt.Errorf("subplan root must live under a configured active or archived plan root")
+	}
+	if err := validatePlanFilename(filepath.Base(rootPath)); err != nil {
+		return "", fmt.Errorf("invalid coordinated root path: %w", err)
+	}
+	return rootPath, nil
+}
+
+func ResolveSubplanPath(rootPath, ref string) (string, error) {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return "", fmt.Errorf("subplan reference must not be empty")
+	}
+	if err := validateSubplanID(trimmed); err == nil {
+		return SubplanPathForPlan(rootPath, trimmed)
+	}
+
+	candidate := filepath.Clean(filepath.FromSlash(trimmed))
+	if !filepath.IsAbs(candidate) {
+		candidate = filepath.Join(pathsForPath(rootPath).workdir, candidate)
+	}
+	root, err := RootPathForSubplanPath(candidate)
+	if err != nil {
+		return "", err
+	}
+	absRoot, err := filepath.Abs(rootPath)
+	if err != nil {
+		return "", err
+	}
+	absCandidateRoot, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	if filepath.Clean(absRoot) != filepath.Clean(absCandidateRoot) {
+		return "", fmt.Errorf("subplan does not belong to coordinated root %s", filepath.ToSlash(rootPath))
+	}
+	return candidate, nil
+}
+
+func IsSubplanPath(path string) bool {
+	_, err := RootPathForSubplanPath(path)
+	return err == nil
 }
 
 func AlternateSupplementsDirsForPlanPath(path string) []string {

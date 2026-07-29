@@ -10,11 +10,18 @@ var (
 	//go:embed plan-template.md
 	planTemplate string
 
+	//go:embed subplan-template.md
+	subplanTemplate string
+
 	templateVersionPattern = regexp.MustCompile(`(?m)^template_version:\s*([^\s]+)\s*$`)
 )
 
 func PlanTemplate() string {
 	return planTemplate
+}
+
+func SubplanTemplate() string {
+	return subplanTemplate
 }
 
 func PlanTemplateVersion() (string, error) {
